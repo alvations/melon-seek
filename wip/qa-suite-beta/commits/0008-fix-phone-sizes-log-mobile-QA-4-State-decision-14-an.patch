@@ -1,7 +1,7 @@
 From 433aa59e8b21028255d3956f7c74c30ae3a74af1 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 23 Oct 2026 13:25:05 +0000
-Subject: [PATCH 8/8] fix-phone-sizes: log, mobile QA 4 State, decision 14 and
+Subject: [PATCH 8/9] fix-phone-sizes: log, mobile QA 4 State, decision 14 and
  results (matrix, smoke 147/147, job-page tests, phone-text 104/104, npm test
  1185/0 in a clean checkout)
 

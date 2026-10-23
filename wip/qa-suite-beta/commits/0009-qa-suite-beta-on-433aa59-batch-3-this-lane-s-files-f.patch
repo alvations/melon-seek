@@ -1,0 +1,2824 @@
+From a9342a3318e51621bce2d5f204de0dbc8c1543ec Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 23 Oct 2026 15:38:50 +0000
+Subject: [PATCH 9/9] qa-suite-beta: on 433aa59 (batch 3): this lane's files
+ from c4f7909, the patches regenerated, the expected-red list
+
+- carried over from c4f7909 (05263e8 + 16 commits): the log, the prompt, test/beta-coverage.test.js,
+  test/e2e/beta-coverage.e2e.js and its scripts/e2e.js registration, and the patches;
+- T-11 regenerated: phone-matrix's filter-sheet wait is fix-phone-sizes' own state wait since 281e71e, so that hunk
+  is dropped;
+- CI: e2e-summary.mjs matches unbracketed IDs ("Compstimate: T21 ...") and `flaky` entries;
+  docs/process/e2e-expected-red.txt lists T21 only (flaky), from the lead's gate on 5c0cda3;
+- new patches: t19-v18-fold, t19-bp2-munich (two tests that skip on every run), todo-fixed (the [T-n] to-dos the
+  runner and T-1 patches fix become real tests);
+- log 9.1: the red-by-design list (no e2e left; 9 MR to-dos on fix-mr-3), the forever-skips (T-19) and 35 passing
+  to-dos (T-20).
+
+All 14 patches apply in order to 433aa59 plus this commit; unit tests on that tree, with data: 1,295 tests, 0 real
+failures.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+---
+ docs/process/e2e-expected-red.txt             |  24 +
+ .../process/patches/qa-suite-beta-ci-e2e.diff | 192 ++++++
+ .../patches/qa-suite-beta-e2e-runner.diff     | 225 +++++++
+ .../qa-suite-beta-flake-perf1-v15-cpu.diff    |  80 +++
+ .../qa-suite-beta-flake-polite-clock.diff     | 105 ++++
+ .../patches/qa-suite-beta-flake-s3-cpu.diff   |  37 ++
+ .../patches/qa-suite-beta-flake-s6-cpu.diff   |  31 +
+ .../patches/qa-suite-beta-flake-t21-cpu.diff  |  83 +++
+ .../qa-suite-beta-flake-ui-map-order.diff     |  34 +
+ .../patches/qa-suite-beta-t1-board-list.diff  | 165 +++++
+ .../qa-suite-beta-t11-state-waits.diff        | 226 +++++++
+ .../patches/qa-suite-beta-t19-bp2-munich.diff |  26 +
+ .../patches/qa-suite-beta-t19-v18-fold.diff   |  29 +
+ .../patches/qa-suite-beta-t4-link-check.diff  |  37 ++
+ .../patches/qa-suite-beta-todo-fixed.diff     |  14 +
+ docs/process/prompts/qa-suite-beta.md         |  32 +
+ docs/process/qa-suite-beta.md                 | 591 ++++++++++++++++++
+ scripts/e2e.js                                |   2 +
+ test/beta-coverage.test.js                    | 184 ++++++
+ test/e2e/beta-coverage.e2e.js                 | 508 +++++++++++++++
+ 20 files changed, 2625 insertions(+)
+ create mode 100644 docs/process/e2e-expected-red.txt
+ create mode 100644 docs/process/patches/qa-suite-beta-ci-e2e.diff
+ create mode 100644 docs/process/patches/qa-suite-beta-e2e-runner.diff
+ create mode 100644 docs/process/patches/qa-suite-beta-flake-perf1-v15-cpu.diff
+ create mode 100644 docs/process/patches/qa-suite-beta-flake-polite-clock.diff
+ create mode 100644 docs/process/patches/qa-suite-beta-flake-s3-cpu.diff
+ create mode 100644 docs/process/patches/qa-suite-beta-flake-s6-cpu.diff
+ create mode 100644 docs/process/patches/qa-suite-beta-flake-t21-cpu.diff
+ create mode 100644 docs/process/patches/qa-suite-beta-flake-ui-map-order.diff
+ create mode 100644 docs/process/patches/qa-suite-beta-t1-board-list.diff
+ create mode 100644 docs/process/patches/qa-suite-beta-t11-state-waits.diff
+ create mode 100644 docs/process/patches/qa-suite-beta-t19-bp2-munich.diff
+ create mode 100644 docs/process/patches/qa-suite-beta-t19-v18-fold.diff
+ create mode 100644 docs/process/patches/qa-suite-beta-t4-link-check.diff
+ create mode 100644 docs/process/patches/qa-suite-beta-todo-fixed.diff
+ create mode 100644 docs/process/prompts/qa-suite-beta.md
+ create mode 100644 docs/process/qa-suite-beta.md
+ create mode 100644 test/beta-coverage.test.js
+ create mode 100644 test/e2e/beta-coverage.e2e.js
+
+diff --git a/docs/process/e2e-expected-red.txt b/docs/process/e2e-expected-red.txt
+new file mode 100644
+index 0000000..017a1e2
+--- /dev/null
++++ b/docs/process/e2e-expected-red.txt
+@@ -0,0 +1,24 @@
++# Expected red in the full e2e suite (node scripts/e2e.js). Read by .github/scripts/e2e-summary.mjs, the summary
++# job of .github/workflows/e2e.yml (qa-suite-beta T-14). The lead keeps it.
++#
++# One entry per line: `<ID> <lane or decision>`. The ID matches a test whose name holds `[<ID>]` (or the ID in a
++# list such as `[V-33, V-34]`), or whose name starts with it after the group (`Compstimate: T21 cold server`).
++# A reason starting with `flaky` marks a known flake: that test may pass or fail.
++# Any other entry is red by design. When its test passes, the summary fails and asks for the entry to go.
++# Lines starting with # are notes.
++#
++# Source: the lead's gate on 5c0cda3 (= 8898566's code), 2026-10-23 13:18-15:24: 858/864 passed, 1 failed, 5 skipped,
++# browser never relaunched. No red-by-design e2e test is left after fix wave 5: every reviewer's [ID] test passes.
++#
++# The 5 skips are not entries here, because a skip passes. They are:
++#   [D-11] needs data with no listing dates (a fixture);
++#   the Methodology screenshots run only with E2E_SHOTS=1;
++#   [P-2] needs a low-confidence estimate in the data;
++#   [BP-2] NVIDIA Munich has 0 roles in this crawl;
++#   [V-18] has skipped since D-44 folded London; qa-suite-beta-t19-v18-fold.diff fixes it.
++# Each is in docs/process/qa-suite-beta.md section 9.1.
++
++# Compstimate T21: the cold server re-normalizes Anduril's 2,537 postings (crawl norm-9, code norm-12), which takes
++# past the 30 s ready limit on a loaded machine. The test passed alone in 24.7 s on 8898566.
++# Remove this entry when qa-suite-beta-flake-t21-cpu.diff lands.
++T21 flaky until qa-suite-beta-flake-t21-cpu.diff lands
+diff --git a/docs/process/patches/qa-suite-beta-ci-e2e.diff b/docs/process/patches/qa-suite-beta-ci-e2e.diff
+new file mode 100644
+index 0000000..03bbdde
+--- /dev/null
++++ b/docs/process/patches/qa-suite-beta-ci-e2e.diff
+@@ -0,0 +1,192 @@
++--- /dev/null
+++++ b/.github/scripts/e2e-summary.mjs
++@@ -0,0 +1,67 @@
+++// Merge the e2e shard logs (scripts/e2e.js --shard=i/n) into one result, for .github/workflows/e2e.yml.
+++//
+++//   node .github/scripts/e2e-summary.mjs [--expected <file>] [--summary <file>] <shard log> [...]
+++//
+++// --expected: one entry per line, `<ID> <owner or decision>` (e.g. `V-33 fix-viz-5`); a test whose name holds `[<ID>]`
+++// (or `[<ID>,` / `, <ID>]` in a list of IDs), or starts with it after the group (`Compstimate: T21 cold server`), is
+++// red by design until its lane lands. An entry whose reason starts with `flaky` is a known flake: it may pass or fail.
+++// Lines starting with # are notes.
+++// Exit 1 when a test fails that no entry expects, when a shard log has no final "e2e: N/M passed" line (it timed out or
+++// crashed), or when an expected-red test passes (the entry is stale: remove it). Exit 0 otherwise.
+++import fs from 'node:fs';
+++
+++const args = process.argv.slice(2);
+++const opt = (k) => { const i = args.indexOf(k); if (i < 0) return null; const v = args[i + 1]; args.splice(i, 2); return v; };
+++const expectedFile = opt('--expected');
+++const summaryFile = opt('--summary');
+++const logs = args;
+++
+++const expected = new Map();
+++if (expectedFile && fs.existsSync(expectedFile)) {
+++  for (const line of fs.readFileSync(expectedFile, 'utf8').split('\n')) {
+++    const t = line.trim();
+++    if (!t || t.startsWith('#')) continue;
+++    const [id, ...why] = t.split(/\s+/);
+++    expected.set(id, why.join(' '));
+++  }
+++}
+++const idsOf = (name) => {
+++  const ids = [...name.matchAll(/\[([^\]]+)\]/g)].flatMap((m) => m[1].split(/,\s*/)).map((x) => x.trim());
+++  const lead = /^[^:\[]+: ([A-Z][A-Z0-9]*-?\d+[a-z]?)\b/.exec(name); // the older names: "Compstimate: T21 cold server"
+++  return lead ? [...ids, lead[1]] : ids;
+++};
+++const flaky = (id) => /^flaky\b/i.test(expected.get(id) || '');
+++const expectedFor = (name) => idsOf(name).find((id) => expected.has(id)) || null;
+++
+++const tests = [];
+++const unfinished = [];
+++for (const f of logs) {
+++  const text = fs.readFileSync(f, 'utf8');
+++  const lines = text.split('\n');
+++  if (!/^e2e: \d+\/\d+ passed/m.test(text)) unfinished.push(f);
+++  lines.forEach((l, i) => {
+++    let m = /^ {2}✓ (.*?) \((\d+)ms\)$/.exec(l);
+++    if (m) return void tests.push({ log: f, name: m[1], ok: true, ms: Number(m[2]) });
+++    m = /^ {2}✗ (.*?)(?: \((\d+)ms\))?$/.exec(l);
+++    if (m) return void tests.push({ log: f, name: m[1], ok: false, ms: m[2] ? Number(m[2]) : null, err: (lines[i + 1] || '').trim() });
+++    m = /^ {2}- (.*) \(skipped: (.*)\)$/.exec(l);
+++    if (m) tests.push({ log: f, name: m[1], ok: true, skipped: m[2] });
+++  });
+++}
+++const failed = tests.filter((t) => !t.ok);
+++const unexpected = failed.filter((t) => !expectedFor(t.name));
+++const known = failed.filter((t) => expectedFor(t.name));
+++const stale = tests.filter((t) => t.ok && !t.skipped && expectedFor(t.name) && !flaky(expectedFor(t.name)));
+++const skipped = tests.filter((t) => t.skipped);
+++const minutes = tests.reduce((a, t) => a + (t.ms || 0), 0) / 60000;
+++
+++const out = [];
+++out.push(`### E2E: ${tests.length} tests in ${logs.length} shard(s), ${tests.length - failed.length - skipped.length} passed, ${failed.length} failed (${known.length} expected), ${skipped.length} skipped; ${minutes.toFixed(0)} min of test time`);
+++if (unfinished.length) out.push(`\n**Shards that did not finish:** ${unfinished.join(', ')}`);
+++if (unexpected.length) { out.push('\n**Unexpected failures**'); for (const t of unexpected) out.push(`- ${t.name}\n  \`${String(t.err || '').slice(0, 200)}\``); }
+++if (stale.length) { out.push('\n**Expected red but passing (take the entry off docs/process/e2e-expected-red.txt)**'); for (const t of stale) out.push(`- [${expectedFor(t.name)}] ${t.name}`); }
+++if (known.length) { out.push('\n<details><summary>Expected: red by design or a known flake</summary>\n'); for (const t of known) out.push(`- [${expectedFor(t.name)}: ${expected.get(expectedFor(t.name))}] ${t.name}`); out.push('\n</details>'); }
+++const text = out.join('\n');
+++console.log(text);
+++if (summaryFile) fs.appendFileSync(summaryFile, text + '\n');
+++process.exit(unexpected.length || unfinished.length || stale.length ? 1 : 0);
++--- /dev/null
+++++ b/.github/workflows/e2e.yml
++@@ -0,0 +1,119 @@
+++name: E2E suite (sharded)
+++
+++# The full browser suite (node scripts/e2e.js, about 900 tests and 2 hours on one machine) ran nowhere in CI until
+++# 2026-10-23 (docs/process/qa-suite-beta.md, T-14): CI ran `npm test` on a build with no data, so every data-dependent
+++# check skipped, and the e2e suite ran only on the sandbox. This runs it on the archived crawl (as webkit-phone.yml
+++# does), in 4 shards in parallel (scripts/e2e.js --shard=i/4, about 30-45 min each), and fails on a failure that is not
+++# a known red-by-design test (docs/process/e2e-expected-red.txt: a reviewer's [ID] test waiting for its fix lane).
+++# Manual, nightly, and on pull requests that touch the app or the tests. Never on wip/** checkpoints.
+++
+++on:
+++  workflow_dispatch:
+++  schedule:
+++    - cron: '41 3 * * *'
+++  pull_request:
+++    paths: ['public/**', 'server/**', 'scripts/**', 'test/e2e/**', '.github/workflows/e2e.yml', '.github/scripts/e2e-summary.mjs', 'docs/process/e2e-expected-red.txt']
+++
+++permissions:
+++  contents: read
+++
+++concurrency:
+++  group: e2e-${{ github.ref }}
+++  cancel-in-progress: true
+++
+++jobs:
+++  build:
+++    name: Build the site with real data
+++    runs-on: ubuntu-latest
+++    timeout-minutes: 30
+++    steps:
+++      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+++        with:
+++          persist-credentials: false # read-only job: the token is not left in .git/config (REVIEW.md V12)
+++      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+++        with:
+++          node-version: 22
+++          cache: npm
+++      - run: npm ci
+++      - name: Latest archived crawl (data/snapshots, data/beta/snapshots)
+++        run: node scripts/cycle/local-data.js
+++      - name: Build
+++        run: |
+++          node scripts/build-static.js --out dist
+++          test -f dist/beta/index.html && test -f dist/beta/api/jobs/amazon.json
+++      # The server-mode groups read data/snapshots and data/beta/snapshots; the static groups read dist/.
+++      - name: Pack the inputs
+++        run: tar -czf e2e-input.tgz dist data/snapshots data/beta/snapshots
+++      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+++        with:
+++          name: e2e-input
+++          path: e2e-input.tgz
+++          retention-days: 3
+++
+++  e2e:
+++    name: E2E shard ${{ matrix.shard }}/4
+++    needs: build
+++    runs-on: ubuntu-latest
+++    timeout-minutes: 75
+++    strategy:
+++      fail-fast: false
+++      matrix:
+++        shard: [1, 2, 3, 4]
+++    steps:
+++      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+++        with:
+++          persist-credentials: false # read-only job: the token is not left in .git/config (REVIEW.md V12)
+++      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+++        with:
+++          node-version: 22
+++          cache: npm
+++      - run: npm ci
+++      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+++        with:
+++          name: e2e-input
+++      - run: tar -xzf e2e-input.tgz
+++      - name: Playwright (not a repo dependency) and Chromium
+++        run: |
+++          npm i --no-save playwright@1.63.0
+++          npx playwright install --with-deps chromium
+++      # --timings: a test's duration in test/e2e/timings.log (a past run's log, refreshed by hand) balances the shards
+++      # by time; without it they split by test count. --max-skips: a build without a board turns its tests into skips.
+++      - name: node scripts/e2e.js --shard=${{ matrix.shard }}/4
+++        env:
+++          NODE_PATH: ${{ github.workspace }}/node_modules
+++          # A fresh runner has a cold data/cache: the server re-normalizes every board the crawl stored at an older
+++          # normalizer version (D-20 took 101 s of the default 120 s on a cold cache, qa-suite-beta section 6).
+++          E2E_TEST_TIMEOUT: '240000'
+++        run: |
+++          set -o pipefail
+++          timings=""; [ -f test/e2e/timings.log ] && timings="--timings=test/e2e/timings.log"
+++          node scripts/e2e.js --shard=${{ matrix.shard }}/4 $timings --max-skips=20 | tee e2e-shard-${{ matrix.shard }}.log
+++        continue-on-error: true # the summary job decides: known red-by-design failures are expected
+++      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+++        if: always()
+++        with:
+++          name: e2e-shard-${{ matrix.shard }}
+++          path: e2e-shard-${{ matrix.shard }}.log
+++          retention-days: 14
+++
+++  summary:
+++    name: E2E summary
+++    needs: e2e
+++    if: always()
+++    runs-on: ubuntu-latest
+++    timeout-minutes: 10
+++    steps:
+++      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+++        with:
+++          persist-credentials: false # read-only job: the token is not left in .git/config (REVIEW.md V12)
+++      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+++        with:
+++          node-version: 22
+++      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+++        with:
+++          pattern: e2e-shard-*
+++          merge-multiple: true
+++      # Every shard's results in one table; exit 1 on a failure that is not in docs/process/e2e-expected-red.txt,
+++      # on a shard that never finished, or on a test that passes while listed as expected red (its lane landed:
+++      # take it off the list).
+++      - run: node .github/scripts/e2e-summary.mjs --expected docs/process/e2e-expected-red.txt --summary "$GITHUB_STEP_SUMMARY" e2e-shard-*.log
+diff --git a/docs/process/patches/qa-suite-beta-e2e-runner.diff b/docs/process/patches/qa-suite-beta-e2e-runner.diff
+new file mode 100644
+index 0000000..4315da5
+--- /dev/null
++++ b/docs/process/patches/qa-suite-beta-e2e-runner.diff
+@@ -0,0 +1,225 @@
++--- a/scripts/e2e.js
+++++ b/scripts/e2e.js
++@@ -1,12 +1,21 @@
++ #!/usr/bin/env node
++ // End-to-end suite: real server + headless Chromium via Playwright.
++-// Usage: node scripts/e2e.js [--api-only] [--headed] [--grep=<regex>]
+++// Usage: node scripts/e2e.js [--api-only] [--headed] [--grep=<regex>] [--list] [--shard=<i>/<n> [--timings=<log>]]
+++//                            [--max-skips=<n>]
+++//   --list           print the tests the run would take (after --grep and --shard), start nothing, exit 0.
+++//   --shard=i/n      run the i-th of n contiguous slices of the test list (1-based), so CI can run the ~900 tests in
+++//                    n parallel jobs. Slices keep the registration order; with --timings=<an earlier e2e log> they
+++//                    are cut at equal time (each test weighs its last duration), else at equal test counts.
+++//   --max-skips=n    exit 1 when more than n tests skip (E2E_MAX_SKIPS): a build without a board turns that board's
+++//                    tests into skips, which pass (qa-suite-beta T-5).
++ // Not part of `npm test` (needs a browser). Playwright is NOT a repo dependency:
++ //   npm i playwright --no-save            (or install anywhere and set NODE_PATH / PLAYWRIGHT_MODULE)
++ // Uses a preinstalled Chromium (PLAYWRIGHT_BROWSERS_PATH, /opt/pw-browsers, or CHROMIUM_PATH).
+++import fs from 'node:fs';
++ import { createSuite, loadPlaywright, findChromium, startServer, playwrightInfo } from '../test/e2e/harness.js';
++ import { registerApiTests } from '../test/e2e/api.e2e.js';
++ import { registerUiTests } from '../test/e2e/ui.e2e.js';
+++import { registerLinkTests } from '../test/e2e/links.e2e.js';
++ import { registerMobileQaTests } from '../test/e2e/mobile-qa.e2e.js';
++ import { registerDesktopQaTests } from '../test/e2e/desktop-qa.e2e.js';
++ import { registerMethodologyTests } from '../test/e2e/methodology.e2e.js';
++@@ -53,9 +62,35 @@
++ const apiOnly = args.has('--api-only');
++ const grepArg = process.argv.find((a) => a.startsWith('--grep='));
++ const grep = grepArg ? new RegExp(grepArg.slice(7), 'i') : null;
+++const listOnly = args.has('--list');
+++const valueOf = (k) => { const a = process.argv.find((x) => x.startsWith(`--${k}=`)); return a ? a.slice(k.length + 3) : null; };
+++const shardArg = valueOf('shard');
+++const shard = shardArg ? (/^(\d+)\/(\d+)$/.exec(shardArg) || []).slice(1).map(Number) : null;
+++if (shardArg && !(shard.length === 2 && shard[0] >= 1 && shard[0] <= shard[1])) { console.error(`e2e: --shard=${shardArg}: expected i/n with 1 <= i <= n`); process.exit(2); }
+++const maxSkips = valueOf('max-skips') ?? process.env.E2E_MAX_SKIPS ?? null;
++ 
++-const pw = apiOnly ? null : await loadPlaywright();
++-if (!apiOnly && !pw) {
+++/** Contiguous slices of `names` with about equal weight (a test's ms in an earlier log, else the median; 1 without a log). */
+++function shardOf(names, [i, n], logFile) {
+++  const ms = new Map();
+++  if (logFile) {
+++    for (const m of fs.readFileSync(logFile, 'utf8').matchAll(/^ {2}[\u2713\u2717] (.*) \((\d+)ms\)$/gm)) ms.set(m[1], Number(m[2]));
+++  }
+++  const known = [...ms.values()].sort((a, b) => a - b);
+++  const fallback = known.length ? known[Math.floor(known.length / 2)] : 1;
+++  const w = names.map((x) => ms.get(x) ?? fallback);
+++  const total = w.reduce((a, b) => a + b, 0);
+++  const out = new Set();
+++  let acc = 0;
+++  names.forEach((x, k) => {
+++    const mid = acc + w[k] / 2; // a test belongs to the slice its midpoint falls in
+++    acc += w[k];
+++    if (Math.min(n - 1, Math.floor((mid / total) * n)) === i - 1) out.add(x);
+++  });
+++  return out;
+++}
+++
+++const pw = apiOnly || listOnly ? null : await loadPlaywright();
+++if (!apiOnly && !listOnly && !pw) {
++   console.error(
++     'e2e: the `playwright` package was not found.\n' +
++     '  Install it without touching package.json:  npm i playwright --no-save\n' +
++@@ -66,28 +101,57 @@
++   process.exit(2);
++ }
++ 
++-const server = await startServer();
++-console.log(`e2e: server at ${server.baseUrl}`);
+++const server = listOnly ? null : await startServer();
+++if (server) console.log(`e2e: server at ${server.baseUrl}`);
++ const suite = createSuite();
++-const ctx = { baseUrl: server.baseUrl, data: {}, notes: [], cleanup: [], pw, browser: null };
+++const ctx = { baseUrl: server?.baseUrl ?? null, data: {}, notes: [], cleanup: [], pw, browser: null };
++ registerApiTests(suite);
++ 
++ let browser = null;
++ let relaunches = 0;
+++/**
+++ * Stop on SIGTERM, SIGHUP and SIGINT (qa-suite-beta T-12). Playwright's own handlers (launch's handleSIGTERM and
+++ * handleSIGHUP, on by default) close the browser on SIGTERM or SIGHUP and let the process run on, so a `timeout`, a
+++ * tool's time limit or a stopped session closed Chromium mid-run and every later test failed on "Target page, context
+++ * or browser has been closed" (the 2026-10-17 gate runs ended at their own `timeout 5400`, exit 124). Here the run stops
+++ * before its next test, the test in progress ends now (the browser closes), and the summary says how many did not run.
+++ * A second signal exits at once.
+++ */
+++let stopSignal = null;
+++const SIGNAL_CODES = { SIGHUP: 1, SIGINT: 2, SIGTERM: 15 };
+++for (const sig of Object.keys(SIGNAL_CODES)) {
+++  process.on(sig, () => {
+++    if (stopSignal) process.exit(128 + SIGNAL_CODES[sig]);
+++    stopSignal = sig;
+++    console.log(`\n  ! ${sig}: stopping; the test in progress ends now and the rest are not run`);
+++    suite.stop(sig);
+++    if (browser) browser.close().catch(() => {});
+++  });
+++}
++ if (!apiOnly) {
++   const executablePath = findChromium();
++-  const launch = () => pw.chromium.launch({ headless: !args.has('--headed'), executablePath });
++-  browser = await launch();
++-  ctx.browser = browser;
+++  let disconnected = false;
+++  const launch = async () => {
+++    const b = await pw.chromium.launch({ headless: !args.has('--headed'), executablePath, handleSIGTERM: false, handleSIGHUP: false, handleSIGINT: false });
+++    b.on('disconnected', () => { disconnected = true; });
+++    return b;
+++  };
+++  if (!listOnly) {
+++    browser = await launch();
+++    ctx.browser = browser;
+++    console.log(`e2e: playwright ${playwrightInfo.path}`);
+++    console.log(`e2e: chromium ${browser.version()} (${executablePath || 'playwright default'})`);
+++  }
+++  // A real crash (the browser disconnected and no signal asked for it): relaunch, so one crash fails one test.
++   ctx.ensureBrowser = async () => {
++-    if (ctx.browser.isConnected()) return;
+++    if (stopSignal || !disconnected) return;
+++    disconnected = false;
++     relaunches += 1;
++-    console.log(`  ! the browser closed; relaunching it (${relaunches})`);
+++    console.log(`  ! the browser disconnected on its own; relaunching it (${relaunches})`);
++     browser = ctx.browser = await launch();
++   };
++-  console.log(`e2e: playwright ${playwrightInfo.path}`);
++-  console.log(`e2e: chromium ${browser.version()} (${executablePath || 'playwright default'})`);
++   registerUiTests(suite);
+++  registerLinkTests(suite); // T-4 (qa-suite-beta): written for this suite, never registered until 2026-10-23
++   registerMobileQaTests(suite);
++   registerDesktopQaTests(suite);
++   registerBadgeTests(suite);
++@@ -131,15 +195,26 @@
++   registerFixQa4Tests(suite);
++ }
++ 
+++const only = shard ? shardOf(suite.names(grep), shard, valueOf('timings')) : null;
+++if (listOnly) {
+++  const names = suite.names(grep).filter((x) => !only || only.has(x));
+++  for (const x of names) console.log(x);
+++  console.error(`e2e: ${names.length} tests${shard ? ` in shard ${shard.join('/')}` : ''}`);
+++  process.exit(0);
+++}
+++if (shard) console.log(`e2e: shard ${shard.join('/')}: ${only.size} of ${suite.names(grep).length} tests`);
+++
++ let results;
++ try {
++-  results = await suite.run(ctx, grep);
+++  results = await suite.run(ctx, grep, { only });
++ } finally {
++   if (browser) await browser.close().catch(() => {});
++   await server.stop();
++ }
++ const failed = results.filter((r) => !r.ok);
++-if (relaunches) console.log(`e2e: the browser was relaunched ${relaunches} time(s) after closing`);
+++if (relaunches) console.log(`e2e: the browser was relaunched ${relaunches} time(s) after it disconnected on its own`);
+++const stop = suite.stopped();
+++if (stop) console.log(`e2e: stopped by ${stop.reason}: ${results.length} tests ran, ${stop.notRun} not run`);
++ if (ctx.notes.length) {
++   console.log('\ne2e notes (non-fatal observations):');
++   for (const n of [...new Set(ctx.notes)]) console.log(`  * ${n}`);
++@@ -150,4 +225,12 @@
++   for (const f of failed) console.log(`  - ${f.name}`);
++   if (process.env.E2E_SERVER_LOGS) console.log('\nserver logs:\n' + server.logs.join(''));
++ }
++-process.exit(failed.length ? 1 : 0);
+++const tooManySkips = maxSkips != null && skipped > Number(maxSkips);
+++if (skipped) {
+++  const why = new Map();
+++  for (const r of results.filter((x) => x.skipped)) why.set(r.reason, (why.get(r.reason) || 0) + 1);
+++  console.log(`\ne2e: skipped, by reason${tooManySkips ? ` (more than --max-skips=${maxSkips}: the run fails)` : ''}:`);
+++  for (const [r, k] of [...why].sort((a, b) => b[1] - a[1])) console.log(`  ${k} × ${r}`);
+++}
+++if (stop) process.exit(128 + SIGNAL_CODES[stop.reason]);
+++process.exit(failed.length || tooManySkips ? 1 : 0);
++--- a/test/e2e/harness.js
+++++ b/test/e2e/harness.js
++@@ -140,9 +140,21 @@
++ export function createSuite() {
++   const tests = [];
++   const results = [];
+++  let stopReason = null;
+++  let notRun = 0;
++   return {
++     test(name, fn) { tests.push({ name, fn }); },
++-    async run(ctx, grep = null) {
+++    /**
+++     * Stop the run before its next test (scripts/e2e.js calls it on SIGTERM, SIGHUP or SIGINT). The test in progress
+++     * ends when the caller closes the browser; it is reported as interrupted, and the rest as not run.
+++     */
+++    stop(reason) { stopReason = stopReason || reason; },
+++    /** { reason, notRun } once stop() was called, else null. */
+++    stopped() { return stopReason ? { reason: stopReason, notRun } : null; },
+++    /** The names the run would take, in order (--list, --shard). */
+++    names(grep = null) { return tests.filter((t) => !grep || grep.test(t.name)).map((t) => t.name); },
+++    /** only: a Set of names to run (one shard); null runs every test grep takes. */
+++    async run(ctx, grep = null, { only = null } = {}) {
++       let current = null;
++       const stray = (err) => {
++         if (current) current.stray.push(err);
++@@ -153,8 +165,9 @@
++       try {
++         for (const t of tests) {
++           if (grep && !grep.test(t.name)) continue;
++-          // A browser that died in an earlier test (it did twice near test 750 of a full run, 2026-10-17)
++-          // is relaunched here, so one crash fails one test, not every test after it.
+++          if (only && !only.has(t.name)) continue;
+++          if (stopReason) { notRun++; continue; }
+++          // A browser that died on its own (a real crash, not a stop) is relaunched here, so one crash fails one test.
++           if (ctx.ensureBrowser) await ctx.ensureBrowser();
++           const start = Date.now();
++           current = { stray: [] };
++@@ -177,8 +190,11 @@
++               console.log(`  - ${t.name} (skipped: ${err.message})`);
++               continue;
++             }
++-            results.push({ name: t.name, ok: false, ms: Date.now() - start, error: err });
++-            console.log(`  \u2717 ${t.name}\n      ${String(err && err.message || err).split('\n').join('\n      ')}`);
+++            const interrupted = !!stopReason;
+++            results.push({ name: t.name, ok: false, ms: Date.now() - start, error: err, interrupted });
+++            // The duration too (qa-suite-beta T-9): a failure that waited out a timeout costs minutes, and a run's
+++            // time can only be split by group when every line says how long it took.
+++            console.log(`  \u2717 ${t.name} (${Date.now() - start}ms${interrupted ? `, interrupted by ${stopReason}` : ''})\n      ${String(err && err.message || err).split('\n').join('\n      ')}`);
++           } finally {
++             clearTimeout(timer);
++             if (ctx.cleanup) {
+diff --git a/docs/process/patches/qa-suite-beta-flake-perf1-v15-cpu.diff b/docs/process/patches/qa-suite-beta-flake-perf1-v15-cpu.diff
+new file mode 100644
+index 0000000..80dcb94
+--- /dev/null
++++ b/docs/process/patches/qa-suite-beta-flake-perf1-v15-cpu.diff
+@@ -0,0 +1,80 @@
++diff --git a/test/perf.test.js b/test/perf.test.js
++index 54fc312..a342fa7 100644
++--- a/test/perf.test.js
+++++ b/test/perf.test.js
++@@ -57,21 +57,40 @@ function get(p) {
++   });
++ }
++ 
++-/** Max event-loop delay while fn runs (10 ms probe). */
+++/**
+++ * Max event-loop block while fn runs (10 ms probe). A late tick is a block only for the CPU this thread spent in it:
+++ * on a loaded machine the OS deschedules the process, and the tick comes late with no work done here (171-557 ms of
+++ * "lag" at load 4-28 that was not this code; qa-suite-beta T-13). process.threadCpuUsage (Node 22.19+, 23.9+) counts
+++ * this thread only (the pipeline worker is another thread). Without it the probe falls back to wall time.
+++ * maxWallLag is reported for the log.
+++ */
++ async function withLagProbe(fn) {
+++  const thread = typeof process.threadCpuUsage === 'function';
+++  const cpu = () => { const u = process.threadCpuUsage(); return (u.user + u.system) / 1000; };
++   let max = 0;
+++  let maxWall = 0;
++   let last = performance.now();
++-  const iv = setInterval(() => { const now = performance.now(); max = Math.max(max, now - last - 10); last = now; }, 10);
+++  let lastCpu = thread ? cpu() : 0;
+++  const iv = setInterval(() => {
+++    const now = performance.now();
+++    const wall = now - last - 10;
+++    const c = thread ? cpu() : 0;
+++    const blocked = thread ? Math.min(wall, c - lastCpu) : wall;
+++    max = Math.max(max, blocked);
+++    maxWall = Math.max(maxWall, wall);
+++    last = now;
+++    lastCpu = c;
+++  }, 10);
++   try {
++     const result = await fn();
++-    return { result, maxLag: max };
+++    return { result, maxLag: max, maxWallLag: maxWall, measure: thread ? 'thread CPU' : 'wall' };
++   } finally {
++     clearInterval(iv);
++   }
++ }
++ 
++ test('first company loads do not block the event loop (PERF-1)', { skip, timeout: 180000 }, async () => {
++-  const { result, maxLag } = await withLagProbe(async () => {
+++  const { result: r0, maxLag, maxWallLag, measure } = await withLagProbe(async () => {
++     // Health checks keep arriving while the two boards load for the first time.
++     const health = [];
++     let stop = false;
++@@ -81,12 +100,16 @@ test('first company loads do not block the event loop (PERF-1)', { skip, timeout
++     await pinger;
++     return { a, c, health };
++   });
+++  const result = { ...r0, maxWallLag };
+++  console.log(`# probe: ${measure}; max wall lag ${maxWallLag.toFixed(0)} ms`);
++   const worstHealth = Math.max(...result.health);
++-  console.log(`# first loads: anduril ${result.a.ms.toFixed(0)} ms, cohere (rekey) ${result.c.ms.toFixed(0)} ms; max event-loop lag ${maxLag.toFixed(0)} ms; worst /api/health ${worstHealth.toFixed(0)} ms over ${result.health.length} pings`);
+++  console.log(`# first loads: anduril ${result.a.ms.toFixed(0)} ms, cohere (rekey) ${result.c.ms.toFixed(0)} ms; max event-loop block ${maxLag.toFixed(0)} ms; worst /api/health ${worstHealth.toFixed(0)} ms over ${result.health.length} pings`);
++   assert.equal(result.a.status, 200);
++   assert.equal(result.c.status, 200);
++   assert.ok(maxLag < 150, `event loop blocked for ${maxLag.toFixed(0)} ms (goal < 100 ms)`);
++-  assert.ok(worstHealth < 250, `/api/health took ${worstHealth.toFixed(0)} ms during first loads`);
+++  // A health reply waits for the OS as much as for this server: allow the scheduling delay the probe saw.
+++  const sched = Math.max(0, result.maxWallLag - maxLag);
+++  assert.ok(worstHealth < 250 + sched, `/api/health took ${worstHealth.toFixed(0)} ms during first loads (allowed 250 ms + ${sched.toFixed(0)} ms of scheduling delay)`);
++ });
++ 
++ test('stores persist: a restart reuses them (no re-parse, no rekey)', { skip, timeout: 120000 }, async () => {
++@@ -111,6 +134,10 @@ test('review V15: cold /api/market does not block the event loop', { skip, timeo
++   console.log(`# cold /api/market ${result.ms.toFixed(0)} ms, max lag ${maxLag.toFixed(0)} ms`);
++   assert.equal(result.status, 200);
++   assert.ok(maxLag < 150, `event loop blocked for ${maxLag.toFixed(0)} ms`);
+++  // A warm reply is served from memory: this thread's CPU for it, not its wall time (201 ms at load 20, 2026-10-23).
+++  const c0 = typeof process.threadCpuUsage === 'function' ? process.threadCpuUsage() : null;
++   const warm = await get('/api/market');
++-  assert.ok(warm.ms < 200, `warm /api/market took ${warm.ms.toFixed(0)} ms`);
+++  const cpuMs = c0 ? (() => { const u = process.threadCpuUsage(c0); return (u.user + u.system) / 1000; })() : warm.ms;
+++  assert.ok(cpuMs < 200, `warm /api/market took ${cpuMs.toFixed(0)} ms of ${c0 ? 'CPU' : 'wall time'} (${warm.ms.toFixed(0)} ms wall)`);
+++  assert.ok(warm.ms < 2000, `warm /api/market took ${warm.ms.toFixed(0)} ms`);
++ });
+diff --git a/docs/process/patches/qa-suite-beta-flake-polite-clock.diff b/docs/process/patches/qa-suite-beta-flake-polite-clock.diff
+new file mode 100644
+index 0000000..2ea9714
+--- /dev/null
++++ b/docs/process/patches/qa-suite-beta-flake-polite-clock.diff
+@@ -0,0 +1,105 @@
++diff --git a/test/amazon-meta-adapters.test.js b/test/amazon-meta-adapters.test.js
++index b7c96ba..539b15d 100644
++--- a/test/amazon-meta-adapters.test.js
+++++ b/test/amazon-meta-adapters.test.js
++@@ -2,7 +2,7 @@
++ // on the real fixture rows (test/fixtures/bigtech-*.json) and the synthetic boards
++ // (test/amazon-meta-synth.js). No network. Each fetch test lifts the registry's `paused` in this
++ // process only (server/companies.js PAUSING); the paused path itself is test/amazon-meta-resume.test.js.
++-import { test, afterEach } from 'node:test';
+++import { test, afterEach, mock } from 'node:test';
++ import assert from 'node:assert/strict';
++ import fs from 'node:fs';
++ import path from 'node:path';
++@@ -18,7 +18,18 @@ import { amazonRows, amazonSite, metaRecords, metaSite, metaPageHtml, installFet
++ 
++ const FIX = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures');
++ const fixture = (slug) => JSON.parse(fs.readFileSync(path.join(FIX, `bigtech-${slug}.json`), 'utf8'));
++-afterEach(() => { setMinInterval(null); resetRateLimits(); resetRobots(); });
+++afterEach(() => { mock.timers.reset(); setMinInterval(null); resetRateLimits(); resetRobots(); });
+++
+++/** Run `promise` on node:test's virtual clock (setTimeout and Date), 1 ms per event-loop turn (qa-suite-beta T-13). */
+++async function onVirtualClock(promise) {
+++  let done = false;
+++  const p = Promise.resolve(promise).finally(() => { done = true; });
+++  for (let i = 0; !done && i < 600000; i++) {
+++    await new Promise((r) => setImmediate(r));
+++    if (!done) mock.timers.tick(1);
+++  }
+++  return p;
+++}
++ 
++ async function resumed(slug, fn) {
++   const c = COMPANIES.find((x) => x.slug === slug);
++@@ -93,12 +104,14 @@ test('fetchAmazon: honest User-Agent, robots.txt first, spaced requests, every p
++   globalThis.fetch = async (url, init) => { seen.push({ url: String(url), at: Date.now(), ua: init.headers['User-Agent'], redirect: init.redirect }); return site(String(url)); };
++   try {
++     const stats = newStats();
++-    const { jobs } = await resumed('amazon', () => fetchAmazon('amazon', { stats }));
+++    mock.timers.enable({ apis: ['setTimeout', 'Date'], now: 1_000_000 });
+++    const { jobs } = await onVirtualClock(resumed('amazon', () => fetchAmazon('amazon', { stats })));
+++    mock.timers.reset();
++     assert.equal(jobs.length, 260);
++     assert.match(seen[0].url, /\/robots\.txt$/);
++     assert.ok(seen.every((c) => c.ua === BOT_USER_AGENT && c.redirect === 'manual'));
++     const gaps = seen.slice(1).map((c, i) => c.at - seen[i].at);
++-    assert.ok(gaps.every((g) => g >= 20), `request starts at least the interval apart: ${gaps}`);
+++    assert.ok(gaps.every((g) => g >= 25), `request starts at least the interval apart (virtual clock): ${gaps}`);
++     assert.equal(stats.requests, seen.length);
++   } finally {
++     globalThis.fetch = real;
++diff --git a/test/bigtech-polite.test.js b/test/bigtech-polite.test.js
++index af6658c..9f8c313 100644
++--- a/test/bigtech-polite.test.js
+++++ b/test/bigtech-polite.test.js
++@@ -1,7 +1,7 @@
++ // Beta channel plumbing: the polite HTTP client (server/sources/polite.js), the
++ // channel-aware registry (server/companies.js) and `snapshot.js --channel`.
++ // docs/CONTRACT.md v3, docs/DATA_SOURCES.md §7.
++-import { test, afterEach } from 'node:test';
+++import { test, afterEach, mock } from 'node:test';
++ import assert from 'node:assert/strict';
++ import {
++   politeRequest, politeJson, robotsRules, robotsAllows, checkRobots, resetRobots, setMinInterval, resetRateLimits,
++@@ -11,7 +11,23 @@ import { listCompanies, getCompany, resolveCompany, SOURCES, COMPANIES } from '.
++ import { targetsFor, fitSnapshot, trimDescription } from '../scripts/snapshot.js';
++ 
++ const realFetch = globalThis.fetch;
++-afterEach(() => { globalThis.fetch = realFetch; setMinInterval(null); resetRateLimits(); resetRobots(); });
+++afterEach(() => { mock.timers.reset(); globalThis.fetch = realFetch; setMinInterval(null); resetRateLimits(); resetRobots(); });
+++
+++/**
+++ * Run `promise` on a virtual clock (node:test mock timers for setTimeout and Date, enabled by the caller): advance
+++ * 1 ms per turn of the event loop until it settles. The spacing is then measured in the clock polite.js reads, so a
+++ * loaded machine (a preempted process, a late timer) cannot shrink a measured gap below the one the code kept
+++ * (qa-suite-beta T-13: "gaps 27,42" at load 10-12).
+++ */
+++async function onVirtualClock(promise) {
+++  let done = false;
+++  const p = Promise.resolve(promise).finally(() => { done = true; });
+++  for (let i = 0; !done && i < 600000; i++) {
+++    await new Promise((r) => setImmediate(r));
+++    if (!done) mock.timers.tick(1);
+++  }
+++  return p;
+++}
++ 
++ const STABLE = ['anthropic', 'anduril', 'openai', 'scaleai', 'xai', 'cohere', 'palantir', 'shieldai'];
++ const BETA_ALL = ['google', 'microsoft', 'meta', 'apple', 'netflix', 'amazon', 'nvidia'];
++@@ -145,11 +161,13 @@ test('politeRequest: honest User-Agent, per-host spacing, backoff on 429/5xx wit
++     return new Response('{"ok":true}', { status: 200, headers: { 'content-type': 'application/json' } });
++   };
++   const stats = newStats();
+++  mock.timers.enable({ apis: ['setTimeout', 'Date'], now: 1_000_000 });
++   const t0 = Date.now();
++-  await Promise.all([1, 2, 3].map((i) => politeJson(`https://x.test/p${i}`, { stats })));
++-  assert.ok(Date.now() - t0 >= 75, 'three requests to one host are spaced');
+++  await onVirtualClock(Promise.all([1, 2, 3].map((i) => politeJson(`https://x.test/p${i}`, { stats }))));
+++  assert.ok(Date.now() - t0 >= 80, `three requests to one host are spaced (${Date.now() - t0} ms)`);
++   const gaps = calls.slice(1).map((c, i) => c.at - calls[i].at);
++-  assert.ok(gaps.every((g) => g >= 35), `gaps ${gaps}`);
+++  assert.ok(gaps.every((g) => g >= 40), `gaps ${gaps}`); // exact on the virtual clock: the minimum interval is 40
+++  mock.timers.reset();
++   assert.equal(calls[0].headers['User-Agent'], BOT_USER_AGENT);
++   assert.match(BOT_USER_AGENT, /^melon-seek\/\S+ \(\+https:\/\/alvations\.github\.io\/melon-seek\//);
++   assert.ok(!/Mozilla|Chrome|Safari/.test(BOT_USER_AGENT), 'no browser impersonation');
+diff --git a/docs/process/patches/qa-suite-beta-flake-s3-cpu.diff b/docs/process/patches/qa-suite-beta-flake-s3-cpu.diff
+new file mode 100644
+index 0000000..aadea2e
+--- /dev/null
++++ b/docs/process/patches/qa-suite-beta-flake-s3-cpu.diff
+@@ -0,0 +1,37 @@
++diff --git a/test/beta-security-review.test.js b/test/beta-security-review.test.js
++index 14cd4c1..c40e322 100644
++--- a/test/beta-security-review.test.js
+++++ b/test/beta-security-review.test.js
++@@ -120,14 +120,20 @@ test('S-2: the big-tech probe never targets a paused company or its careers host
++ 
++ /* ------------------------------------------------------------------ S-3 */
++ 
++-/** Run `body` (a function source taking no args) in a worker; resolve its ms, or reject after limitMs. */
+++/**
+++ * Run `body` (a function source taking no args) in a worker; resolve the CPU ms the worker's thread spent on it
+++ * (process.threadCpuUsage, Node 22.19+ and 23.9+; wall ms before that), or reject after 5 x limitMs of wall time.
+++ * CPU time, because a loaded machine stretches wall time while a quadratic parse costs the same CPU anywhere
+++ * (qa-suite-beta T-13); the wall limit only stops a runaway.
+++ */
++ function timedInWorker(body, limitMs) {
++   const src = `const { parentPort } = require('node:worker_threads');
++-(async () => { const t0 = performance.now(); await (${body})(); parentPort.postMessage(performance.now() - t0); })()
+++const clock = () => { if (typeof process.threadCpuUsage === 'function') { const u = process.threadCpuUsage(); return (u.user + u.system) / 1000; } return performance.now(); };
+++(async () => { const t0 = clock(); await (${body})(); parentPort.postMessage(clock() - t0); })()
++   .catch((e) => parentPort.postMessage('error: ' + e.message));`;
++   return new Promise((resolve, reject) => {
++     const w = new Worker(src, { eval: true });
++-    const timer = setTimeout(() => { w.terminate(); reject(new Error(`still running after ${limitMs} ms`)); }, limitMs);
+++    const timer = setTimeout(() => { w.terminate(); reject(new Error(`still running after ${5 * limitMs} ms`)); }, 5 * limitMs);
++     w.once('message', (m) => { clearTimeout(timer); w.terminate(); typeof m === 'number' ? resolve(m) : reject(new Error(m)); });
++     w.once('error', (e) => { clearTimeout(timer); reject(e); });
++   });
++@@ -180,7 +186,7 @@ test('S-3: 1 MB of hostile text: parseSalary, both htmlToTexts and geocode each
++     const ms = await timedInWorker(`async () => {
++       const m = await import(${url('server', 'salary.js')}); const u = await import(${url('server', 'sources', 'util.js')});
++       const k = await import(${url('server', 'keywords.js')}); const g = await import(${url('server', 'geo.js')});
++-      const t0 = performance.now(); ${call}; if (performance.now() - t0 > 1000) throw new Error(String(Math.round(performance.now() - t0)) + ' ms');
+++      const t0 = clock(); ${call}; if (clock() - t0 > 1000) throw new Error(String(Math.round(clock() - t0)) + ' ms');
++     }`, 10000);
++     assert.ok(ms < 10000, `${name}: ${Math.round(ms)} ms`);
++   }
+diff --git a/docs/process/patches/qa-suite-beta-flake-s6-cpu.diff b/docs/process/patches/qa-suite-beta-flake-s6-cpu.diff
+new file mode 100644
+index 0000000..9fcaace
+--- /dev/null
++++ b/docs/process/patches/qa-suite-beta-flake-s6-cpu.diff
+@@ -0,0 +1,31 @@
++diff --git a/test/beta-security-review.test.js b/test/beta-security-review.test.js
++index 14cd4c1..c40e322 100644
++--- a/test/beta-security-review.test.js
+++++ b/test/beta-security-review.test.js
++@@ -232,15 +232,24 @@ test('S-6: /methodology/ is not re-rendered on every request in server mode', as
++     const first = await fetch(`${base}/methodology/`);
++     assert.equal(first.status, 200);
++     await first.text();
+++    // CPU time, not wall time (qa-suite-beta T-13): a re-render costs this thread's CPU whatever the load, while a
+++    // loaded machine stretches the wall time of a cached reply (29 ms median at load 10, 2026-10-23). The server runs
+++    // in this process; process.threadCpuUsage (Node 22.19+, 23.9+) counts this thread only, process.cpuUsage all.
+++    const cpu = () => { const u = typeof process.threadCpuUsage === 'function' ? process.threadCpuUsage() : process.cpuUsage(); return (u.user + u.system) / 1000; };
++     const times = [];
+++    const walls = [];
++     for (let i = 0; i < 5; i++) {
++       const t0 = performance.now();
+++      const c0 = cpu();
++       const r = await fetch(`${base}/methodology/`);
++       await r.text();
++-      times.push(performance.now() - t0);
+++      times.push(cpu() - c0);
+++      walls.push(performance.now() - t0);
++     }
++     times.sort((a, b) => a - b);
++-    assert.ok(times[2] < 25, `median ${Math.round(times[2])} ms per request (the guide and its charts are rebuilt each time)`);
+++    walls.sort((a, b) => a - b);
+++    assert.ok(times[2] < 25, `median ${Math.round(times[2])} ms of CPU per request (the guide and its charts are rebuilt each time); wall ${walls.map(Math.round)} ms`);
+++    assert.ok(walls[2] < 1000, `median ${Math.round(walls[2])} ms per request`);
++   } finally {
++     await new Promise((r) => server.close(r));
++   }
+diff --git a/docs/process/patches/qa-suite-beta-flake-t21-cpu.diff b/docs/process/patches/qa-suite-beta-flake-t21-cpu.diff
+new file mode 100644
+index 0000000..cb2267d
+--- /dev/null
++++ b/docs/process/patches/qa-suite-beta-flake-t21-cpu.diff
+@@ -0,0 +1,83 @@
++diff --git a/test/e2e/harness.js b/test/e2e/harness.js
++index 849d421..51f605b 100644
++--- a/test/e2e/harness.js
+++++ b/test/e2e/harness.js
++@@ -100,6 +100,7 @@ export async function startServer({ timeoutMs = 20000, env = {} } = {}) {
++   return {
++     baseUrl,
++     logs,
+++    pid: child.pid, // a test can read the server's CPU time (/proc/<pid>/stat) instead of trusting wall time on a loaded machine
++     stop: () => new Promise((resolve) => {
++       if (exited !== null) return resolve();
++       child.once('exit', () => resolve());
++diff --git a/test/e2e/ui.e2e.js b/test/e2e/ui.e2e.js
++index ff24c0c..7f763fd 100644
++--- a/test/e2e/ui.e2e.js
+++++ b/test/e2e/ui.e2e.js
++@@ -21,7 +21,7 @@ function isExternal(url, baseUrl) {
++   return !!url && !url.startsWith(baseUrl) && !url.startsWith('data:') && !url.startsWith('blob:');
++ }
++ 
++-async function openApp(ctx, { hash = '', viewport = DESKTOP, colorScheme = 'light', ready = true } = {}) {
+++async function openApp(ctx, { hash = '', viewport = DESKTOP, colorScheme = 'light', ready = true, readyTimeout = READY_TIMEOUT } = {}) {
++   const context = await ctx.browser.newContext({ viewport, colorScheme, deviceScaleFactor: 1, acceptDownloads: true });
++   ctx.cleanup.push(() => context.close());
++   // Block external hosts up front so the run is deterministic and fast.
++@@ -45,21 +45,21 @@ async function openApp(ctx, { hash = '', viewport = DESKTOP, colorScheme = 'ligh
++     if (!isExternal(res.url(), ctx.baseUrl) && res.status() >= 400) errors.push(`HTTP ${res.status()}: ${res.url()}`);
++   });
++   await page.goto(`${ctx.baseUrl}/${hash ? `#${hash}` : ''}`);
++-  if (ready) await waitReady(page, 'initial load');
+++  if (ready) await waitReady(page, 'initial load', readyTimeout);
++   return { context, page, errors, close: () => context.close() };
++ }
++ 
++ /** Wait until the results header shows a count ("N roles"). */
++-async function waitReady(page, where = '') {
+++async function waitReady(page, where = '', timeout = READY_TIMEOUT) {
++   try {
++-    await page.locator('#resultsTitle strong').first().waitFor({ timeout: READY_TIMEOUT });
+++    await page.locator('#resultsTitle strong').first().waitFor({ timeout });
++   } catch {
++     const st = await page.evaluate(() => ({
++       title: document.querySelector('#resultsTitle')?.textContent,
++       hash: location.hash,
++       cards: document.querySelectorAll('#resultsList .card[data-id]').length,
++     })).catch(() => ({}));
++-    throw new Error(`app not ready${where ? ` (${where})` : ''} after ${READY_TIMEOUT}ms: ${JSON.stringify(st)}`);
+++    throw new Error(`app not ready${where ? ` (${where})` : ''} after ${timeout}ms: ${JSON.stringify(st)}`);
++   }
++ }
++ 
++@@ -1524,15 +1529,28 @@ function registerCompstimateTests(suite) {
++     const hist = mkdtempSync(path.join(os.tmpdir(), 'melon-cold-hist-'));
++     const cold = await startServer({ env: { MELON_CACHE_DIR: cache, MELON_HISTORY_DIR: hist } });
++     ctx.cleanup.push(() => cold.stop());
++-    const { page, close } = await openComp({ ...ctx, baseUrl: cold.baseUrl }, 'c=anduril&m=insights');
+++    // A cold server normalizes Anduril's 2,537 postings before its first list: 16 s at load 5 in the sandbox
+++    // (qa-suite-beta T-13), over the 30 s READY_TIMEOUT at load 10+. That wait is not what T21 times.
+++    const { page, close } = await openComp({ ...ctx, baseUrl: cold.baseUrl }, 'c=anduril&m=insights', { readyTimeout: 75000 });
++     try {
++       const first = await readComp(page);
+++      // The server's CPU time (utime + stime in /proc/<pid>/stat, 100 ticks a second), where Linux has it: the
+++      // backtest behind the accuracy line costs the same CPU at any load, while a loaded machine can stretch its wall
+++      // time past 10 s (qa-suite-beta T-13). The budget is 10 s of server CPU, and the line must come with no user
+++      // action within 40 s of wall time.
+++      const cpuMs = () => { try { const f = fs.readFileSync(`/proc/${cold.pid}/stat`, 'utf8').slice(fs.readFileSync(`/proc/${cold.pid}/stat`, 'utf8').lastIndexOf(')') + 2).split(' '); return (Number(f[11]) + Number(f[12])) * 10; } catch { return null; } };
++       const t0 = Date.now();
+++      const c0 = cpuMs();
++       let c = first;
++       // fix-estimates (P-2): at low confidence the line is a caution, never an accuracy figure.
++       const settled = (x) => !!x.accuracy && (/^low/i.test(x.conf || '') ? !/±/.test(x.accuracy) : /within ±\d+%/.test(x.accuracy));
++-      while (Date.now() - t0 < 10000 && !settled(c)) { await page.waitForTimeout(500); c = await readComp(page); }
++-      assert(settled(c), `no accuracy line (or low-confidence caution) ${Math.round((Date.now() - t0) / 1000)} s after the first estimate (first visit on a cold server)`);
+++      const budget = c0 == null ? 10000 : 40000; // wall: the 75 s first load and this fit the harness's 120 s
+++      while (Date.now() - t0 < budget && !settled(c)) { await page.waitForTimeout(500); c = await readComp(page); }
+++      const wall = Date.now() - t0;
+++      const used = c0 == null ? null : cpuMs() - c0;
+++      ctx.notes.push(`T21: the accuracy line came ${Math.round(wall / 100) / 10} s after the first estimate${used == null ? '' : `, after ${Math.round(used / 100) / 10} s of server CPU`}`);
+++      assert(settled(c), `no accuracy line (or low-confidence caution) ${Math.round(wall / 1000)} s after the first estimate (first visit on a cold server)`);
+++      if (used != null) assert(used < 10000, `the accuracy line took ${Math.round(used / 1000)} s of server CPU (${Math.round(wall / 1000)} s of wall time)`);
++       assertEq(JSON.stringify(fields(c)), JSON.stringify(fields(first)), 'other fields unchanged when the accuracy arrives');
++     } finally { await close(); }
++   });
+diff --git a/docs/process/patches/qa-suite-beta-flake-ui-map-order.diff b/docs/process/patches/qa-suite-beta-flake-ui-map-order.diff
+new file mode 100644
+index 0000000..1165526
+--- /dev/null
++++ b/docs/process/patches/qa-suite-beta-flake-ui-map-order.diff
+@@ -0,0 +1,34 @@
++diff --git a/test/e2e/ui.e2e.js b/test/e2e/ui.e2e.js
++index ff24c0c..7f763fd 100644
++--- a/test/e2e/ui.e2e.js
+++++ b/test/e2e/ui.e2e.js
++@@ -239,6 +239,9 @@ export function registerUiTests(suite) {
++     const { page, errors, close } = await openApp(ctx);
++     try {
++       await modeBtn(page, 'map').click();
+++      // The switch re-renders the view; read aria-pressed once it has (qa-suite-beta T-18: "map pressed: expected true,
+++      // got false" in a full run at load 7-10, fps/e2e-full3.log).
+++      await page.waitForFunction(() => document.querySelector('.topbar .seg button[data-mode="map"]')?.getAttribute('aria-pressed') === 'true', null, { timeout: 5000 }).catch(() => {});
++       assertEq(await modeBtn(page, 'map').getAttribute('aria-pressed'), 'true', 'map pressed');
++       await page.locator('#mapHost .ms-pin').first().waitFor({ timeout: 10000 });
++       const pins = await page.locator('#mapHost .ms-pin').count();
++@@ -292,7 +295,9 @@ export function registerUiTests(suite) {
++   });
++ 
++   suite.test('UI: map initial fit keeps every pin inside the visible map', async (ctx) => {
++-    assert(ctx.mapClipped, 'map test did not run');
+++    // Reads what the map test measured (one page load for both). Run alone (a --grep, or a --shard cut between them),
+++    // it has nothing to read: a skip, not a failure (qa-suite-beta T-18).
+++    if (!ctx.mapClipped) skip('needs "UI: map mode shows price pins…" to run first');
++     const { clipped, total } = ctx.mapClipped;
++     assert(clipped.length === 0, `${clipped.length}/${total} pins outside the visible map after initial fit: ${clipped.map((g) => g.label).join('; ')}`);
++   });
++@@ -894,7 +899,7 @@ export function registerUiTests(suite) {
++   });
++ 
++   suite.test('UI: mobile 390x844 buttons keep visible text / accessible names', async (ctx) => {
++-    assert(ctx.mobileUnnamed, 'mobile test did not run');
+++    if (!ctx.mobileUnnamed) skip('needs "UI: mobile 390x844 renders without horizontal scroll…" to run first'); // T-18
++     const u = [...new Set(ctx.mobileUnnamed)];
++     assert(u.length === 0, `${u.length} visible buttons have no text or accessible name at 390px:\n${u.join('\n')}`);
++   });
+diff --git a/docs/process/patches/qa-suite-beta-t1-board-list.diff b/docs/process/patches/qa-suite-beta-t1-board-list.diff
+new file mode 100644
+index 0000000..b64b544
+--- /dev/null
++++ b/docs/process/patches/qa-suite-beta-t1-board-list.diff
+@@ -0,0 +1,165 @@
++diff --git a/test/e2e/beta-boards.mjs b/test/e2e/beta-boards.mjs
++new file mode 100644
++index 0000000..758a516
++--- /dev/null
+++++ b/test/e2e/beta-boards.mjs
++@@ -0,0 +1,16 @@
+++// The beta site's boards, from the registry (server/companies.js): every non-paused company of the beta channel.
+++// e2e files that mean "every big-tech board" read them here, so a board added (Amazon and Meta, 2026-10-11) or resumed
+++// is tested without editing each file (qa-suite-beta T-1: three files kept five hand-written boards for 12 days).
+++import { COMPANIES } from '../../server/companies.js';
+++
+++export const BETA_COMPANIES = Object.freeze(COMPANIES.filter((c) => c.channel === 'beta' && !c.paused));
+++/** Slugs, in registry order. */
+++export const BETA_BOARDS = Object.freeze(BETA_COMPANIES.map((c) => c.slug));
+++/** slug -> the name the company menu shows. */
+++export const BETA_NAMES = Object.freeze(Object.fromEntries(BETA_COMPANIES.map((c) => [c.slug, c.name])));
+++/** The hosts (no "www.") a board's postings may link to: its postingHosts and the hosts of its postingPrefixes. */
+++export function postingHostsOf(slug) {
+++  const c = BETA_COMPANIES.find((x) => x.slug === slug);
+++  if (!c) return new Set();
+++  return new Set([...(c.postingHosts || []), ...(c.postingPrefixes || []).map((p) => new URL(p).hostname)].map((h) => h.replace(/^www\./, '')));
+++}
++diff --git a/test/e2e/beta-desktop-qa-2.e2e.js b/test/e2e/beta-desktop-qa-2.e2e.js
++index 7bc707e..8bc9435 100644
++--- a/test/e2e/beta-desktop-qa-2.e2e.js
+++++ b/test/e2e/beta-desktop-qa-2.e2e.js
++@@ -10,9 +10,11 @@ import http from 'node:http';
++ import fs from 'node:fs';
++ import path from 'node:path';
++ import { ROOT, assert, assertEq, skip } from './harness.js';
+++import { BETA_BOARDS } from './beta-boards.mjs';
++ 
++ const DESKTOP = { width: 1440, height: 900 };
++-const BIG_TECH = ['apple', 'google', 'nvidia', 'microsoft', 'netflix'];
+++// Every non-paused beta board, from the registry (T-1: Amazon and Meta were missing from a hand-written list).
+++const BIG_TECH = BETA_BOARDS;
++ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
++ const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.csv': 'text/csv', '.txt': 'text/plain', '.woff2': 'font/woff2' };
++ 
++diff --git a/test/e2e/beta-desktop-qa.e2e.js b/test/e2e/beta-desktop-qa.e2e.js
++index 8ba8b4f..49f183c 100644
++--- a/test/e2e/beta-desktop-qa.e2e.js
+++++ b/test/e2e/beta-desktop-qa.e2e.js
++@@ -9,10 +9,12 @@ import http from 'node:http';
++ import fs from 'node:fs';
++ import path from 'node:path';
++ import { ROOT, assert, assertEq, skip, startServer } from './harness.js';
+++import { BETA_BOARDS, postingHostsOf } from './beta-boards.mjs';
++ import { COMPANIES } from '../../server/companies.js';
++ 
++ const DESKTOP = { width: 1440, height: 900 };
++-const BIG_TECH = { apple: 'jobs.apple.com', google: 'google.com', nvidia: 'jobs.nvidia.com', microsoft: 'apply.careers.microsoft.com', netflix: 'explore.jobs.netflix.net' };
+++// Every non-paused beta board, from the registry (T-1: Amazon and Meta were missing from a hand-written list).
+++const BIG_TECH = BETA_BOARDS;
++ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
++ 
++ /** Serve ROOT/dist under /melon-seek/ (the GitHub Pages layout) on a free port; null without a beta build. */
++@@ -116,7 +118,7 @@ export function registerBetaDesktopQaTests(suite) {
++   // ---------------------------------------------------------------- guards (pass today)
++   suite.test('Beta desktop QA: big-tech boards load from the bundle only (Snapshot badge, no live request)', async (ctx) => {
++     const { st, page, errors, external, requests } = await openBeta(ctx, null);
++-    for (const c of Object.keys(BIG_TECH)) {
+++    for (const c of BIG_TECH) {
++       const e0 = external.length, r0 = requests.length;
++       await page.goto(`${st.beta}/#c=${c}`); await ready(page); await sleep(1200);
++       const label = await page.locator('#dataBadge .badge-label').innerText();
++@@ -130,11 +132,11 @@ export function registerBetaDesktopQaTests(suite) {
++     assert(!errors.length, `console errors: ${errors.slice(0, 3).join(' | ')}`);
++   });
++ 
++-  suite.test('Beta desktop QA: paused and absent companies (Meta, Amazon, Tesla) are nowhere; the main site lists no beta company', async (ctx) => {
+++  suite.test('Beta desktop QA: paused and absent companies (the registry\'s paused ones, and Tesla) are nowhere; the main site lists no beta company', async (ctx) => {
++     const { st, page } = await openBeta(ctx, 'c=netflix');
++     await page.click('#companyMenuBtn'); await sleep(300);
++     const names = await page.$$eval('#popover .company-item-name', (e) => e.map((x) => x.textContent));
++-    for (const n of ['Google', 'Microsoft', 'Apple', 'Netflix', 'NVIDIA']) assert(names.includes(n), `company menu lacks ${n}`);
+++    for (const n of COMPANIES.filter((c) => BIG_TECH.includes(c.slug)).map((c) => c.name)) assert(names.includes(n), `company menu lacks ${n}`);
++     // Paused companies come from the registry (server/companies.js `paused`), so resuming one needs no edit here.
++     const paused = COMPANIES.filter((c) => c.paused);
++     for (const n of [...paused.map((c) => c.name), 'Tesla']) assert(!names.includes(n), `company menu lists ${n}`);
++@@ -142,7 +144,7 @@ export function registerBetaDesktopQaTests(suite) {
++       assertEq((await fetch(`${st.main}/${p}`)).status, 404, `/${p}`);
++     }
++     const main = await (await fetch(`${st.main}/api/companies.json`)).json();
++-    assert(!main.some((c) => c.channel === 'beta' || c.slug in BIG_TECH), `main site companies.json lists ${main.map((c) => c.slug).join(',')}`);
+++    assert(!main.some((c) => c.channel === 'beta' || BIG_TECH.includes(c.slug)), `main site companies.json lists ${main.map((c) => c.slug).join(',')}`);
++   });
++ 
++   suite.test('Beta desktop QA: Apple (6,105 roles) facet counts stay consistent and each update lands quickly', async (ctx) => {
++@@ -175,12 +177,13 @@ export function registerBetaDesktopQaTests(suite) {
++ 
++   suite.test('Beta desktop QA: Apply opens each big-tech careers host in a new tab', async (ctx) => {
++     const { st, page } = await openBeta(ctx, null);
++-    for (const [c, host] of Object.entries(BIG_TECH)) {
+++    for (const c of BIG_TECH) {
++       await page.goto(`${st.beta}/#c=${c}`); await ready(page);
++       await page.locator('#resultsList .card[data-id]').first().click(); await sleep(700);
++       const a = page.locator('#drawer a.apply');
++       const href = await a.getAttribute('href');
++-      assertEq(new URL(href).hostname.replace(/^www\./, ''), host, `${c}: Apply host`);
+++      const host = new URL(href).hostname.replace(/^www\./, '');
+++      assert(postingHostsOf(c).has(host), `${c}: Apply goes to ${host}, not ${[...postingHostsOf(c)].join(' or ')}`);
++       assertEq(await a.getAttribute('target'), '_blank', `${c}: Apply target`);
++       assert(/noopener/.test(await a.getAttribute('rel')), `${c}: Apply rel`);
++       assert((await a.locator('.apply-host').innerText()) === host, `${c}: host shown under Apply`);
++@@ -190,7 +193,7 @@ export function registerBetaDesktopQaTests(suite) {
++ 
++   suite.test('Beta desktop QA: beta share pages /beta/c/<slug>/ have their own titles and open the beta app', async (ctx) => {
++     const { st, page } = await openBeta(ctx, null);
++-    for (const c of Object.keys(BIG_TECH)) {
+++    for (const c of BIG_TECH) {
++       const r = await fetch(`${st.beta}/c/${c}/`);
++       assertEq(r.status, 200, `/beta/c/${c}/`);
++       const html = await r.text();
++diff --git a/test/e2e/beta-mobile-qa.e2e.js b/test/e2e/beta-mobile-qa.e2e.js
++index ea03d25..af5c3ca 100644
++--- a/test/e2e/beta-mobile-qa.e2e.js
+++++ b/test/e2e/beta-mobile-qa.e2e.js
++@@ -12,6 +12,7 @@ import fs from 'node:fs';
++ import path from 'node:path';
++ import zlib from 'node:zlib';
++ import { ROOT, assert, assertEq, skip } from './harness.js';
+++import { BETA_BOARDS, BETA_NAMES } from './beta-boards.mjs';
++ import { COMPANIES } from '../../server/companies.js';
++ 
++ const SHOTS = path.join(ROOT, 'docs', 'screenshots', 'qa-mobile-beta');
++@@ -19,7 +20,8 @@ const IOS = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/
++ const ANDROID = 'Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Mobile Safari/537.36';
++ const PHONE = { width: 390, height: 844 };
++ const SMALL = { width: 360, height: 740 };
++-const BIG_TECH = ['netflix', 'google', 'microsoft', 'apple', 'nvidia']; // the first is opened by URL
+++// Every non-paused beta board, from the registry (T-1: Amazon and Meta were missing); the first is opened by URL.
+++const BIG_TECH = ['netflix', ...BETA_BOARDS.filter((s) => s !== 'netflix')];
++ const KEYBOARD = 336; // simulated on-screen keyboard height (px)
++ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
++ const num = (s) => Number(String(s).replace(/,/g, '').match(/(\d+)/)?.[1]);
++@@ -154,7 +156,7 @@ export function registerBetaMobileQaTests(suite) {
++ 
++   suite.test('Beta mobile QA: every big-tech board loads from its snapshot with no live request; badge, popover and CSV agree', async (ctx) => {
++     const { page, errors, external } = await openBeta(ctx, { hash: `c=${BIG_TECH[0]}` });
++-    const names = { google: 'Google', microsoft: 'Microsoft', apple: 'Apple', netflix: 'Netflix', nvidia: 'NVIDIA' };
+++    const names = BETA_NAMES;
++     for (const slug of BIG_TECH) {
++       if (slug !== BIG_TECH[0]) await switchTo(page, names[slug]);
++       const roles = num(await page.textContent('#resultsTitle'));
++@@ -171,7 +173,18 @@ export function registerBetaMobileQaTests(suite) {
++       assert(!pop.refreshShown, `${slug}: "Refresh from the live board" offered for a live: false board`);
++       assertEq(pop.csv, `/melon-seek/beta/data/${slug}.csv`, `${slug}: CSV link`);
++       assert(pop.csvH >= 44, `${slug}: CSV link is ${pop.csvH}px tall`);
++-      const lines = await page.evaluate(async (u) => (await (await fetch(u)).text()).split('\n').filter(Boolean).length, pop.csv);
+++      // Records, not lines: a quoted field may hold a line break (RFC 4180; Meta's "Research Scientist,\nMachine
+++      // Learning…" title does, qa-suite-beta T-17), which a split on "\n" counts as a row.
+++      const lines = await page.evaluate(async (u) => {
+++        const t = await (await fetch(u)).text();
+++        let n = 0, q = false, any = false;
+++        for (const c of t) {
+++          if (c === '"') q = !q;
+++          else if (c === '\n' && !q) { if (any) n++; any = false; continue; }
+++          if (c !== '\r') any = true;
+++        }
+++        return n + (any ? 1 : 0);
+++      }, pop.csv);
++       assertEq(lines, roles + 1, `${slug}: CSV rows (header + roles)`);
++       await tapSel(page, '#popover .pop-head .icon-btn');
++     }
+diff --git a/docs/process/patches/qa-suite-beta-t11-state-waits.diff b/docs/process/patches/qa-suite-beta-t11-state-waits.diff
+new file mode 100644
+index 0000000..232e9a1
+--- /dev/null
++++ b/docs/process/patches/qa-suite-beta-t11-state-waits.diff
+@@ -0,0 +1,226 @@
++--- a/test/e2e/fix-phone-text.e2e.js
+++++ b/test/e2e/fix-phone-text.e2e.js
++@@ -40,6 +40,27 @@
++ const WORDS = 12;
++ const BOARDS = ['amazon', 'apple', 'google', 'meta', 'microsoft', 'netflix', 'nvidia'];
++ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+++
+++/**
+++ * Wait until the page is still, at most `cap` ms: at least 150 ms after the action (a hash change or a tap is handled
+++ * in a later task), then until no DOM change for 120 ms, the fonts are loaded (a swap re-flows text with no DOM
+++ * change), and no transition or animation is running (an endless one, a
+++ * skeleton's shimmer, does not count). It replaces fixed sleeps of 0.4-1.5 s, which were 68-85% of a guard walk
+++ * (qa-suite-beta T-11, measured): a page that settles sooner is measured sooner, and one that never settles is measured
+++ * after `cap`, as before. The mutation clock is installed by STILL_INIT in every context.
+++ */
+++async function quiet(page, cap = 700) {
+++  await sleep(Math.min(150, cap));
+++  if (cap <= 150) return;
+++  await page.waitForFunction(() => performance.now() - (window.__qsbMut || 0) > 120 && document.fonts.status === 'loaded'
+++    && document.getAnimations().every((a) => a.playState !== 'running' || a.effect?.getComputedTiming?.().iterations === Infinity),
+++  null, { timeout: cap - 150, polling: 50 }).catch(() => {});
+++}
+++/** Init script: the time of the page's last DOM change (window.__qsbMut), for quiet(). */
+++const STILL_INIT = () => {
+++  window.__qsbMut = performance.now();
+++  new MutationObserver(() => { window.__qsbMut = performance.now(); }).observe(document, { subtree: true, childList: true, attributes: true, characterData: true });
+++};
++ const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.csv': 'text/csv', '.txt': 'text/plain', '.woff2': 'font/woff2' };
++ 
++ /**
++@@ -120,6 +141,7 @@
++     : mobile ? { viewport: vp, isMobile: engine !== 'firefox', hasTouch: true, deviceScaleFactor: 2, userAgent: vp.width <= 360 ? ANDROID : IOS } : { viewport: vp };
++   const context = await ctx.browser.newContext({ ...opts, colorScheme: theme });
++   ctx.cleanup.push(() => context.close().catch(() => {}));
+++  await context.addInitScript(STILL_INIT);
++   await context.route((u) => !u.href.startsWith(st.origin) && !u.href.startsWith('data:') && !u.href.startsWith('blob:'), (r) => r.abort('blockedbyclient'));
++   const page = await context.newPage();
++   const errors = [];
++@@ -135,12 +157,12 @@
++       await page.goto('about:blank');
++       await page.goto(`${base}${h ? `#${h}` : ''}`);
++       await ready();
++-      await sleep(settle);
+++      await quiet(page, settle);
++     },
++     async hash(h, settle = 700) {
++       await page.evaluate((x) => { location.hash = x; }, h);
++       await ready();
++-      await sleep(settle);
+++      await quiet(page, settle);
++     },
++   };
++ }
++@@ -152,10 +174,27 @@
++   const mobile = await page.evaluate(() => matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window);
++   if (mobile) await page.touchscreen.tap(b.x + b.width / 2, b.y + b.height / 2);
++   else await loc.click();
++-  await sleep(wait);
+++  await quiet(page, wait);
++ }
++ const sheetState = (page) => page.evaluate(() => document.body.dataset.sheet);
++-async function sheetTo(page, s) { for (let i = 0; i < 4 && (await sheetState(page)) !== s; i++) await tap(page, '#sheetHandle', 600); }
+++/** The popover is open (visible) and still; at most `cap` ms more. */
+++async function popoverOpen(page, cap) {
+++  await page.waitForSelector('#popover:not([hidden])', { state: 'visible', timeout: cap }).catch(() => {});
+++  await quiet(page, cap);
+++}
+++/** The popover is closed; at most `cap` ms. */
+++async function popoverClosed(page, cap) {
+++  await page.waitForFunction(() => { const p = document.querySelector('#popover'); return !p || p.hidden || !p.getClientRects().length; }, null, { timeout: cap, polling: 50 }).catch(() => {});
+++  await quiet(page, Math.min(cap, 300));
+++}
+++async function sheetTo(page, s) {
+++  for (let i = 0; i < 4 && (await sheetState(page)) !== s; i++) {
+++    const before = await sheetState(page);
+++    await tap(page, '#sheetHandle', 0);
+++    await page.waitForFunction((b) => document.body.dataset.sheet !== b, before, { timeout: 600, polling: 50 }).catch(() => {});
+++    await quiet(page, 600);
+++  }
+++}
++ async function shot(page, name) {
++   const dir = process.env.FIX_PHONE_TEXT_SHOTS;
++   if (!dir) return;
++@@ -166,11 +205,11 @@
++ async function openFolds(page) {
++   await page.evaluate(() => { for (const d of document.querySelectorAll('#drawer details.d-fold')) d.open = true; });
++   await page.waitForFunction(() => !document.querySelector('#drawer .comps-body .sk'), null, { timeout: 15000 }).catch(() => {});
++-  await sleep(500);
+++  await quiet(page, 500);
++ }
++ async function openJob(s, slug, id) {
++   await s.hash(`c=${slug}&job=${encodeURIComponent(id)}`, 900);
++-  await s.page.waitForSelector('#drawer:not([hidden]) #drawerTitle', { timeout: 20000 });
+++  await s.page.waitForSelector('#drawer.is-open:not([hidden]) #drawerTitle', { timeout: 20000 });
++   await openFolds(s.page);
++ }
++ const topPaidId = (page) => page.evaluate(() => document.querySelector('#resultsList .card[data-id]')?.dataset.id);
++@@ -358,7 +397,7 @@
++   await s.hash(`c=${slug}&m=insights`, 900);
++   await page.waitForSelector('#insightsHost .msi-stat', { timeout: 60000 }).catch(() => {});
++   await page.waitForSelector('#compHost .ms-comp__card, #compHost .ms-comp__empty', { timeout: 60000 }).catch(() => {});
++-  await sleep(600);
+++  await quiet(page, 600);
++   await look('Insights', ['#main']);
++   for (const [what, id] of [['top-paid job', top], ['job with no pay', p.noPay?.id], ['stated minimum', p.minimum?.id], ['general application', p.pool?.id], ['open 180+ days', p.longOpen?.id], ['on-target earnings', p.ote?.id]]) {
++     if (!id) continue;
++@@ -368,22 +407,25 @@
++   await s.hash(`c=${slug}`, 900);
++   if (await page.locator('#filtersToggle').isVisible()) await tap(page, '#filtersToggle', 900);
++   await page.evaluate(() => { for (const d of document.querySelectorAll('#filterBody details')) d.open = true; });
++-  await sleep(500);
+++  await quiet(page, 500);
++   await look('filter sheet', ['#filters']);
++   await page.keyboard.press('Escape');
++-  await sleep(500);
+++  await quiet(page, 500);
++   await s.hash(`c=${slug}`, 600);
++   await tap(page, '#dataBadge', 900);
+++  await popoverOpen(page, 900);
++   await look('data badge popover', ['#popover']);
++   await page.keyboard.press('Escape');
++-  await sleep(400);
+++  await popoverClosed(page, 400);
++   await page.evaluate(() => document.querySelector('#quickChips [data-pop=more]')?.scrollIntoView({ inline: 'center' }));
++-  await sleep(250);
+++  await quiet(page, 250);
++   await tap(page, '#quickChips [data-pop=more]', 900);
+++  await popoverOpen(page, 900);
++   await look('More sheet', ['#popover']);
++   await page.keyboard.press('Escape');
++-  await sleep(400);
+++  await popoverClosed(page, 400);
++   await tap(page, '#companyMenuBtn', 900);
+++  await popoverOpen(page, 900);
++   await look('company menu', ['#popover']);
++   await page.keyboard.press('Escape');
++   return out;
++--- a/test/e2e/phone-matrix.e2e.js
+++++ b/test/e2e/phone-matrix.e2e.js
++@@ -37,6 +37,27 @@
++ const SHOTS = process.env.PHONE_MATRIX_SHOTS || '';
++ const SHOT_DIR = path.resolve(process.env.PHONE_MATRIX_SHOT_DIR || path.join(ROOT, 'docs', 'screenshots', 'fix-phone-sizes'));
++ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+++
+++/**
+++ * Wait until the page is still, at most `cap` ms: at least 150 ms after the action (a hash change or a tap is handled
+++ * in a later task), then until no DOM change for 120 ms, the fonts are loaded (a swap re-flows text with no DOM
+++ * change), and no transition or animation is running (an endless one, a
+++ * skeleton's shimmer, does not count). It replaces fixed sleeps of 0.4-1.5 s, which were 68-85% of a guard walk
+++ * (qa-suite-beta T-11, measured): a page that settles sooner is measured sooner, and one that never settles is measured
+++ * after `cap`, as before. The mutation clock is installed by STILL_INIT in every context.
+++ */
+++async function quiet(page, cap = 700) {
+++  await sleep(Math.min(150, cap));
+++  if (cap <= 150) return;
+++  await page.waitForFunction(() => performance.now() - (window.__qsbMut || 0) > 120 && document.fonts.status === 'loaded'
+++    && document.getAnimations().every((a) => a.playState !== 'running' || a.effect?.getComputedTiming?.().iterations === Infinity),
+++  null, { timeout: cap - 150, polling: 50 }).catch(() => {});
+++}
+++/** Init script: the time of the page's last DOM change (window.__qsbMut), for quiet(). */
+++const STILL_INIT = () => {
+++  window.__qsbMut = performance.now();
+++  new MutationObserver(() => { window.__qsbMut = performance.now(); }).observe(document, { subtree: true, childList: true, attributes: true, characterData: true });
+++};
++ const slug = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
++ const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.csv': 'text/csv', '.txt': 'text/plain', '.woff2': 'font/woff2', '.webmanifest': 'application/manifest+json' };
++ // The Surface Duo's hinge when spanned: two 540 px screens with 34 px between them.
++@@ -91,6 +112,7 @@
++   const opts = size.ua ? contextFor(size, engine) : { viewport: { width: size.width, height: size.height }, deviceScaleFactor: 1, hasTouch: !!size.touch };
++   const context = await ctx.browser.newContext({ ...opts, colorScheme });
++   ctx.cleanup.push(() => context.close());
+++  await context.addInitScript(STILL_INIT);
++   await context.route((u) => !u.href.startsWith(st.origin) && !u.href.startsWith('data:') && !u.href.startsWith('blob:'), (r) => r.abort('blockedbyclient'));
++   const page = await context.newPage();
++   const errors = [];
++@@ -108,7 +130,7 @@
++     const t = document.querySelector('#resultsTitle');
++     return t && !/Loading/.test(t.textContent) && /\d/.test(t.textContent) && document.querySelector('#resultsList .card[data-id]');
++   }, null, { timeout: 90000 });
++-  await sleep(700);
+++  await quiet(page, 700);
++   return { page, errors, context, cdp };
++ }
++ 
++@@ -326,7 +348,7 @@
++ async function checkDrawer(page, screenW, label) {
++   await page.evaluate(() => document.querySelector('#resultsList .card[data-id]').click());
++   await page.waitForFunction(() => document.querySelector('#drawer.is-open #drawerTitle'), null, { timeout: 15000 }).catch(() => {});
++-  await sleep(900); // the slide-in (0.22 s) and the description file
+++  await quiet(page, 900); // the slide-in (0.22 s) and the description file
++   const f = await page.evaluate(overlayFacts, '#drawer');
++   const p = overlayProblems(f, 'job page', screenW, label);
++   const ctl = await page.evaluate(() => ['#drawerClose', '.drawer-foot .apply'].map((s) => {
++@@ -339,7 +361,7 @@
++   p.push(...(await page.evaluate(drawerTextFacts)).map((c) => `${label}: job page: ${c}`));
++   await page.keyboard.press('Escape');
++   await page.waitForFunction(() => !document.querySelector('#drawer.is-open'), null, { timeout: 5000 }).catch(() => {});
++-  await sleep(350);
+++  await quiet(page, 350);
++   return p;
++ }
++ 
++@@ -366,7 +388,7 @@
++     if (done) p.push(`${label}: filter sheet: ${done}`);
++     await page.keyboard.press('Escape');
++     await page.waitForFunction(() => !document.body.classList.contains('filters-open'), null, { timeout: 5000 }).catch(() => {});
++-    await sleep(350);
+++    await quiet(page, 350);
++   }
++   return p;
++ }
++@@ -433,11 +455,12 @@
++           for (const mode of ['map', 'insights']) {
++             await clickEl(page, `.topbar .seg [data-mode="${mode}"]`);
++             if (mode === 'map') await page.waitForFunction(() => document.querySelector('.ms-map .ms-pin'), null, { timeout: 20000 }).catch(() => {});
++-            await sleep(mode === 'map' ? 1500 : 900);
+++            if (mode === 'insights') await page.waitForSelector('#insightsHost .msi-stat', { timeout: 20000 }).catch(() => {});
+++            await quiet(page, mode === 'map' ? 1500 : 900);
++             bad.push(...problemsOf(await page.evaluate(measure, OTHER_CONTROLS), size.width, `${label} ${mode}`));
++           }
++           await clickEl(page, '.topbar .seg [data-mode="chart"]');
++-          await sleep(900);
+++          await quiet(page, 900);
++         }
++         bad.push(...await checkDrawer(page, size.width, label));
++         bad.push(...await checkFilters(page, size.width, label));
+diff --git a/docs/process/patches/qa-suite-beta-t19-bp2-munich.diff b/docs/process/patches/qa-suite-beta-t19-bp2-munich.diff
+new file mode 100644
+index 0000000..087f6eb
+--- /dev/null
++++ b/docs/process/patches/qa-suite-beta-t19-bp2-munich.diff
+@@ -0,0 +1,26 @@
++--- a/test/e2e/fix3-viz.e2e.js
+++++ b/test/e2e/fix3-viz.e2e.js
++@@ -146,14 +146,21 @@
++     assert(left > 0, `the US and Munich ranges should be counted as left out: "${c.empty}" / "${c.foot}"`);
++   });
++ 
++-  suite.test('Fix viz 3: [BP-2] NVIDIA, Munich, Senior and Staff+, from €110,000: no Polish pay on the chart', async (ctx) => {
++-    const { st, page } = await openBeta(ctx, 'c=nvidia&l=Munich&s=Senior&s=Staff%2B&smin=110000');
+++  // No minimum (qa-suite-beta T-19): NVIDIA posts no German pay, so since BP-2's fix a €110,000 minimum left 0 Munich
+++  // roles and this test skipped on every run. The minimum on cards is fix3-app's [BP-2] test.
+++  suite.test('Fix viz 3: [BP-2] NVIDIA, Munich, Senior and Staff+: no Polish pay on the chart, and the chart says what it left out', async (ctx) => {
+++    const { st, page } = await openBeta(ctx, 'c=nvidia&l=Munich&s=Senior&s=Staff%2B');
++     await needBoard(page, st.beta, 'nvidia');
++     const s = await statsLine(page);
++     if (s.withSalary == null || s.n < 2) skip(`no such roles ("${s.text}")`);
++     const c = await chartSays(page);
++     assertEq(num(c.plotted) ?? 0, s.withSalary, `the stats line says "${s.text}", the chart "${c.foot || c.empty}"`);
++     if (s.withSalary && s.median) assert(c.cap.includes(s.median), `one median on the screen: the stats line "${s.median}", the chart "${c.cap}"`);
+++    if (!s.withSalary) {
+++      assert(!c.rows.some((r) => /median /.test(r)), `no pay is posted for Munich, but the chart has medians: ${JSON.stringify(c.rows)}`);
+++      const left = num((/([\d,]+) (?:postings? )?(?:with|list|lists) pay (?:posted )?for another country/.exec(c.empty + ' ' + c.foot) || [])[1]);
+++      assert(left > 0, `the Polish ranges listed in Munich should be counted as left out: "${c.empty}" / "${c.foot}"`);
+++    }
++   });
++ 
++   /* ------------------------------------------------------------ BP-13 chart */
+diff --git a/docs/process/patches/qa-suite-beta-t19-v18-fold.diff b/docs/process/patches/qa-suite-beta-t19-v18-fold.diff
+new file mode 100644
+index 0000000..f9c031d
+--- /dev/null
++++ b/docs/process/patches/qa-suite-beta-t19-v18-fold.diff
+@@ -0,0 +1,29 @@
++--- a/test/e2e/beta-viz-review.e2e.js
+++++ b/test/e2e/beta-viz-review.e2e.js
++@@ -105,6 +105,18 @@
++   });
++ }
++ 
+++/**
+++ * D-44 (fix-viz-5): Group by Location folds the small places into "N more places"; open it so every place is a row
+++ * (as fix-pay-at-place's [V-36] checks do). Without it [V-18] never found its London row and skipped on every run
+++ * since D-44 (qa-suite-beta T-19).
+++ */
+++async function openFold(page) {
+++  const fold = page.locator('#chartHost .ms-crow__label:has(.ms-crow__fold)').first();
+++  if (!(await fold.count()) || (await fold.locator('.ms-crow__fold').textContent()) === '\u25b4') return;
+++  await fold.click();
+++  await page.waitForFunction(() => document.querySelector('#chartHost .ms-crow__fold')?.textContent === '\u25b4', null, { timeout: 15000 });
+++}
+++
++ /** Hover each ranges row (up to `max`) and return the tooltips. */
++ async function rangeTips(page, max = 12) {
++   const n = Math.min(max, await page.locator('#chartHost .ms-row').count());
++@@ -215,6 +227,7 @@
++   suite.test('Beta viz review: [V-18] Group by Location: a row for a place no posted pay covers shows no median (Google "London")', async (ctx) => {
++     const { page, base } = await open(ctx, 'c=google&g=location');
++     await needBoard(page, base, 'google');
+++    await openFold(page);
++     const rows = await allClusterRows(page);
++     const london = rows.find((r) => r.name === 'London');
++     if (!london) skip('no London row');
+diff --git a/docs/process/patches/qa-suite-beta-t4-link-check.diff b/docs/process/patches/qa-suite-beta-t4-link-check.diff
+new file mode 100644
+index 0000000..23a3675
+--- /dev/null
++++ b/docs/process/patches/qa-suite-beta-t4-link-check.diff
+@@ -0,0 +1,37 @@
++diff --git a/docs/process/scripts/link-check.mjs b/docs/process/scripts/link-check.mjs
++index 011f972..b8ee2ff 100644
++--- a/docs/process/scripts/link-check.mjs
+++++ b/docs/process/scripts/link-check.mjs
++@@ -305,19 +305,29 @@ export function checkMarkdown(rep, root = ROOT) {
++   const files = ['README.md'];
++   const walk = (d) => { for (const e of fs.readdirSync(path.join(root, d), { withFileTypes: true })) { const p = path.join(d, e.name); if (e.isDirectory()) walk(p); else if (e.name.endsWith('.md')) files.push(p); } };
++   if (fs.existsSync(path.join(root, 'docs'))) walk('docs');
+++  // Docs the build renders as site pages link to each other by their site paths (scripts/build-static.js:
+++  // methodology/ is docs/METHODOLOGY_GUIDE.md, methodology/reference/ is docs/LIVABILITY.md). qa-suite-beta T-4.
+++  const SITE_LINKS = { 'docs/METHODOLOGY_GUIDE.md': { 'reference/': 'docs/LIVABILITY.md' } };
++   for (const f of files) {
++     if (!fs.existsSync(path.join(root, f))) continue;
++-    const text = fs.readFileSync(path.join(root, f), 'utf8').replace(/```[\s\S]*?```/g, '').replace(/`[^`\n]*`/g, '');
+++    const full = fs.readFileSync(path.join(root, f), 'utf8').replace(/```[\s\S]*?```/g, '').replace(/`[^`\n]*`/g, '');
+++    // A process log's "Section for docs/QA.md" is written to be pasted into docs/QA.md: its links are relative to docs/.
+++    const cut = /^## Section for docs\/QA\.md\s*$/m.exec(full);
+++    const parts = cut ? [[full.slice(0, cut.index), path.dirname(f)], [full.slice(cut.index), 'docs']] : [[full, path.dirname(f)]];
+++    for (const [text, from] of parts) {
++     const links = [...text.matchAll(/\[[^\]]*\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g), ...text.matchAll(/<a\s[^>]*href=["']([^"']+)["']/g)].map((m) => m[1]);
++     for (const raw of links) {
++       if (/^(https?:|mailto:|tel:)/i.test(raw) || raw.startsWith('#') || raw.startsWith('<')) continue;
++-      const target = decodeURIComponent(raw.replace(/[?#].*$/, ''));
+++      let target = decodeURIComponent(raw.replace(/[?#].*$/, ''));
++       if (!target) continue;
++-      const abs = path.resolve(path.join(root, path.dirname(f)), target);
+++      const site = Object.entries(SITE_LINKS[f.split(path.sep).join('/')] || {}).find(([prefix]) => target.startsWith(prefix));
+++      if (site) target = path.relative(path.join(root, from), path.join(root, site[1]));
+++      const abs = path.resolve(path.join(root, from), target);
++       if (!abs.startsWith(root)) { bad(rep, f, raw, 'points outside the repo'); continue; }
++       if (!fs.existsSync(abs)) bad(rep, f, raw, 'file not found');
++       else rep.ok++;
++     }
+++    }
++   }
++   return files.length;
++ }
+diff --git a/docs/process/patches/qa-suite-beta-todo-fixed.diff b/docs/process/patches/qa-suite-beta-todo-fixed.diff
+new file mode 100644
+index 0000000..5714a2a
+--- /dev/null
++++ b/docs/process/patches/qa-suite-beta-todo-fixed.diff
+@@ -0,0 +1,14 @@
++--- a/test/beta-coverage.test.js
+++++ b/test/beta-coverage.test.js
++@@ -13,7 +13,10 @@
++ const read = (...p) => fs.readFileSync(path.join(ROOT, ...p), 'utf8');
++ const E2E = path.join(ROOT, 'test', 'e2e');
++ const e2eFiles = () => fs.readdirSync(E2E).filter((f) => f.endsWith('.e2e.js')).sort();
++-const todo = (id) => ({ todo: `${id}: docs/process/qa-suite-beta.md` });
+++// Fixed by qa-suite-beta-e2e-runner.diff (T-4, T-5, T-9, T-10) and qa-suite-beta-t1-board-list.diff (T-1): every
+++// test of these IDs passes, so they are real tests now. T-17 waits on fix-mr-3 (norm-13).
+++const FIXED = new Set(['T-1', 'T-4', 'T-5', 'T-9', 'T-10']);
+++const todo = (id) => (FIXED.has(id) ? {} : { todo: `${id}: docs/process/qa-suite-beta.md` });
++ 
++ const { listCompanies } = await import(pathToFileURL(path.join(ROOT, 'server', 'companies.js')).href);
++ /** The boards the beta site shows: the registry's non-paused beta companies. */
+diff --git a/docs/process/prompts/qa-suite-beta.md b/docs/process/prompts/qa-suite-beta.md
+new file mode 100644
+index 0000000..1f6e0ed
+--- /dev/null
++++ b/docs/process/prompts/qa-suite-beta.md
+@@ -0,0 +1,32 @@
++**The lead's note for this run (beta, 2026-10-23).** You run in your own git worktree. First `git fetch origin claude/stoic-ride-54ddxp && git checkout --detach origin/claude/stoic-ride-54ddxp`; the lead will tell you when fix wave 5's last batch lands, and you then move to that head. Symlink today's crawl: `ln -s /tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92f3-f582ebca24d9/scratchpad/wt-data2/data/snapshots data/snapshots; mkdir -p data/beta; ln -s /tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92f3-f582ebca24d9/scratchpad/wt-data2/data/beta/snapshots data/beta/snapshots`, and `ln -s /home/user/melon-seek/node_modules node_modules`. Never commit those links, and **never move them**: an agent hung twice on moving a data link. For the CI-like `npm test` use a clean checkout with no links (`git worktree add --detach /tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92f3-f582ebca24d9/scratchpad/qa-suite-beta/clean HEAD`, link node_modules, `MELON_BETA_SNAPSHOT_DIR= timeout 1200 npm test`).
++
++Where the suite stands, and what the lead most needs from you:
++- **Runtime.** The full e2e is now about 900 tests and over 2 hours. It ran out of a 90-minute limit on 2026-10-17. Find what dominates: the groups that loop over all 21 phone sizes × boards, repeated board loads, repeated builds. Propose patches that cut it without losing coverage, e.g. shared contexts per size, fewer boards per size where one board covers the code path, or a `--shard` option in scripts/e2e.js. Measure before and after on the same machine load.
++- **The browser crash.** Chromium closed twice near test 750 of a full run, and every later test failed with "Target page, context or browser has been closed". The lead's 9fa0ab2 now relaunches it, so one crash fails one test. Find the cause: memory growth, contexts or pages a group never closes (count them per group), or one test that kills it. The lead's logs of the two crashed runs are /tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92f3-f582ebca24d9/scratchpad/gate/e2e-e57151f-timedout.log and /tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92f3-f582ebca24d9/scratchpad/gate/e2e-full-fbdad58.log (read-only).
++- **Red-by-design tests.** Every reviewer group carries tests that fail until their fix lands. List the ones still red on the branch head after fix wave 5, and which lane or decision each waits on. Find any that can never pass (stale since a fix changed the design), like fix-density's one-row legend, which D-51 superseded.
++- **Flakes.** The timing tests (S-3, S-6, PERF-1, V15, T21 and the politeRequest spacing) fail under load. Propose load-robust versions.
++- **Phones.** Check that every phone-facing feature runs at every size in test/e2e/phone-sizes.mjs (21 sizes).
++- **CI parity.** The full e2e runs nowhere in CI; webkit-phone.yml runs some groups on WebKit. Propose what CI should run.
++
++Run the full e2e **once**, in the background, with a timeout, on a quiet-ish machine (note `uptime`). Use the lead's two gate logs as runs 2 and 3. Run `npm test` 3 times. Other agents share this 4-CPU machine, so run one e2e suite at a time. Resume safety: commit small and often in your worktree, keep a `## State` section at the top of your log, and send findings to "main" by SendMessage as you confirm them. The lead checkpoints your worktree every 15 minutes. Where the template says "don't commit", commit in your worktree anyway; never push.
++
++You are the QA engineer who owns melon-seek's automated test suites (/home/user/melon-seek), "the Zillow of job postings". `npm test` runs the unit and contract tests (node:test, no browser); `node scripts/e2e.js` runs the Playwright e2e suite against the static build in `dist/` and the server. Read docs/QA.md, docs/process/qa.md (how the suite was built; its prompt is docs/process/prompts/qa.md), scripts/e2e.js, package.json, .github/workflows/ci.yml, docs/process/PLAYBOOK.md, docs/process/TEMPLATE.md and docs/process/lead.md from "Fix wave 5" on (the gate runs, the browser crash, the relaunch fix) and the test sections of docs/process/qa-mobile-beta-4.md and docs/process/qa-desktop-beta-4.md.
++
++**Your job:** make sure the suites actually protect target `beta` (`/melon-seek/beta/`), for the seven big-tech boards (Amazon, Apple, Google, Meta, Microsoft, NVIDIA and Netflix), plus Anduril on the main site. The other stage 1 agents find bugs; you find what the tests would miss. Do not edit product code or existing test files. You own:
++- docs/process/qa-suite-beta.md (your log, the coverage map, timings and flake record);
++- docs/process/prompts/qa-suite-beta.md (paste this prompt verbatim);
++- a NEW e2e file, test/e2e/beta-coverage.e2e.js, registered the way scripts/e2e.js registers the others, and a NEW unit file, test/beta-coverage.test.js. Tests for features that work should pass; tests for bugs you find should fail now, with the finding ID in the name, e.g. `[T-3]`;
++- suggested changes to existing tests, scripts/e2e.js or ci.yml as patches in docs/process/patches/qa-suite-beta-<name>.diff.
++Don't commit and never push.
++
++**Setup:** the lead built `dist/` for the e2e suite and put the data in `data/snapshots and data/beta/snapshots (linked as the note above says)`. Run the suite as is: NODE_PATH=/tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92f3-f582ebca24d9/scratchpad/pw/node_modules node scripts/e2e.js (Chromium at /opt/pw-browsers/chromium-1194/chrome-linux/chrome; never run `playwright install`). If you need your own build, use `node scripts/build-static.js --out /tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92f3-f582ebca24d9/scratchpad/qa-suite-beta/dist`; never rewrite `dist/`. Use pid files; never `pkill -f` or `pgrep -f`. Note the machine load (`uptime`) with every timing.
++
++**Work through:**
++1. **Coverage map.** List every user-facing feature of `beta` (start from the feature list in docs/process/prompts/cycle/desktop-qa.md and the beta-only items there) and, for each, the test file and test name that covers it, or "none". Do the same for the data pipeline: each source adapter, the normalizer, the salary parser, the vetting gate, the build's channel split, the archive ingest and the crawl workflows.
++2. **Gaps.** Write tests for the most important uncovered features first: the ones whose failure would mislead or block a job seeker. Assert on behaviour and on numbers computed from the data, not on a fixed count that changes with each crawl.
++3. **Flakes.** Run the full e2e suite 3 times and `npm test` 3 times. List every test that failed in any run, with its error, the load at the time, and a root cause (a race, a timeout too short for the largest board, order dependence, shared state, real data drift). "Flaky" is not a root cause. Suggest a fix as a patch.
++4. **Speed.** The 10 slowest tests in each suite, and whether any repeats expensive setup (a full build, a large board load) that could be shared.
++5. **Stale assertions.** Tests that pin numbers or names a crawl can change, docs-reading tests that a wording change could break, and tests that pass vacuously (no assertion reached, an empty list iterated).
++6. **CI parity.** What CI runs versus what a contributor runs locally; tools the sandbox has and the runner lacks; whether the e2e suite runs anywhere in CI, and if not, what it would take.
++
++For each finding write an ID (T-n), a severity (High: a real bug or a whole feature untested; Medium: a flake or a gap that hides regressions; Low: speed or tidiness), the evidence, and the fix. Report back with the coverage gaps and flakes ordered by risk, one line each, and the run results of all six runs.
+diff --git a/docs/process/qa-suite-beta.md b/docs/process/qa-suite-beta.md
+new file mode 100644
+index 0000000..10da6e3
+--- /dev/null
++++ b/docs/process/qa-suite-beta.md
+@@ -0,0 +1,591 @@
++# Process log: qa-suite-beta (test-suite QA, target `beta`, 2026-10-23)
++
++## State
++- **Done:**
++  - the brief, saved verbatim (f06c2f8);
++  - **npm test, CI-like, 3 runs** on 6038890 (= 05263e8 plus this log), §5;
++  - the coverage map (§4) and the phone-size matrix (§4.3);
++  - **T-12, the browser "crash": root cause found and reproduced.** The e2e process gets a signal (SIGTERM or
++    SIGHUP), Playwright closes Chromium and the run carries on (§7). The fix is the core of the runner patch;
++  - new files:
++    - `test/beta-coverage.test.js`, 14 tests: 7 guards, 6 [T-n] to-dos and 1 real-data check. In CI: 7 pass,
++      2 skipped, 5 to-dos, 0 fail;
++    - `test/e2e/beta-coverage.e2e.js`, 32 tests: 4 desktop tests, 7 per board and 21 per phone size, registered in
++      scripts/e2e.js;
++  - the 12 patches in `docs/process/patches/qa-suite-beta-*.diff` (§11):
++    - the runner: signals, --shard, --list, --max-skips, failure durations, links registered;
++    - T-1, T-4 and T-11 (state waits: the same results, 44% less time);
++    - six flake fixes;
++    - the CI workflow;
++  - on the lead's 5c0cda3 build, with the runner and T-1 patches: my group plus the three T-1 groups pass 75/75;
++  - the coverage group: 28/30 on its third run, and both failures were my test's own wait (fixed);
++  - the stress runs: originals fail every run, patched 0 of 9;
++  - a with-data `npm test` (`runs/unit-data-1`, 271 s, load 11–17): 1,262 tests, 1 fail (my own guard, fixed), and
++    no vacuous pass found (§9.3);
++  - the patches checked on a copy of 5c0cda3 with the runner and T-1 patches applied: my [T-1], [T-5], [T-9] and
++    [T-10] to-dos pass there.
++- **In progress:** the lead's gate run on 5c0cda3, sampled every 30 s (`<scratch>/qa-suite-beta/mem-gate.jsonl`).
++  At 14:29 it was at test 616 of 864, with only T21 failed so far.
++- **Next:**
++  1. the red-by-design list from the gate log (`<scratch>/gate/e2e.log`);
++  2. the one full e2e run, instrumented (`tools/instrument.mjs`), on the landed head;
++  3. regenerate the runner patch on that head;
++  4. write out the CI patch and the expected-red list;
++  5. the final report.
++- **Waiting on:** the lead's message that fix wave 5's last batch has landed. Then I move to that head and rebase my
++  four files and the scripts/e2e.js registration onto it.
++- **Scratch:** `<scratch>/qa-suite-beta/`, where `<scratch>` is
++  `/tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92f3-f582ebca24d9/scratchpad`. It holds:
++  - `tools/`: the log and TAP summarisers, the memory sampler, the instrument preload, the runners, the probes and
++    the signal repro;
++  - `runs/`: the npm test TAP and spec outputs;
++  - `dist/`: my build, linked as `dist` in the worktree and never committed;
++  - `clean/`: the CI-like checkout;
++  - `patchwt/`: the worktree the patches are made in;
++  - `pshard/`: the lead-head copies the runner patch is made against.
++
++## 1. Brief
++- Prompt (verbatim): [prompts/qa-suite-beta.md](prompts/qa-suite-beta.md).
++- Goal: make sure `npm test` and `node scripts/e2e.js` actually protect `/melon-seek/beta/` (Amazon, Apple, Google,
++  Meta, Microsoft, NVIDIA, Netflix) and Anduril on the main site. Find what the tests miss, why the full e2e takes over
++  2 hours, why its browser closes near test 750, which red-by-design tests can never pass, and what CI should run.
++- Files owned: this log, the prompt, `test/e2e/beta-coverage.e2e.js` (registered in scripts/e2e.js),
++  `test/beta-coverage.test.js`, and `docs/process/patches/qa-suite-beta-*.diff`.
++
++## 2. Inputs and sources
++- **Read:**
++  - docs/QA.md and docs/process/qa.md (the suite's design: a hand-rolled runner, checks against the data, `skip()`
++    for missing data), scripts/e2e.js, test/e2e/harness.js, package.json and .github/workflows/ci.yml;
++  - webkit-phone.yml, pages.yml and workflows.test.js;
++  - docs/process/PLAYBOOK.md and TEMPLATE.md;
++  - docs/process/lead.md from "Fix wave 5" on, the test sections of qa-mobile-beta-4.md and qa-desktop-beta-4.md
++    (on 5c0cda3), and the cycle templates (desktop-qa.md, mobile-qa.md: the feature lists).
++- **Lead head 5c0cda3** (not on origin yet; it carries 9fa0ab2, the relaunch) was read from git objects: the e2e
++  files there have 864 tests. Origin head 05263e8 has 746 (`tools/list-tests.mjs` registers every group with a stub
++  suite and lists the names without running anything).
++- **Run logs (read-only):**
++  - Complete full runs: fps/e2e-full3.log (766 tests, 2026-10-17 15:16) and fv5/e2e-full.log (762 tests, 15:12).
++  - Runs that ended with "browser has been closed": fv5/e2e-fullA.log, fpt/full-after-rerun.log,
++    qa-desktop-beta-4/e2e-full.log, fd3/e2e-full.log and fps/e2e-matrix-suite2.log, all in the scratchpad.
++  - The lead's two gate logs were deleted by the gate script (`rm -f $G/*.log`). The lead gave their facts:
++    - fbdad58: the browser closed at test 771 of 856;
++    - e57151f: timed out at 90 min after 792 tests;
++    - both runs ended at the lead's own `timeout 5400` (exit 124).
++  - The lead's gate on 5c0cda3 (`<scratch>/gate/e2e.log`), read as it grew.
++- **Source code read:** playwright-core 1.56.1 `lib/server/utils/processLauncher.js`, the signal handlers (§7).
++- **Data:** the 2026-10-16 crawl the lead linked: Amazon 22,179, Apple 4,851, Google 3,821, NVIDIA 2,711,
++  Microsoft 2,435, Meta 1,208, Netflix 414; Anduril 2,537. My build: `node scripts/build-static.js --out
++  <scratch>/qa-suite-beta/dist` (7/7 beta companies, 51 s, load 9).
++
++## 3. Findings, ordered by risk
++Severity: **High** means a real bug or a whole feature untested. **Medium** means a flake or a gap that hides
++regressions. **Low** means speed or tidiness.
++
++| ID | Sev | Finding | Evidence | Fix |
++|---|---|---|---|---|
++| T-12 | High | **The browser does not crash.** The e2e process gets SIGTERM or SIGHUP: from `timeout 5400` (both 10-17 gate runs, exit 124), a tool's 2-hour background limit, or a paused or stopped session. Playwright's launch handlers then close Chromium and let node run on, so every later test fails "Target page, context or browser has been closed". 9fa0ab2's relaunch now turns a SIGTERM into 2 failed tests and a run that ignores its time limit | §7: playwright-core's handlers; the crashed logs show Playwright's own `<gracefully close start>`; reproduced with `kill -TERM` on 05263e8 and on 5c0cda3 | runner patch: launch with `handleSIGTERM/handleSIGHUP/handleSIGINT: false`; scripts/e2e.js traps the three signals, stops before the next test, prints the partial summary and the number of tests not run, and exits 143/129/130; relaunch only after a `disconnected` event no signal caused. Verified: SIGTERM stops in 1 s with exit 143, SIGHUP with 129 |
++| T-14 | High | **The e2e suite runs nowhere in CI**, and CI's `npm test` has no data, so every data-dependent unit check skips there. webkit-phone.yml (manual) runs 6 groups | ci.yml; §10 | `qa-suite-beta-ci-e2e.diff`: e2e.yml, 4 shards on the archived crawl, with a summary that fails only on unexpected failures |
++| T-1 | High | **Amazon and Meta were never in three "every big-tech board" lists**: BIG_TECH in beta-desktop-qa.e2e.js, beta-desktop-qa-2.e2e.js and beta-mobile-qa.e2e.js (plus that file's `names`). So bundle-only + badge + CSV (mobile), Apply host, share pages, the heap check while switching, and desktop QA 2's per-board loop never ran on the two boards added on 2026-10-11 | `[T-1]` to-do in test/beta-coverage.test.js reads the lists | `qa-suite-beta-t1-board-list.diff`: one source, test/e2e/beta-boards.mjs (the registry's non-paused beta boards). Patched run, all seven boards: everything passes except the mobile CSV count on Meta. That is the test's naive line count meeting T-17; the patch counts records |
++| T-2 | High | The pay filter (minimum, maximum, "only with pay") was tested only on Anthropic (ui.e2e.js). On beta (several currencies, a range per place, hourly, minimums) nothing checked that it shows the right roles | coverage map §4 | new: `Beta coverage: [<board>] the pay filter …` (7 tests). All seven pass: counts equal the data's approx-USD pay, and no listed card is below the bound |
++| T-3 | Medium | The sorts on beta were checked only as "the first card changed" (beta-mobile-qa) | beta-mobile-qa.e2e.js sort loop | new: Highest pay, Lowest pay, Most juice and Title A–Z orders checked against the data on all seven boards; pass |
++| T-5 | Medium | A board missing from the build turns its tests into skips, and the run stays green. beta-gate.sh can drop a board and still exit 0, and the post-deploy check of /beta/ is warning-only | beta-build.test.js ("moves only that snapshot out; always exits 0"); every beta group calls `skip('no <slug> list in this build')` | new e2e test: every registry beta board is in the build, with its count on screen = its list = its CSV records, and fails rather than skips. New unit check: snapshot count = build count = preview total. Runner patch: `--max-skips=n` |
++| T-13 | Medium | Timing tests fail under load: S-6, S-3 (6 tests), PERF-1, V15, T21, the politeRequest spacing | §6 (runs and stress) | five patches: CPU time, not wall time (S-3, S-6, PERF-1, V15, T21), and a virtual clock for the spacing tests |
++| T-4 | Medium | test/e2e/links.e2e.js (README and docs links; every in-app link, share page and job URL) was never registered. Registered, the in-app crawl is clean and the markdown check fails on 17 links: 11 site-relative links in METHODOLOGY_GUIDE.md (by design: it is rendered as /methodology/) and 6 in "Section for docs/QA.md" blocks pasted into three process logs (relative to docs/) | patched run | registration in the runner patch; `qa-suite-beta-t4-link-check.diff` maps both kinds (0 broken, 2,012 links) |
++| T-6 | Medium | No test of "title matches rank first" on a beta board | coverage map | new test (Amazon, Apple, Google); passes |
++| T-7 | Medium | No deep link / reload / Back / Forward test on beta | coverage map | new test on Amazon; passes |
++| T-8 | Medium | Phone flows were not run at every size: open a job page by a real tap, close it with its Back button and with the browser's Back, and a filter row's "Show N roles". The matrix opens the job page with `.click()` in the page | §4.3 | new: one test per size in phone-sizes.mjs (21), a different board at each in turn |
++| T-16 | Medium | The Listed filter and the Juice grade filter were untested on beta | coverage map | new: Listed against each posting's age; each grade against its own count, with the grades summing to "N have a Juice Score"; pass on all seven |
++| T-17 | Low | Data: 3 titles hold a line break (Meta 1, Amazon 2: "Partner Development Manager\n, Benelux Partner Team"). Cards read "Manager , Benelux", and a CSV reader that splits lines counts an extra row | `[T-17]` to-do (real data) | the lead: fix-mr-3 (server/normalize.js) |
++| T-11 | Low | Runtime: Fix phone text is 31% of a full run (85 guard walks of about 22 s, mostly fixed sleeps). Phone loops load Amazon's 22,179 postings about 130 times | §8 | `--shard` (4 × about 31 min); proposals in §8 |
++| T-9 | Low | Failed e2e tests print no duration, so a run's time cannot be split by group | harness.js | runner patch |
++| T-10 | Low | No `--shard` or `--list` | scripts/e2e.js | runner patch |
++| T-15 | Low | Stale names: "Apple (6,105 roles)" in 2 test names (Apple has 4,851) and "1 of 6,105" in another; "Amazon (22,179 roles)"; "paused and absent companies (Meta, Amazon, Tesla)" (both resumed). Their assertions use the data, so only the names mislead | grep | renamed in the T-1 patch (the paused test); the rest are listed in §9 |
++
++## 4. Coverage map
++### 4.1 User-facing features of `beta` (feature list of prompts/cycle/desktop-qa.md and mobile-qa.md)
++"Beta" names a test that runs on /melon-seek/beta/ with a big-tech board; "main" names one that runs only on the main
++site's boards. Every file is in `test/e2e/`; **new** marks this pass's `beta-coverage.e2e.js`.
++
++| Feature | Covered on beta by | Main site only / gap |
++|---|---|---|
++| Company menu search and switch | beta-mobile-qa: switching between the big boards keeps the JS heap bounded; [M-21]; beta-mobile-qa-2 [M-28]–[M-30]; fix-company-scroll (3 sizes) | — |
++| Recent pills | none | main: ui "company menu switches to Anduril and OpenAI (… recents become pills)" |
++| Add board (custom board) | none | main: ui "custom board via Add board loads jobs" |
++| Search, title matches first | **new** "a search lists the roles whose title (or team) has the word before …" (Amazon, Apple, Google) | before this pass: placeholder only (UX-21) |
++| Pay filter: minimum, maximum, only with pay | **new** `[<board>]` × 7 | before: main only (ui "salary min filter narrows list", Anthropic) [T-2] |
++| Department, Location, Seniority, Remote | beta-desktop-qa "Apple facet counts stay consistent", [D-23]; fix3-app [BP-6], [BP-17]; beta-desktop-qa-2 "fix wave 3 holds" (all 7 boards with the T-1 patch); fix-phone-controls [M-40] | — |
++| Responsibilities, Fit and Skills chips | beta-desktop-qa (ks=, Apple) | — |
++| More: employment type | fix-phone-controls [A-10] (names only) | the count is unchecked on beta |
++| More: Listed | **new** `[<board>]` × 7 | before: main only (ui "Listed … round-trips") [T-16] |
++| More: Juice grades | **new** `[<board>]` × 7 | before: main only (desktop-qa "picking a facet gives exactly its count") [T-16] |
++| Clear all, faceted counts | beta-desktop-qa "Apple … Clear all restores the board"; beta-mobile-qa / -3 "Show N roles equals the result count" | — |
++| Sorting (every option) | **new** `[<board>]` × 7 (order against the data) | before: "the first card changed" only [T-3] |
++| Chart: Clusters, Ranges, Group by, chip | beta-viz-review, beta-viz-review-2, viz-even, fix-viz-5, google-grouping, beta-mobile-qa-3 (stacked row tap), fix-density | — |
++| Chart: hover, keyboard, overflow | beta-viz-review [V-29]; fix-touch-tips; beta-a11y-2 [A-8] | — |
++| Map: pins, tooltips, Pay/Juice, Remote, zoom | fix3-viz [map]; beta-desktop-qa-2 [D-31], "map Remote control equals the Remote filter"; beta-mobile-qa "Apple map: one-finger pan and pinch"; beta-viz-review [V-28]; fix-viz-5 [M-50] | — |
++| Insights: Compstimate | fix-estimates (static /beta/), beta-mobile-qa-3 [M-34], [M-47]; fix-phone-controls [M-47] (every size); fix-pay-at-place [V-40] | the 23 "Compstimate: T*" tests are main only |
++| Insights: Market insights, Compare companies | fix-estimates; fix3-compare; fix-pay-at-place [V-40] | — |
++| Job page: pay block, honest labels, Pay unclear | beta-desktop-qa [D-21]; fix-beta-app; fix-pay-at-place; beta-desktop-qa-4 [D-50]; fix-qa4 | — |
++| Job page: Juice waterfall, household | beta-desktop-qa-2 "the Juice waterfall adds up …"; beta-viz-review [V-30], [V-32]; fix-touch-tips | — |
++| Job page: Same role elsewhere, Back | fix3-compare [BP-3]; fix-touch-tips; beta-mobile-qa-3 [M-33] | Back from it: main only (ui, desktop-qa) |
++| Job page: Listing, lazy description | beta-mobile-qa-3 [M-37]; fix-phone-text [M-37] | the lazy description load: main only (ui) |
++| Job page: Apply link (the right host) | beta-desktop-qa "Apply opens each big-tech careers host" (5 boards; 7 with the T-1 patch); **new** Apply × 3 postings × 7 boards; fix-sec-3 [S-4] | — |
++| Job page: Copy link, next/prev, Esc, focus | beta-mobile-qa-4 (prev/next); fix-phone-controls [A-11]; **new** Back button and browser Back at every size | Copy link: main only (desktop-qa) |
++| Save search and "N new" | beta-desktop-qa [D-18], [D-19]; fix-beta-app [D-18], [D-19] | — |
++| Download CSV | beta-mobile-qa (5 boards; 7 with T-1); **new** CSV records = roles on 7 boards + Anduril; fix-qa4 [D-49] | — |
++| Theme toggle (persists) | dark-mode contrast tests (beta-a11y [A-4], beta-viz-review [V-23], [V-32]); fix-phone-text dark guards | the persistence across reload: main only (ui) |
++| URL hash round trip, deep links, Back/Forward | **new** on Amazon | before: main only (ui) [T-7] |
++| Share pages /beta/c/<slug>/ | beta-desktop-qa (5 boards; 7 with T-1), beta-desktop-qa-2 [D-37] | — |
++| Keyboard shortcuts (/, t, j/k) | none | main only (desktop-qa "single-key shortcuts never fire while typing") |
++| Data badge, popover, as-of | beta-desktop-qa; beta-mobile-qa; fix-beta-app; beta-mobile-qa-3 [M-39]; fix-phone-text [M-39] | — |
++| Methodology links open on-site | beta-desktop-qa-2 [D-37]; links.e2e.js (never registered, T-4) | — |
++| No console errors | most beta groups collect `pageerror`; fix-app "static build … no console errors" | — |
++| Beta: says it is beta | beta-desktop-qa [D-27], [D-28]; fix-beta-app [D-26–28]; beta-mobile-qa [M-27] | — |
++| Beta: bundle only, Snapshot not Live, no live request | beta-desktop-qa (5; 7 with T-1); beta-desktop-qa-3 (all 7); **new** | — |
++| Beta: paused companies absent | beta-desktop-qa (reads the registry); beta-mobile-qa [M-22] | — |
++| Beta: a big board stays responsive | beta-desktop-qa (Apple, 4 s budget); beta-mobile-qa / -3 (Apple, Amazon: filter and sort under 1 s; heap bounded) | — |
++| Beta: links back to the main site | beta-desktop-qa [D-28]; fix-beta-app | — |
++| Beta: spans over several levels labelled honestly | beta-desktop-qa [D-21]; fix-beta-app; beta-viz-review [V-20]; beta-mobile-qa-4 [M-48] | — |
++| Phone: filter sheet, results sheet, text density, tap targets, keyboard, landscape | beta-mobile-qa 1–4, fix-phone-controls, fix-phone-text, fix-touch-tips, fix-company-scroll, phone-matrix, fix-density; §4.3 | — |
++
++### 4.2 The data pipeline (npm test, `test/*.test.js`)
++| Part | Covered by | Note |
++|---|---|---|
++| Adapters: Amazon, Apple, Google, Meta, Eightfold (Microsoft, NVIDIA, Netflix) | bigtech-sources (real recorded rows per board, fetch*: robots, paging, one detail per posting), amazon-meta-adapters, fix-beta-sources, incremental-boards.js (all seven in BOARDS) | fixtures only; CI never sees a real crawl |
++| Greenhouse, Ashby, Lever (Anduril and the main site) | sources, perf-mobile*, static-build | — |
++| Incremental crawl and closures | incremental-unit, incremental-closures, incremental-equivalence (full vs incremental, archive rebuilds lossless) | — |
++| politeRequest (spacing, UA, robots, backoff) | bigtech-polite, polite-spacing, amazon-meta-adapters | the spacing tests are timing tests (T-13) |
++| Normalizer | golden-normalize (300 real jobs, byte-identical hashes), fix-*-data, beta-data-check 1–3 | the golden set has no big-tech board |
++| Salary parser | salary (39), bigtech-salary, salary-pipeline (SB-1…), salary-audit, fix-beta-pay, beta-vetting 1–2 | — |
++| Vetting gate | vet-gate, beta-vetting 1–2, beta-build "betaGate drops the company", "beta-gate.sh … always exits 0" | the gate can drop a whole board silently (T-5) |
++| Build: the channel split | beta-build (stable dist has no beta company, byte-for-byte the --no-beta build; beta dist; noindex; share pages; market), static-build, ci-lists | the real-data check that every posting reaches the build: **new** (skips in CI) |
++| Archive ingest and rebuild | archive, archive-lossless, archive-reference, archive-report, archive-sweep | — |
++| Crawl workflows | beta-build (snapshot.yml, pages.yml, site-watchdog.yml, beta-snapshots.mjs), workflows, archive-workflows, beta-security-review (V12), monthly-refresh-commit | static checks of the YAML; the crawls themselves run only on GitHub |
++
++### 4.3 Phone features by size (21 sizes in phone-sizes.mjs on 5c0cda3, 19 on 05263e8)
++Counted from the test names on 5c0cda3 (`tools/list-tests.mjs`). Groups that tag a size use its `name WxH`.
++
++| Check | Sizes | Boards |
++|---|---|---|
++| Phone matrix: page fits, company name whole, controls on screen, first card, job page and filter sheet fit | 21/21 | apple, amazon, google |
++| fix-phone-controls [M-43] preview tap opens the job page while Amazon loads | 21/21 + desktop | amazon |
++| fix-phone-controls [M-40] department rows told apart | 21/21 + 1 extra landscape | amazon |
++| fix-phone-controls [M-47] Pay estimate field above the keyboard | 21/21 + extra landscapes | — |
++| fix-phone-text guard: captions one line, nothing cut | 21/21 (19 sizes, plus the 390 and 360 guards) | amazon, google at 19; all 7 at 390 and 360 |
++| fix-qa4 [D-48], [D-50] | 21/21 | amazon, netflix |
++| phone-matrix [UX-39] preview on the first screen | 18/21 (not the 3 desktop-layout postures) | amazon |
++| fix-pay-at-place [phones] pill, place count, title fit | 17/21 (not the 4 landscapes) | — |
++| Everything else (sheet drag and lazy list, map pan and pinch, chart tap, sort, company switch, Save, theme) | 1–3 sizes | — |
++| **new** a real tap opens the job page, its Back button and the browser's Back close it, a filter row's "Show N roles" = its count = the list | 21/21 | one per size, all 7 in turn |
++
++## 5. The runs
++| # | Suite | Tree | Load (start → end) | Result |
++|---|---|---|---|---|
++| U1 | `npm test` CI-like (clean checkout, no links, `MELON_BETA_SNAPSHOT_DIR=`) | 6038890 | 6.0 → 10.8 | 1,242 tests: **1,188 pass, 1 fail**, 8 skipped, 45 to-dos (35 of them pass); 125 s. The fail is S-6, "median 29 ms per request" (limit 25) |
++| U2 | the same | 6038890 | 10.8 → 8.4 | 1,189 pass, 0 fail, 8 skipped, 45 to-dos; 108 s |
++| U3 | the same | 6038890 | 8.4 → 6.0 | 1,189 pass, 0 fail, 8 skipped, 45 to-dos; 90 s |
++| E1 | full e2e, this pass's run (instrumented) | the landed head | — | **pending** |
++| E2 | full e2e, fps/e2e-full3.log (fix-phone-sizes, 2026-10-17; stands in for the deleted gate log on fbdad58) | fix-phone-sizes lane | 7–10 (lane notes) | 766 tests: 745 pass, 16 fail, 5 skipped; 111 min of passing-test time |
++| E3 | full e2e, fv5/e2e-full.log (fix-viz-5, 2026-10-17 15:12; stands in for the deleted gate log on e57151f) | fix-viz-5 lane | — | 762 tests: 735 pass, 21 fail, 6 skipped |
++| E4 | full e2e, the lead's gate (`<scratch>/gate/e2e.log`) | 5c0cda3 | 15 → … | **running**; read for the red-by-design list (§9) |
++
++Group runs of this pass (load at start):
++- `Beta coverage`, three development runs: 13:36 (load 1.0), 13:48 (5.3) and 14:09 (9.5). The third: 28/30, and both
++  failures were my test's own missing wait, since fixed.
++- The T-1/T-4 patched groups, 13:52 (load 7): 42/46. The 4 failures were T21, the 2 Links tests and the mobile CSV
++  count. All four pass after their patches (14:00, load 6.7).
++
++## 6. Flakes (T-13): every failure in any run, with its cause
++| Test | Runs where it failed (load) | Error | Root cause | Fix |
++|---|---|---|---|---|
++| S-6 /methodology/ not re-rendered | U1 (9–11); stress 5/5 at 12–24 | "median 29 ms per request" | wall-clock limit of 25 ms on a cached reply. A loaded machine stretches the wall time; the CPU cost is 4–7 ms (a render is 120 ms: `tools/s6-probe.mjs`) | `flake-s6-cpu`: the request's CPU time (this thread's, threadCpuUsage) < 25 ms, plus wall < 1 s |
++| S-3 parse/geocode/normalize linear (6 tests) | stress 5/5 (2–6 of the 6 each run) | "N ms" over 2 s / 1 s | wall time inside the worker | `flake-s3-cpu`: the worker thread's CPU time. The wall limit becomes 5× the limit, and only stops a runaway |
++| PERF-1 first loads do not block | the lead, 2026-10-11 (171 ms, load 4); qa-mobile-beta-4 (264 ms, load 10–12); qa-desktop-beta-4 (281 ms, load 20–28); stress 4/4 | "event loop blocked for N ms" | the probe counts any late tick as a block, including a tick late because the OS ran another process | `flake-perf1-v15-cpu`: a tick counts the CPU this thread spent in it (min(wall gap, CPU delta)). The health-ping limit allows the scheduling delay the probe saw. A 300 ms busy loop still reads 295 ms |
++| V15 cold /api/market | the lead, 2026-10-11 (182 ms); qa-mobile-beta-4 (267 ms); qa-desktop-beta-4 (557 ms); stress 4/4; patched run 3 once ("warm … 201 ms") | the same; and the warm reply over 200 ms | the same; the warm check is wall time | the same probe; the warm reply's CPU < 200 ms, wall < 2 s |
++| politeRequest per-host spacing | the lead, 2026-10-11 ("gaps 27,40"); qa-mobile-beta-4 ("gaps 27,42", load 10–12) | gap below 35 ms | the mock fetch stamps `Date.now()` after takeTurn. A preempted process stamps late, so the gap shrinks while polite.js kept its own gap (its `lastStart` check, polite-spacing.test.js) | `flake-polite-clock`: node:test mock timers (setTimeout and Date) drive the calls on a virtual clock, so gaps are exactly 40 (and ≥ 25 for fetchAmazon) |
++| Compstimate T21 cold server | E3 (fv5), the gate on 5c0cda3, the T-1 group run (load 7) | "app not ready (initial load) after 30000ms … Loading roles…" | the cold server re-normalizes Anduril's 2,537 postings: the crawl is norm-9 and the code norm-12, 16 s at load 5 (`curl` on a fresh MELON_CACHE_DIR). That exceeds the 30 s READY_TIMEOUT at load 10+. The 10 s accuracy budget is never reached | `flake-t21-cpu`: that one load gets 75 s; the accuracy line is budgeted 10 s of the server's CPU (/proc/<pid>/stat; harness returns the pid) and 40 s of wall time. Passes patched (28 s) |
++| UI: map mode shows price pins | E2 (fps) | "map pressed: expected true, got false" | aria-pressed is read right after the click, before the view re-renders (a race under load) | `flake-ui-map-order`: wait for aria-pressed |
++| UI: map initial fit keeps every pin inside | E2 (fps) | "map test did not run" | order dependence: it reads `ctx.mapClipped`, written by the test above. ui.e2e.js has a second such pair (`ctx.mobileUnnamed`). A grep or a shard cut between them fails the second | the same patch: skip with the reason when run alone; and the shard cuts in §8 do not fall between them |
++| Beta desktop QA [D-20] server mode, 7 boards | none failed, but 101 s in E2 against the 120 s limit; 21 s in the T-1 run | — | the same cold re-normalize as T21, for 7 boards. The time depends on whether `data/cache` already holds upgraded stores from an earlier run: state shared through the disk | none patched. Re-crawl at norm-12, or give D-20 its own 300 s limit (`E2E_TEST_TIMEOUT` is global) |
++| Beta mobile QA: every big-tech board … CSV agree | the T-1 group run (Meta) | "CSV rows: expected 1209, got 1210" | not a flake: a split on "\n" counts a quoted line break (T-17's title) | in the T-1 patch: count records |
++
++Also seen, outside these runs: the browser "crash" cascades (T-12, §7). Those are not flakes: every one was a signal.
++
++## 7. The browser "crash" (T-12)
++**What happens.** playwright-core 1.56.1 (`lib/server/utils/processLauncher.js`) installs process handlers when a
++browser is launched. The defaults are `handleSIGINT`, `handleSIGTERM` and `handleSIGHUP`, all true:
++```js
++function sigtermHandler() { gracefullyCloseAll(); }
++function sighupHandler() { gracefullyCloseAll(); }
++// sigintHandler closes, then process.exit(130)
++```
++On SIGTERM or SIGHUP, Playwright closes Chromium and installs no exit. Node's default "exit on SIGTERM" is replaced by
++the handler, so the runner goes on. The test in progress fails (`page.evaluate: Target page, context or browser has
++been closed`), and every later one fails at `browser.newContext`. No test or memory problem is involved.
++
++**Where the signals came from:**
++- the lead's `timeout 5400` in both 2026-10-17 gate runs (exit 124, the lead's own record);
++- the Bash tool's 2-hour cap on a background command: fbdad58 closed at test 771, about 2 h into a full run;
++- a stopped or paused agent session. qa-desktop-beta-4's run stopped "when the session paused at an API limit".
++  fd3/e2e-full.log and fps/e2e-matrix-suite2.log, two agents and two browsers, both closed at 02:10 on 10-17: a
++  system-wide event, not a crash.
++
++**Evidence:**
++1. The crashed logs carry Playwright's own close sequence, not a crash: fv5/e2e-fullA.log lines 197–200 and
++   fd3/e2e-full.log 409–412 read `[pid=…] <gracefully close start>`, `<forcefully close>`, `<kill>`,
++   `<will force kill>`. No log has a "Target crashed", a SIGSEGV or an OOM line.
++2. Repro (`tools/sigterm-repro.sh`, `sigterm-repro.log`, 05263e8, load 7): 2 phone-matrix tests passed, then
++   `kill -TERM` after 45 s. The current test failed "page.evaluate: Target page, context or browser has been closed",
++   the next 5 failed "browser.newContext: …closed", and the run ended 2/8.
++3. The same on a copy of 5c0cda3, with 9fa0ab2's relaunch (`sigterm-repro-relaunch.log`): 2 tests failed (the first
++   mid-test, the second because `isConnected()` was still true while the browser was closing), then "! the browser
++   closed; relaunching it (1)", and the run went on to its end. **The relaunch makes a run ignore its `timeout`**: one
++   SIGTERM, no `-k`, and the run no longer stops.
++4. Memory is not the cause. I sampled every 30 s during the lead's gate run on 5c0cda3 (`tools/memwatch.mjs`,
++   `mem-gate.jsonl`; 13:24 to the end):
++   - no OOM line in dmesg;
++   - the Chromium browser process flat at 186–205 MB, with 2 renderers (3 for moments);
++   - Chromium in total 0.7–1.2 GB;
++   - 12+ GB available.
++   The node test process grew from 210 to about 750 MB: each e2e file caches its own unpacked lists, Amazon included.
++   It is not the browser.
++
++**Fix** (`qa-suite-beta-e2e-runner.diff`, against 9fa0ab2's scripts/e2e.js and harness.js; it replaces the
++relaunch-before-every-test):
++- launch with `handleSIGTERM: false, handleSIGHUP: false, handleSIGINT: false`;
++- scripts/e2e.js traps the three signals and calls `suite.stop(sig)`:
++  - the browser closes at once, so the test in progress ends "(N ms, interrupted by SIGTERM)";
++  - the loop counts the rest as not run;
++  - then the browser and the server close, and the summary reads "e2e: stopped by SIGTERM: N tests ran, M not run",
++    with exit 128 + the signal (143, 129, 130);
++  - a second signal exits at once;
++- `ensureBrowser` relaunches only after a `disconnected` event that no signal caused.
++
++Verified on a copy of 5c0cda3 with the patch:
++- SIGTERM after 45 s: "stopped by SIGTERM: 3 tests ran, 5 not run", exit 143, 1 s after the signal;
++- SIGHUP after 30 s: "(9712ms, interrupted by SIGHUP)", "2 tests ran, 6 not run", exit 129.
++
++**For the gate:** use `timeout -k 60 <s>` (a SIGKILL if the SIGTERM is ignored), and read the exit code. 124 is the
++time limit, not a crash.
++
++## 8. Speed (T-11)
++### 8.1 npm test (U1–U3)
++The wall time is 90–125 s: node:test runs files 3 at a time. The 10 slowest tests (U1/U2/U3, seconds):
++
++| s | Test | File |
++|---|---|---|
++| 20.4 / 18.8 / 12.4 | resumed: with no `paused` … matrix, crawl, gate, merge, archive, build and list all pick both up | amazon-meta-resume |
++| 15.8 / 14.2 / 8.8 | stable dist: no beta company anywhere outside dist/beta/ | beta-build |
++| 14.2 / 7.6 / 6.5 | public/**/*.{js,html}: no GitHub links, only allowlisted hosts | links-policy |
++| 11.5 / 6.7 / – | S-9 residual: a code line outside the FX table is refused | monthly-refresh-commit |
++| 11.3 / 7.2 / 7.0 | static build: absolute og URLs with the default SITE_URL | og |
++| 10.6 / 10.7 / 10.6 | fx check(): ECB monthly down → daily fallback | refresh-fx |
++| 10.5 / 8.0 / – | paused: a leftover snapshot is dropped by the merge | amazon-meta-resume |
++| 9.6 / 8.4 / 7.7 | config.js hands api.js a Response it can read like its own fetch() | perf-mobile-beta |
++| 8.5 / 8.9 / 8.0 | static getJobs returns exactly the old unpack → vet → juice output | perf-mobile-beta |
++| 7.5 / 5.6 / – | [DQ-7] the build bundles no demo list next to a snapshot | fix-beta-platform |
++
++- **Repeated setup:** 13 test files run `scripts/build-static.js` themselves (beta-build 2×, perf-mobile-beta-2 9×,
++  and others). Each is a few seconds on fixtures. A build cache keyed by the source tree would save a minute of CPU,
++  but the wall time is already 2 min, so this is not worth a patch.
++- **Waits on real timers:**
++  - `fx check()` waits a constant 10.6 s;
++  - `checkRobots` (5xx retries) 6 s;
++  - `fetchMeta` (a wall of failures) 6 s.
++  These are backoff delays on the real clock; the virtual-clock helper of `flake-polite-clock` would remove them.
++  Low priority.
++
++### 8.2 The e2e suite
++The full run on 5c0cda3 has 864 tests (+32 with this pass's group). From E2 (fps/e2e-full3.log, 766 tests, 111 min of
++passing-test time; failed tests had no time before the runner patch):
++
++| Group | Tests | Minutes | Share |
++|---|---|---|---|
++| Fix phone text | 102 | 35.0 | 31% |
++| Fix phone controls | 101 | 10.0 | 9% |
++| Phone matrix | 54 | 9.2 | 8% |
++| Fix touch tips | 34 | 7.6 | 7% |
++| fix-density | 51 | 6.9 | 6% |
++| Compstimate | 23 | 4.9 | 4% |
++| Beta mobile QA 3 | 22 | 4.1 | 4% |
++| Beta desktop QA | 19 | 3.6 | 3% |
++
++The 10 slowest (E2): Compstimate consistency 116.5 s, [D-20] server mode 100.7 s, [UX-46] 52.9 s, Beta mobile QA 2
++"every other phone scroll area" 50.9 s, [M-28] 40.0 s, Beta mobile QA 3 [M-33] 33.5 s, T21 32.3 s, Badge narrow
++widths 31.8 s, Fix phone text [M-37] 29.4 s and [M-39] 29.4 s.
++
++What dominates:
++1. **Fix phone text's guard walks.** There are 85 tests: 7 boards × 4 (390/360, light/dark), 7 × 3 desktops, and 2
++   boards × 19 sizes. Each takes about 22 s (20–28 s). One walk opens 10+ views (first screen, sheet half and full,
++   Ranges, map, Insights, up to 6 job pages, filters, badge, More, company menu). After each step it waits a fixed
++   0.4–1.2 s: about 14 s of fixed waits plus about 1.4 s per job page. So the group is mostly sleeping.
++   **Measured** with `tools/instrument.mjs` (setTimeout ≥ 200 ms started from a test file; `instr-probe.jsonl`,
++   05263e8, load 9):
++
++   | Test | Time | Fixed waits | Share |
++   |---|---|---|---|
++   | guard, amazon 390 light | 27.8 s | 18.9 s | 68% |
++   | guard, netflix 390 light | 22.2 s | 18.9 s | 85% |
++   | matrix, Pixel 8 (3 boards) | 19.4 s | 11.6 s | 60% |
++   | [M-40] Pixel 8 | 6.5 s | 2.1 s | 32% |
++
++   Across the 85 guard walks that is about **27 min of the group's 35 min spent in fixed waits**.
++2. **Phone loops that reload Amazon.** [M-43] × 22, [M-40] × 23, [M-47] × 23, the matrix × 21 (Amazon is one of 3
++   boards), the guard × 19 (one of 2) and [UX-39] × 18. That is about 130 loads of Amazon's 22,179 postings, each in a
++   fresh context, about 3–6 s each.
++3. **Long single tests near the 120 s limit**: Compstimate consistency (116 s) and [D-20] (101 s cold, §6).
++4. Smaller: every test file's static server gzips each response on every request. Amazon's 6.8 MB list costs 117 ms
++   of CPU, about 300 times per run, on the same event loop that drives Playwright. `beta-coverage.e2e.js` caches
++   the gzipped bodies.
++
++Proposals, without losing coverage:
++- **Shard** (the runner patch): `--shard=i/n --timings=<log>` cuts the list into contiguous slices of equal time.
++  With E2's timings, 4 shards are 31 min each. Order is kept inside each slice; check that a cut does not fall between
++  T-18's two ctx pairs (it does not today: they are in shard 1). In CI the shards run in parallel (§10). In the
++  sandbox, one shard at a time still lets a gate stop and resume by shard.
++- **Wait for states, not times** (`qa-suite-beta-t11-state-waits.diff`, fix-phone-text.e2e.js and
++  phone-matrix.e2e.js, at the lead's request):
++  - each fixed sleep becomes `quiet(page, cap)`: at least 150 ms after the action, then until there has been no DOM
++    change for 120 ms, the fonts are loaded and no transition is running. The cap is the old sleep, so a page that
++    never settles is measured exactly as before;
++  - plus waits for the specific state each step changes: `body[data-sheet]` changing, `#popover` visible and then
++    hidden, `#drawer.is-open`, `#insightsHost .msi-stat`.
++  - **Measured on the same load, alternating** (`tools/waits-ab.sh`, 5c0cda3 tests on the lead's 5c0cda3 build,
++    14:45–14:55, load 3–10): 8 tests (3 matrix sizes, 3 guards, 2 size guards), 2 runs each way. **The same result
++    in every run (8/8 pass), with mean time 3.01 → 1.68 min (44% less).** For example, the guard on amazon 390 light
++    went from 31.1/27.2 s to 15.9/15.0 s, and the matrix at 280 px from 20.6/20.1 s to 13.4/11.5 s.
++  - **Sensitivity** (`tools/waits-sens.sh`): on my 05263e8 build, which still has the long department-name cuts, the
++    original and the patched guard report **the same problems, to the pixel**:
++    - 2 problems at 360;
++    - 6 at 280, among them "Program and Product Management" cut by 80.42 px and the fold arrow by 17.08 px;
++    - 2 at 320.
++
++    The patched guard took 14 s against 25 s.
++  - Over the group's 85 guard walks and the matrix's 21 sizes, that is about 15–18 min less per full run.
++- **Size checks share widths:** the 21 sizes have 18 distinct widths. Captions depend on width, so the guard can
++  run once per width (−3 sizes × 2 boards, about 2 min). A small gain.
++- **A light/dark pair on one load:** `page.emulateMedia({ colorScheme: 'dark' })` re-themes without a reload. It saves
++  the 14 dark guard loads, but not their walks.
++- **Fewer boards per size where the code path is the same:** each phone layout check (matrix, [M-40], [M-43]) uses
++  one board per size in turn, as `beta-coverage.e2e.js` does, and keeps the all-boards check at 390 and 360. This
++  saves about 2/3 of the matrix's 9 min, but it is a coverage trade (board × size pairs). I propose it for a quick
++  local run (`PHONE_MATRIX_BOARDS` already allows it), not for the gate.
++
++## 9. Red-by-design tests, stale assertions, vacuous passes
++### 9.1 Red by design on the branch head (from the lead's gate on 5c0cda3)
++Sources:
++- the lead's gate on 5c0cda3, which has 8898566's code (`<scratch>/qa-suite-beta/gate-8898566/`, copied before the
++  next gate archives it): npm test 0 fail; e2e 858/864, 1 failed, 5 skipped, 2 h 6 min, the browser never relaunched;
++- 433aa59's diff from 5c0cda3: fix-qa4 round 2 makes MR-35 a real test.
++
++**e2e: no red-by-design test is left.** Every reviewer's `[ID]` test passes on 5c0cda3. The one failure is T21, a
++flake (§6) that passed alone in 24.7 s. `docs/process/e2e-expected-red.txt` lists only T21, marked `flaky`, until
++`qa-suite-beta-flake-t21-cpu.diff` lands.
++
++**e2e tests that skip on every run** (T-19): a skip passes, so these test nothing. D-11, P-2 and BP-2 skipped in
++every full log that reached them: E2, E3, the lead's gate, and the cut-short logs of qa-desktop-beta-4 and fd3.
++[V-18] passed in E2 and in qa-desktop-beta-4 (before D-44). It has skipped in every run since: E3 and the gate.
++
++| Test | Skip reason | Why it can never run | What to do |
++|---|---|---|---|
++| Beta viz review [V-18] (Google, Group by Location, London) | "no London row" | Stale since D-44 (fix-viz-5): Group by Location folds the small places into "189 more places", and London (151 postings) is folded. The test reads only the visible rows | `qa-suite-beta-t19-v18-fold.diff`: open the fold first, as fix-pay-at-place's [V-36] does. It passes on 5c0cda3 (2.7 s) |
++| Fix viz 3 [BP-2] NVIDIA, Munich, Senior and Staff+, from €110,000 | "0 of 2,711 roles" | Stale since BP-2's own fix. NVIDIA posts no German pay. Its 31 Munich postings carry only 3 pay ranges, all Polish (PLN, Senior). BP-2 made pay for another country count as no pay under a Location filter, so the €110,000 minimum leaves 0 roles (`tools/probe-bp2-csv.mjs`) | `qa-suite-beta-t19-bp2-munich.diff`: drop the minimum. That leaves 13 roles, and the test checks that the chart plots none of the Polish pay and counts it as left out, as the Zurich test above it does. The minimum on cards stays covered by fix3-app's [BP-2] test, which passes |
++| Fix app [P-2] the drawer estimate at low confidence | "no estimate for this role" | The test opens only the first of its 12 candidate roles without pay (`noPay[0]`), and that role gets no estimate. It needs a role that has one | try the 12 candidates in turn (or pick one in the page with `compstimateForJob`). The low-confidence wording is also covered by fix-estimates' three [P-2] tests, which pass |
++| Desktop QA [D-11] "Newest" with no listing dates | "this data has listing dates" | It needs a board with no listing dates. Every crawl since 2026-10 has dates | a fixture, through fix-app's `openFx` patch hook (strip `age` and `postedAt`) |
++| Methodology: screenshots | "set E2E_SHOTS=1" | by design: it writes screenshots only when asked | none |
++
++Also silent: fix-touch-tips' notes say the pay strip is not checked at the Razr cover or in the landscape sizes
++("no room"). They are notes, not skips, so the run reports nothing.
++
++**npm test: 9 red to-dos left on 433aa59** (10 on 5c0cda3; MR-35 became a real test in fix-qa4 round 2, 52ae20d).
++Each waits on fix-mr-3:
++
++| ID | Test | Waits on |
++|---|---|---|
++| MR-21 | registry.js usage header lists every mode (--docs) | fix-mr-3 |
++| MR-22 | market.json fx.source names the rate source | fix-mr-3 |
++| MR-26 | the sources table does not call the postings overdue on the build day | fix-mr-3 |
++| MR-29 | the chart or stats line says departments come from titles | fix-mr-3 |
++| MR-33 | the drawer's converted line for fixed-term pay | fix-mr-3 |
++| MR-37 | the drawer explains a stated annual figure (Austria, 14 payments) | fix-mr-3 |
++| MR-38 | a monthly internship with no stated length is fixed-term pay | fix-mr-3 (norm-13) |
++| MR-40 | NYC-metro towns in Microsoft's NYC pay area | fix-mr-3 |
++| MR-41 | the "Mid" chip's example vs Amazon's ladder | fix-mr-3 |
++
++Plus this pass's own: [T-17] waits on fix-mr-3 (norm-13); [T-1], [T-4], [T-5], [T-9] and [T-10] pass once the
++runner and T-1 patches are in. `qa-suite-beta-todo-fixed.diff` then makes them real tests.
++
++**npm test: 35 to-dos that already pass** (T-20). A to-do never fails, so these guard nothing:
++- beta-methodology.test.js: 29 tests (MR-4, MR-5 ×16, MR-6 ×2, MR-7 ×2, MR-8 ×3, MR-15 ×2, MR-16, MR-19, MR-20). The
++  file's `todo()` has no FIXED set, so a fixed ID stays a to-do;
++- beta-methodology-2.test.js: 5 tests (MR-23, MR-34, the two passing halves of MR-29 and one of MR-41). The file
++  keeps an ID a to-do while any of its tests fails, so the fixed halves of MR-29 and MR-41 guard nothing;
++- beta-data-check-3.test.js: DQ-6 residue.
++
++Fix: a FIXED set in beta-methodology.test.js, as -2 has. In -2, put MR-23 and MR-34 into FIXED and mark the passing
++halves of MR-29 and MR-41 per test. fix-mr-3 edits these files now, so this goes to that lane rather than into a patch
++here.
++
++**Can never pass as written:** no unit to-do. Two of the passing ones are pinned to a day: MR-4 ("on the review day")
++and MR-23 ("on the 2026-10-16 review day"). They pass because they read a fixed date.
++
++### 9.2 Stale assertions and names (T-15)
++- **Names that pin a crawl:**
++  - "Apple (6,105 roles)" in beta-desktop-qa and beta-mobile-qa, and "1 of 6,105" in [M-23]: Apple has 4,851;
++  - "Amazon (22,179 roles)" in beta-mobile-qa-3, and "Loading 22,179 roles…" in beta-desktop-qa-3 and
++    beta-mobile-qa-3;
++  - "paused and absent companies (Meta, Amazon, Tesla)": both are resumed (renamed in the T-1 patch).
++  Their assertions read the data (they count from the list), so only the names mislead. Rename them at the next edit.
++- **Docs-reading tests:** 32 unit test files read docs/ or README.md. Most check structure (a link exists, a
++  template is named), which is fine. The fragile ones:
++  - the methodology to-dos that match exact prose (beta-methodology, beta-methodology-2: 31 to-dos);
++  - refresh-jobs' rule that a quoted "±N% (tested on …)" line in a product doc is a claim (PLAYBOOK "Known traps"
++    lists it).
++  A wording change in the docs turns these red with no product change.
++- **Fixed counts in unit fixtures:** fix-qa4.test.js has 22179, 2711 and 2435 in synthetic fixtures. They are
++  fixtures, not the crawl, so they are fine.
++
++### 9.3 Vacuous passes
++- **e2e skips:** every beta group calls `skip(...)` when a board's list is missing, so a build without a board passes
++  with skips (T-5). The new build test fails instead, and the runner patch adds `--max-skips`.
++- **npm test in CI:** the 8 tests that need data skip there, loudly, with a reason:
++  - families coverage on Google;
++  - BUG-5 on real snapshots;
++  - market.json ≤ 150 KB;
++  - PERF-1, stores persist, V15;
++  - the gate on real snapshots;
++  - the big board cache.
++
++  All 8 pass with data (`runs/unit-data-1`, 14:22–14:27, load 11–17: 1,262 tests, 1,210 pass, 1 fail, my own guard,
++  fixed). `tools/vacuity.mjs` compares U2 with that run, looking for tests that pass in both but finish in under 5 ms
++  without data while taking 20× longer with it. It found 4 candidates, and all are fixture tests with import-time
++  noise (juice guardrails, "a US range listed in Sydney", the Juice name, "companies left out are named"). **No
++  vacuous unit test was found.** The data-gated tests skip; they do not pass empty.
++- **With data, npm test takes 4.5 min instead of 2:** fix3-compare.test.js "market.json stays under 150 KB … Google
++  entry software in the US is not $89K" took **200 s** at load 13 (it builds the market from the real boards). It is
++  the slowest unit test by far and runs only locally. It is a candidate for sharing one market build across that
++  file's tests.
++
++## 10. CI parity (T-14)
++| | CI (ci.yml, every push and PR) | A contributor or the lead in the sandbox |
++|---|---|---|
++| `npm test` | Node 20 and 22, `npm ci`, pdftotext installed, **no data**: every check that needs `data/snapshots` or `data/beta/snapshots` skips (8 skipped), so PERF-1, V15, the stores test and the real-data checks never run in CI | Node 22.22, data linked: those tests run, and the timing ones fail under load |
++| Static build | `npm run build` on no data (demo lists) + jq + `.github/scripts/check-lists.mjs` | the real crawl (local-data.js) |
++| Server smoke | `npm start` + curl /api/companies, /api/jobs?company=anthropic | — |
++| e2e (`node scripts/e2e.js`) | **nowhere** | by hand, about 2 h, Chromium at /opt/pw-browsers |
++| WebKit | webkit-phone.yml, manual (workflow_dispatch): builds on the archived crawl; phone smoke on WebKit and Chromium; 6 groups on WebKit (Beta mobile QA 2, fix-company-scroll, fix-touch-tips, fix-phone-controls, fix-phone-text; Beta mobile QA 2 also on Chromium) | Chromium only |
++| External links | ci.yml `links` job (the runner can reach the internet; advisory) | not reachable |
++
++**Tools the sandbox has and the runner lacks, or the reverse:**
++- pdftotext: ci.yml installs it;
++- Playwright: not a dependency. The sandbox has 1.56.1 in `<scratch>/pw` and 1.63.0 in webkit-phone.yml; CI needs
++  `npm i --no-save playwright@1.63.0` and `npx playwright install --with-deps chromium`;
++- the archived crawl: `scripts/cycle/local-data.js` works on GitHub (webkit-phone.yml uses it);
++- `process.threadCpuUsage`: Node 22.19+ only. On Node 20 the flake patches fall back to process or wall time, and
++  the tests that use it only run with data anyway.
++
++**Proposal** (`qa-suite-beta-ci-e2e.diff`, the YAML parses, and workflows.test.js, beta-security-review V12,
++archive-workflows and ci-lists all pass with it, 28/28):
++- `.github/workflows/e2e.yml`, run manually, nightly at 03:41, and on PRs that touch public/, server/, scripts/,
++  test/e2e/ or the workflow;
++- a build job: local-data.js, then build-static, then dist and both snapshot folders as one artifact;
++- 4 shard jobs on ubuntu-latest: `node scripts/e2e.js --shard=${{ matrix.shard }}/4 [--timings=test/e2e/timings.log]
++  --max-skips=20`, with `continue-on-error`, and each log as an artifact;
++- a summary job: `.github/scripts/e2e-summary.mjs` merges the logs and fails on any of:
++  - a failure that is not in `docs/process/e2e-expected-red.txt` (one `<ID> <lane or decision>` per line: the
++    red-by-design list of §9, kept by the lead);
++  - a shard that did not finish;
++  - an expected-red test that now passes (its entry is stale).
++- Shard times, from fps/e2e-full3.log's durations:
++  - with `--timings`: 4 × about 31 min;
++  - without timings, by test count: 28, 21, 29 and 45 min.
++
++## 11. Patches (`docs/process/patches/`)
++Each was made in `<scratch>/qa-suite-beta/patchwt`, or in `pshard/` against 5c0cda3's files (which carry 9fa0ab2).
++Each dry-runs clean (`patch --dry-run -p1`) against 5c0cda3's files.
++
++| Patch | Files | Finding | Verified |
++|---|---|---|---|
++| `qa-suite-beta-e2e-runner.diff` | scripts/e2e.js, test/e2e/harness.js | T-12 (signals), T-10 (`--shard`, `--list`), T-5 (`--max-skips`, skip reasons), T-9 (failure durations), T-4 (links.e2e.js registered) | SIGTERM → exit 143 in 1 s, "3 tests ran, 5 not run"; SIGHUP → exit 129; `--list` gives 864 tests; 4 time-balanced shards of about 31 min |
++| `qa-suite-beta-t1-board-list.diff` | new test/e2e/beta-boards.mjs; beta-desktop-qa, beta-desktop-qa-2, beta-mobile-qa | T-1, T-15 (one name), T-17 (the CSV record count) | the three groups on all 7 boards: everything passes |
++| `qa-suite-beta-t4-link-check.diff` | docs/process/scripts/link-check.mjs | T-4 | 2,012 links, 0 broken; both Links tests pass |
++| `qa-suite-beta-flake-s6-cpu.diff` | test/beta-security-review.test.js | T-13 | stress: original fails 5/5, patched 0 |
++| `qa-suite-beta-flake-s3-cpu.diff` | test/beta-security-review.test.js | T-13 | the same |
++| `qa-suite-beta-flake-perf1-v15-cpu.diff` | test/perf.test.js | T-13 | stress: original 4/4 fail, patched 0/8 fail. Sensitivity: a 300 ms busy loop reads 295 ms |
++| `qa-suite-beta-flake-polite-clock.diff` | test/bigtech-polite.test.js, test/amazon-meta-adapters.test.js | T-13 | 20/20 in both files; gaps exact on the virtual clock |
++| `qa-suite-beta-flake-t21-cpu.diff` | test/e2e/harness.js (pid), test/e2e/ui.e2e.js | T-13 | T21 passes (28 s) where it failed in the same group run |
++| `qa-suite-beta-flake-ui-map-order.diff` | test/e2e/ui.e2e.js | T-18 | syntax and dry run |
++| `qa-suite-beta-t11-state-waits.diff` | test/e2e/fix-phone-text.e2e.js, test/e2e/phone-matrix.e2e.js | T-11 | 8 tests × 2 runs each way on the same load: the same results, 44% less time; the same problems on a build with known cuts |
++| `qa-suite-beta-ci-e2e.diff` | new .github/workflows/e2e.yml, .github/scripts/e2e-summary.mjs | T-14 | the YAML parses; workflows, V12, archive-workflows and ci-lists tests pass with it (28/28); the summary script read E2 |
++
++## 12. Decisions
++1. **Counts from the data, never pinned.** Every new e2e check compares the screen with numbers it computes in the
++   page from the build's own lists (`api.getJobs`) and the page's own `toUSD`. This is the suite's rule (qa.md
++   decision 6). The pay filter rule it checks is the documented one: approx-USD top pay ≥ the minimum, lowest ≤ the
++   maximum.
++2. **One test per board for filters and sorts, one per phone size for the phone flow.** A failure names its board
++   or size, and each test loads one board once (21 phone tests at 9–13 s each, 7 board tests at 11–24 s).
++3. **A different board at each phone size, in turn**, so the seven boards are all exercised on phones without 7 ×
++   21 loads (the runtime finding).
++4. **Suite gaps as `todo` unit tests** (the reviewers' convention: shown in `npm test`, never red in CI). A test of
++   the tests fails only for gaps another owner must fix: T-1, T-4, T-5, T-9, T-10, T-17.
++5. **The new e2e build test fails rather than skips** when a registry board is missing. It is the one place that
++   turns T-5's skips into a failure today.
++6. **CPU time over wall time** for the timing tests: process.threadCpuUsage on Node 22.19+, with a fall-back.
++   Rejected alternatives:
++   - a load-scaled limit (os.loadavg): too coarse;
++   - a ratio between input sizes: needs two runs per test and is still noisy.
++   CPU time also keeps each test's meaning: "does not re-render" and "is not quadratic" are costs, not latencies.
++7. **A virtual clock for the spacing tests** (node:test mock timers): gaps are measured on the clock the code reads, so
++   no load can shrink them.
++8. **The signal fix stops the run instead of relaunching**, as the lead asked: a time limit or a stopped session must
++   end the run with an honest summary and exit code.
++
++## 13. Replayable steps
++```sh
++S=/tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92f3-f582ebca24d9/scratchpad; Q=$S/qa-suite-beta
++cd <worktree>
++ln -s $S/wt-data2/data/snapshots data/snapshots; mkdir -p data/beta; ln -s $S/wt-data2/data/beta/snapshots data/beta/snapshots
++ln -s /home/user/melon-seek/node_modules node_modules
++node scripts/build-static.js --out $Q/dist && ln -s $Q/dist dist             # 51 s at load 9; 7/7 beta companies
++# npm test CI-like, 3 runs (clean checkout, no links):
++git worktree add --detach $Q/clean HEAD && ln -s /home/user/melon-seek/node_modules $Q/clean/node_modules
++$Q/tools/unit-runs.sh $Q/clean $Q/runs 1 3 && node $Q/tools/tap-sum.mjs $Q/runs/unit-1.tap --src=$Q/clean/test
++# this pass's groups:
++node --test test/beta-coverage.test.js                                       # E2E_DIST=<build> for the data check
++$Q/tools/e2e-run.sh $PWD $Q/cov.log 2400 '--grep=^Beta coverage'
++# the signal repro:
++$Q/tools/sigterm-repro.sh <checkout> $Q/sigterm-repro.log 45 TERM
++# the stress runs (8 busy loops and the tests at nice 19):
++$Q/tools/stress.sh <checkout> 8 5 <label> test/beta-security-review.test.js test/bigtech-polite.test.js test/perf.test.js
++# memory and test counts during a run:
++node $Q/tools/memwatch.mjs --out $Q/mem.jsonl --every 30 --for 14400 --log run=<e2e log>
++# per-test contexts, fixed waits and memory (one JSON line per test):
++INSTRUMENT_OUT=$Q/instr.jsonl NODE_OPTIONS=--import=$Q/tools/instrument.mjs node scripts/e2e.js
++node $Q/tools/e2e-log.mjs <e2e log> --fails     # groups, slowest, failures, the first "browser has been closed"
++node $Q/tools/list-tests.mjs <checkout> --groups
++```
++
++## 14. Known gaps
++- No WebKit or iOS Safari here. The new phone test runs on Chromium; it uses standard Playwright APIs and should run
++  under webkit-phone.yml.
++- Live boards, map tiles and careers hosts are unreachable, so Apply is checked by its href only.
++- Search ranking uses a whole-word-prefix approximation of the app's matcher (word endings and spelling variants are
++  not modelled). It checks the order on the first 60 cards only.
++- The sort check reads the first 30 cards; the last cards' "no pay last" rule is checked only where those 30 reach
++  them.
++- Keyboard shortcuts, recent pills and Add board are still checked on the main site only (§4.1). They are low risk on
++  beta: the same code, and no board-specific data.
++
++## 15. Change log
++- 13:13 Brief read; worktree on 05263e8; links; brief committed (f06c2f8).
++- 13:2x The gate logs were gone (the lead: deleted by the gate script). I used five other crash logs; started memory
++  sampling of the lead's gate.
++- 13:28–13:33 npm test CI-like ×3 (U1 S-6 fail; U2 and U3 green). Build of my dist.
++- 13:3x–13:5x Coverage map; the unit file; the e2e group (3 development runs).
++- 13:4x Findings T-1 and T-4 sent; runner patch v1 (shard, list, max-skips, durations).
++- 14:0x T-12: Playwright's SIGTERM and SIGHUP handlers found and the cascade reproduced, with and without 9fa0ab2;
++  sent to the lead. The lead confirmed both gate runs ended at their own `timeout 5400`.
++- 14:0x–14:2x Patches: the runner (signals), T-1, T-4, T21, S-6, S-3, PERF-1/V15, polite, the UI map/order pair and CI;
++  the stress runs (original fails every run, patched 0 failures after the V15 warm fix).
++
+diff --git a/scripts/e2e.js b/scripts/e2e.js
+index 248e192..55903e5 100644
+--- a/scripts/e2e.js
++++ b/scripts/e2e.js
+@@ -45,6 +45,7 @@ import { registerPhoneMatrixTests } from '../test/e2e/phone-matrix.e2e.js';
+ import { registerFixPhoneTextTests } from '../test/e2e/fix-phone-text.e2e.js';
+ import { registerFixPayAtPlaceTests } from '../test/e2e/fix-pay-at-place.e2e.js';
+ import { registerBetaMobileQa4Tests } from '../test/e2e/beta-mobile-qa-4.e2e.js';
++import { registerBetaCoverageTests } from '../test/e2e/beta-coverage.e2e.js';
+ import { registerFixViz5Tests } from '../test/e2e/fix-viz-5.e2e.js';
+ import { registerBetaDesktopQa4Tests } from '../test/e2e/beta-desktop-qa-4.e2e.js';
+ import { registerFixQa4Tests } from '../test/e2e/fix-qa4.e2e.js';
+@@ -126,6 +127,7 @@ if (!apiOnly) {
+   registerFixPhoneTextTests(suite);
+   registerFixPayAtPlaceTests(suite);
+   registerBetaMobileQa4Tests(suite);
++  registerBetaCoverageTests(suite);
+   registerFixViz5Tests(suite);
+   registerBetaDesktopQa4Tests(suite);
+   registerFixQa4Tests(suite);
+diff --git a/test/beta-coverage.test.js b/test/beta-coverage.test.js
+new file mode 100644
+index 0000000..0914356
+--- /dev/null
++++ b/test/beta-coverage.test.js
+@@ -0,0 +1,184 @@
++// Test-suite QA for the beta site (docs/process/qa-suite-beta.md, 2026-10-23): checks that the suites cover what they
++// say they cover. Tests named [T-n] encode a gap in the suites themselves; each is a `todo` until the owning test file
++// or scripts/e2e.js is fixed (docs/process/patches/qa-suite-beta-*.diff), so it shows in `npm test` without turning CI
++// red. The rest are guards that pass today. Nothing here needs data or a browser; the one data check skips without
++// both the beta snapshots and a beta build.
++import { test } from 'node:test';
++import assert from 'node:assert/strict';
++import fs from 'node:fs';
++import path from 'node:path';
++import { fileURLToPath, pathToFileURL } from 'node:url';
++
++const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
++const read = (...p) => fs.readFileSync(path.join(ROOT, ...p), 'utf8');
++const E2E = path.join(ROOT, 'test', 'e2e');
++const e2eFiles = () => fs.readdirSync(E2E).filter((f) => f.endsWith('.e2e.js')).sort();
++const todo = (id) => ({ todo: `${id}: docs/process/qa-suite-beta.md` });
++
++const { listCompanies } = await import(pathToFileURL(path.join(ROOT, 'server', 'companies.js')).href);
++/** The boards the beta site shows: the registry's non-paused beta companies. */
++const BETA = listCompanies({ channel: 'beta' }).filter((c) => c.channel === 'beta').map((c) => c.slug).sort();
++
++/** Files run on their own (a CLI, a WebKit job), never through scripts/e2e.js. Each needs its reason. */
++const STANDALONE = {
++  // (none today: links.e2e.js says "Register from scripts/e2e.js", and is not; see [T-4])
++};
++
++test('beta-coverage: the registry has the seven big-tech boards the brief names, none paused', () => {
++  assert.deepEqual(BETA, ['amazon', 'apple', 'google', 'meta', 'microsoft', 'netflix', 'nvidia']);
++});
++
++test('beta-coverage: every registered e2e group is imported from a file that exists (scripts/e2e.js)', () => {
++  const src = read('scripts', 'e2e.js');
++  const imports = [...src.matchAll(/import \{ (\w+) \} from '\.\.\/test\/e2e\/([\w.-]+\.js)';/g)];
++  assert.ok(imports.length > 30, `only ${imports.length} imports found: the pattern no longer matches scripts/e2e.js`);
++  for (const [, fn, file] of imports) {
++    assert.ok(fs.existsSync(path.join(E2E, file)), `${file} is imported but missing`);
++    if (fn === 'createSuite') continue;
++    assert.match(read('test', 'e2e', file), new RegExp(`export function ${fn}\\b`), `${file} exports no ${fn}`);
++    if (/^register/.test(fn)) assert.match(src, new RegExp(`\\b${fn}\\(suite\\)`), `${fn} is imported but never called`);
++  }
++});
++
++test('[T-4] every e2e file with a register function runs in the full suite (links.e2e.js never does)', todo('T-4'), () => {
++  const src = read('scripts', 'e2e.js');
++  const missing = [];
++  for (const f of e2eFiles()) {
++    const fns = [...read('test', 'e2e', f).matchAll(/export function (register\w+)\(/g)].map((m) => m[1]);
++    if (!fns.length || STANDALONE[f]) continue;
++    for (const fn of fns) if (!new RegExp(`\\b${fn}\\(suite\\)`).test(src)) missing.push(`${f} ${fn}`);
++  }
++  assert.deepEqual(missing, [], `never run by node scripts/e2e.js: ${missing.join(', ')}`);
++});
++
++/**
++ * Arrays and objects in the e2e files that list big-tech boards: `const NAME = [...]` / `{ slug: ... }` holding at least
++ * four of the seven slugs. A list that holds four or more means "the big-tech boards"; it must hold all seven, or a
++ * board added later (Amazon and Meta, 2026-10-11) is never tested by it.
++ */
++function boardLists() {
++  const out = [];
++  for (const f of e2eFiles()) {
++    const src = read('test', 'e2e', f);
++    for (const m of src.matchAll(/const (\w+) = (\[[^\]\n]*\]|\{[^}\n]*\})/g)) {
++      const slugs = [...new Set([...m[2].matchAll(/['"]?\b(amazon|apple|google|meta|microsoft|netflix|nvidia)\b['"]?\s*[:,\]}'"]/g)].map((x) => x[1]))];
++      if (slugs.length >= 4) out.push({ file: f, name: m[1], slugs });
++    }
++  }
++  return out;
++}
++
++test('beta-coverage: the e2e files still declare their board lists the way this check reads them', () => {
++  // Hand-written lists, plus files that take the list from the registry (test/e2e/beta-boards.mjs, the T-1 patch).
++  const lists = boardLists();
++  const fromRegistry = e2eFiles().filter((f) => /from '\.\/beta-boards\.mjs'/.test(read('test', 'e2e', f)));
++  assert.ok(lists.length + fromRegistry.length >= 6, `found ${lists.length} board lists and ${fromRegistry.length} files reading beta-boards.mjs`);
++  assert.ok(lists.some((l) => l.file === 'fix-phone-text.e2e.js' && l.slugs.length === 7), 'fix-phone-text.e2e.js BOARDS (all seven) not found');
++});
++
++test('[T-1] every e2e list of "the big-tech boards" names all seven (Amazon and Meta are missing from three)', todo('T-1'), () => {
++  const short = boardLists().filter((l) => BETA.some((s) => !l.slugs.includes(s)))
++    .map((l) => `${l.file} ${l.name} lacks ${BETA.filter((s) => !l.slugs.includes(s)).join(', ')}`);
++  assert.deepEqual(short, [], short.join('; '));
++});
++
++test('beta-coverage: the WebKit phone smoke and the Chromium phone matrix name every beta board or read the registry', () => {
++  const wf = read('.github', 'workflows', 'webkit-phone.yml');
++  const m = /phone-smoke\.mjs[^\n]*--boards ([\w,]+)/.exec(wf);
++  assert.ok(m, 'webkit-phone.yml runs phone-smoke.mjs with --boards');
++  assert.deepEqual(m[1].split(',').sort(), BETA, 'the WebKit phone smoke boards');
++});
++
++test('beta-coverage: phone-sizes.mjs lists 21 distinct sizes, each a touch phone with a viewport, DPR and user agent', async () => {
++  const { ALL_SIZES, contextFor } = await import(pathToFileURL(path.join(E2E, 'phone-sizes.mjs')).href);
++  assert.ok(ALL_SIZES.length >= 19, `${ALL_SIZES.length} sizes`);
++  const keys = ALL_SIZES.map((d) => `${d.name} ${d.width}x${d.height}`);
++  assert.equal(new Set(keys).size, keys.length, 'sizes are distinct');
++  assert.equal(new Set(ALL_SIZES.map((d) => d.name)).size, ALL_SIZES.length, 'names are distinct (tests are named by them)');
++  for (const d of ALL_SIZES) {
++    const o = contextFor(d);
++    assert.ok(o.viewport.width >= 280 && o.viewport.height >= 300 && o.deviceScaleFactor >= 1 && o.hasTouch && o.isMobile, d.name);
++    assert.match(o.userAgent, /iPhone|Android/, d.name);
++  }
++  assert.ok(ALL_SIZES.some((d) => d.width === 280), 'the folded Fold (280 px)');
++  assert.ok(ALL_SIZES.some((d) => d.width === 352 && d.height === 355), 'the Razr cover screen');
++  assert.ok(ALL_SIZES.some((d) => d.width > d.height), 'a landscape posture');
++});
++
++/** e2e files whose tests loop over every phone size (ALL_SIZES, or PHONES with POSTURES). */
++function sizeLoopFiles() {
++  return e2eFiles().filter((f) => /for \(const \w+ of (\[\.\.\.)?(ALL_SIZES|PHONES)\b|\b(ALL_SIZES|PHONES)\.(forEach|map)\(/.test(read('test', 'e2e', f)));
++}
++test('beta-coverage: the phone checks that run at every size are the ones this suite\'s phone map lists', () => {
++  const files = sizeLoopFiles();
++  for (const f of ['phone-matrix.e2e.js', 'fix-phone-text.e2e.js', 'fix-phone-controls.e2e.js', 'beta-coverage.e2e.js']) {
++    assert.ok(files.includes(f), `${f} no longer loops over every phone size (found: ${files.join(', ')})`);
++  }
++});
++
++test('beta-coverage: the harness keeps its per-test timeout and context cleanup', () => {
++  const h = read('test', 'e2e', 'harness.js');
++  assert.match(h, /E2E_TEST_TIMEOUT/, 'per-test timeout');
++  assert.match(h, /ctx\.cleanup/, 'contexts a failed test left open are closed');
++});
++
++test('[T-9] a failed e2e test prints how long it ran (only passing tests print a time today)', todo('T-9'), () => {
++  const h = read('test', 'e2e', 'harness.js');
++  // The pass line prints `(${Date.now() - start}ms)`; the fail line must too, or a run's time cannot be split by group.
++  const failLine = /console\.log\(`  \\u2717 \$\{t\.name\}[^\n]*/.exec(h);
++  assert.ok(failLine, 'the fail line is printed');
++  assert.match(failLine[0], /\\u2717 \$\{t\.name\} \(\$\{[^}]*start\}ms/, `the fail line prints no duration: ${failLine[0]}`);
++});
++
++test('[T-10] scripts/e2e.js can split a run (--shard=i/n) and list tests without running them (--list)', todo('T-10'), () => {
++  const src = read('scripts', 'e2e.js');
++  assert.match(src, /--shard/, 'no --shard option');
++  assert.match(src, /--list/, 'no --list option');
++});
++
++test('[T-5] the e2e run fails when a board\'s tests all skip because the build lacks that board', todo('T-5'), () => {
++  // Every beta group skips its tests when a board's list is missing from the build ("no <slug> list in this build").
++  // A beta gate that drops Amazon turns dozens of Amazon tests into skips and the run stays green. scripts/e2e.js should
++  // fail (or the coverage group's build check should) when a board the registry lists has no list in the build.
++  const src = read('scripts', 'e2e.js');
++  assert.match(src, /E2E_ALLOW_SKIPS|maxSkips|skipped.*exit|exit.*skipped/, 'skips never fail the run');
++});
++
++/* -------------------------------------------------------------------------------------------- real data (local) */
++
++const SNAP = process.env.MELON_BETA_SNAPSHOT_DIR === '' ? null : path.resolve(process.env.MELON_BETA_SNAPSHOT_DIR || path.join(ROOT, 'data', 'beta', 'snapshots'));
++const DIST = path.resolve(process.env.E2E_DIST || process.env.BETA_QA_DIST || path.join(ROOT, 'dist'));
++const haveData = SNAP && BETA.every((s) => fs.existsSync(path.join(SNAP, `${s}.json`)));
++const haveBuild = fs.existsSync(path.join(DIST, 'beta', 'api', 'jobs'));
++
++test('beta-coverage: the build publishes every beta board with every posting of its snapshot (none dropped, none added)',
++  { skip: !(haveData && haveBuild) && 'needs data/beta/snapshots and a beta build (dist/, E2E_DIST or BETA_QA_DIST)' }, async () => {
++    const { unpackJobs } = await import(pathToFileURL(path.join(ROOT, 'public', 'api.js')).href);
++    const bad = [];
++    for (const slug of BETA) {
++      const snap = JSON.parse(fs.readFileSync(path.join(SNAP, `${slug}.json`), 'utf8'));
++      const want = (snap.jobs || []).length;
++      const f = path.join(DIST, 'beta', 'api', 'jobs', `${slug}.json`);
++      if (!fs.existsSync(f)) { bad.push(`${slug}: not in the build (${want} postings in the snapshot)`); continue; }
++      const got = unpackJobs(JSON.parse(fs.readFileSync(f, 'utf8'))).length;
++      if (got !== want) bad.push(`${slug}: ${got} in the build, ${want} in the snapshot`);
++      const pv = path.join(DIST, 'beta', 'api', 'preview', `${slug}.json`);
++      if (fs.existsSync(pv)) {
++        const total = JSON.parse(fs.readFileSync(pv, 'utf8')).preview?.total;
++        if (total !== got) bad.push(`${slug}: the preview says ${total}, the list has ${got}`);
++      }
++    }
++    assert.deepEqual(bad, [], bad.join('; '));
++  });
++
++test('[T-17] no posting title holds a line break (Meta 1, Amazon 2 on the 2026-10-16 crawl: "Partner Development Manager\\n, Benelux …")',
++  { ...todo('T-17'), skip: !haveData && 'needs data/beta/snapshots' }, () => {
++    // The card shows "Manager , Benelux" (the break collapses to a space before the comma), and a CSV reader that splits
++    // on lines (beta-mobile-qa's CSV check did) counts an extra row. server/normalize.js keeps the title's raw whitespace.
++    const bad = [];
++    for (const slug of BETA) {
++      const snap = JSON.parse(fs.readFileSync(path.join(SNAP, `${slug}.json`), 'utf8'));
++      for (const j of snap.jobs || []) if (/[\r\n]/.test(j.title || '')) bad.push(`${j.id} ${JSON.stringify(j.title)}`);
++    }
++    assert.deepEqual(bad, [], `${bad.length} titles with a line break: ${bad.slice(0, 5).join('; ')}`);
++  });
+diff --git a/test/e2e/beta-coverage.e2e.js b/test/e2e/beta-coverage.e2e.js
+new file mode 100644
+index 0000000..3594c8c
+--- /dev/null
++++ b/test/e2e/beta-coverage.e2e.js
+@@ -0,0 +1,508 @@
++// Test-suite QA for the beta site (docs/process/qa-suite-beta.md, 2026-10-23): the features of /melon-seek/beta/ that
++// no other group covered on the big-tech boards, found by the coverage map in that log. Each test checks behaviour
++// against numbers computed from the build's own lists (public/api.js getJobs, the jobs the page shows, and
++// viz/palette.js toUSD, the page's own conversion), never a count pinned to one crawl.
++//   - every beta board (from the registry, so a board added later is covered) is in the build, and its count on
++//     screen equals its list and its CSV: a board the build dropped fails here instead of skipping everywhere [T-5];
++//   - Apply on every board, Amazon and Meta included, goes to the posting on that company's own host [T-1];
++//   - per board: the pay filter (minimum, maximum, "only with pay") [T-2], the Listed filter and the Juice grades
++//     [T-16], and every sort (Highest pay, Lowest pay, Most juice, Title A–Z) [T-3];
++//   - search lists title matches first on the big boards [T-6];
++//   - a deep link survives a reload, and Back / Forward walk the filter history, on Amazon [T-7];
++//   - at every size in phone-sizes.mjs, the phone flow a job seeker uses: the list opens full, a tapped card opens
++//     its job page, the Back button and the browser's Back close it, and a tapped filter row gives "Show N roles"
++//     equal to its own count and to the list it shows [T-8]. One board per size, in turn, so all seven boards are
++//     covered on phones without loading each board at every size (the runtime finding, T-11).
++// Serves the build (E2E_DIST, else BETA_QA_DIST, else dist/) under /melon-seek/ with one server for the file (gzip
++// cached once per file). Skips without a beta build. Other hosts are aborted.
++import http from 'node:http';
++import fs from 'node:fs';
++import path from 'node:path';
++import zlib from 'node:zlib';
++import { ROOT, assert, assertEq, skip } from './harness.js';
++import { ALL_SIZES, contextFor } from './phone-sizes.mjs';
++import { COMPANIES } from '../../server/companies.js';
++
++const DESKTOP = { width: 1440, height: 900 };
++/** The boards the beta site shows: the registry's non-paused beta companies. */
++const BETA = COMPANIES.filter((c) => c.channel === 'beta' && !c.paused);
++const MAIN_BOARD = 'anduril';
++const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
++const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.csv': 'text/csv', '.txt': 'text/plain', '.woff2': 'font/woff2', '.webmanifest': 'application/manifest+json' };
++
++let shared = null;
++/** One server for the file. Bodies are read and gzipped once (Amazon's list is 6.8 MB; gzipping it per load costs CPU). */
++async function serveDist() {
++  if (shared) return shared;
++  const dist = path.resolve(process.env.E2E_DIST || process.env.BETA_QA_DIST || path.join(ROOT, 'dist'));
++  if (!fs.existsSync(path.join(dist, 'beta', 'index.html')) || !fs.existsSync(path.join(dist, 'beta', 'api', 'jobs'))) return null;
++  const cache = new Map();
++  const server = http.createServer((req, res) => {
++    const u = new URL(req.url, 'http://x');
++    if (!u.pathname.startsWith('/melon-seek/')) { res.writeHead(302, { location: '/melon-seek/' }); return res.end(); }
++    let rel;
++    try { rel = decodeURIComponent(u.pathname.slice('/melon-seek/'.length)); } catch { res.writeHead(400); return res.end(); }
++    let p = path.join(dist, rel);
++    if (p !== dist && !p.startsWith(dist + path.sep)) { res.writeHead(403); return res.end(); }
++    if (fs.existsSync(p) && fs.statSync(p).isDirectory()) p = path.join(p, 'index.html');
++    if (!fs.existsSync(p)) { res.writeHead(404); return res.end(); }
++    const type = MIME[path.extname(p)] || 'application/octet-stream';
++    let e = cache.get(p);
++    if (!e) {
++      const body = fs.readFileSync(p);
++      e = { body, gz: /text|javascript|json|svg|csv/.test(type) && body.length > 1024 ? zlib.gzipSync(body) : null };
++      cache.set(p, e);
++    }
++    const gz = e.gz && /gzip/.test(req.headers['accept-encoding'] || '');
++    res.writeHead(200, { 'content-type': type, ...(gz ? { 'content-encoding': 'gzip' } : {}) });
++    res.end(gz ? e.gz : e.body);
++  });
++  await new Promise((r) => server.listen(0, '127.0.0.1', r));
++  server.unref();
++  const origin = `http://127.0.0.1:${server.address().port}`;
++  shared = { dist, origin, beta: `${origin}/melon-seek/beta`, main: `${origin}/melon-seek` };
++  return shared;
++}
++
++/** A fresh context: `device` (a phone-sizes.mjs entry) or a desktop viewport. `hash` opens `<site>/#<hash>`. */
++async function open(ctx, { device = null, viewport = DESKTOP, hash = null, site = 'beta' } = {}) {
++  const st = await serveDist();
++  if (!st) skip('no beta build (npm run build, or E2E_DIST=<dir>)');
++  const engine = ctx.browser.browserType?.().name?.() || 'chromium';
++  const opts = device ? contextFor(device, engine) : { viewport, deviceScaleFactor: 1 };
++  const context = await ctx.browser.newContext({ ...opts, colorScheme: 'light' });
++  ctx.cleanup.push(() => context.close().catch(() => {}));
++  const external = [];
++  await context.route((u) => !u.href.startsWith(st.origin) && !u.href.startsWith('data:') && !u.href.startsWith('blob:'), (r) => { external.push(r.request().url()); return r.abort('blockedbyclient'); });
++  const page = await context.newPage();
++  const errors = [];
++  page.on('pageerror', (e) => errors.push(`pageerror: ${String(e && e.message || e).slice(0, 300)}`));
++  page.on('console', (m) => {
++    if (m.type() !== 'error') return;
++    const loc = m.location() && m.location().url;
++    if (/Failed to load resource/.test(m.text()) && (!loc || !loc.startsWith(st.origin))) return;
++    errors.push(`console.error: ${m.text().slice(0, 300)}`);
++  });
++  const base = (s = site) => (s === 'beta' ? st.beta : st.main);
++  if (hash != null) await go(page, `${base()}/#${hash}`);
++  return { st, context, page, errors, external, base };
++}
++/** Load a URL and wait for the whole list (not Amazon's first-page preview). */
++async function go(page, url) {
++  await page.goto(url, { timeout: 60000 });
++  await ready(page);
++}
++async function ready(page, timeout = 90000) {
++  await page.waitForFunction(() => {
++    const t = document.querySelector('#resultsTitle');
++    return t && !/Loading/.test(t.textContent) && /\d\s+role|No roles/.test(t.textContent.replace(/,/g, ''))
++      && (document.querySelector('#resultsList .card[data-id]') || /\b0 roles|No roles/.test(t.textContent));
++  }, null, { timeout });
++  await sleep(300);
++}
++/**
++ * Change the hash in place (the board stays loaded) and wait for the list to follow: for the count or the first card
++ * to change (at most `wait` ms: a sort that keeps the first card, or a filter that keeps the count, changes neither),
++ * then for two frames and the list.
++ */
++async function hashTo(page, h, wait = 4000) {
++  const before = await page.evaluate(() => document.querySelector('#resultsTitle')?.textContent + '|' + document.querySelector('#resultsList .card[data-id]')?.dataset.id);
++  await page.evaluate((x) => { location.hash = x; }, h);
++  await page.waitForFunction((b) => document.querySelector('#resultsTitle')?.textContent + '|' + document.querySelector('#resultsList .card[data-id]')?.dataset.id !== b, before, { timeout: wait, polling: 50 }).catch(() => {});
++  await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(r, 50)))));
++  await ready(page);
++}
++async function count(page) {
++  const m = (await page.locator('#resultsTitle').innerText()).replace(/,/g, '').match(/(\d+)\s+role/);
++  if (!m && /No roles/.test(await page.locator('#resultsTitle').innerText())) return 0;
++  assert(m, `no role count in the results title ("${await page.locator('#resultsTitle').innerText()}")`);
++  return Number(m[1]);
++}
++const params = async (page) => new URLSearchParams(await page.evaluate(() => location.hash.slice(1)));
++const cardIds = (page, n = 30) => page.$$eval('#resultsList .card[data-id]', (els, k) => els.slice(0, k).map((e) => e.dataset.id), n);
++
++/**
++ * In the page: the board's jobs as the app gets them, with the approx-USD pay the page filters and sorts on
++ * (public/app.js prepare(): min ??= max, max ??= min, mid ??= (min + max) / 2, each through toUSD). Returns a summary,
++ * not 22,179 jobs. `ids` asks for those jobs' pay and titles.
++ */
++function boardFacts(page, base, company, ids = []) {
++  return page.evaluate(async ({ base, company, ids }) => {
++    // One getJobs per board and page (Amazon's list is 22,179 postings): kept on the window for the next call.
++    window.__bcJobs ??= {};
++    const key = `${base}|${company}`;
++    if (!window.__bcJobs[key]) {
++      const api = await import(`${base}/api.js`);
++      window.__bcJobs[key] = await api.getJobs({ company });
++    }
++    const { toUSD } = await import(`${base}/viz/palette.js`);
++    const res = window.__bcJobs[key];
++    const usd = (j) => {
++      const s = j.salary;
++      if (!s || (s.min == null && s.max == null)) return null;
++      const min = s.min ?? s.max, max = s.max ?? s.min, mid = s.mid ?? (min + max) / 2;
++      const u = { min: toUSD(min, s.currency), max: toUSD(max, s.currency), mid: toUSD(mid, s.currency) };
++      return Number.isFinite(u.min) && Number.isFinite(u.max) ? u : null;
++    };
++    // Listing age as prepare() reads it: ageDays when the list has it, else days since updatedAt.
++    const now = Date.now();
++    const age = (j) => ('ageDays' in j ? (Number.isFinite(j.ageDays) ? j.ageDays : null) : (Date.parse(j.updatedAt || '') ? Math.max(0, Math.floor((now - Date.parse(j.updatedAt)) / 864e5)) : null));
++    const jobs = res.jobs.map((j) => ({ id: j.id, url: j.url || null, team: j.team || '', title: j.title, usd: usd(j), age: age(j) }));
++    const paid = jobs.filter((j) => j.usd);
++    const med = (a) => { const s = a.slice().sort((x, y) => x - y); return s.length ? s[Math.floor(s.length / 2)] : null; };
++    const want = new Set(ids);
++    return {
++      mode: res.mode, n: jobs.length, paid: paid.length,
++      medMax: med(paid.map((j) => j.usd.max)), medMin: med(paid.map((j) => j.usd.min)),
++      maxMid: paid.length ? Math.max(...paid.map((j) => j.usd.mid)) : null,
++      minMid: paid.length ? Math.min(...paid.map((j) => j.usd.mid)) : null,
++      maxes: paid.map((j) => j.usd.max), mins: paid.map((j) => j.usd.min),
++      ages: jobs.map((j) => j.age),
++      pick: jobs.filter((j) => want.has(j.id)),
++      sampleIds: [jobs[0], jobs[Math.floor(jobs.length / 2)], jobs[jobs.length - 1]].filter(Boolean).map((j) => j.id),
++      urls: Object.fromEntries([jobs[0], jobs[Math.floor(jobs.length / 2)], jobs[jobs.length - 1]].filter(Boolean).map((j) => [j.id, j.url])),
++    };
++  }, { base, company, ids });
++}
++async function needBoard(page, base, slug) {
++  const f = await boardFacts(page, base, slug);
++  assert(f.mode === 'snapshot' || f.mode === 'cache', `${slug}: the build serves it as "${f.mode}", not its snapshot`);
++  assert(f.n > 0, `${slug}: no postings in the build`);
++  return f;
++}
++/** Records in a CSV, counting quoted newlines as part of their field (RFC 4180). */
++function csvRecords(text) {
++  let n = 0, q = false, any = false;
++  for (let i = 0; i < text.length; i++) {
++    const c = text[i];
++    if (c === '"') q = !q;
++    else if (c === '\n' && !q) { if (any) n++; any = false; continue; }
++    if (c !== '\r') any = true;
++  }
++  return n + (any ? 1 : 0);
++}
++const roundTo = (x, step) => Math.round(x / step) * step;
++const allowedHosts = (c) => new Set([...(c.postingHosts || []), ...(c.postingPrefixes || []).map((p) => new URL(p).hostname)].map((h) => h.replace(/^www\./, '')));
++
++/** A real tap at an element's centre (phones), a click elsewhere. */
++async function tap(page, locator, { dx = null } = {}) {
++  await locator.scrollIntoViewIfNeeded().catch(() => {});
++  const b = await locator.boundingBox();
++  assert(b, 'nothing to tap (no box)');
++  const touch = await page.evaluate(() => matchMedia('(pointer: coarse)').matches);
++  const x = b.x + (dx == null ? b.width / 2 : Math.min(dx, b.width - 2)), y = b.y + b.height / 2;
++  if (touch) await page.touchscreen.tap(x, y); else await page.mouse.click(x, y);
++}
++
++export function registerBetaCoverageTests(suite) {
++  /* ------------------------------------------------------------------ the build and every board */
++
++  suite.test(`Beta coverage: the build has every beta board (${BETA.map((c) => c.name).join(', ')}) and Anduril on the main site; each one's count on screen equals its list and its CSV`, async (ctx) => {
++    const { st, page, errors, external, base } = await open(ctx);
++    const missing = BETA.filter((c) => !fs.existsSync(path.join(st.dist, 'beta', 'api', 'jobs', `${c.slug}.json`))).map((c) => c.slug);
++    assertEq(missing.join(', '), '', 'beta boards the build does not publish (their tests would only skip)');
++    const bad = [];
++    let betaExternal = 0;
++    for (const [site, slug] of [...BETA.map((c) => ['beta', c.slug]), ['main', MAIN_BOARD]]) {
++      if (site === 'main') betaExternal = external.length; // the main site's boards are live: the browser asks Greenhouse
++      await go(page, `${base(site)}/#c=${slug}`);
++      const f = await needBoard(page, base(site), slug);
++      const shown = await count(page);
++      if (shown !== f.n) bad.push(`${site} ${slug}: the page says ${shown} roles, the list has ${f.n}`);
++      const csv = await page.evaluate(async (u) => { const r = await fetch(u); return r.ok ? r.text() : null; }, `${base(site)}/data/${slug}.csv`);
++      if (csv == null) bad.push(`${site} ${slug}: no CSV`);
++      else if (csvRecords(csv) !== f.n + 1) bad.push(`${site} ${slug}: the CSV has ${csvRecords(csv) - 1} rows for ${f.n} roles`);
++    }
++    assertEq(bad.length, 0, bad.join('; '));
++    assertEq(betaExternal, 0, `the beta boards asked other hosts: ${external.slice(0, 3).join(', ')}`);
++    assertEq(errors.length, 0, errors.slice(0, 3).join(' | '));
++  });
++
++  suite.test('Beta coverage: Apply on every big-tech board (Amazon and Meta too) opens the posting on that company\'s own careers host, in a new tab', async (ctx) => {
++    const { page, base } = await open(ctx, { hash: `c=${BETA[0].slug}` });
++    const bad = [];
++    let checked = 0;
++    for (const c of BETA) {
++      const f = await needBoard(page, base(), c.slug);
++      const hosts = allowedHosts(c);
++      for (const id of f.sampleIds) {
++        await go(page, `${base()}/#c=${c.slug}&job=${encodeURIComponent(id)}`);
++        await page.waitForSelector('#drawer.is-open #drawerTitle', { timeout: 20000 });
++        const a = await page.evaluate(() => {
++          const x = document.querySelector('#drawer a.apply');
++          return x ? { href: x.getAttribute('href'), target: x.getAttribute('target'), rel: x.getAttribute('rel') || '', host: x.querySelector('.apply-host')?.textContent || '' } : null;
++        });
++        if (!f.urls[id]) { if (a) bad.push(`${c.slug} ${id}: an Apply link for a posting with no link`); continue; }
++        if (!a) { bad.push(`${c.slug} ${id}: no Apply link (the posting links to ${f.urls[id]})`); continue; }
++        checked++;
++        const host = new URL(a.href).hostname.replace(/^www\./, '');
++        if (!hosts.has(host)) bad.push(`${c.slug} ${id}: Apply goes to ${host}, not ${[...hosts].join(' or ')}`);
++        if (a.href !== f.urls[id]) bad.push(`${c.slug} ${id}: Apply is ${a.href}, the posting is ${f.urls[id]}`);
++        if (a.target !== '_blank' || !/noopener/.test(a.rel)) bad.push(`${c.slug} ${id}: Apply target "${a.target}" rel "${a.rel}"`);
++        if (a.host !== host) bad.push(`${c.slug} ${id}: the host under Apply reads "${a.host}", the link goes to ${host}`);
++      }
++    }
++    assert(checked >= BETA.length, `only ${checked} Apply links checked`);
++    assertEq(bad.length, 0, bad.join('; '));
++  });
++
++  /* ------------------------------------------------------------------ filters, sorts, search */
++
++  /** The pay filter: minimum, maximum and "only with pay", against each posting's approx-USD pay. */
++  async function payFilter(page, base, c, f, bad) {
++    if (f.paid < 20) { bad.push(`only ${f.paid} roles with pay`); return; }
++    const lo = roundTo(f.medMax, 10000), hi = roundTo(f.medMin, 10000);
++    const wantMin = f.maxes.filter((x) => x >= lo).length;
++    const wantMax = f.mins.filter((x) => x <= hi).length;
++    await hashTo(page, `c=${c.slug}&smin=${lo}`);
++    let got = await count(page);
++    if (got !== wantMin) bad.push(`pay at least $${lo}: ${got} roles shown, ${wantMin} have a top approx-USD pay that high`);
++    const ids = await cardIds(page, 40);
++    const g = await boardFacts(page, base, c.slug, ids);
++    for (const j of g.pick) if (!j.usd || j.usd.max < lo) bad.push(`${j.id} is listed under "at least $${lo}" with ${j.usd ? `$${Math.round(j.usd.max)} at most` : 'no pay'}`);
++    await hashTo(page, `c=${c.slug}&smax=${hi}`);
++    got = await count(page);
++    if (got !== wantMax) bad.push(`pay up to $${hi}: ${got} roles shown, ${wantMax} have a lowest approx-USD pay that low`);
++    await hashTo(page, `c=${c.slug}&so=1`);
++    got = await count(page);
++    if (got !== f.paid) bad.push(`only roles with pay: ${got} shown, ${f.paid} have pay`);
++    await hashTo(page, `c=${c.slug}`);
++    if ((await count(page)) !== f.n) bad.push(`clearing the pay filter shows ${await count(page)} of ${f.n}`);
++  }
++  /** Listed (past 7, 30 and 90 days; hide 180+) against each posting's age; each Juice grade against its own count. */
++  async function listedAndJuice(page, c, f, bad) {
++    const known = f.ages.filter((a) => a != null).length;
++    if (!known) bad.push('no posting has a listing date: the Listed filter is unchecked');
++    for (const p of known ? [7, 30, 90] : []) {
++      await hashTo(page, `c=${c.slug}&p=${p}`);
++      const want = f.ages.filter((a) => a != null && a <= p).length;
++      const got = await count(page);
++      if (got !== want) bad.push(`listed in the past ${p} days: ${got} shown, ${want} postings are that young`);
++    }
++    if (known) {
++      await hashTo(page, `c=${c.slug}&ho=1`);
++      const want = f.ages.filter((a) => a == null || a < 180).length;
++      const got = await count(page);
++      if (got !== want) bad.push(`hide 180+ days: ${got} shown, ${want} postings are younger (or undated)`);
++    }
++    await hashTo(page, `c=${c.slug}`);
++    // The Juice grades live in the "More" popover (its quick chip), not in the filter column.
++    await page.locator('#quickChips [data-pop=more]').click();
++    await page.waitForSelector('#popover .kw--juice', { timeout: 10000 }).catch(() => {});
++    const g = await page.evaluate(() => ({
++      grades: Object.fromEntries([...document.querySelectorAll('#popover .kw--juice')].map((b) => [b.firstChild.textContent, Number(b.querySelector('.kw-count').textContent.replace(/,/g, ''))])),
++      note: [...document.querySelectorAll('#popover .fnote')].map((n) => n.textContent).find((t) => /Juice Score/.test(t)) || '',
++    }));
++    await page.keyboard.press('Escape');
++    await sleep(300);
++    if (Object.keys(g.grades).length !== 3) { bad.push(`Juice grade buttons ${JSON.stringify(g.grades)}`); return; }
++    const scored = Number((g.note.replace(/,/g, '').match(/(\d+) of \d+ have a Juice Score/) || [])[1] ?? NaN);
++    const sum = Object.values(g.grades).reduce((a, b) => a + b, 0);
++    if (Number.isFinite(scored) && sum !== scored) bad.push(`the grades count ${sum} roles, the note says ${scored} have a Juice Score`);
++    for (const [grade, n] of Object.entries(g.grades)) {
++      await hashTo(page, `c=${c.slug}&jg=${grade}`);
++      const got = await count(page);
++      if (got !== n) bad.push(`Juice ${grade} counts ${n}, the list shows ${got}`);
++    }
++    await hashTo(page, `c=${c.slug}`);
++  }
++  /** Every sort: Highest and Lowest pay by approx-USD mid (no pay last), Most juice by the cards' scores, Title A–Z. */
++  async function sorts(page, base, c, f, bad) {
++    for (const sort of ['salary-asc', 'salary-desc']) {
++      await hashTo(page, `c=${c.slug}&sort=${sort}`, 2000);
++      const ids = await cardIds(page, 30);
++      const g = await boardFacts(page, base, c.slug, ids);
++      const by = new Map(g.pick.map((j) => [j.id, j]));
++      const mids = ids.map((id) => by.get(id)?.usd?.mid ?? null);
++      const extreme = sort === 'salary-desc' ? f.maxMid : f.minMid;
++      if (mids[0] == null || Math.abs(mids[0] - extreme) > 1) bad.push(`${sort}: the first role pays $${Math.round(mids[0])} (mid), the board's ${sort === 'salary-desc' ? 'highest' : 'lowest'} is $${Math.round(extreme)}`);
++      for (let i = 1; i < mids.length; i++) {
++        const a = mids[i - 1], b = mids[i];
++        if (a == null && b != null) { bad.push(`${sort}: a role with no pay (#${i}) before one with pay (#${i + 1})`); break; }
++        if (a != null && b != null && (sort === 'salary-desc' ? b > a + 0.5 : b < a - 0.5)) { bad.push(`${sort}: #${i} $${Math.round(a)} then #${i + 1} $${Math.round(b)} (${ids[i - 1]}, ${ids[i]})`); break; }
++      }
++    }
++    // Most juice: the cards' own scores (the badge reads "🍉 <score> · <grade>"), highest first, unscored last.
++    await hashTo(page, `c=${c.slug}&sort=juice`, 2000);
++    const scores = await page.$$eval('#resultsList .card[data-id]', (e) => e.slice(0, 30).map((x) => {
++      const m = /🍉\s*(\d+)/.exec(x.querySelector('.juice-badge')?.textContent || '');
++      return m ? Number(m[1]) : null;
++    }));
++    for (let i = 1; i < scores.length; i++) {
++      const a = scores[i - 1], b = scores[i];
++      if ((a == null && b != null) || (a != null && b != null && b > a)) { bad.push(`juice: #${i} scores ${a}, #${i + 1} scores ${b}`); break; }
++    }
++    if (scores[0] == null && (await page.$$eval('.juice-badge', (e) => e.length)) > 0) bad.push('juice: the first card has no Juice Score');
++    await hashTo(page, `c=${c.slug}&sort=title`, 2000);
++    const titles = await page.$$eval('#resultsList .card[data-id] .card-title', (e) => e.slice(0, 30).map((x) => x.textContent));
++    const sorted = await page.evaluate((t) => t.slice().sort((a, b) => a.localeCompare(b)), titles);
++    if (JSON.stringify(titles) !== JSON.stringify(sorted)) bad.push(`title: "${titles.find((t, i) => t !== sorted[i])}" is out of order`);
++  }
++
++  for (const c of BETA) {
++    suite.test(`Beta coverage: [${c.slug}] the pay filter (minimum, maximum, only with pay), the Listed filter and the Juice grades give exactly the roles the data says, and every sort (Highest pay, Lowest pay, Most juice, Title A–Z) orders the list by it`, async (ctx) => {
++      const { page, errors, base } = await open(ctx, { hash: `c=${c.slug}` });
++      const f = await needBoard(page, base(), c.slug);
++      const bad = [];
++      await payFilter(page, base(), c, f, bad);
++      await listedAndJuice(page, c, f, bad);
++      await sorts(page, base(), c, f, bad);
++      assertEq(bad.length, 0, bad.slice(0, 12).join('; '));
++      assertEq(errors.length, 0, errors.slice(0, 3).join(' | '));
++    });
++  }
++
++  suite.test('Beta coverage: a search lists the roles whose title (or team) has the word before the roles that match it elsewhere (Amazon, Apple, Google)', async (ctx) => {
++    const { page, errors, base } = await open(ctx, { hash: 'c=amazon' });
++    const bad = [];
++    let tried = 0;
++    for (const slug of ['amazon', 'apple', 'google']) {
++      await go(page, `${base()}/#c=${slug}`);
++      await needBoard(page, base(), slug);
++      // A word some titles have and many other roles match elsewhere (department, team, place, keywords).
++      for (const word of ['security', 'hardware', 'cloud', 'design', 'data', 'machine', 'operations', 'finance']) {
++        await hashTo(page, `c=${slug}&q=${word}`);
++        const n = await count(page);
++        if (n < 10) continue;
++        const ids = await cardIds(page, 60);
++        const g = await boardFacts(page, base(), slug, ids);
++        const by = new Map(g.pick.map((j) => [j.id, j]));
++        const shownTitles = await page.$$eval('#resultsList .card[data-id] .card-title', (e) => e.slice(0, 60).map((x) => x.textContent));
++        const re = new RegExp(`(?:^|[^\\p{L}\\p{N}])${word}`, 'iu');
++        const strong = ids.map((id, i) => re.test(`${shownTitles[i] || ''} ${by.get(id)?.title || ''} ${by.get(id)?.team || ''}`));
++        if (!strong.some(Boolean) || strong.every(Boolean)) continue; // need both kinds on the first page to test the order
++        tried++;
++        const firstWeak = strong.indexOf(false);
++        const late = strong.findIndex((s, i) => s && i > firstWeak);
++        if (late >= 0) bad.push(`${slug} "${word}": #${late + 1} "${shownTitles[late]}" has the word in its title but comes after #${firstWeak + 1} "${shownTitles[firstWeak]}", which does not`);
++        break;
++      }
++    }
++    assert(tried >= 2, `the order was checked on ${tried} boards only (no word gave both kinds of match)`);
++    assertEq(bad.length, 0, bad.join('; '));
++    assertEq(errors.length, 0, errors.slice(0, 3).join(' | '));
++  });
++
++  suite.test('Beta coverage: on Amazon a deep link with filters, sort and view survives a reload, and Back / Forward walk the filter history', async (ctx) => {
++    const { page, errors, base } = await open(ctx, { hash: 'c=amazon' });
++    await needBoard(page, base(), 'amazon');
++    const total = await count(page);
++    // A department through the real checkbox (a history entry), then a sort through the real select.
++    const dep = page.locator('#filterBody details.fsec').filter({ has: page.locator('summary', { hasText: 'Department' }) }).locator('label.check').first();
++    const want = Number((await dep.locator('.check-count').innerText()).replace(/,/g, ''));
++    await dep.click();
++    await page.waitForFunction((n) => !document.querySelector('#resultsTitle')?.textContent.replace(/,/g, '').includes(`${n} role`), total, { timeout: 15000 });
++    await ready(page);
++    assertEq(await count(page), want, 'a Department row gives its own count');
++    await page.selectOption('#sortBy', 'salary-asc');
++    await page.click('.topbar .seg [data-mode="insights"]').catch(() => {});
++    await sleep(800);
++    await page.click('.topbar .seg [data-mode="chart"]');
++    await page.click('#vizControls [data-view="ranges"]').catch(() => {});
++    await sleep(800);
++    const h1 = await params(page);
++    const first1 = (await cardIds(page, 1))[0];
++    assert(h1.get('d') && h1.get('sort') === 'salary-asc', `the hash keeps the filter and the sort: ${h1}`);
++    await page.reload();
++    await ready(page);
++    const h2 = await params(page);
++    for (const k of ['c', 'd', 'sort', 'v', 'm']) assertEq(h2.get(k), h1.get(k), `after a reload, ${k}`);
++    assertEq(await count(page), want, 'after a reload, the count');
++    assertEq((await cardIds(page, 1))[0], first1, 'after a reload, the first role');
++    // Back from the filtered list to the whole board, Forward to the filter again.
++    let backs = 0;
++    while (backs < 8 && (await params(page)).get('d')) { await page.goBack(); await sleep(700); backs++; }
++    assert(!(await params(page)).get('d'), `Back ${backs} times never left the Department filter`);
++    await ready(page);
++    assertEq(await count(page), total, 'Back to the unfiltered board');
++    await page.goForward(); await sleep(700); await ready(page);
++    let fwd = 1;
++    while (fwd < 8 && !(await params(page)).get('d')) { await page.goForward(); await sleep(700); fwd++; }
++    assert((await params(page)).get('d') === h1.get('d'), 'Forward brings the Department filter back');
++    await ready(page);
++    assertEq(await count(page), want, 'Forward to the filtered count');
++    assertEq(errors.length, 0, errors.slice(0, 3).join(' | '));
++  });
++
++  /* ------------------------------------------------------------------ phones: every size */
++
++  ALL_SIZES.forEach((d, i) => {
++    const board = BETA[i % BETA.length];
++    suite.test(`Beta coverage: [${d.name} ${d.width}x${d.height}] ${board.slug}: the list opens full, a tapped card opens its job page, the Back button and the browser's Back close it, and a tapped filter row's "Show N roles" equals its count and the list`, async (ctx) => {
++      const { page, errors, base } = await open(ctx, { device: d, hash: `c=${board.slug}` });
++      const f = await needBoard(page, base(), board.slug);
++      const bad = [];
++      const fit = await page.evaluate(() => ({ w: innerWidth, sw: screen.width, scrollW: document.documentElement.scrollWidth, phone: getComputedStyle(document.querySelector('#results')).position === 'fixed' }));
++      if (fit.scrollW > fit.w + 1 || fit.w > fit.sw + 1) bad.push(`the page is ${fit.scrollW} px wide in a ${fit.w} px layout on a ${fit.sw} px screen`);
++      // The results sheet (phone layouts): the handle opens it to full.
++      if (fit.phone) {
++        for (let k = 0; k < 3 && (await page.evaluate(() => document.body.dataset.sheet)) !== 'full'; k++) { await tap(page, page.locator('#sheetHandle')); await sleep(600); }
++        const s = await page.evaluate(() => document.body.dataset.sheet);
++        if (s !== 'full') bad.push(`three taps on the sheet handle leave the list at "${s}"`);
++      }
++      // A tapped card opens its job page; the Back button closes it.
++      const card = page.locator('#resultsList .card[data-id]').first();
++      const cardTitle = (await card.locator('.card-title').innerText()).trim();
++      await tap(page, card.locator('.card-title'));
++      const opened = await page.waitForSelector('#drawer.is-open #drawerTitle', { timeout: 15000 }).then(() => true, () => false);
++      if (!opened) bad.push('a tap on the first card did not open its job page');
++      else {
++        await sleep(500);
++        const t = (await page.locator('#drawerTitle').innerText()).trim();
++        if (t !== cardTitle) bad.push(`the job page is "${t}", the tapped card "${cardTitle}"`);
++        if (!(await params(page)).get('job')) bad.push('the open job is not in the address (no Back to the list)');
++        await tap(page, page.locator('#drawerClose'));
++        const closed = await page.waitForFunction(() => !document.querySelector('#drawer.is-open'), null, { timeout: 5000 }).then(() => true, () => false);
++        if (!closed) bad.push('the job page\'s Back button did not close it');
++        if ((await params(page)).get('job')) bad.push('after Back the address still names the job');
++        await sleep(700); // the job page slides out (0.22 s) and focus returns to the card, as a person would wait
++      }
++      // The browser's Back closes a job page too, and stays on the board.
++      const second = page.locator('#resultsList .card[data-id]').nth(1);
++      if (await second.count()) {
++        await tap(page, second.locator('.card-title'));
++        if (await page.waitForSelector('#drawer.is-open', { timeout: 15000 }).then(() => true, () => false)) {
++          await sleep(400);
++          await page.goBack();
++          const closed = await page.waitForFunction(() => !document.querySelector('#drawer.is-open'), null, { timeout: 5000 }).then(() => true, () => false);
++          if (!closed) bad.push('the browser\'s Back did not close the job page');
++          const h = await params(page);
++          if (h.get('c') !== board.slug) bad.push(`the browser's Back left the board (hash "${h}")`);
++          await sleep(700); // the job page slides out before the next tap (on a wide touch screen it covers Filters' tap)
++        } else bad.push('a tap on the second card did not open its job page');
++      }
++      // Filters: a tapped Seniority row (every board has one) gives "Show N roles" = its count, then that list. The full
++      // results sheet covers the top bar's Filters chip, so the list goes back down first, as a person would do it.
++      if (fit.phone) {
++        for (let k = 0; k < 3 && !['peek', 'half'].includes(await page.evaluate(() => document.body.dataset.sheet)); k++) { await tap(page, page.locator('#sheetHandle')); await sleep(600); }
++      }
++      await tap(page, page.locator('#filtersToggle'));
++      await page.waitForSelector('#filterBody details.fsec', { timeout: 5000 }).catch(() => {});
++      await sleep(400);
++      // The phone's filter sheet is built when it opens, and a section's rows when that section opens.
++      await page.evaluate(() => { for (const x of document.querySelectorAll('#filterBody details.fsec')) if (/Seniority/.test(x.querySelector('summary')?.textContent || '')) x.open = true; });
++      await sleep(500);
++      const row = page.locator('#filterBody details.fsec').filter({ has: page.locator('summary', { hasText: 'Seniority' }) }).locator('label.check').first();
++      if (!(await row.count())) bad.push(`the filter sheet has no Seniority row (sections: ${await page.$$eval('#filterBody details.fsec summary', (e) => e.map((x) => x.textContent.trim()).join(', '))})`);
++      else {
++        const want = Number((await row.locator('.check-count').innerText()).replace(/,/g, ''));
++        await tap(page, row, { dx: 40 });
++        await sleep(900);
++        const done = page.locator('#filtersDone');
++        if (await done.isVisible().catch(() => false)) {
++          const label = (await done.innerText()).replace(/,/g, '');
++          const n = Number(label.match(/(\d+)/)?.[1]);
++          if (n !== want) bad.push(`"${label.trim()}" after the row that counts ${want}`);
++          await tap(page, done);
++          await sleep(900);
++        }
++        await ready(page);
++        const shown = await count(page);
++        if (shown !== want) bad.push(`the list shows ${shown} roles after the Seniority row that counts ${want}`);
++        if (want >= f.n) bad.push(`the Seniority row counts ${want} of ${f.n}: it narrowed nothing`);
++      }
++      assertEq(bad.length, 0, bad.join('; '));
++      assertEq(errors.length, 0, errors.slice(0, 3).join(' | '));
++    });
++  });
++}
+-- 
+2.43.0
+

@@ -1,7 +1,7 @@
 From 03ff282e9f7208f69e316e092fa2a4cb77f91869 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 23 Oct 2026 14:49:13 +0000
-Subject: [PATCH 6/8] fix-qa4: log State after UX-51, MR-35 and UX-50 (gated,
+Subject: [PATCH 6/9] fix-qa4: log State after UX-51, MR-35 and UX-50 (gated,
  sent to the lead)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

@@ -1,7 +1,7 @@
 From f2f701f7ef475e7f3546e24b3a4b65637f4e3ad6 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 23 Oct 2026 13:21:09 +0000
-Subject: [PATCH 1/8] fix-qa4: UX-51 shift pay labelled on the card, its tip,
+Subject: [PATCH 1/9] fix-qa4: UX-51 shift pay labelled on the card, its tip,
  the drawer heading and the CSV; MR-35 the base keeps its cents; UX-50 the
  company beside its dot
 
