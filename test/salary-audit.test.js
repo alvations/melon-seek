@@ -51,7 +51,9 @@ const CARD = ['payPill', 'salaryRange', 'money', 'moneyRange', 'payRanges', 'ran
 // Defined once fix5-data-display.diff is in (fix-density e3c745a, 5f8b599): SA-2, SA-6.
 // rangeEnd: SB-7 (salary-audit-backend's client patch), two decimals for range ends in the millions.
 // fix-pay-at-place: payHeadline and its helpers (a range per place, counted by distinct places, in the posted unit).
-const CARD_IF_PRESENT = ['isMinimum', 'MINIMUM_TIP', 'rangeEnd', 'payHeadline', 'payUnit', 'placeCount', 'rangePlaceKeys', 'rangeName'].filter((n) => new RegExp(`^(?:const ${n} = |function ${n}\\()`, 'm').test(APP));
+// fix-qa4 (UX-51): shift pay (shiftRange, which payPill asks of every posting) and its text and tip (MR-35: postedPair).
+const CARD_IF_PRESENT = ['isMinimum', 'MINIMUM_TIP', 'rangeEnd', 'payHeadline', 'payUnit', 'placeCount', 'rangePlaceKeys', 'rangeName',
+  'shiftRange', 'SHIFT_SUB', 'shiftText', 'shiftTip', 'hourlyText', 'postedPair', 'postedMoney'].filter((n) => new RegExp(`^(?:const ${n} = |function ${n}\\()`, 'm').test(APP));
 // eslint-disable-next-line no-new-func
 const { payPill } = new Function('formatMoney', 'payAt', `
   const CUR_SYM = { USD: '$', GBP: '£', EUR: '€', CAD: 'CA$', AUD: 'A$', JPY: '¥', INR: '₹', CHF: 'CHF ', SGD: 'S$' };
