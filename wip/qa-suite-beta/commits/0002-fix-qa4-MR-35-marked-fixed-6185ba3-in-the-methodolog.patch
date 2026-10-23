@@ -1,8 +1,8 @@
 From 52ae20da5f4ff54aa7f1604bbb67efe139b83d04 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 23 Oct 2026 13:21:35 +0000
-Subject: [PATCH 2/9] fix-qa4: MR-35 marked fixed (6185ba3) in the methodology
- review; log
+Subject: [PATCH 02/10] fix-qa4: MR-35 marked fixed (6185ba3) in the
+ methodology review; log
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc

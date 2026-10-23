@@ -1,7 +1,7 @@
 From a9342a3318e51621bce2d5f204de0dbc8c1543ec Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 23 Oct 2026 15:38:50 +0000
-Subject: [PATCH 9/9] qa-suite-beta: on 433aa59 (batch 3): this lane's files
+Subject: [PATCH 09/10] qa-suite-beta: on 433aa59 (batch 3): this lane's files
  from c4f7909, the patches regenerated, the expected-red list
 
 - carried over from c4f7909 (05263e8 + 16 commits): the log, the prompt, test/beta-coverage.test.js,

@@ -1,0 +1,1333 @@
+From 853cd5bfed1def733c7a299c34b322df78cb2fae Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 23 Oct 2026 15:43:55 +0000
+Subject: [PATCH 10/11] Integration: qa-suite-beta's patches (runner stops
+ cleanly on signals, --shard; T-1 board list; T-4 links; T-11 state waits;
+ T-19 skips; CPU-time flake fixes; the sharded E2E workflow)
+
+Applied in the lane's order: e2e-runner, flake-t21-cpu, flake-ui-map-order, t1-board-list, t4-link-check,
+t11-state-waits, t19-v18-fold, t19-bp2-munich, flake-s6-cpu, flake-s3-cpu, flake-perf1-v15-cpu,
+flake-polite-clock, ci-e2e, todo-fixed (docs/process/patches/qa-suite-beta-*.diff, docs/process/qa-suite-beta.md).
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+---
+ .github/scripts/e2e-summary.mjs     |  67 ++++++++++++++++
+ .github/workflows/e2e.yml           | 119 ++++++++++++++++++++++++++++
+ docs/process/scripts/link-check.mjs |  16 +++-
+ scripts/e2e.js                      | 115 +++++++++++++++++++++++----
+ test/amazon-meta-adapters.test.js   |  21 ++++-
+ test/beta-coverage.test.js          |   5 +-
+ test/beta-security-review.test.js   |  27 +++++--
+ test/bigtech-polite.test.js         |  28 +++++--
+ test/e2e/beta-boards.mjs            |  16 ++++
+ test/e2e/beta-desktop-qa-2.e2e.js   |   4 +-
+ test/e2e/beta-desktop-qa.e2e.js     |  19 +++--
+ test/e2e/beta-mobile-qa.e2e.js      |  19 ++++-
+ test/e2e/beta-viz-review.e2e.js     |  13 +++
+ test/e2e/fix-phone-text.e2e.js      |  66 ++++++++++++---
+ test/e2e/fix3-viz.e2e.js            |  11 ++-
+ test/e2e/harness.js                 |  27 +++++--
+ test/e2e/phone-matrix.e2e.js        |  35 ++++++--
+ test/e2e/ui.e2e.js                  |  38 ++++++---
+ test/perf.test.js                   |  41 ++++++++--
+ 19 files changed, 598 insertions(+), 89 deletions(-)
+ create mode 100644 .github/scripts/e2e-summary.mjs
+ create mode 100644 .github/workflows/e2e.yml
+ create mode 100644 test/e2e/beta-boards.mjs
+
+diff --git a/.github/scripts/e2e-summary.mjs b/.github/scripts/e2e-summary.mjs
+new file mode 100644
+index 0000000..385b419
+--- /dev/null
++++ b/.github/scripts/e2e-summary.mjs
+@@ -0,0 +1,67 @@
++// Merge the e2e shard logs (scripts/e2e.js --shard=i/n) into one result, for .github/workflows/e2e.yml.
++//
++//   node .github/scripts/e2e-summary.mjs [--expected <file>] [--summary <file>] <shard log> [...]
++//
++// --expected: one entry per line, `<ID> <owner or decision>` (e.g. `V-33 fix-viz-5`); a test whose name holds `[<ID>]`
++// (or `[<ID>,` / `, <ID>]` in a list of IDs), or starts with it after the group (`Compstimate: T21 cold server`), is
++// red by design until its lane lands. An entry whose reason starts with `flaky` is a known flake: it may pass or fail.
++// Lines starting with # are notes.
++// Exit 1 when a test fails that no entry expects, when a shard log has no final "e2e: N/M passed" line (it timed out or
++// crashed), or when an expected-red test passes (the entry is stale: remove it). Exit 0 otherwise.
++import fs from 'node:fs';
++
++const args = process.argv.slice(2);
++const opt = (k) => { const i = args.indexOf(k); if (i < 0) return null; const v = args[i + 1]; args.splice(i, 2); return v; };
++const expectedFile = opt('--expected');
++const summaryFile = opt('--summary');
++const logs = args;
++
++const expected = new Map();
++if (expectedFile && fs.existsSync(expectedFile)) {
++  for (const line of fs.readFileSync(expectedFile, 'utf8').split('\n')) {
++    const t = line.trim();
++    if (!t || t.startsWith('#')) continue;
++    const [id, ...why] = t.split(/\s+/);
++    expected.set(id, why.join(' '));
++  }
++}
++const idsOf = (name) => {
++  const ids = [...name.matchAll(/\[([^\]]+)\]/g)].flatMap((m) => m[1].split(/,\s*/)).map((x) => x.trim());
++  const lead = /^[^:\[]+: ([A-Z][A-Z0-9]*-?\d+[a-z]?)\b/.exec(name); // the older names: "Compstimate: T21 cold server"
++  return lead ? [...ids, lead[1]] : ids;
++};
++const flaky = (id) => /^flaky\b/i.test(expected.get(id) || '');
++const expectedFor = (name) => idsOf(name).find((id) => expected.has(id)) || null;
++
++const tests = [];
++const unfinished = [];
++for (const f of logs) {
++  const text = fs.readFileSync(f, 'utf8');
++  const lines = text.split('\n');
++  if (!/^e2e: \d+\/\d+ passed/m.test(text)) unfinished.push(f);
++  lines.forEach((l, i) => {
++    let m = /^ {2}✓ (.*?) \((\d+)ms\)$/.exec(l);
++    if (m) return void tests.push({ log: f, name: m[1], ok: true, ms: Number(m[2]) });
++    m = /^ {2}✗ (.*?)(?: \((\d+)ms\))?$/.exec(l);
++    if (m) return void tests.push({ log: f, name: m[1], ok: false, ms: m[2] ? Number(m[2]) : null, err: (lines[i + 1] || '').trim() });
++    m = /^ {2}- (.*) \(skipped: (.*)\)$/.exec(l);
++    if (m) tests.push({ log: f, name: m[1], ok: true, skipped: m[2] });
++  });
++}
++const failed = tests.filter((t) => !t.ok);
++const unexpected = failed.filter((t) => !expectedFor(t.name));
++const known = failed.filter((t) => expectedFor(t.name));
++const stale = tests.filter((t) => t.ok && !t.skipped && expectedFor(t.name) && !flaky(expectedFor(t.name)));
++const skipped = tests.filter((t) => t.skipped);
++const minutes = tests.reduce((a, t) => a + (t.ms || 0), 0) / 60000;
++
++const out = [];
++out.push(`### E2E: ${tests.length} tests in ${logs.length} shard(s), ${tests.length - failed.length - skipped.length} passed, ${failed.length} failed (${known.length} expected), ${skipped.length} skipped; ${minutes.toFixed(0)} min of test time`);
++if (unfinished.length) out.push(`\n**Shards that did not finish:** ${unfinished.join(', ')}`);
++if (unexpected.length) { out.push('\n**Unexpected failures**'); for (const t of unexpected) out.push(`- ${t.name}\n  \`${String(t.err || '').slice(0, 200)}\``); }
++if (stale.length) { out.push('\n**Expected red but passing (take the entry off docs/process/e2e-expected-red.txt)**'); for (const t of stale) out.push(`- [${expectedFor(t.name)}] ${t.name}`); }
++if (known.length) { out.push('\n<details><summary>Expected: red by design or a known flake</summary>\n'); for (const t of known) out.push(`- [${expectedFor(t.name)}: ${expected.get(expectedFor(t.name))}] ${t.name}`); out.push('\n</details>'); }
++const text = out.join('\n');
++console.log(text);
++if (summaryFile) fs.appendFileSync(summaryFile, text + '\n');
++process.exit(unexpected.length || unfinished.length || stale.length ? 1 : 0);
+diff --git a/.github/workflows/e2e.yml b/.github/workflows/e2e.yml
+new file mode 100644
+index 0000000..c1b93f2
+--- /dev/null
++++ b/.github/workflows/e2e.yml
+@@ -0,0 +1,119 @@
++name: E2E suite (sharded)
++
++# The full browser suite (node scripts/e2e.js, about 900 tests and 2 hours on one machine) ran nowhere in CI until
++# 2026-10-23 (docs/process/qa-suite-beta.md, T-14): CI ran `npm test` on a build with no data, so every data-dependent
++# check skipped, and the e2e suite ran only on the sandbox. This runs it on the archived crawl (as webkit-phone.yml
++# does), in 4 shards in parallel (scripts/e2e.js --shard=i/4, about 30-45 min each), and fails on a failure that is not
++# a known red-by-design test (docs/process/e2e-expected-red.txt: a reviewer's [ID] test waiting for its fix lane).
++# Manual, nightly, and on pull requests that touch the app or the tests. Never on wip/** checkpoints.
++
++on:
++  workflow_dispatch:
++  schedule:
++    - cron: '41 3 * * *'
++  pull_request:
++    paths: ['public/**', 'server/**', 'scripts/**', 'test/e2e/**', '.github/workflows/e2e.yml', '.github/scripts/e2e-summary.mjs', 'docs/process/e2e-expected-red.txt']
++
++permissions:
++  contents: read
++
++concurrency:
++  group: e2e-${{ github.ref }}
++  cancel-in-progress: true
++
++jobs:
++  build:
++    name: Build the site with real data
++    runs-on: ubuntu-latest
++    timeout-minutes: 30
++    steps:
++      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
++        with:
++          persist-credentials: false # read-only job: the token is not left in .git/config (REVIEW.md V12)
++      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
++        with:
++          node-version: 22
++          cache: npm
++      - run: npm ci
++      - name: Latest archived crawl (data/snapshots, data/beta/snapshots)
++        run: node scripts/cycle/local-data.js
++      - name: Build
++        run: |
++          node scripts/build-static.js --out dist
++          test -f dist/beta/index.html && test -f dist/beta/api/jobs/amazon.json
++      # The server-mode groups read data/snapshots and data/beta/snapshots; the static groups read dist/.
++      - name: Pack the inputs
++        run: tar -czf e2e-input.tgz dist data/snapshots data/beta/snapshots
++      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
++        with:
++          name: e2e-input
++          path: e2e-input.tgz
++          retention-days: 3
++
++  e2e:
++    name: E2E shard ${{ matrix.shard }}/4
++    needs: build
++    runs-on: ubuntu-latest
++    timeout-minutes: 75
++    strategy:
++      fail-fast: false
++      matrix:
++        shard: [1, 2, 3, 4]
++    steps:
++      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
++        with:
++          persist-credentials: false # read-only job: the token is not left in .git/config (REVIEW.md V12)
++      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
++        with:
++          node-version: 22
++          cache: npm
++      - run: npm ci
++      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
++        with:
++          name: e2e-input
++      - run: tar -xzf e2e-input.tgz
++      - name: Playwright (not a repo dependency) and Chromium
++        run: |
++          npm i --no-save playwright@1.63.0
++          npx playwright install --with-deps chromium
++      # --timings: a test's duration in test/e2e/timings.log (a past run's log, refreshed by hand) balances the shards
++      # by time; without it they split by test count. --max-skips: a build without a board turns its tests into skips.
++      - name: node scripts/e2e.js --shard=${{ matrix.shard }}/4
++        env:
++          NODE_PATH: ${{ github.workspace }}/node_modules
++          # A fresh runner has a cold data/cache: the server re-normalizes every board the crawl stored at an older
++          # normalizer version (D-20 took 101 s of the default 120 s on a cold cache, qa-suite-beta section 6).
++          E2E_TEST_TIMEOUT: '240000'
++        run: |
++          set -o pipefail
++          timings=""; [ -f test/e2e/timings.log ] && timings="--timings=test/e2e/timings.log"
++          node scripts/e2e.js --shard=${{ matrix.shard }}/4 $timings --max-skips=20 | tee e2e-shard-${{ matrix.shard }}.log
++        continue-on-error: true # the summary job decides: known red-by-design failures are expected
++      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
++        if: always()
++        with:
++          name: e2e-shard-${{ matrix.shard }}
++          path: e2e-shard-${{ matrix.shard }}.log
++          retention-days: 14
++
++  summary:
++    name: E2E summary
++    needs: e2e
++    if: always()
++    runs-on: ubuntu-latest
++    timeout-minutes: 10
++    steps:
++      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
++        with:
++          persist-credentials: false # read-only job: the token is not left in .git/config (REVIEW.md V12)
++      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
++        with:
++          node-version: 22
++      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
++        with:
++          pattern: e2e-shard-*
++          merge-multiple: true
++      # Every shard's results in one table; exit 1 on a failure that is not in docs/process/e2e-expected-red.txt,
++      # on a shard that never finished, or on a test that passes while listed as expected red (its lane landed:
++      # take it off the list).
++      - run: node .github/scripts/e2e-summary.mjs --expected docs/process/e2e-expected-red.txt --summary "$GITHUB_STEP_SUMMARY" e2e-shard-*.log
+diff --git a/docs/process/scripts/link-check.mjs b/docs/process/scripts/link-check.mjs
+index 011f972..b8ee2ff 100644
+--- a/docs/process/scripts/link-check.mjs
++++ b/docs/process/scripts/link-check.mjs
+@@ -305,19 +305,29 @@ export function checkMarkdown(rep, root = ROOT) {
+   const files = ['README.md'];
+   const walk = (d) => { for (const e of fs.readdirSync(path.join(root, d), { withFileTypes: true })) { const p = path.join(d, e.name); if (e.isDirectory()) walk(p); else if (e.name.endsWith('.md')) files.push(p); } };
+   if (fs.existsSync(path.join(root, 'docs'))) walk('docs');
++  // Docs the build renders as site pages link to each other by their site paths (scripts/build-static.js:
++  // methodology/ is docs/METHODOLOGY_GUIDE.md, methodology/reference/ is docs/LIVABILITY.md). qa-suite-beta T-4.
++  const SITE_LINKS = { 'docs/METHODOLOGY_GUIDE.md': { 'reference/': 'docs/LIVABILITY.md' } };
+   for (const f of files) {
+     if (!fs.existsSync(path.join(root, f))) continue;
+-    const text = fs.readFileSync(path.join(root, f), 'utf8').replace(/```[\s\S]*?```/g, '').replace(/`[^`\n]*`/g, '');
++    const full = fs.readFileSync(path.join(root, f), 'utf8').replace(/```[\s\S]*?```/g, '').replace(/`[^`\n]*`/g, '');
++    // A process log's "Section for docs/QA.md" is written to be pasted into docs/QA.md: its links are relative to docs/.
++    const cut = /^## Section for docs\/QA\.md\s*$/m.exec(full);
++    const parts = cut ? [[full.slice(0, cut.index), path.dirname(f)], [full.slice(cut.index), 'docs']] : [[full, path.dirname(f)]];
++    for (const [text, from] of parts) {
+     const links = [...text.matchAll(/\[[^\]]*\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g), ...text.matchAll(/<a\s[^>]*href=["']([^"']+)["']/g)].map((m) => m[1]);
+     for (const raw of links) {
+       if (/^(https?:|mailto:|tel:)/i.test(raw) || raw.startsWith('#') || raw.startsWith('<')) continue;
+-      const target = decodeURIComponent(raw.replace(/[?#].*$/, ''));
++      let target = decodeURIComponent(raw.replace(/[?#].*$/, ''));
+       if (!target) continue;
+-      const abs = path.resolve(path.join(root, path.dirname(f)), target);
++      const site = Object.entries(SITE_LINKS[f.split(path.sep).join('/')] || {}).find(([prefix]) => target.startsWith(prefix));
++      if (site) target = path.relative(path.join(root, from), path.join(root, site[1]));
++      const abs = path.resolve(path.join(root, from), target);
+       if (!abs.startsWith(root)) { bad(rep, f, raw, 'points outside the repo'); continue; }
+       if (!fs.existsSync(abs)) bad(rep, f, raw, 'file not found');
+       else rep.ok++;
+     }
++    }
+   }
+   return files.length;
+ }
+diff --git a/scripts/e2e.js b/scripts/e2e.js
+index 55903e5..a402a4c 100644
+--- a/scripts/e2e.js
++++ b/scripts/e2e.js
+@@ -1,12 +1,21 @@
+ #!/usr/bin/env node
+ // End-to-end suite: real server + headless Chromium via Playwright.
+-// Usage: node scripts/e2e.js [--api-only] [--headed] [--grep=<regex>]
++// Usage: node scripts/e2e.js [--api-only] [--headed] [--grep=<regex>] [--list] [--shard=<i>/<n> [--timings=<log>]]
++//                            [--max-skips=<n>]
++//   --list           print the tests the run would take (after --grep and --shard), start nothing, exit 0.
++//   --shard=i/n      run the i-th of n contiguous slices of the test list (1-based), so CI can run the ~900 tests in
++//                    n parallel jobs. Slices keep the registration order; with --timings=<an earlier e2e log> they
++//                    are cut at equal time (each test weighs its last duration), else at equal test counts.
++//   --max-skips=n    exit 1 when more than n tests skip (E2E_MAX_SKIPS): a build without a board turns that board's
++//                    tests into skips, which pass (qa-suite-beta T-5).
+ // Not part of `npm test` (needs a browser). Playwright is NOT a repo dependency:
+ //   npm i playwright --no-save            (or install anywhere and set NODE_PATH / PLAYWRIGHT_MODULE)
+ // Uses a preinstalled Chromium (PLAYWRIGHT_BROWSERS_PATH, /opt/pw-browsers, or CHROMIUM_PATH).
++import fs from 'node:fs';
+ import { createSuite, loadPlaywright, findChromium, startServer, playwrightInfo } from '../test/e2e/harness.js';
+ import { registerApiTests } from '../test/e2e/api.e2e.js';
+ import { registerUiTests } from '../test/e2e/ui.e2e.js';
++import { registerLinkTests } from '../test/e2e/links.e2e.js';
+ import { registerMobileQaTests } from '../test/e2e/mobile-qa.e2e.js';
+ import { registerDesktopQaTests } from '../test/e2e/desktop-qa.e2e.js';
+ import { registerMethodologyTests } from '../test/e2e/methodology.e2e.js';
+@@ -54,9 +63,35 @@ const args = new Set(process.argv.slice(2));
+ const apiOnly = args.has('--api-only');
+ const grepArg = process.argv.find((a) => a.startsWith('--grep='));
+ const grep = grepArg ? new RegExp(grepArg.slice(7), 'i') : null;
++const listOnly = args.has('--list');
++const valueOf = (k) => { const a = process.argv.find((x) => x.startsWith(`--${k}=`)); return a ? a.slice(k.length + 3) : null; };
++const shardArg = valueOf('shard');
++const shard = shardArg ? (/^(\d+)\/(\d+)$/.exec(shardArg) || []).slice(1).map(Number) : null;
++if (shardArg && !(shard.length === 2 && shard[0] >= 1 && shard[0] <= shard[1])) { console.error(`e2e: --shard=${shardArg}: expected i/n with 1 <= i <= n`); process.exit(2); }
++const maxSkips = valueOf('max-skips') ?? process.env.E2E_MAX_SKIPS ?? null;
+ 
+-const pw = apiOnly ? null : await loadPlaywright();
+-if (!apiOnly && !pw) {
++/** Contiguous slices of `names` with about equal weight (a test's ms in an earlier log, else the median; 1 without a log). */
++function shardOf(names, [i, n], logFile) {
++  const ms = new Map();
++  if (logFile) {
++    for (const m of fs.readFileSync(logFile, 'utf8').matchAll(/^ {2}[\u2713\u2717] (.*) \((\d+)ms\)$/gm)) ms.set(m[1], Number(m[2]));
++  }
++  const known = [...ms.values()].sort((a, b) => a - b);
++  const fallback = known.length ? known[Math.floor(known.length / 2)] : 1;
++  const w = names.map((x) => ms.get(x) ?? fallback);
++  const total = w.reduce((a, b) => a + b, 0);
++  const out = new Set();
++  let acc = 0;
++  names.forEach((x, k) => {
++    const mid = acc + w[k] / 2; // a test belongs to the slice its midpoint falls in
++    acc += w[k];
++    if (Math.min(n - 1, Math.floor((mid / total) * n)) === i - 1) out.add(x);
++  });
++  return out;
++}
++
++const pw = apiOnly || listOnly ? null : await loadPlaywright();
++if (!apiOnly && !listOnly && !pw) {
+   console.error(
+     'e2e: the `playwright` package was not found.\n' +
+     '  Install it without touching package.json:  npm i playwright --no-save\n' +
+@@ -67,28 +102,57 @@ if (!apiOnly && !pw) {
+   process.exit(2);
+ }
+ 
+-const server = await startServer();
+-console.log(`e2e: server at ${server.baseUrl}`);
++const server = listOnly ? null : await startServer();
++if (server) console.log(`e2e: server at ${server.baseUrl}`);
+ const suite = createSuite();
+-const ctx = { baseUrl: server.baseUrl, data: {}, notes: [], cleanup: [], pw, browser: null };
++const ctx = { baseUrl: server?.baseUrl ?? null, data: {}, notes: [], cleanup: [], pw, browser: null };
+ registerApiTests(suite);
+ 
+ let browser = null;
+ let relaunches = 0;
++/**
++ * Stop on SIGTERM, SIGHUP and SIGINT (qa-suite-beta T-12). Playwright's own handlers (launch's handleSIGTERM and
++ * handleSIGHUP, on by default) close the browser on SIGTERM or SIGHUP and let the process run on, so a `timeout`, a
++ * tool's time limit or a stopped session closed Chromium mid-run and every later test failed on "Target page, context
++ * or browser has been closed" (the 2026-10-17 gate runs ended at their own `timeout 5400`, exit 124). Here the run stops
++ * before its next test, the test in progress ends now (the browser closes), and the summary says how many did not run.
++ * A second signal exits at once.
++ */
++let stopSignal = null;
++const SIGNAL_CODES = { SIGHUP: 1, SIGINT: 2, SIGTERM: 15 };
++for (const sig of Object.keys(SIGNAL_CODES)) {
++  process.on(sig, () => {
++    if (stopSignal) process.exit(128 + SIGNAL_CODES[sig]);
++    stopSignal = sig;
++    console.log(`\n  ! ${sig}: stopping; the test in progress ends now and the rest are not run`);
++    suite.stop(sig);
++    if (browser) browser.close().catch(() => {});
++  });
++}
+ if (!apiOnly) {
+   const executablePath = findChromium();
+-  const launch = () => pw.chromium.launch({ headless: !args.has('--headed'), executablePath });
+-  browser = await launch();
+-  ctx.browser = browser;
++  let disconnected = false;
++  const launch = async () => {
++    const b = await pw.chromium.launch({ headless: !args.has('--headed'), executablePath, handleSIGTERM: false, handleSIGHUP: false, handleSIGINT: false });
++    b.on('disconnected', () => { disconnected = true; });
++    return b;
++  };
++  if (!listOnly) {
++    browser = await launch();
++    ctx.browser = browser;
++    console.log(`e2e: playwright ${playwrightInfo.path}`);
++    console.log(`e2e: chromium ${browser.version()} (${executablePath || 'playwright default'})`);
++  }
++  // A real crash (the browser disconnected and no signal asked for it): relaunch, so one crash fails one test.
+   ctx.ensureBrowser = async () => {
+-    if (ctx.browser.isConnected()) return;
++    if (stopSignal || !disconnected) return;
++    disconnected = false;
+     relaunches += 1;
+-    console.log(`  ! the browser closed; relaunching it (${relaunches})`);
++    console.log(`  ! the browser disconnected on its own; relaunching it (${relaunches})`);
+     browser = ctx.browser = await launch();
+   };
+-  console.log(`e2e: playwright ${playwrightInfo.path}`);
+-  console.log(`e2e: chromium ${browser.version()} (${executablePath || 'playwright default'})`);
+   registerUiTests(suite);
++  registerLinkTests(suite); // T-4 (qa-suite-beta): written for this suite, never registered until 2026-10-23
+   registerMobileQaTests(suite);
+   registerDesktopQaTests(suite);
+   registerBadgeTests(suite);
+@@ -133,15 +197,26 @@ if (!apiOnly) {
+   registerFixQa4Tests(suite);
+ }
+ 
++const only = shard ? shardOf(suite.names(grep), shard, valueOf('timings')) : null;
++if (listOnly) {
++  const names = suite.names(grep).filter((x) => !only || only.has(x));
++  for (const x of names) console.log(x);
++  console.error(`e2e: ${names.length} tests${shard ? ` in shard ${shard.join('/')}` : ''}`);
++  process.exit(0);
++}
++if (shard) console.log(`e2e: shard ${shard.join('/')}: ${only.size} of ${suite.names(grep).length} tests`);
++
+ let results;
+ try {
+-  results = await suite.run(ctx, grep);
++  results = await suite.run(ctx, grep, { only });
+ } finally {
+   if (browser) await browser.close().catch(() => {});
+   await server.stop();
+ }
+ const failed = results.filter((r) => !r.ok);
+-if (relaunches) console.log(`e2e: the browser was relaunched ${relaunches} time(s) after closing`);
++if (relaunches) console.log(`e2e: the browser was relaunched ${relaunches} time(s) after it disconnected on its own`);
++const stop = suite.stopped();
++if (stop) console.log(`e2e: stopped by ${stop.reason}: ${results.length} tests ran, ${stop.notRun} not run`);
+ if (ctx.notes.length) {
+   console.log('\ne2e notes (non-fatal observations):');
+   for (const n of [...new Set(ctx.notes)]) console.log(`  * ${n}`);
+@@ -152,4 +227,12 @@ if (failed.length) {
+   for (const f of failed) console.log(`  - ${f.name}`);
+   if (process.env.E2E_SERVER_LOGS) console.log('\nserver logs:\n' + server.logs.join(''));
+ }
+-process.exit(failed.length ? 1 : 0);
++const tooManySkips = maxSkips != null && skipped > Number(maxSkips);
++if (skipped) {
++  const why = new Map();
++  for (const r of results.filter((x) => x.skipped)) why.set(r.reason, (why.get(r.reason) || 0) + 1);
++  console.log(`\ne2e: skipped, by reason${tooManySkips ? ` (more than --max-skips=${maxSkips}: the run fails)` : ''}:`);
++  for (const [r, k] of [...why].sort((a, b) => b[1] - a[1])) console.log(`  ${k} × ${r}`);
++}
++if (stop) process.exit(128 + SIGNAL_CODES[stop.reason]);
++process.exit(failed.length || tooManySkips ? 1 : 0);
+diff --git a/test/amazon-meta-adapters.test.js b/test/amazon-meta-adapters.test.js
+index b7c96ba..539b15d 100644
+--- a/test/amazon-meta-adapters.test.js
++++ b/test/amazon-meta-adapters.test.js
+@@ -2,7 +2,7 @@
+ // on the real fixture rows (test/fixtures/bigtech-*.json) and the synthetic boards
+ // (test/amazon-meta-synth.js). No network. Each fetch test lifts the registry's `paused` in this
+ // process only (server/companies.js PAUSING); the paused path itself is test/amazon-meta-resume.test.js.
+-import { test, afterEach } from 'node:test';
++import { test, afterEach, mock } from 'node:test';
+ import assert from 'node:assert/strict';
+ import fs from 'node:fs';
+ import path from 'node:path';
+@@ -18,7 +18,18 @@ import { amazonRows, amazonSite, metaRecords, metaSite, metaPageHtml, installFet
+ 
+ const FIX = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures');
+ const fixture = (slug) => JSON.parse(fs.readFileSync(path.join(FIX, `bigtech-${slug}.json`), 'utf8'));
+-afterEach(() => { setMinInterval(null); resetRateLimits(); resetRobots(); });
++afterEach(() => { mock.timers.reset(); setMinInterval(null); resetRateLimits(); resetRobots(); });
++
++/** Run `promise` on node:test's virtual clock (setTimeout and Date), 1 ms per event-loop turn (qa-suite-beta T-13). */
++async function onVirtualClock(promise) {
++  let done = false;
++  const p = Promise.resolve(promise).finally(() => { done = true; });
++  for (let i = 0; !done && i < 600000; i++) {
++    await new Promise((r) => setImmediate(r));
++    if (!done) mock.timers.tick(1);
++  }
++  return p;
++}
+ 
+ async function resumed(slug, fn) {
+   const c = COMPANIES.find((x) => x.slug === slug);
+@@ -93,12 +104,14 @@ test('fetchAmazon: honest User-Agent, robots.txt first, spaced requests, every p
+   globalThis.fetch = async (url, init) => { seen.push({ url: String(url), at: Date.now(), ua: init.headers['User-Agent'], redirect: init.redirect }); return site(String(url)); };
+   try {
+     const stats = newStats();
+-    const { jobs } = await resumed('amazon', () => fetchAmazon('amazon', { stats }));
++    mock.timers.enable({ apis: ['setTimeout', 'Date'], now: 1_000_000 });
++    const { jobs } = await onVirtualClock(resumed('amazon', () => fetchAmazon('amazon', { stats })));
++    mock.timers.reset();
+     assert.equal(jobs.length, 260);
+     assert.match(seen[0].url, /\/robots\.txt$/);
+     assert.ok(seen.every((c) => c.ua === BOT_USER_AGENT && c.redirect === 'manual'));
+     const gaps = seen.slice(1).map((c, i) => c.at - seen[i].at);
+-    assert.ok(gaps.every((g) => g >= 20), `request starts at least the interval apart: ${gaps}`);
++    assert.ok(gaps.every((g) => g >= 25), `request starts at least the interval apart (virtual clock): ${gaps}`);
+     assert.equal(stats.requests, seen.length);
+   } finally {
+     globalThis.fetch = real;
+diff --git a/test/beta-coverage.test.js b/test/beta-coverage.test.js
+index 0914356..72e5c07 100644
+--- a/test/beta-coverage.test.js
++++ b/test/beta-coverage.test.js
+@@ -13,7 +13,10 @@ const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
+ const read = (...p) => fs.readFileSync(path.join(ROOT, ...p), 'utf8');
+ const E2E = path.join(ROOT, 'test', 'e2e');
+ const e2eFiles = () => fs.readdirSync(E2E).filter((f) => f.endsWith('.e2e.js')).sort();
+-const todo = (id) => ({ todo: `${id}: docs/process/qa-suite-beta.md` });
++// Fixed by qa-suite-beta-e2e-runner.diff (T-4, T-5, T-9, T-10) and qa-suite-beta-t1-board-list.diff (T-1): every
++// test of these IDs passes, so they are real tests now. T-17 waits on fix-mr-3 (norm-13).
++const FIXED = new Set(['T-1', 'T-4', 'T-5', 'T-9', 'T-10']);
++const todo = (id) => (FIXED.has(id) ? {} : { todo: `${id}: docs/process/qa-suite-beta.md` });
+ 
+ const { listCompanies } = await import(pathToFileURL(path.join(ROOT, 'server', 'companies.js')).href);
+ /** The boards the beta site shows: the registry's non-paused beta companies. */
+diff --git a/test/beta-security-review.test.js b/test/beta-security-review.test.js
+index 14cd4c1..c40e322 100644
+--- a/test/beta-security-review.test.js
++++ b/test/beta-security-review.test.js
+@@ -120,14 +120,20 @@ test('S-2: the big-tech probe never targets a paused company or its careers host
+ 
+ /* ------------------------------------------------------------------ S-3 */
+ 
+-/** Run `body` (a function source taking no args) in a worker; resolve its ms, or reject after limitMs. */
++/**
++ * Run `body` (a function source taking no args) in a worker; resolve the CPU ms the worker's thread spent on it
++ * (process.threadCpuUsage, Node 22.19+ and 23.9+; wall ms before that), or reject after 5 x limitMs of wall time.
++ * CPU time, because a loaded machine stretches wall time while a quadratic parse costs the same CPU anywhere
++ * (qa-suite-beta T-13); the wall limit only stops a runaway.
++ */
+ function timedInWorker(body, limitMs) {
+   const src = `const { parentPort } = require('node:worker_threads');
+-(async () => { const t0 = performance.now(); await (${body})(); parentPort.postMessage(performance.now() - t0); })()
++const clock = () => { if (typeof process.threadCpuUsage === 'function') { const u = process.threadCpuUsage(); return (u.user + u.system) / 1000; } return performance.now(); };
++(async () => { const t0 = clock(); await (${body})(); parentPort.postMessage(clock() - t0); })()
+   .catch((e) => parentPort.postMessage('error: ' + e.message));`;
+   return new Promise((resolve, reject) => {
+     const w = new Worker(src, { eval: true });
+-    const timer = setTimeout(() => { w.terminate(); reject(new Error(`still running after ${limitMs} ms`)); }, limitMs);
++    const timer = setTimeout(() => { w.terminate(); reject(new Error(`still running after ${5 * limitMs} ms`)); }, 5 * limitMs);
+     w.once('message', (m) => { clearTimeout(timer); w.terminate(); typeof m === 'number' ? resolve(m) : reject(new Error(m)); });
+     w.once('error', (e) => { clearTimeout(timer); reject(e); });
+   });
+@@ -180,7 +186,7 @@ test('S-3: 1 MB of hostile text: parseSalary, both htmlToTexts and geocode each
+     const ms = await timedInWorker(`async () => {
+       const m = await import(${url('server', 'salary.js')}); const u = await import(${url('server', 'sources', 'util.js')});
+       const k = await import(${url('server', 'keywords.js')}); const g = await import(${url('server', 'geo.js')});
+-      const t0 = performance.now(); ${call}; if (performance.now() - t0 > 1000) throw new Error(String(Math.round(performance.now() - t0)) + ' ms');
++      const t0 = clock(); ${call}; if (clock() - t0 > 1000) throw new Error(String(Math.round(clock() - t0)) + ' ms');
+     }`, 10000);
+     assert.ok(ms < 10000, `${name}: ${Math.round(ms)} ms`);
+   }
+@@ -232,15 +238,24 @@ test('S-6: /methodology/ is not re-rendered on every request in server mode', as
+     const first = await fetch(`${base}/methodology/`);
+     assert.equal(first.status, 200);
+     await first.text();
++    // CPU time, not wall time (qa-suite-beta T-13): a re-render costs this thread's CPU whatever the load, while a
++    // loaded machine stretches the wall time of a cached reply (29 ms median at load 10, 2026-10-23). The server runs
++    // in this process; process.threadCpuUsage (Node 22.19+, 23.9+) counts this thread only, process.cpuUsage all.
++    const cpu = () => { const u = typeof process.threadCpuUsage === 'function' ? process.threadCpuUsage() : process.cpuUsage(); return (u.user + u.system) / 1000; };
+     const times = [];
++    const walls = [];
+     for (let i = 0; i < 5; i++) {
+       const t0 = performance.now();
++      const c0 = cpu();
+       const r = await fetch(`${base}/methodology/`);
+       await r.text();
+-      times.push(performance.now() - t0);
++      times.push(cpu() - c0);
++      walls.push(performance.now() - t0);
+     }
+     times.sort((a, b) => a - b);
+-    assert.ok(times[2] < 25, `median ${Math.round(times[2])} ms per request (the guide and its charts are rebuilt each time)`);
++    walls.sort((a, b) => a - b);
++    assert.ok(times[2] < 25, `median ${Math.round(times[2])} ms of CPU per request (the guide and its charts are rebuilt each time); wall ${walls.map(Math.round)} ms`);
++    assert.ok(walls[2] < 1000, `median ${Math.round(walls[2])} ms per request`);
+   } finally {
+     await new Promise((r) => server.close(r));
+   }
+diff --git a/test/bigtech-polite.test.js b/test/bigtech-polite.test.js
+index af6658c..9f8c313 100644
+--- a/test/bigtech-polite.test.js
++++ b/test/bigtech-polite.test.js
+@@ -1,7 +1,7 @@
+ // Beta channel plumbing: the polite HTTP client (server/sources/polite.js), the
+ // channel-aware registry (server/companies.js) and `snapshot.js --channel`.
+ // docs/CONTRACT.md v3, docs/DATA_SOURCES.md §7.
+-import { test, afterEach } from 'node:test';
++import { test, afterEach, mock } from 'node:test';
+ import assert from 'node:assert/strict';
+ import {
+   politeRequest, politeJson, robotsRules, robotsAllows, checkRobots, resetRobots, setMinInterval, resetRateLimits,
+@@ -11,7 +11,23 @@ import { listCompanies, getCompany, resolveCompany, SOURCES, COMPANIES } from '.
+ import { targetsFor, fitSnapshot, trimDescription } from '../scripts/snapshot.js';
+ 
+ const realFetch = globalThis.fetch;
+-afterEach(() => { globalThis.fetch = realFetch; setMinInterval(null); resetRateLimits(); resetRobots(); });
++afterEach(() => { mock.timers.reset(); globalThis.fetch = realFetch; setMinInterval(null); resetRateLimits(); resetRobots(); });
++
++/**
++ * Run `promise` on a virtual clock (node:test mock timers for setTimeout and Date, enabled by the caller): advance
++ * 1 ms per turn of the event loop until it settles. The spacing is then measured in the clock polite.js reads, so a
++ * loaded machine (a preempted process, a late timer) cannot shrink a measured gap below the one the code kept
++ * (qa-suite-beta T-13: "gaps 27,42" at load 10-12).
++ */
++async function onVirtualClock(promise) {
++  let done = false;
++  const p = Promise.resolve(promise).finally(() => { done = true; });
++  for (let i = 0; !done && i < 600000; i++) {
++    await new Promise((r) => setImmediate(r));
++    if (!done) mock.timers.tick(1);
++  }
++  return p;
++}
+ 
+ const STABLE = ['anthropic', 'anduril', 'openai', 'scaleai', 'xai', 'cohere', 'palantir', 'shieldai'];
+ const BETA_ALL = ['google', 'microsoft', 'meta', 'apple', 'netflix', 'amazon', 'nvidia'];
+@@ -145,11 +161,13 @@ test('politeRequest: honest User-Agent, per-host spacing, backoff on 429/5xx wit
+     return new Response('{"ok":true}', { status: 200, headers: { 'content-type': 'application/json' } });
+   };
+   const stats = newStats();
++  mock.timers.enable({ apis: ['setTimeout', 'Date'], now: 1_000_000 });
+   const t0 = Date.now();
+-  await Promise.all([1, 2, 3].map((i) => politeJson(`https://x.test/p${i}`, { stats })));
+-  assert.ok(Date.now() - t0 >= 75, 'three requests to one host are spaced');
++  await onVirtualClock(Promise.all([1, 2, 3].map((i) => politeJson(`https://x.test/p${i}`, { stats }))));
++  assert.ok(Date.now() - t0 >= 80, `three requests to one host are spaced (${Date.now() - t0} ms)`);
+   const gaps = calls.slice(1).map((c, i) => c.at - calls[i].at);
+-  assert.ok(gaps.every((g) => g >= 35), `gaps ${gaps}`);
++  assert.ok(gaps.every((g) => g >= 40), `gaps ${gaps}`); // exact on the virtual clock: the minimum interval is 40
++  mock.timers.reset();
+   assert.equal(calls[0].headers['User-Agent'], BOT_USER_AGENT);
+   assert.match(BOT_USER_AGENT, /^melon-seek\/\S+ \(\+https:\/\/alvations\.github\.io\/melon-seek\//);
+   assert.ok(!/Mozilla|Chrome|Safari/.test(BOT_USER_AGENT), 'no browser impersonation');
+diff --git a/test/e2e/beta-boards.mjs b/test/e2e/beta-boards.mjs
+new file mode 100644
+index 0000000..758a516
+--- /dev/null
++++ b/test/e2e/beta-boards.mjs
+@@ -0,0 +1,16 @@
++// The beta site's boards, from the registry (server/companies.js): every non-paused company of the beta channel.
++// e2e files that mean "every big-tech board" read them here, so a board added (Amazon and Meta, 2026-10-11) or resumed
++// is tested without editing each file (qa-suite-beta T-1: three files kept five hand-written boards for 12 days).
++import { COMPANIES } from '../../server/companies.js';
++
++export const BETA_COMPANIES = Object.freeze(COMPANIES.filter((c) => c.channel === 'beta' && !c.paused));
++/** Slugs, in registry order. */
++export const BETA_BOARDS = Object.freeze(BETA_COMPANIES.map((c) => c.slug));
++/** slug -> the name the company menu shows. */
++export const BETA_NAMES = Object.freeze(Object.fromEntries(BETA_COMPANIES.map((c) => [c.slug, c.name])));
++/** The hosts (no "www.") a board's postings may link to: its postingHosts and the hosts of its postingPrefixes. */
++export function postingHostsOf(slug) {
++  const c = BETA_COMPANIES.find((x) => x.slug === slug);
++  if (!c) return new Set();
++  return new Set([...(c.postingHosts || []), ...(c.postingPrefixes || []).map((p) => new URL(p).hostname)].map((h) => h.replace(/^www\./, '')));
++}
+diff --git a/test/e2e/beta-desktop-qa-2.e2e.js b/test/e2e/beta-desktop-qa-2.e2e.js
+index 7bc707e..8bc9435 100644
+--- a/test/e2e/beta-desktop-qa-2.e2e.js
++++ b/test/e2e/beta-desktop-qa-2.e2e.js
+@@ -10,9 +10,11 @@ import http from 'node:http';
+ import fs from 'node:fs';
+ import path from 'node:path';
+ import { ROOT, assert, assertEq, skip } from './harness.js';
++import { BETA_BOARDS } from './beta-boards.mjs';
+ 
+ const DESKTOP = { width: 1440, height: 900 };
+-const BIG_TECH = ['apple', 'google', 'nvidia', 'microsoft', 'netflix'];
++// Every non-paused beta board, from the registry (T-1: Amazon and Meta were missing from a hand-written list).
++const BIG_TECH = BETA_BOARDS;
+ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+ const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.csv': 'text/csv', '.txt': 'text/plain', '.woff2': 'font/woff2' };
+ 
+diff --git a/test/e2e/beta-desktop-qa.e2e.js b/test/e2e/beta-desktop-qa.e2e.js
+index 8ba8b4f..49f183c 100644
+--- a/test/e2e/beta-desktop-qa.e2e.js
++++ b/test/e2e/beta-desktop-qa.e2e.js
+@@ -9,10 +9,12 @@ import http from 'node:http';
+ import fs from 'node:fs';
+ import path from 'node:path';
+ import { ROOT, assert, assertEq, skip, startServer } from './harness.js';
++import { BETA_BOARDS, postingHostsOf } from './beta-boards.mjs';
+ import { COMPANIES } from '../../server/companies.js';
+ 
+ const DESKTOP = { width: 1440, height: 900 };
+-const BIG_TECH = { apple: 'jobs.apple.com', google: 'google.com', nvidia: 'jobs.nvidia.com', microsoft: 'apply.careers.microsoft.com', netflix: 'explore.jobs.netflix.net' };
++// Every non-paused beta board, from the registry (T-1: Amazon and Meta were missing from a hand-written list).
++const BIG_TECH = BETA_BOARDS;
+ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+ 
+ /** Serve ROOT/dist under /melon-seek/ (the GitHub Pages layout) on a free port; null without a beta build. */
+@@ -116,7 +118,7 @@ export function registerBetaDesktopQaTests(suite) {
+   // ---------------------------------------------------------------- guards (pass today)
+   suite.test('Beta desktop QA: big-tech boards load from the bundle only (Snapshot badge, no live request)', async (ctx) => {
+     const { st, page, errors, external, requests } = await openBeta(ctx, null);
+-    for (const c of Object.keys(BIG_TECH)) {
++    for (const c of BIG_TECH) {
+       const e0 = external.length, r0 = requests.length;
+       await page.goto(`${st.beta}/#c=${c}`); await ready(page); await sleep(1200);
+       const label = await page.locator('#dataBadge .badge-label').innerText();
+@@ -130,11 +132,11 @@ export function registerBetaDesktopQaTests(suite) {
+     assert(!errors.length, `console errors: ${errors.slice(0, 3).join(' | ')}`);
+   });
+ 
+-  suite.test('Beta desktop QA: paused and absent companies (Meta, Amazon, Tesla) are nowhere; the main site lists no beta company', async (ctx) => {
++  suite.test('Beta desktop QA: paused and absent companies (the registry\'s paused ones, and Tesla) are nowhere; the main site lists no beta company', async (ctx) => {
+     const { st, page } = await openBeta(ctx, 'c=netflix');
+     await page.click('#companyMenuBtn'); await sleep(300);
+     const names = await page.$$eval('#popover .company-item-name', (e) => e.map((x) => x.textContent));
+-    for (const n of ['Google', 'Microsoft', 'Apple', 'Netflix', 'NVIDIA']) assert(names.includes(n), `company menu lacks ${n}`);
++    for (const n of COMPANIES.filter((c) => BIG_TECH.includes(c.slug)).map((c) => c.name)) assert(names.includes(n), `company menu lacks ${n}`);
+     // Paused companies come from the registry (server/companies.js `paused`), so resuming one needs no edit here.
+     const paused = COMPANIES.filter((c) => c.paused);
+     for (const n of [...paused.map((c) => c.name), 'Tesla']) assert(!names.includes(n), `company menu lists ${n}`);
+@@ -142,7 +144,7 @@ export function registerBetaDesktopQaTests(suite) {
+       assertEq((await fetch(`${st.main}/${p}`)).status, 404, `/${p}`);
+     }
+     const main = await (await fetch(`${st.main}/api/companies.json`)).json();
+-    assert(!main.some((c) => c.channel === 'beta' || c.slug in BIG_TECH), `main site companies.json lists ${main.map((c) => c.slug).join(',')}`);
++    assert(!main.some((c) => c.channel === 'beta' || BIG_TECH.includes(c.slug)), `main site companies.json lists ${main.map((c) => c.slug).join(',')}`);
+   });
+ 
+   suite.test('Beta desktop QA: Apple (6,105 roles) facet counts stay consistent and each update lands quickly', async (ctx) => {
+@@ -175,12 +177,13 @@ export function registerBetaDesktopQaTests(suite) {
+ 
+   suite.test('Beta desktop QA: Apply opens each big-tech careers host in a new tab', async (ctx) => {
+     const { st, page } = await openBeta(ctx, null);
+-    for (const [c, host] of Object.entries(BIG_TECH)) {
++    for (const c of BIG_TECH) {
+       await page.goto(`${st.beta}/#c=${c}`); await ready(page);
+       await page.locator('#resultsList .card[data-id]').first().click(); await sleep(700);
+       const a = page.locator('#drawer a.apply');
+       const href = await a.getAttribute('href');
+-      assertEq(new URL(href).hostname.replace(/^www\./, ''), host, `${c}: Apply host`);
++      const host = new URL(href).hostname.replace(/^www\./, '');
++      assert(postingHostsOf(c).has(host), `${c}: Apply goes to ${host}, not ${[...postingHostsOf(c)].join(' or ')}`);
+       assertEq(await a.getAttribute('target'), '_blank', `${c}: Apply target`);
+       assert(/noopener/.test(await a.getAttribute('rel')), `${c}: Apply rel`);
+       assert((await a.locator('.apply-host').innerText()) === host, `${c}: host shown under Apply`);
+@@ -190,7 +193,7 @@ export function registerBetaDesktopQaTests(suite) {
+ 
+   suite.test('Beta desktop QA: beta share pages /beta/c/<slug>/ have their own titles and open the beta app', async (ctx) => {
+     const { st, page } = await openBeta(ctx, null);
+-    for (const c of Object.keys(BIG_TECH)) {
++    for (const c of BIG_TECH) {
+       const r = await fetch(`${st.beta}/c/${c}/`);
+       assertEq(r.status, 200, `/beta/c/${c}/`);
+       const html = await r.text();
+diff --git a/test/e2e/beta-mobile-qa.e2e.js b/test/e2e/beta-mobile-qa.e2e.js
+index ea03d25..af5c3ca 100644
+--- a/test/e2e/beta-mobile-qa.e2e.js
++++ b/test/e2e/beta-mobile-qa.e2e.js
+@@ -12,6 +12,7 @@ import fs from 'node:fs';
+ import path from 'node:path';
+ import zlib from 'node:zlib';
+ import { ROOT, assert, assertEq, skip } from './harness.js';
++import { BETA_BOARDS, BETA_NAMES } from './beta-boards.mjs';
+ import { COMPANIES } from '../../server/companies.js';
+ 
+ const SHOTS = path.join(ROOT, 'docs', 'screenshots', 'qa-mobile-beta');
+@@ -19,7 +20,8 @@ const IOS = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/
+ const ANDROID = 'Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Mobile Safari/537.36';
+ const PHONE = { width: 390, height: 844 };
+ const SMALL = { width: 360, height: 740 };
+-const BIG_TECH = ['netflix', 'google', 'microsoft', 'apple', 'nvidia']; // the first is opened by URL
++// Every non-paused beta board, from the registry (T-1: Amazon and Meta were missing); the first is opened by URL.
++const BIG_TECH = ['netflix', ...BETA_BOARDS.filter((s) => s !== 'netflix')];
+ const KEYBOARD = 336; // simulated on-screen keyboard height (px)
+ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+ const num = (s) => Number(String(s).replace(/,/g, '').match(/(\d+)/)?.[1]);
+@@ -154,7 +156,7 @@ export function registerBetaMobileQaTests(suite) {
+ 
+   suite.test('Beta mobile QA: every big-tech board loads from its snapshot with no live request; badge, popover and CSV agree', async (ctx) => {
+     const { page, errors, external } = await openBeta(ctx, { hash: `c=${BIG_TECH[0]}` });
+-    const names = { google: 'Google', microsoft: 'Microsoft', apple: 'Apple', netflix: 'Netflix', nvidia: 'NVIDIA' };
++    const names = BETA_NAMES;
+     for (const slug of BIG_TECH) {
+       if (slug !== BIG_TECH[0]) await switchTo(page, names[slug]);
+       const roles = num(await page.textContent('#resultsTitle'));
+@@ -171,7 +173,18 @@ export function registerBetaMobileQaTests(suite) {
+       assert(!pop.refreshShown, `${slug}: "Refresh from the live board" offered for a live: false board`);
+       assertEq(pop.csv, `/melon-seek/beta/data/${slug}.csv`, `${slug}: CSV link`);
+       assert(pop.csvH >= 44, `${slug}: CSV link is ${pop.csvH}px tall`);
+-      const lines = await page.evaluate(async (u) => (await (await fetch(u)).text()).split('\n').filter(Boolean).length, pop.csv);
++      // Records, not lines: a quoted field may hold a line break (RFC 4180; Meta's "Research Scientist,\nMachine
++      // Learning…" title does, qa-suite-beta T-17), which a split on "\n" counts as a row.
++      const lines = await page.evaluate(async (u) => {
++        const t = await (await fetch(u)).text();
++        let n = 0, q = false, any = false;
++        for (const c of t) {
++          if (c === '"') q = !q;
++          else if (c === '\n' && !q) { if (any) n++; any = false; continue; }
++          if (c !== '\r') any = true;
++        }
++        return n + (any ? 1 : 0);
++      }, pop.csv);
+       assertEq(lines, roles + 1, `${slug}: CSV rows (header + roles)`);
+       await tapSel(page, '#popover .pop-head .icon-btn');
+     }
+diff --git a/test/e2e/beta-viz-review.e2e.js b/test/e2e/beta-viz-review.e2e.js
+index 1aa8edd..2cbeee9 100644
+--- a/test/e2e/beta-viz-review.e2e.js
++++ b/test/e2e/beta-viz-review.e2e.js
+@@ -105,6 +105,18 @@ async function allClusterRows(page) {
+   });
+ }
+ 
++/**
++ * D-44 (fix-viz-5): Group by Location folds the small places into "N more places"; open it so every place is a row
++ * (as fix-pay-at-place's [V-36] checks do). Without it [V-18] never found its London row and skipped on every run
++ * since D-44 (qa-suite-beta T-19).
++ */
++async function openFold(page) {
++  const fold = page.locator('#chartHost .ms-crow__label:has(.ms-crow__fold)').first();
++  if (!(await fold.count()) || (await fold.locator('.ms-crow__fold').textContent()) === '\u25b4') return;
++  await fold.click();
++  await page.waitForFunction(() => document.querySelector('#chartHost .ms-crow__fold')?.textContent === '\u25b4', null, { timeout: 15000 });
++}
++
+ /** Hover each ranges row (up to `max`) and return the tooltips. */
+ async function rangeTips(page, max = 12) {
+   const n = Math.min(max, await page.locator('#chartHost .ms-row').count());
+@@ -215,6 +227,7 @@ export function registerBetaVizReviewTests(suite) {
+   suite.test('Beta viz review: [V-18] Group by Location: a row for a place no posted pay covers shows no median (Google "London")', async (ctx) => {
+     const { page, base } = await open(ctx, 'c=google&g=location');
+     await needBoard(page, base, 'google');
++    await openFold(page);
+     const rows = await allClusterRows(page);
+     const london = rows.find((r) => r.name === 'London');
+     if (!london) skip('no London row');
+diff --git a/test/e2e/fix-phone-text.e2e.js b/test/e2e/fix-phone-text.e2e.js
+index 19f1f30..8e2d595 100644
+--- a/test/e2e/fix-phone-text.e2e.js
++++ b/test/e2e/fix-phone-text.e2e.js
+@@ -40,6 +40,27 @@ const DESKTOPS = [{ width: 1024, height: 768 }, { width: 1280, height: 800 }, D1
+ const WORDS = 12;
+ const BOARDS = ['amazon', 'apple', 'google', 'meta', 'microsoft', 'netflix', 'nvidia'];
+ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
++
++/**
++ * Wait until the page is still, at most `cap` ms: at least 150 ms after the action (a hash change or a tap is handled
++ * in a later task), then until no DOM change for 120 ms, the fonts are loaded (a swap re-flows text with no DOM
++ * change), and no transition or animation is running (an endless one, a
++ * skeleton's shimmer, does not count). It replaces fixed sleeps of 0.4-1.5 s, which were 68-85% of a guard walk
++ * (qa-suite-beta T-11, measured): a page that settles sooner is measured sooner, and one that never settles is measured
++ * after `cap`, as before. The mutation clock is installed by STILL_INIT in every context.
++ */
++async function quiet(page, cap = 700) {
++  await sleep(Math.min(150, cap));
++  if (cap <= 150) return;
++  await page.waitForFunction(() => performance.now() - (window.__qsbMut || 0) > 120 && document.fonts.status === 'loaded'
++    && document.getAnimations().every((a) => a.playState !== 'running' || a.effect?.getComputedTiming?.().iterations === Infinity),
++  null, { timeout: cap - 150, polling: 50 }).catch(() => {});
++}
++/** Init script: the time of the page's last DOM change (window.__qsbMut), for quiet(). */
++const STILL_INIT = () => {
++  window.__qsbMut = performance.now();
++  new MutationObserver(() => { window.__qsbMut = performance.now(); }).observe(document, { subtree: true, childList: true, attributes: true, characterData: true });
++};
+ const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.csv': 'text/csv', '.txt': 'text/plain', '.woff2': 'font/woff2' };
+ 
+ /**
+@@ -120,6 +141,7 @@ async function open(ctx, { vp = P390, theme = 'light', site = 'beta', device = n
+     : mobile ? { viewport: vp, isMobile: engine !== 'firefox', hasTouch: true, deviceScaleFactor: 2, userAgent: vp.width <= 360 ? ANDROID : IOS } : { viewport: vp };
+   const context = await ctx.browser.newContext({ ...opts, colorScheme: theme });
+   ctx.cleanup.push(() => context.close().catch(() => {}));
++  await context.addInitScript(STILL_INIT);
+   await context.route((u) => !u.href.startsWith(st.origin) && !u.href.startsWith('data:') && !u.href.startsWith('blob:'), (r) => r.abort('blockedbyclient'));
+   const page = await context.newPage();
+   const errors = [];
+@@ -135,12 +157,12 @@ async function open(ctx, { vp = P390, theme = 'light', site = 'beta', device = n
+       await page.goto('about:blank');
+       await page.goto(`${base}${h ? `#${h}` : ''}`);
+       await ready();
+-      await sleep(settle);
++      await quiet(page, settle);
+     },
+     async hash(h, settle = 700) {
+       await page.evaluate((x) => { location.hash = x; }, h);
+       await ready();
+-      await sleep(settle);
++      await quiet(page, settle);
+     },
+   };
+ }
+@@ -152,10 +174,27 @@ async function tap(page, sel, wait = 500) {
+   const mobile = await page.evaluate(() => matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window);
+   if (mobile) await page.touchscreen.tap(b.x + b.width / 2, b.y + b.height / 2);
+   else await loc.click();
+-  await sleep(wait);
++  await quiet(page, wait);
+ }
+ const sheetState = (page) => page.evaluate(() => document.body.dataset.sheet);
+-async function sheetTo(page, s) { for (let i = 0; i < 4 && (await sheetState(page)) !== s; i++) await tap(page, '#sheetHandle', 600); }
++/** The popover is open (visible) and still; at most `cap` ms more. */
++async function popoverOpen(page, cap) {
++  await page.waitForSelector('#popover:not([hidden])', { state: 'visible', timeout: cap }).catch(() => {});
++  await quiet(page, cap);
++}
++/** The popover is closed; at most `cap` ms. */
++async function popoverClosed(page, cap) {
++  await page.waitForFunction(() => { const p = document.querySelector('#popover'); return !p || p.hidden || !p.getClientRects().length; }, null, { timeout: cap, polling: 50 }).catch(() => {});
++  await quiet(page, Math.min(cap, 300));
++}
++async function sheetTo(page, s) {
++  for (let i = 0; i < 4 && (await sheetState(page)) !== s; i++) {
++    const before = await sheetState(page);
++    await tap(page, '#sheetHandle', 0);
++    await page.waitForFunction((b) => document.body.dataset.sheet !== b, before, { timeout: 600, polling: 50 }).catch(() => {});
++    await quiet(page, 600);
++  }
++}
+ async function shot(page, name) {
+   const dir = process.env.FIX_PHONE_TEXT_SHOTS;
+   if (!dir) return;
+@@ -166,11 +205,11 @@ async function shot(page, name) {
+ async function openFolds(page) {
+   await page.evaluate(() => { for (const d of document.querySelectorAll('#drawer details.d-fold')) d.open = true; });
+   await page.waitForFunction(() => !document.querySelector('#drawer .comps-body .sk'), null, { timeout: 15000 }).catch(() => {});
+-  await sleep(500);
++  await quiet(page, 500);
+ }
+ async function openJob(s, slug, id) {
+   await s.hash(`c=${slug}&job=${encodeURIComponent(id)}`, 900);
+-  await s.page.waitForSelector('#drawer:not([hidden]) #drawerTitle', { timeout: 20000 });
++  await s.page.waitForSelector('#drawer.is-open:not([hidden]) #drawerTitle', { timeout: 20000 });
+   await openFolds(s.page);
+ }
+ const topPaidId = (page) => page.evaluate(() => document.querySelector('#resultsList .card[data-id]')?.dataset.id);
+@@ -358,7 +397,7 @@ async function guardWalk(s, slug) {
+   await s.hash(`c=${slug}&m=insights`, 900);
+   await page.waitForSelector('#insightsHost .msi-stat', { timeout: 60000 }).catch(() => {});
+   await page.waitForSelector('#compHost .ms-comp__card, #compHost .ms-comp__empty', { timeout: 60000 }).catch(() => {});
+-  await sleep(600);
++  await quiet(page, 600);
+   await look('Insights', ['#main']);
+   for (const [what, id] of [['top-paid job', top], ['job with no pay', p.noPay?.id], ['stated minimum', p.minimum?.id], ['general application', p.pool?.id], ['open 180+ days', p.longOpen?.id], ['on-target earnings', p.ote?.id]]) {
+     if (!id) continue;
+@@ -368,22 +407,25 @@ async function guardWalk(s, slug) {
+   await s.hash(`c=${slug}`, 900);
+   if (await page.locator('#filtersToggle').isVisible()) await tap(page, '#filtersToggle', 900);
+   await page.evaluate(() => { for (const d of document.querySelectorAll('#filterBody details')) d.open = true; });
+-  await sleep(500);
++  await quiet(page, 500);
+   await look('filter sheet', ['#filters']);
+   await page.keyboard.press('Escape');
+-  await sleep(500);
++  await quiet(page, 500);
+   await s.hash(`c=${slug}`, 600);
+   await tap(page, '#dataBadge', 900);
++  await popoverOpen(page, 900);
+   await look('data badge popover', ['#popover']);
+   await page.keyboard.press('Escape');
+-  await sleep(400);
++  await popoverClosed(page, 400);
+   await page.evaluate(() => document.querySelector('#quickChips [data-pop=more]')?.scrollIntoView({ inline: 'center' }));
+-  await sleep(250);
++  await quiet(page, 250);
+   await tap(page, '#quickChips [data-pop=more]', 900);
++  await popoverOpen(page, 900);
+   await look('More sheet', ['#popover']);
+   await page.keyboard.press('Escape');
+-  await sleep(400);
++  await popoverClosed(page, 400);
+   await tap(page, '#companyMenuBtn', 900);
++  await popoverOpen(page, 900);
+   await look('company menu', ['#popover']);
+   await page.keyboard.press('Escape');
+   return out;
+diff --git a/test/e2e/fix3-viz.e2e.js b/test/e2e/fix3-viz.e2e.js
+index 02cfe78..79ef862 100644
+--- a/test/e2e/fix3-viz.e2e.js
++++ b/test/e2e/fix3-viz.e2e.js
+@@ -146,14 +146,21 @@ export function registerFixViz3Tests(suite) {
+     assert(left > 0, `the US and Munich ranges should be counted as left out: "${c.empty}" / "${c.foot}"`);
+   });
+ 
+-  suite.test('Fix viz 3: [BP-2] NVIDIA, Munich, Senior and Staff+, from €110,000: no Polish pay on the chart', async (ctx) => {
+-    const { st, page } = await openBeta(ctx, 'c=nvidia&l=Munich&s=Senior&s=Staff%2B&smin=110000');
++  // No minimum (qa-suite-beta T-19): NVIDIA posts no German pay, so since BP-2's fix a €110,000 minimum left 0 Munich
++  // roles and this test skipped on every run. The minimum on cards is fix3-app's [BP-2] test.
++  suite.test('Fix viz 3: [BP-2] NVIDIA, Munich, Senior and Staff+: no Polish pay on the chart, and the chart says what it left out', async (ctx) => {
++    const { st, page } = await openBeta(ctx, 'c=nvidia&l=Munich&s=Senior&s=Staff%2B');
+     await needBoard(page, st.beta, 'nvidia');
+     const s = await statsLine(page);
+     if (s.withSalary == null || s.n < 2) skip(`no such roles ("${s.text}")`);
+     const c = await chartSays(page);
+     assertEq(num(c.plotted) ?? 0, s.withSalary, `the stats line says "${s.text}", the chart "${c.foot || c.empty}"`);
+     if (s.withSalary && s.median) assert(c.cap.includes(s.median), `one median on the screen: the stats line "${s.median}", the chart "${c.cap}"`);
++    if (!s.withSalary) {
++      assert(!c.rows.some((r) => /median /.test(r)), `no pay is posted for Munich, but the chart has medians: ${JSON.stringify(c.rows)}`);
++      const left = num((/([\d,]+) (?:postings? )?(?:with|list|lists) pay (?:posted )?for another country/.exec(c.empty + ' ' + c.foot) || [])[1]);
++      assert(left > 0, `the Polish ranges listed in Munich should be counted as left out: "${c.empty}" / "${c.foot}"`);
++    }
+   });
+ 
+   /* ------------------------------------------------------------ BP-13 chart */
+diff --git a/test/e2e/harness.js b/test/e2e/harness.js
+index c2afc28..5c3e62a 100644
+--- a/test/e2e/harness.js
++++ b/test/e2e/harness.js
+@@ -100,6 +100,7 @@ export async function startServer({ timeoutMs = 20000, env = {} } = {}) {
+   return {
+     baseUrl,
+     logs,
++    pid: child.pid, // a test can read the server's CPU time (/proc/<pid>/stat) instead of trusting wall time on a loaded machine
+     stop: () => new Promise((resolve) => {
+       if (exited !== null) return resolve();
+       child.once('exit', () => resolve());
+@@ -140,9 +141,21 @@ const TEST_TIMEOUT = Number(process.env.E2E_TEST_TIMEOUT || 120000);
+ export function createSuite() {
+   const tests = [];
+   const results = [];
++  let stopReason = null;
++  let notRun = 0;
+   return {
+     test(name, fn) { tests.push({ name, fn }); },
+-    async run(ctx, grep = null) {
++    /**
++     * Stop the run before its next test (scripts/e2e.js calls it on SIGTERM, SIGHUP or SIGINT). The test in progress
++     * ends when the caller closes the browser; it is reported as interrupted, and the rest as not run.
++     */
++    stop(reason) { stopReason = stopReason || reason; },
++    /** { reason, notRun } once stop() was called, else null. */
++    stopped() { return stopReason ? { reason: stopReason, notRun } : null; },
++    /** The names the run would take, in order (--list, --shard). */
++    names(grep = null) { return tests.filter((t) => !grep || grep.test(t.name)).map((t) => t.name); },
++    /** only: a Set of names to run (one shard); null runs every test grep takes. */
++    async run(ctx, grep = null, { only = null } = {}) {
+       let current = null;
+       const stray = (err) => {
+         if (current) current.stray.push(err);
+@@ -153,8 +166,9 @@ export function createSuite() {
+       try {
+         for (const t of tests) {
+           if (grep && !grep.test(t.name)) continue;
+-          // A browser that died in an earlier test (it did twice near test 750 of a full run, 2026-10-17)
+-          // is relaunched here, so one crash fails one test, not every test after it.
++          if (only && !only.has(t.name)) continue;
++          if (stopReason) { notRun++; continue; }
++          // A browser that died on its own (a real crash, not a stop) is relaunched here, so one crash fails one test.
+           if (ctx.ensureBrowser) await ctx.ensureBrowser();
+           const start = Date.now();
+           current = { stray: [] };
+@@ -177,8 +191,11 @@ export function createSuite() {
+               console.log(`  - ${t.name} (skipped: ${err.message})`);
+               continue;
+             }
+-            results.push({ name: t.name, ok: false, ms: Date.now() - start, error: err });
+-            console.log(`  \u2717 ${t.name}\n      ${String(err && err.message || err).split('\n').join('\n      ')}`);
++            const interrupted = !!stopReason;
++            results.push({ name: t.name, ok: false, ms: Date.now() - start, error: err, interrupted });
++            // The duration too (qa-suite-beta T-9): a failure that waited out a timeout costs minutes, and a run's
++            // time can only be split by group when every line says how long it took.
++            console.log(`  \u2717 ${t.name} (${Date.now() - start}ms${interrupted ? `, interrupted by ${stopReason}` : ''})\n      ${String(err && err.message || err).split('\n').join('\n      ')}`);
+           } finally {
+             clearTimeout(timer);
+             if (ctx.cleanup) {
+diff --git a/test/e2e/phone-matrix.e2e.js b/test/e2e/phone-matrix.e2e.js
+index feb175c..dbc853b 100644
+--- a/test/e2e/phone-matrix.e2e.js
++++ b/test/e2e/phone-matrix.e2e.js
+@@ -37,6 +37,27 @@ const BOARDS = (process.env.PHONE_MATRIX_BOARDS || 'apple,amazon,google').split(
+ const SHOTS = process.env.PHONE_MATRIX_SHOTS || '';
+ const SHOT_DIR = path.resolve(process.env.PHONE_MATRIX_SHOT_DIR || path.join(ROOT, 'docs', 'screenshots', 'fix-phone-sizes'));
+ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
++
++/**
++ * Wait until the page is still, at most `cap` ms: at least 150 ms after the action (a hash change or a tap is handled
++ * in a later task), then until no DOM change for 120 ms, the fonts are loaded (a swap re-flows text with no DOM
++ * change), and no transition or animation is running (an endless one, a
++ * skeleton's shimmer, does not count). It replaces fixed sleeps of 0.4-1.5 s, which were 68-85% of a guard walk
++ * (qa-suite-beta T-11, measured): a page that settles sooner is measured sooner, and one that never settles is measured
++ * after `cap`, as before. The mutation clock is installed by STILL_INIT in every context.
++ */
++async function quiet(page, cap = 700) {
++  await sleep(Math.min(150, cap));
++  if (cap <= 150) return;
++  await page.waitForFunction(() => performance.now() - (window.__qsbMut || 0) > 120 && document.fonts.status === 'loaded'
++    && document.getAnimations().every((a) => a.playState !== 'running' || a.effect?.getComputedTiming?.().iterations === Infinity),
++  null, { timeout: cap - 150, polling: 50 }).catch(() => {});
++}
++/** Init script: the time of the page's last DOM change (window.__qsbMut), for quiet(). */
++const STILL_INIT = () => {
++  window.__qsbMut = performance.now();
++  new MutationObserver(() => { window.__qsbMut = performance.now(); }).observe(document, { subtree: true, childList: true, attributes: true, characterData: true });
++};
+ const slug = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+ const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.csv': 'text/csv', '.txt': 'text/plain', '.woff2': 'font/woff2', '.webmanifest': 'application/manifest+json' };
+ // The Surface Duo's hinge when spanned: two 540 px screens with 34 px between them.
+@@ -91,6 +112,7 @@ async function open(ctx, size, { board = 'apple', site = 'beta/', colorScheme =
+   const opts = size.ua ? contextFor(size, engine) : { viewport: { width: size.width, height: size.height }, deviceScaleFactor: 1, hasTouch: !!size.touch };
+   const context = await ctx.browser.newContext({ ...opts, colorScheme });
+   ctx.cleanup.push(() => context.close());
++  await context.addInitScript(STILL_INIT);
+   await context.route((u) => !u.href.startsWith(st.origin) && !u.href.startsWith('data:') && !u.href.startsWith('blob:'), (r) => r.abort('blockedbyclient'));
+   const page = await context.newPage();
+   const errors = [];
+@@ -108,7 +130,7 @@ async function open(ctx, size, { board = 'apple', site = 'beta/', colorScheme =
+     const t = document.querySelector('#resultsTitle');
+     return t && !/Loading/.test(t.textContent) && /\d/.test(t.textContent) && document.querySelector('#resultsList .card[data-id]');
+   }, null, { timeout: 90000 });
+-  await sleep(700);
++  await quiet(page, 700);
+   return { page, errors, context, cdp };
+ }
+ 
+@@ -326,7 +348,7 @@ function drawerTextFacts() {
+ async function checkDrawer(page, screenW, label) {
+   await page.evaluate(() => document.querySelector('#resultsList .card[data-id]').click());
+   await page.waitForFunction(() => document.querySelector('#drawer.is-open #drawerTitle'), null, { timeout: 15000 }).catch(() => {});
+-  await sleep(900); // the slide-in (0.22 s) and the description file
++  await quiet(page, 900); // the slide-in (0.22 s) and the description file
+   const f = await page.evaluate(overlayFacts, '#drawer');
+   const p = overlayProblems(f, 'job page', screenW, label);
+   const ctl = await page.evaluate(() => ['#drawerClose', '.drawer-foot .apply'].map((s) => {
+@@ -339,7 +361,7 @@ async function checkDrawer(page, screenW, label) {
+   p.push(...(await page.evaluate(drawerTextFacts)).map((c) => `${label}: job page: ${c}`));
+   await page.keyboard.press('Escape');
+   await page.waitForFunction(() => !document.querySelector('#drawer.is-open'), null, { timeout: 5000 }).catch(() => {});
+-  await sleep(350);
++  await quiet(page, 350);
+   return p;
+ }
+ 
+@@ -366,7 +388,7 @@ async function checkFilters(page, screenW, label) {
+     if (done) p.push(`${label}: filter sheet: ${done}`);
+     await page.keyboard.press('Escape');
+     await page.waitForFunction(() => !document.body.classList.contains('filters-open'), null, { timeout: 5000 }).catch(() => {});
+-    await sleep(350);
++    await quiet(page, 350);
+   }
+   return p;
+ }
+@@ -433,11 +455,12 @@ export function registerPhoneMatrixTests(suite) {
+           for (const mode of ['map', 'insights']) {
+             await clickEl(page, `.topbar .seg [data-mode="${mode}"]`);
+             if (mode === 'map') await page.waitForFunction(() => document.querySelector('.ms-map .ms-pin'), null, { timeout: 20000 }).catch(() => {});
+-            await sleep(mode === 'map' ? 1500 : 900);
++            if (mode === 'insights') await page.waitForSelector('#insightsHost .msi-stat', { timeout: 20000 }).catch(() => {});
++            await quiet(page, mode === 'map' ? 1500 : 900);
+             bad.push(...problemsOf(await page.evaluate(measure, OTHER_CONTROLS), size.width, `${label} ${mode}`));
+           }
+           await clickEl(page, '.topbar .seg [data-mode="chart"]');
+-          await sleep(900);
++          await quiet(page, 900);
+         }
+         bad.push(...await checkDrawer(page, size.width, label));
+         bad.push(...await checkFilters(page, size.width, label));
+diff --git a/test/e2e/ui.e2e.js b/test/e2e/ui.e2e.js
+index ff24c0c..7f763fd 100644
+--- a/test/e2e/ui.e2e.js
++++ b/test/e2e/ui.e2e.js
+@@ -21,7 +21,7 @@ function isExternal(url, baseUrl) {
+   return !!url && !url.startsWith(baseUrl) && !url.startsWith('data:') && !url.startsWith('blob:');
+ }
+ 
+-async function openApp(ctx, { hash = '', viewport = DESKTOP, colorScheme = 'light', ready = true } = {}) {
++async function openApp(ctx, { hash = '', viewport = DESKTOP, colorScheme = 'light', ready = true, readyTimeout = READY_TIMEOUT } = {}) {
+   const context = await ctx.browser.newContext({ viewport, colorScheme, deviceScaleFactor: 1, acceptDownloads: true });
+   ctx.cleanup.push(() => context.close());
+   // Block external hosts up front so the run is deterministic and fast.
+@@ -45,21 +45,21 @@ async function openApp(ctx, { hash = '', viewport = DESKTOP, colorScheme = 'ligh
+     if (!isExternal(res.url(), ctx.baseUrl) && res.status() >= 400) errors.push(`HTTP ${res.status()}: ${res.url()}`);
+   });
+   await page.goto(`${ctx.baseUrl}/${hash ? `#${hash}` : ''}`);
+-  if (ready) await waitReady(page, 'initial load');
++  if (ready) await waitReady(page, 'initial load', readyTimeout);
+   return { context, page, errors, close: () => context.close() };
+ }
+ 
+ /** Wait until the results header shows a count ("N roles"). */
+-async function waitReady(page, where = '') {
++async function waitReady(page, where = '', timeout = READY_TIMEOUT) {
+   try {
+-    await page.locator('#resultsTitle strong').first().waitFor({ timeout: READY_TIMEOUT });
++    await page.locator('#resultsTitle strong').first().waitFor({ timeout });
+   } catch {
+     const st = await page.evaluate(() => ({
+       title: document.querySelector('#resultsTitle')?.textContent,
+       hash: location.hash,
+       cards: document.querySelectorAll('#resultsList .card[data-id]').length,
+     })).catch(() => ({}));
+-    throw new Error(`app not ready${where ? ` (${where})` : ''} after ${READY_TIMEOUT}ms: ${JSON.stringify(st)}`);
++    throw new Error(`app not ready${where ? ` (${where})` : ''} after ${timeout}ms: ${JSON.stringify(st)}`);
+   }
+ }
+ 
+@@ -239,6 +239,9 @@ export function registerUiTests(suite) {
+     const { page, errors, close } = await openApp(ctx);
+     try {
+       await modeBtn(page, 'map').click();
++      // The switch re-renders the view; read aria-pressed once it has (qa-suite-beta T-18: "map pressed: expected true,
++      // got false" in a full run at load 7-10, fps/e2e-full3.log).
++      await page.waitForFunction(() => document.querySelector('.topbar .seg button[data-mode="map"]')?.getAttribute('aria-pressed') === 'true', null, { timeout: 5000 }).catch(() => {});
+       assertEq(await modeBtn(page, 'map').getAttribute('aria-pressed'), 'true', 'map pressed');
+       await page.locator('#mapHost .ms-pin').first().waitFor({ timeout: 10000 });
+       const pins = await page.locator('#mapHost .ms-pin').count();
+@@ -292,7 +295,9 @@ export function registerUiTests(suite) {
+   });
+ 
+   suite.test('UI: map initial fit keeps every pin inside the visible map', async (ctx) => {
+-    assert(ctx.mapClipped, 'map test did not run');
++    // Reads what the map test measured (one page load for both). Run alone (a --grep, or a --shard cut between them),
++    // it has nothing to read: a skip, not a failure (qa-suite-beta T-18).
++    if (!ctx.mapClipped) skip('needs "UI: map mode shows price pins…" to run first');
+     const { clipped, total } = ctx.mapClipped;
+     assert(clipped.length === 0, `${clipped.length}/${total} pins outside the visible map after initial fit: ${clipped.map((g) => g.label).join('; ')}`);
+   });
+@@ -894,7 +899,7 @@ export function registerUiTests(suite) {
+   });
+ 
+   suite.test('UI: mobile 390x844 buttons keep visible text / accessible names', async (ctx) => {
+-    assert(ctx.mobileUnnamed, 'mobile test did not run');
++    if (!ctx.mobileUnnamed) skip('needs "UI: mobile 390x844 renders without horizontal scroll…" to run first'); // T-18
+     const u = [...new Set(ctx.mobileUnnamed)];
+     assert(u.length === 0, `${u.length} visible buttons have no text or accessible name at 390px:\n${u.join('\n')}`);
+   });
+@@ -1524,15 +1529,28 @@ function registerCompstimateTests(suite) {
+     const hist = mkdtempSync(path.join(os.tmpdir(), 'melon-cold-hist-'));
+     const cold = await startServer({ env: { MELON_CACHE_DIR: cache, MELON_HISTORY_DIR: hist } });
+     ctx.cleanup.push(() => cold.stop());
+-    const { page, close } = await openComp({ ...ctx, baseUrl: cold.baseUrl }, 'c=anduril&m=insights');
++    // A cold server normalizes Anduril's 2,537 postings before its first list: 16 s at load 5 in the sandbox
++    // (qa-suite-beta T-13), over the 30 s READY_TIMEOUT at load 10+. That wait is not what T21 times.
++    const { page, close } = await openComp({ ...ctx, baseUrl: cold.baseUrl }, 'c=anduril&m=insights', { readyTimeout: 75000 });
+     try {
+       const first = await readComp(page);
++      // The server's CPU time (utime + stime in /proc/<pid>/stat, 100 ticks a second), where Linux has it: the
++      // backtest behind the accuracy line costs the same CPU at any load, while a loaded machine can stretch its wall
++      // time past 10 s (qa-suite-beta T-13). The budget is 10 s of server CPU, and the line must come with no user
++      // action within 40 s of wall time.
++      const cpuMs = () => { try { const f = fs.readFileSync(`/proc/${cold.pid}/stat`, 'utf8').slice(fs.readFileSync(`/proc/${cold.pid}/stat`, 'utf8').lastIndexOf(')') + 2).split(' '); return (Number(f[11]) + Number(f[12])) * 10; } catch { return null; } };
+       const t0 = Date.now();
++      const c0 = cpuMs();
+       let c = first;
+       // fix-estimates (P-2): at low confidence the line is a caution, never an accuracy figure.
+       const settled = (x) => !!x.accuracy && (/^low/i.test(x.conf || '') ? !/±/.test(x.accuracy) : /within ±\d+%/.test(x.accuracy));
+-      while (Date.now() - t0 < 10000 && !settled(c)) { await page.waitForTimeout(500); c = await readComp(page); }
+-      assert(settled(c), `no accuracy line (or low-confidence caution) ${Math.round((Date.now() - t0) / 1000)} s after the first estimate (first visit on a cold server)`);
++      const budget = c0 == null ? 10000 : 40000; // wall: the 75 s first load and this fit the harness's 120 s
++      while (Date.now() - t0 < budget && !settled(c)) { await page.waitForTimeout(500); c = await readComp(page); }
++      const wall = Date.now() - t0;
++      const used = c0 == null ? null : cpuMs() - c0;
++      ctx.notes.push(`T21: the accuracy line came ${Math.round(wall / 100) / 10} s after the first estimate${used == null ? '' : `, after ${Math.round(used / 100) / 10} s of server CPU`}`);
++      assert(settled(c), `no accuracy line (or low-confidence caution) ${Math.round(wall / 1000)} s after the first estimate (first visit on a cold server)`);
++      if (used != null) assert(used < 10000, `the accuracy line took ${Math.round(used / 1000)} s of server CPU (${Math.round(wall / 1000)} s of wall time)`);
+       assertEq(JSON.stringify(fields(c)), JSON.stringify(fields(first)), 'other fields unchanged when the accuracy arrives');
+     } finally { await close(); }
+   });
+diff --git a/test/perf.test.js b/test/perf.test.js
+index 54fc312..a342fa7 100644
+--- a/test/perf.test.js
++++ b/test/perf.test.js
+@@ -57,21 +57,40 @@ function get(p) {
+   });
+ }
+ 
+-/** Max event-loop delay while fn runs (10 ms probe). */
++/**
++ * Max event-loop block while fn runs (10 ms probe). A late tick is a block only for the CPU this thread spent in it:
++ * on a loaded machine the OS deschedules the process, and the tick comes late with no work done here (171-557 ms of
++ * "lag" at load 4-28 that was not this code; qa-suite-beta T-13). process.threadCpuUsage (Node 22.19+, 23.9+) counts
++ * this thread only (the pipeline worker is another thread). Without it the probe falls back to wall time.
++ * maxWallLag is reported for the log.
++ */
+ async function withLagProbe(fn) {
++  const thread = typeof process.threadCpuUsage === 'function';
++  const cpu = () => { const u = process.threadCpuUsage(); return (u.user + u.system) / 1000; };
+   let max = 0;
++  let maxWall = 0;
+   let last = performance.now();
+-  const iv = setInterval(() => { const now = performance.now(); max = Math.max(max, now - last - 10); last = now; }, 10);
++  let lastCpu = thread ? cpu() : 0;
++  const iv = setInterval(() => {
++    const now = performance.now();
++    const wall = now - last - 10;
++    const c = thread ? cpu() : 0;
++    const blocked = thread ? Math.min(wall, c - lastCpu) : wall;
++    max = Math.max(max, blocked);
++    maxWall = Math.max(maxWall, wall);
++    last = now;
++    lastCpu = c;
++  }, 10);
+   try {
+     const result = await fn();
+-    return { result, maxLag: max };
++    return { result, maxLag: max, maxWallLag: maxWall, measure: thread ? 'thread CPU' : 'wall' };
+   } finally {
+     clearInterval(iv);
+   }
+ }
+ 
+ test('first company loads do not block the event loop (PERF-1)', { skip, timeout: 180000 }, async () => {
+-  const { result, maxLag } = await withLagProbe(async () => {
++  const { result: r0, maxLag, maxWallLag, measure } = await withLagProbe(async () => {
+     // Health checks keep arriving while the two boards load for the first time.
+     const health = [];
+     let stop = false;
+@@ -81,12 +100,16 @@ test('first company loads do not block the event loop (PERF-1)', { skip, timeout
+     await pinger;
+     return { a, c, health };
+   });
++  const result = { ...r0, maxWallLag };
++  console.log(`# probe: ${measure}; max wall lag ${maxWallLag.toFixed(0)} ms`);
+   const worstHealth = Math.max(...result.health);
+-  console.log(`# first loads: anduril ${result.a.ms.toFixed(0)} ms, cohere (rekey) ${result.c.ms.toFixed(0)} ms; max event-loop lag ${maxLag.toFixed(0)} ms; worst /api/health ${worstHealth.toFixed(0)} ms over ${result.health.length} pings`);
++  console.log(`# first loads: anduril ${result.a.ms.toFixed(0)} ms, cohere (rekey) ${result.c.ms.toFixed(0)} ms; max event-loop block ${maxLag.toFixed(0)} ms; worst /api/health ${worstHealth.toFixed(0)} ms over ${result.health.length} pings`);
+   assert.equal(result.a.status, 200);
+   assert.equal(result.c.status, 200);
+   assert.ok(maxLag < 150, `event loop blocked for ${maxLag.toFixed(0)} ms (goal < 100 ms)`);
+-  assert.ok(worstHealth < 250, `/api/health took ${worstHealth.toFixed(0)} ms during first loads`);
++  // A health reply waits for the OS as much as for this server: allow the scheduling delay the probe saw.
++  const sched = Math.max(0, result.maxWallLag - maxLag);
++  assert.ok(worstHealth < 250 + sched, `/api/health took ${worstHealth.toFixed(0)} ms during first loads (allowed 250 ms + ${sched.toFixed(0)} ms of scheduling delay)`);
+ });
+ 
+ test('stores persist: a restart reuses them (no re-parse, no rekey)', { skip, timeout: 120000 }, async () => {
+@@ -111,6 +134,10 @@ test('review V15: cold /api/market does not block the event loop', { skip, timeo
+   console.log(`# cold /api/market ${result.ms.toFixed(0)} ms, max lag ${maxLag.toFixed(0)} ms`);
+   assert.equal(result.status, 200);
+   assert.ok(maxLag < 150, `event loop blocked for ${maxLag.toFixed(0)} ms`);
++  // A warm reply is served from memory: this thread's CPU for it, not its wall time (201 ms at load 20, 2026-10-23).
++  const c0 = typeof process.threadCpuUsage === 'function' ? process.threadCpuUsage() : null;
+   const warm = await get('/api/market');
+-  assert.ok(warm.ms < 200, `warm /api/market took ${warm.ms.toFixed(0)} ms`);
++  const cpuMs = c0 ? (() => { const u = process.threadCpuUsage(c0); return (u.user + u.system) / 1000; })() : warm.ms;
++  assert.ok(cpuMs < 200, `warm /api/market took ${cpuMs.toFixed(0)} ms of ${c0 ? 'CPU' : 'wall time'} (${warm.ms.toFixed(0)} ms wall)`);
++  assert.ok(warm.ms < 2000, `warm /api/market took ${warm.ms.toFixed(0)} ms`);
+ });
+-- 
+2.43.0
+

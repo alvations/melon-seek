@@ -1,9 +1,9 @@
 From 5351f9db03deda6fdeacebfb1ee4d291a26bf55d Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 23 Oct 2026 13:21:24 +0000
-Subject: [PATCH 7/8] fix-phone-sizes: the matrix waits for the filter sheet's
- slide to end before measuring it (it started after the fixed 450 ms on a busy
- machine: 932 and 1005 px failed 2 runs of 3)
+Subject: [PATCH 07/11] fix-phone-sizes: the matrix waits for the filter
+ sheet's slide to end before measuring it (it started after the fixed 450 ms
+ on a busy machine: 932 and 1005 px failed 2 runs of 3)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc

@@ -1,7 +1,7 @@
 From c1c2e2b72cc6e7e19642f5989ed71625c01fc7e0 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 23 Oct 2026 14:44:56 +0000
-Subject: [PATCH 5/8] fix-qa4: UX-51 and UX-50 screenshots before and after
+Subject: [PATCH 05/11] fix-qa4: UX-51 and UX-50 screenshots before and after
  (shrunk); the phone shot opens the sheet first; log the e2e results
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

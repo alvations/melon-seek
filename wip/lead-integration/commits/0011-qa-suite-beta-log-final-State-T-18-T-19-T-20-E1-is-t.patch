@@ -1,0 +1,184 @@
+From da73008b6e41f5071697eba0200289361d17b4c3 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 23 Oct 2026 15:44:54 +0000
+Subject: [PATCH 11/11] qa-suite-beta: log final: State, T-18/T-19/T-20, E1 is
+ the lead's batch-3 gate, E4 and U4 results, the patch apply order
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+---
+ docs/process/qa-suite-beta.md | 104 ++++++++++++++++++++++++----------
+ 1 file changed, 74 insertions(+), 30 deletions(-)
+
+diff --git a/docs/process/qa-suite-beta.md b/docs/process/qa-suite-beta.md
+index 10da6e3..a6e0c78 100644
+--- a/docs/process/qa-suite-beta.md
++++ b/docs/process/qa-suite-beta.md
+@@ -1,6 +1,8 @@
+ # Process log: qa-suite-beta (test-suite QA, target `beta`, 2026-10-23)
+ 
+ ## State
++- **Finished (handed back 2026-10-23, about 15:50).** Worktree head a9342a3 = 433aa59 (batch 3's integration head)
++  plus one commit carrying this lane's files from c4f7909. The 16 commits on 05263e8 end at c4f7909.
+ - **Done:**
+   - the brief, saved verbatim (f06c2f8);
+   - **npm test, CI-like, 3 runs** on 6038890 (= 05263e8 plus this log), §5;
+@@ -12,37 +14,42 @@
+       2 skipped, 5 to-dos, 0 fail;
+     - `test/e2e/beta-coverage.e2e.js`, 32 tests: 4 desktop tests, 7 per board and 21 per phone size, registered in
+       scripts/e2e.js;
+-  - the 12 patches in `docs/process/patches/qa-suite-beta-*.diff` (§11):
+-    - the runner: signals, --shard, --list, --max-skips, failure durations, links registered;
+-    - T-1, T-4 and T-11 (state waits: the same results, 44% less time);
+-    - six flake fixes;
+-    - the CI workflow;
++    - `docs/process/e2e-expected-red.txt`, for the CI summary: T21 only, marked `flaky`;
++  - **14 patches**, regenerated against 433aa59 (§11, with the apply order). They all apply in order to 433aa59 plus
++    a9342a3;
++  - on that tree, npm test with data (`runs/final433-data.*`, 190 s, load 0.3–4):
++    - 1,295 tests and 0 real failures (the one fail is cycle.test's `git check-ignore`: the scratch copy is not a git
++      checkout);
++    - the flake tests pass (S-6, PERF-1, V15, politeRequest);
++    - the [T-1], [T-4], [T-5], [T-9] and [T-10] to-dos pass;
++  - the red-by-design list and the forever-skips (§9.1);
+   - on the lead's 5c0cda3 build, with the runner and T-1 patches: my group plus the three T-1 groups pass 75/75;
+-  - the coverage group: 28/30 on its third run, and both failures were my test's own wait (fixed);
+   - the stress runs: originals fail every run, patched 0 of 9;
+-  - a with-data `npm test` (`runs/unit-data-1`, 271 s, load 11–17): 1,262 tests, 1 fail (my own guard, fixed), and
+-    no vacuous pass found (§9.3);
+-  - the patches checked on a copy of 5c0cda3 with the runner and T-1 patches applied: my [T-1], [T-5], [T-9] and
+-    [T-10] to-dos pass there.
+-- **In progress:** the lead's gate run on 5c0cda3, sampled every 30 s (`<scratch>/qa-suite-beta/mem-gate.jsonl`).
+-  At 14:29 it was at test 616 of 864, with only T21 failed so far.
+-- **Next:**
+-  1. the red-by-design list from the gate log (`<scratch>/gate/e2e.log`);
+-  2. the one full e2e run, instrumented (`tools/instrument.mjs`), on the landed head;
+-  3. regenerate the runner patch on that head;
+-  4. write out the CI patch and the expected-red list;
+-  5. the final report.
+-- **Waiting on:** the lead's message that fix wave 5's last batch has landed. Then I move to that head and rebase my
+-  four files and the scripts/e2e.js registration onto it.
++  - with data, no vacuous unit test (§9.3).
++- **E1 (the one full e2e run)** is the lead's gate on the batch-3 head:
++  - that head is fix-mr-3's rebased series, a9342a3 and the 14 patches, run with the new runner;
++  - the coordinator's instruction: skip my own run, since that gate is this pass's integration run and the full-run
++    after-measurement for T-11. The before is 5c0cda3's 2 h 6 min;
++  - its numbers come from the lead.
++- **Open:**
++  - T-19: P-2 and D-11 still skip on every run (no patch; §9.1);
++  - T-20: 35 passing to-dos, which go to fix-mr-3, the lane editing those files;
++  - the BP-2 Munich patch has not run yet; the batch-3 gate runs it first;
++  - after the T21 patch lands, take T21 off `e2e-expected-red.txt`.
+ - **Scratch:** `<scratch>/qa-suite-beta/`, where `<scratch>` is
+   `/tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92f3-f582ebca24d9/scratchpad`. It holds:
+-  - `tools/`: the log and TAP summarisers, the memory sampler, the instrument preload, the runners, the probes and
+-    the signal repro;
++  - `tools/`:
++    - the log and TAP summarisers, the memory sampler, the instrument preload, the runners, the probes and the
++      signal repro;
++    - `apply-all.sh` (every patch in order) and `final-tree.sh` (433aa59 + a9342a3 + the patches, with links);
+   - `runs/`: the npm test TAP and spec outputs;
+-  - `dist/`: my build, linked as `dist` in the worktree and never committed;
++  - `gate-8898566/`: the lead's gate logs on 5c0cda3, copied before the next gate archives them;
++  - `src-433aa59/`: a plain copy of 433aa59;
++  - `final433/`: that copy with a9342a3 and the 14 patches;
++  - `dist433/`: its build (7/7 beta boards);
++  - `dist/`: the 05263e8 build, linked as `dist` in the worktree and never committed;
+   - `clean/`: the CI-like checkout;
+-  - `patchwt/`: the worktree the patches are made in;
+-  - `pshard/`: the lead-head copies the runner patch is made against.
++  - `patchwt/` and `pshard/`: where the earlier patch versions were made.
+ 
+ ## 1. Brief
+ - Prompt (verbatim): [prompts/qa-suite-beta.md](prompts/qa-suite-beta.md).
+@@ -95,6 +102,9 @@ regressions. **Low** means speed or tidiness.
+ | T-7 | Medium | No deep link / reload / Back / Forward test on beta | coverage map | new test on Amazon; passes |
+ | T-8 | Medium | Phone flows were not run at every size: open a job page by a real tap, close it with its Back button and with the browser's Back, and a filter row's "Show N roles". The matrix opens the job page with `.click()` in the page | §4.3 | new: one test per size in phone-sizes.mjs (21), a different board at each in turn |
+ | T-16 | Medium | The Listed filter and the Juice grade filter were untested on beta | coverage map | new: Listed against each posting's age; each grade against its own count, with the grades summing to "N have a Juice Score"; pass on all seven |
++| T-19 | Medium | **Five e2e tests skip on every run**, and a skip passes. Two are stale since a fix changed the design: [V-18] since D-44 folded London into "189 more places"; Fix viz 3 [BP-2] NVIDIA Munich since BP-2 itself (Munich's only pay is Polish, and since that fix a €110,000 minimum leaves 0 roles). Fix app [P-2] opens only the first of its 12 candidates, a role with no estimate. Desktop QA [D-11] needs data with no listing dates. The Methodology screenshots skip by design | §9.1; every full log | `t19-v18-fold` and `t19-bp2-munich` patches. P-2 and D-11 are open (a loop over the candidates; a fixture) |
++| T-20 | Medium | **35 unit to-dos already pass**, so they guard nothing: 29 in beta-methodology.test.js (no FIXED set), 5 in beta-methodology-2.test.js (MR-23, MR-34, and the passing halves of MR-29 and MR-41) and DQ-6 in beta-data-check-3 | the lead's npm log on 5c0cda3; the final433 run | to fix-mr-3, which is editing those files (the coordinator) |
++| T-18 | Medium | ui.e2e.js: "map mode shows price pins" reads aria-pressed before the view re-renders, and two test pairs share state through `ctx` (`mapClipped`, `mobileUnnamed`), so a grep or a shard cut between them fails the second | E2 | `flake-ui-map-order`: wait for aria-pressed; skip with the reason when run alone |
+ | T-17 | Low | Data: 3 titles hold a line break (Meta 1, Amazon 2: "Partner Development Manager\n, Benelux Partner Team"). Cards read "Manager , Benelux", and a CSV reader that splits lines counts an extra row | `[T-17]` to-do (real data) | the lead: fix-mr-3 (server/normalize.js) |
+ | T-11 | Low | Runtime: Fix phone text is 31% of a full run (85 guard walks of about 22 s, mostly fixed sleeps). Phone loops load Amazon's 22,179 postings about 130 times | §8 | `--shard` (4 × about 31 min); proposals in §8 |
+ | T-9 | Low | Failed e2e tests print no duration, so a run's time cannot be split by group | harness.js | runner patch |
+@@ -184,10 +194,11 @@ Counted from the test names on 5c0cda3 (`tools/list-tests.mjs`). Groups that tag
+ | U1 | `npm test` CI-like (clean checkout, no links, `MELON_BETA_SNAPSHOT_DIR=`) | 6038890 | 6.0 → 10.8 | 1,242 tests: **1,188 pass, 1 fail**, 8 skipped, 45 to-dos (35 of them pass); 125 s. The fail is S-6, "median 29 ms per request" (limit 25) |
+ | U2 | the same | 6038890 | 10.8 → 8.4 | 1,189 pass, 0 fail, 8 skipped, 45 to-dos; 108 s |
+ | U3 | the same | 6038890 | 8.4 → 6.0 | 1,189 pass, 0 fail, 8 skipped, 45 to-dos; 90 s |
+-| E1 | full e2e, this pass's run (instrumented) | the landed head | — | **pending** |
++| E1 | full e2e: the lead's gate on the batch-3 head, run by the lead in place of my own run (the coordinator's call at 15:45) | 433aa59 + fix-mr-3's series + a9342a3 + the 14 patches, with the new runner | — | **the lead's numbers to come.** It is the integration run of the patch set and T-11's full-run after-measurement; the before is E4's 2 h 6 min |
+ | E2 | full e2e, fps/e2e-full3.log (fix-phone-sizes, 2026-10-17; stands in for the deleted gate log on fbdad58) | fix-phone-sizes lane | 7–10 (lane notes) | 766 tests: 745 pass, 16 fail, 5 skipped; 111 min of passing-test time |
+ | E3 | full e2e, fv5/e2e-full.log (fix-viz-5, 2026-10-17 15:12; stands in for the deleted gate log on e57151f) | fix-viz-5 lane | — | 762 tests: 735 pass, 21 fail, 6 skipped |
+-| E4 | full e2e, the lead's gate (`<scratch>/gate/e2e.log`) | 5c0cda3 | 15 → … | **running**; read for the red-by-design list (§9) |
++| E4 | full e2e, the lead's gate (copied to `<scratch>/qa-suite-beta/gate-8898566/`) | 5c0cda3 (= 8898566's code), 13:18–15:24 | 15 → 1–4 | **864 tests: 858 pass, 1 fail (T21; it passes alone in 24.7 s), 5 skipped; 2 h 6 min; the browser never relaunched.** npm test 0 fail |
++| U4 | `npm test` with data, on final433 (433aa59 + a9342a3 + patches 1–13) | final433 | 0.3 → 4.0 | 1,295 tests: 1,243 pass, 1 fail (cycle.test's `git check-ignore` needs a git checkout; not a product or test failure), 1 skipped, 50 to-dos (10 red: T-17 and 9 MR); 190 s |
+ 
+ Group runs of this pass (load at start):
+ - `Beta coverage`, three development runs: 13:36 (load 1.0), 13:48 (5.3) and 14:09 (9.5). The third: 28/30, and both
+@@ -501,8 +512,27 @@ archive-workflows and ci-lists all pass with it, 28/28):
+   - without timings, by test count: 28, 21, 29 and 45 min.
+ 
+ ## 11. Patches (`docs/process/patches/`)
+-Each was made in `<scratch>/qa-suite-beta/patchwt`, or in `pshard/` against 5c0cda3's files (which carry 9fa0ab2).
+-Each dry-runs clean (`patch --dry-run -p1`) against 5c0cda3's files.
++Made in `<scratch>/qa-suite-beta/patchwt`, or in `pshard/` against 5c0cda3's files (which carry 9fa0ab2). Regenerated
++against **433aa59**, where only T-11 needed it: 281e71e (fix-phone-sizes) replaced the matrix's filter-sheet
++`sleep(450)` with its own state wait, so that hunk is gone. CI got the summary changes. `tools/apply-all.sh` applies
++the 14 in order to 433aa59 plus a9342a3, and all apply. The runner patch applies with line offsets only, for the
++2-line registration.
++
++**Apply order** (a9342a3 first):
++1. e2e-runner
++2. flake-t21-cpu
++3. flake-ui-map-order
++4. t1-board-list
++5. t4-link-check
++6. t11-state-waits
++7. t19-v18-fold
++8. t19-bp2-munich
++9. flake-s6-cpu
++10. flake-s3-cpu
++11. flake-perf1-v15-cpu
++12. flake-polite-clock
++13. ci-e2e
++14. todo-fixed (needs a9342a3, 1 and 4)
+ 
+ | Patch | Files | Finding | Verified |
+ |---|---|---|---|
+@@ -516,7 +546,10 @@ Each dry-runs clean (`patch --dry-run -p1`) against 5c0cda3's files.
+ | `qa-suite-beta-flake-t21-cpu.diff` | test/e2e/harness.js (pid), test/e2e/ui.e2e.js | T-13 | T21 passes (28 s) where it failed in the same group run |
+ | `qa-suite-beta-flake-ui-map-order.diff` | test/e2e/ui.e2e.js | T-18 | syntax and dry run |
+ | `qa-suite-beta-t11-state-waits.diff` | test/e2e/fix-phone-text.e2e.js, test/e2e/phone-matrix.e2e.js | T-11 | 8 tests × 2 runs each way on the same load: the same results, 44% less time; the same problems on a build with known cuts |
+-| `qa-suite-beta-ci-e2e.diff` | new .github/workflows/e2e.yml, .github/scripts/e2e-summary.mjs | T-14 | the YAML parses; workflows, V12, archive-workflows and ci-lists tests pass with it (28/28); the summary script read E2 |
++| `qa-suite-beta-t19-v18-fold.diff` | test/e2e/beta-viz-review.e2e.js | T-19 | [V-18] passes on the lead's 5c0cda3 build (2.7 s), where it skipped |
++| `qa-suite-beta-t19-bp2-munich.diff` | test/e2e/fix3-viz.e2e.js | T-19 | syntax and the data (`tools/probe-bp2-csv.mjs`: 13 Senior and Staff+ roles in Munich, 3 with Polish pay); its first run is the batch-3 gate |
++| `qa-suite-beta-ci-e2e.diff` | new .github/workflows/e2e.yml, .github/scripts/e2e-summary.mjs | T-14 | the YAML parses; workflows, V12, archive-workflows and ci-lists tests pass with it (28/28). The summary, on the gate log with `e2e-expected-red.txt`: exit 0; without the T21 entry, exit 1; with T21 passing, exit 0 (flaky is not stale); on a log cut short, exit 1 (`tools/test-summary.sh`) |
++| `qa-suite-beta-todo-fixed.diff` | test/beta-coverage.test.js | T-1, T-4, T-5, T-9, T-10 | those five to-dos pass on final433 |
+ 
+ ## 12. Decisions
+ 1. **Counts from the data, never pinned.** Every new e2e check compares the screen with numbers it computes in the
+@@ -576,6 +609,10 @@ node $Q/tools/list-tests.mjs <checkout> --groups
+   them.
+ - Keyboard shortcuts, recent pills and Add board are still checked on the main site only (§4.1). They are low risk on
+   beta: the same code, and no board-specific data.
++- **No full e2e run of my own (E1).** The coordinator made the lead's batch-3 gate the full run. So the patch set's
++  integration, BP-2 Munich's first run and T-11's full-run saving are measured there, not here.
++- T-19 open: Fix app [P-2] and Desktop QA [D-11] still skip on every run (§9.1).
++- T-20 open, with fix-mr-3: the 35 passing to-dos.
+ 
+ ## 15. Change log
+ - 13:13 Brief read; worktree on 05263e8; links; brief committed (f06c2f8).
+@@ -589,3 +626,10 @@ node $Q/tools/list-tests.mjs <checkout> --groups
+ - 14:0x–14:2x Patches: the runner (signals), T-1, T-4, T21, S-6, S-3, PERF-1/V15, polite, the UI map/order pair and CI;
+   the stress runs (original fails every run, patched 0 failures after the V15 warm fix).
+ 
++- 14:3x–15:2x The T-11 state waits patch (A/B on the same load, 44% less time, the same results); the V-18 probe and
++  its fold patch; the gate on 5c0cda3 read as it grew.
++- 15:2x The coordinator: the batch landed (8898566; gate 858/864, T21 alone). Gate logs copied; the worktree moved to
++  433aa59 (a9342a3). The patches were re-applied in order: T-11 regenerated (281e71e), CI summary IDs and `flaky`,
++  the expected-red list, new t19-bp2-munich and todo-fixed. npm test with data on the patched tree: 0 real failures.
++  §9.1 written; patch list sent.
++- 15:4x The coordinator: skip E1; the lead's batch-3 gate is the full run. Log State finished; handed back.
+-- 
+2.43.0
+
