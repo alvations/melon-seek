@@ -40,7 +40,17 @@ f2f701f fix-qa4: UX-51 shift pay labelled on the card, its tip, the drawer headi
 
 ## Uncommitted and new files
 ```
+ M docs/screenshots/dark-drawer.png
+ M docs/screenshots/dark.png
+ M docs/screenshots/drawer-juice.png
+ M docs/screenshots/drawer.png
+ M docs/screenshots/fix-pay-at-place/e2e-card-1114x720.png
+ M docs/screenshots/fix-pay-at-place/e2e-card-280x653.png
+ M docs/screenshots/fix-pay-at-place/e2e-card-352x355.png
+ M docs/screenshots/fix-pay-at-place/e2e-card-375x812.png
+?? docs/screenshots/fix-pay-at-place/e2e-card-720x1114.png
 ```
 
 ## Left out (not in untracked.tgz)
+- docs/screenshots/fix-pay-at-place/e2e-card-720x1114.png (screenshot; the lane's tests regenerate it)
 - node_modules (symlink)
