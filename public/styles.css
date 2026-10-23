@@ -1655,6 +1655,11 @@ html[data-mode="map"] .tagline, html[data-mode="insights"] .tagline { display: n
 .d-meta-part { display: inline-flex; align-items: baseline; gap: 6px; }
 .d-meta-part > .sep { flex: none; width: 6px; text-align: center; }
 .d-meta > .sen, .d-meta > .tag { margin-left: 12px; }
+/* B-2 (fix-ui-6): after an item on the same line the level badge is 10 px from the text before it and the tag 6 px from
+   the badge, as before M-51 (the 12 px above made both 18 px). app.js fitMetaLine marks them .is-inline; one that starts
+   a line keeps its 12 px, so it lines up with the text and nothing of it is clipped. */
+.d-meta > .sen.is-inline { margin-left: 4px; }
+.d-meta > .tag.is-inline { margin-left: 0; }
 
 /* M-52: touch screens wider than 860 px (a large phone in landscape, the Razr inner screen in landscape, the Surface
    Duo spanned) keep the desktop layout with touch-sized controls: 44 px targets, and 16 px fields so iOS does not zoom
@@ -1668,6 +1673,20 @@ html[data-mode="map"] .tagline, html[data-mode="insights"] .tagline { display: n
   .popover input, .popover select, .board-form input, .board-form select, #insightsHost input, #insightsHost select { font-size: 16px; }
   .fsearch { height: 44px; }
   .check, .radio, .company-item { min-height: 44px; }
+  /* B-3 (fix-ui-6): with the keyboard up (app.js bindKeyboardInsets sets body.kb-open here too, from visualViewport) the
+     filter sheet's "Show N roles" footer would wait under it until the field lost focus; it steps aside as on phones,
+     and the sheet's list gets the room. It is back when the keyboard closes. */
+  body.kb-open .filters-foot { display: none; }
+}
+
+/* B-5 (fix-ui-6): on a short touch screen over 860 px (the Razr inner screen in landscape, 1005x412; an iPhone Pro Max in
+   landscape, 932x430) M-52's 44 px chart controls made the toolbar 16 px taller and the chart 16 px shorter than with a
+   mouse. The space above and between the toolbar's rows gives it back: 8 px less above (the list's header with it, so the
+   Sort stays level with the stats line), 4 px less between the rows and 4 px less above the chart. Nothing scrolls. */
+@media (pointer: coarse) and (min-width: 861px) and (max-height: 500px) {
+  .main { padding-top: 8px; gap: 6px; }
+  .viz-toolbar { row-gap: 8px; }
+  .results-head { padding-top: 8px; }
 }
 
 /* M-52: from 861 to 999 px the one-row top bar was wider than the screen: 926 px for Amazon and 964 px for a board
@@ -1684,6 +1703,15 @@ html[data-mode="map"] .tagline, html[data-mode="insights"] .tagline { display: n
   .search kbd { display: none; }
   .search input { padding-left: 32px; padding-right: 8px; }
   .search > svg { left: 9px; }
+}
+
+/* B-6 (fix-ui-6): from 861 to 1199 px the search box of a board with a Refresh button was ~100 px and read only "Search"
+   (861–999 px), or nothing (1000–1100 px, where the wordmark comes back). The top bar takes the phone's shorter forms
+   here: the company menu without its role count (the list's header says "4,851 roles") and a saved snapshot's badge with
+   its date alone ("● Oct 16"; its name, tip and sheet still say "saved snapshot"). */
+@media (min-width: 861px) and (max-width: 1199px) {
+  .company-menu-btn .company-count { display: none; }
+  .data-badge.is-snapshot:not(.is-pending) .badge-label::before { content: attr(data-micro); }
 }
 
 /* M-40 meets fix-data-3's longer names ("Non-Technical Project, Program and Product Management": its end was cut by

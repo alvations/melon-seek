@@ -3755,15 +3755,19 @@ function juiceBadge(job) {
 /**
  * Card location: with a Location filter, a matching place comes first (P-7, "a DC list led with
  * Huntsville"). BP-2: otherwise a place the pay is for comes first, so "€148K–151K · Dublin +3" names
- * the place of the pay, never "London +3" for Dublin pay.
+ * the place of the pay, never "London +3" for Dublin pay. B-1 (fix-ui-6): `coloured` (the list is coloured by
+ * Location) puts the place the card's dot is coloured for first, the chart's key (keyOf 'location': the first on-site
+ * place), so the dot sits beside its own place's name.
  */
-function locSummary(job, max = 1) {
+function locSummary(job, max = 1, { coloured = false } = {}) {
   const named = (l) => (l.remote ? l.name || 'Remote' : l.city && l.region ? `${l.city}, ${l.region}` : l.name);
   let locs = job.locations;
   if (locs.length > 1) {
     const pay = job._usd && job._payLocs && job._payLocs.length < locs.length ? job._payLocs : null;
     const rank = (l) => (viewSpec?.l.size && locMatches(job, viewSpec, [l]) ? 0 : 2) + (pay && !pay.includes(l) ? 1 : 0);
     if (pay || viewSpec?.l.size) locs = locs.map((l, i) => [rank(l), i, l]).sort((a, b) => a[0] - b[0] || a[1] - b[1]).map((x) => x[2]);
+    const key = coloured ? job.locations.find((l) => l && !l.remote) : null;
+    if (key && locs[0] !== key) locs = [key, ...locs.filter((l) => l !== key)];
   }
   const names = locs.map(named);
   if (!names.length) return 'Location not listed';
@@ -3929,7 +3933,12 @@ function card(job, pos = null, size = null) {
   // A-1: a role=button's content is presentational, so the meta row (team, place, Remote) and the foot
   // (level, Juice, tags, status, age) are its description; the name stays short.
   const did = `cd-${String(job.id).replace(/[^A-Za-z0-9_-]/g, '_')}`;
-  const loc = locSummary(job, 1);
+  // UX-50 (fix-qa4), B-1 (fix-ui-6): the dot is coloured for the key the list is coloured by (the chart's legend), so the
+  // meta line names that key first, beside it: the company ("YouTube · User Experience and Design"), the place
+  // ("Seattle, WA +2 · Software Engineering") or the level ("Senior · Software Engineering"); else the department.
+  // The department still gives way first on a narrow card (UX-16): .card-dept shrinks, .card-loc doesn't.
+  const dim = colorBy();
+  const loc = locSummary(job, 1, { coloured: dim === 'location' });
   // UX-33: no "Remote" tag after a place that already says "Remote (US)".
   const remoteTag = job.remote && !/^remote\b/i.test(loc);
   const term = cardTerm(job);
@@ -3950,10 +3959,7 @@ function card(job, pos = null, size = null) {
       ageText(job) ? h('span', { class: 'card-age-top', 'aria-hidden': 'true', title: ageTitle(job) }, ageText(job)) : null)),
   h('div', { class: 'card-meta', id: `${did}-m` },
     h('span', { class: 'card-dot', style: `--dot:${color}`, 'aria-hidden': 'true' }),
-    // UX-50 (fix-qa4): coloured by company (Group by Company), the dot is the company's, so the company comes first,
-    // beside it ("YouTube · User Experience and Design"); the department gives way first, as before (UX-16).
-    h('span', { class: 'card-dept' }, colorBy() === 'brand' ? `${brandKey(job)} · ${deptKey(job)}` : deptKey(job)), h('span', { class: 'sep', 'aria-hidden': 'true' }, '·'),
-    h('span', { class: 'card-loc' }, loc), remoteTag ? h('span', { class: 'tag tag--remote' }, 'Remote') : null),
+    ...cardMetaItems(job, dim, loc, remoteTag)),
   h('div', { class: 'card-foot', id: `${did}-f` },
     level ? h('span', { class: `sen sen--${level.toLowerCase().replace(/\W/g, '')}`, title: SEN_TIP[level] || null }, senLabel(level)) : null,
     pool ? h('span', { class: 'tag tag--pool', title: POOL_TIP }, POOL_LABEL) : null,
@@ -3966,6 +3972,15 @@ function card(job, pos = null, size = null) {
     status, // at most one status tag, in the second keyword slot (ROADMAP §8)
     ageText(job) ? h('span', { class: 'card-age', title: ageTitle(job) }, ageText(job)) : null)));
   return el;
+}
+
+/** The card's meta line after its dot (B-1): the coloured key first, then the department or the place. */
+function cardMetaItems(job, dim, loc, remoteTag) {
+  const sep = h('span', { class: 'sep', 'aria-hidden': 'true' }, '·');
+  const where = [h('span', { class: 'card-loc' }, loc), remoteTag ? h('span', { class: 'tag tag--remote' }, 'Remote') : null];
+  if (dim === 'location') return [...where, sep, h('span', { class: 'card-dept' }, deptKey(job))];
+  const lead = dim === 'brand' ? brandKey(job) : dim === 'seniority' ? senLabel(senKey(job)) : null;
+  return [h('span', { class: 'card-dept' }, lead ? `${lead} · ${deptKey(job)}` : deptKey(job)), sep, ...where];
 }
 
 /* ---------------------------------------------------------------- drawer */
@@ -3999,6 +4014,7 @@ function openDrawer(id, { fromHash = false, step = false } = {}) {
   else { drawer.replaceChildren(...drawerContent(job)); applyDrawerBudget(); }
   drawer.hidden = false;
   fitApplyLabel(); // M-49
+  fitMetaLine(); // B-2
   $('#drawerBackdrop').hidden = false;
   requestAnimationFrame(() => { drawer.classList.add('is-open'); $('#drawerBackdrop').classList.add('is-open'); });
   drawer.scrollTop = 0;
@@ -4035,6 +4051,25 @@ function fitApplyLabel() {
   const host = lab.querySelector('.apply-host')?.textContent;
   if (pick === long) a.removeAttribute('aria-label');
   else a.setAttribute('aria-label', host ? `${long}, ${host}` : long);
+}
+
+/**
+ * B-2 (fix-ui-6): the job page's level badge and tag sit 10 px and 6 px after the item before them on their line, as
+ * before M-51; one that starts a line steps in by the 12 px the line's clip takes (styles.css .d-meta), so it lines up
+ * with the text and is whole. Each is tried on its line first (.is-inline), then left at 12 px if it starts a line.
+ */
+function fitMetaLine() {
+  for (const m of document.querySelectorAll('#drawer .d-meta')) {
+    for (const el of m.querySelectorAll(':scope > .sen, :scope > .tag')) {
+      el.classList.add('is-inline');
+      const a = el.getBoundingClientRect();
+      let prev = el.previousElementSibling;
+      while (prev && !prev.getClientRects().length) prev = prev.previousElementSibling;
+      const b = prev?.getBoundingClientRect();
+      const mid = (a.top + a.bottom) / 2;
+      if (!a.width || !b || mid < b.top || mid > b.bottom) el.classList.remove('is-inline');
+    }
+  }
 }
 
 // Everything behind the modal drawer becomes inert (not focusable, hidden from AT).
@@ -5426,6 +5461,14 @@ function openFiltersAt(id, opener = null) {
   if (sec) requestAnimationFrame(() => sec.scrollIntoView({ block: 'start' }));
 }
 
+/** B-4 (fix-ui-6): set a custom property on the root only when its value changes (a write restyles the whole page). */
+const rootVars = new Map();
+function setRootVar(name, value) {
+  if (rootVars.get(name) === value) return;
+  rootVars.set(name, value);
+  document.documentElement.style.setProperty(name, value);
+}
+
 /* The on-screen keyboard: iOS keeps the layout viewport, so fixed footers and bottom sheets sit
    under it. visualViewport tells us; body.kb-open lifts sheets to the top and hides the sticky footer. */
 function bindKeyboardInsets() {
@@ -5440,12 +5483,17 @@ function bindKeyboardInsets() {
     if (!typing()) full = Math.max(document.documentElement.clientHeight || 0, innerHeight || 0, vv.height || 0);
     else full = Math.max(full, document.documentElement.clientHeight || 0);
     const short = vv.height < full - 120; // any on-screen keyboard takes well over 120px
-    const open = isMobile() && short && (typing() || (vv.offsetTop || 0) > 0);
+    // B-3 (fix-ui-6): a touch screen wider than 860 px (a phone in landscape, the Duo spanned) has the keyboard too, so the
+    // filter sheet's "Show N roles" footer steps aside as on phones (styles.css); there only while a field is typed in.
+    const open = short && (isMobile() ? typing() || (vv.offsetTop || 0) > 0 : isCoarse() && typing());
     document.body.classList.toggle('kb-open', open);
     if (!(short && typing())) document.body.classList.remove('kb-lift'); // M-47: the top bars come back with the keyboard down
     document.body.classList.toggle('kb-search', open && document.activeElement?.id === 'search'); // M-12: lift the peek row
-    document.documentElement.style.setProperty('--vvh', `${Math.round(vv.height)}px`);
-    document.documentElement.style.setProperty('--vvt', `${Math.max(0, Math.round(vv.offsetTop || 0))}px`); // fix-company-scroll: iOS pans the visual viewport
+    // B-4 (fix-ui-6): written only when they change. Every write to the root's inline style restyles the whole page (both
+    // custom properties are inherited), even with the same value: on a tap on Filters (a focus change) that was two
+    // full-page style passes in the frame where the sheet should start sliding, and again at each settle timer.
+    setRootVar('--vvh', `${Math.round(vv.height)}px`);
+    setRootVar('--vvt', `${Math.max(0, Math.round(vv.offsetTop || 0))}px`); // fix-company-scroll: iOS pans the visual viewport
   };
   const sync = rafThrottle(measure);
   // M-32: iOS can send its last resize before the keyboard animation ends, so measure again once it has settled.
@@ -5746,7 +5794,7 @@ function bindEvents() {
     if (win.more?.isConnected) paintWindow(); // M-20: card heights follow the list's width
     if (document.body.classList.contains('filters-open')) { setFiltersModal(isMobile()); syncChipsExpanded(); } // rotation / resize across 860px
     syncFiltersInert(); // UX-56: across 1200px the panel turns from a docked column into a sheet, and back
-    if (drawerJobId) fitApplyLabel(); // M-49: a rotation changes the room for the Apply label
+    if (drawerJobId) { fitApplyLabel(); fitMetaLine(); } // M-49, B-2: a rotation changes the room for the Apply label and the meta line
   }));
   addEventListener('scroll', () => positionPopover(), true);
 

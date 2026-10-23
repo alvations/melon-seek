@@ -58,6 +58,10 @@ export const OSM_TILES = Object.freeze({
   dark: 'filter',
 });
 const BASE_MIN_ZOOM = 2; // lowered per dataset by fitToData() when the pins need it
+/** B-7 (fix-ui-6): a pin's pointer reaches this far under its price tag, to the place (.ms-pin: 7 px). */
+const PIN_TIP = 7;
+/** B-7: the air a pin keeps from the map's own controls and the attribution, in px. */
+const CONTROL_GAP = 2;
 const CLUSTER_W = 76;  // px: pill width + gap
 const CLUSTER_H = 34;  // px: pill height + gap (labels add more when offline)
 const LABEL_GAP = 5;   // px between a pin and a place name moved above it (viz.css .ms-pin__label--above)
@@ -1114,15 +1118,34 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
    * at most four, while one does; the pins then gather toward the middle (and merge, keeping every place's name).
    */
   function clearOfControls() {
-    const hit = (a, b) => a.left < b.right - 1 && a.right > b.left + 1 && a.top < b.bottom - 1 && a.bottom > b.top + 1;
     const box = container.getBoundingClientRect();
     const inside = (r) => r.top >= box.top && r.bottom <= box.bottom && r.left >= box.left && r.right <= box.right;
     const covered = () => {
       const ctl = controlBoxes();
       let n = 0;
-      for (const p of container.querySelectorAll('.ms-pin')) { const r = p.getBoundingClientRect(); if (r.width > 0 && (!inside(r) || ctl.some((c) => hit(r, c)))) n++; }
+      for (const p of container.querySelectorAll('.ms-pin')) { const r = pinFootprint(p); if (r && (!inside(r) || ctl.some((c) => nearHit(r, c)))) n++; }
       return n;
     };
+    // B-7 (fix-ui-6): a small pan first, at the fitted zoom, so no pin is merged away by zooming out: up and down in 4 px
+    // steps (Apple on the Razr cover screen needs 12 px: its pins span 100 of the map's 123 px, and the attribution takes
+    // the foot's 17), then sideways. True when a pan clears every pin; otherwise the map is back where it was.
+    const shifts = [];
+    for (let d = 4; d <= 32; d += 4) shifts.push([0, -d], [0, d]);
+    shifts.push([-24, 0], [24, 0], [-24, -16], [24, -16], [-24, 16], [24, 16]);
+    const panClear = () => {
+      let at = [0, 0];
+      for (const [dx, dy] of shifts) {
+        map.panBy([dx - at[0], dy - at[1]], { animate: false });
+        at = [dx, dy];
+        if (!covered()) return true;
+      }
+      map.panBy([-at[0], -at[1]], { animate: false }); // nothing better: back where the fit put it
+      return false;
+    };
+    // A re-check after a resize (the sheet settling) starts from the pins as they are: one merged at a size the map
+    // no longer has comes back.
+    if (mergeCovered) { mergeCovered = false; draw(); }
+    if (!covered() || panClear()) return;
     for (let k = 0; k < 4; k++) {
       if (!covered() || map.getZoom() - 0.5 < 0) break;
       const z = map.getZoom() - 0.5;
@@ -1133,16 +1156,7 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
       draw();
     }
     // At the widest zoom (a 352x123 map shows the whole world), a small pan clears the controls instead.
-    let best = covered();
-    if (!best) return;
-    let at = [0, 0];
-    for (const [dx, dy] of [[0, -8], [0, 8], [0, -16], [0, 16], [0, -24], [0, 24], [-24, 0], [24, 0], [-24, -16], [24, -16], [-24, 16], [24, 16]]) {
-      map.panBy([dx - at[0], dy - at[1]], { animate: false });
-      at = [dx, dy];
-      const n = covered();
-      if (n < best) { best = n; if (!n) return; }
-    }
-    map.panBy([-at[0], -at[1]], { animate: false }); // nothing better: back where the fit put it
+    if (!covered() || panClear()) return;
     // Still covered (a whole world in 123 px): such a pin joins its nearest neighbour, whose name then counts it, as a
     // pin whose name finds no room does (draw), until the user moves the map.
     mergeCovered = true;
@@ -1156,10 +1170,20 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
     .map((e) => e.getBoundingClientRect()).filter((r) => r.width > 0 && r.height > 0);
   /** The clusters whose pin is under one of the map's controls (clearOfControls). */
   function coveredClusters() {
-    const hit = (a, b) => a.left < b.right - 1 && a.right > b.left + 1 && a.top < b.bottom - 1 && a.bottom > b.top + 1;
     const ctl = controlBoxes();
-    return clusters.filter((c) => { const r = c.pinEl?.getBoundingClientRect(); return r && r.width > 0 && ctl.some((b) => hit(r, b)); });
+    return clusters.filter((c) => { const r = c.pinEl && pinFootprint(c.pinEl); return r && ctl.some((b) => nearHit(r, b)); });
   }
+  /**
+   * B-7 (fix-ui-6): what of a pin must stay clear of the controls: its price tag and its pointer, down to the place it
+   * points at (PIN_TIP px under the tag; the pointer is a pseudo-element, outside the tag's box). Null when not drawn.
+   */
+  function pinFootprint(p) {
+    const r = p.getBoundingClientRect();
+    if (!(r.width > 0)) return null;
+    return { left: r.left, right: r.right, top: r.top, bottom: r.bottom + PIN_TIP };
+  }
+  /** A box within CONTROL_GAP px of a control's box (the pins keep a little air from the map's controls). */
+  const nearHit = (a, b) => a.left < b.right + CONTROL_GAP && a.right > b.left - CONTROL_GAP && a.top < b.bottom + CONTROL_GAP && a.bottom > b.top - CONTROL_GAP;
 
   map.on('zoomend', draw);
 
