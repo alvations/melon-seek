@@ -200,7 +200,7 @@ export function registerFixMr3Tests(suite) {
     else assert(note.includes(`Its monthly row is ${monthly}`), `${c.id}: the Details don't name the monthly row: "${note.slice(0, 400)}"`);
   });
 
-  suite.test('fix-mr-3: [MR-39] the stats line\'s median is the main currency\'s (US pay on Amazon), says "(US)", and equals that median', async (ctx) => {
+  suite.test('fix-mr-3: [MR-39] the stats line\'s median is the main currency\'s (US pay on Amazon), says "(US)", and equals that median, as the chart caption does', async (ctx) => {
     const { st, page } = await open(ctx);
     await board(page, st, 'c=amazon&m=map');
     const pay = await appJobs(page, st, 'amazon', `(j, sh, pal) => j.salary && j.salary.kind !== 'ote' && pal.hasFx(j.salary.currency || 'USD') ? { cur: String(j.salary.currency || 'USD').toUpperCase(), mid: pal.toUSD(j.salary.mid, j.salary.currency || 'USD') } : null`);
@@ -214,6 +214,11 @@ export function registerFixMr3Tests(suite) {
     assertEq(shown, `${fmt} base pay median (US)`, 'Amazon stats line median');
     const details = await text(page, '#statsLine');
     assert(new RegExp(`median of the ${us.length.toLocaleString('en-US')} roles paid in the US; ${(pay.length - us.length).toLocaleString('en-US')} roles paid in other currencies are left out`).test(details), `the stats Details don't say whose median it is: "${details.slice(0, 400)}"`);
+    // The chart's caption has the same median on the same basis ("Median base pay $149K US"; chart.js headPay).
+    await board(page, st, 'c=amazon&m=chart');
+    await page.waitForSelector('#chartHost .ms-hist__sub', { timeout: 60000 });
+    assertEq((await text(page, '#chartHost .ms-hist__sub')), `${fmt} US`, 'Amazon chart caption median');
+    assert(/Pay in the US only: [\d,]+ postings with pay for other countries are on the chart, not in the median/.test(await page.locator('#chartHost .ms-hist__cap').getAttribute('title')), 'the chart caption\'s tip does not say whose median it is');
     // A board whose pay is in one currency keeps its plain line.
     for (const slug of ['netflix', 'meta']) {
       await board(page, st, `c=${slug}&m=map`);
@@ -312,6 +317,9 @@ export function registerFixMr3Tests(suite) {
       };
       await board(page, st, 'c=amazon');
       await measure('#statsLine', 'Amazon stats line');
+      // The chart's median caption: the strip's (a label column) or the axis line above the strip (a phone).
+      const capSel = (await page.locator('#chartHost .ms-chart__caprow:not([hidden])').count()) ? '#chartHost .ms-chart__caprow' : '#chartHost .ms-hist__cap, #chartHost .ms-axis__cap';
+      if (await page.locator(capSel).count()) await measure(capSel, 'Amazon chart caption');
       const term = (await appJobs(page, st, 'amazon', FOREIGN_MONTH_TERM))[0];
       const annual = (await appJobs(page, st, 'amazon', STATED_ANNUAL))[0];
       if (term) { await job(page, 'amazon', term.id, term.title); await measure('#drawer .dist-approx', term.id); await measure('#drawer .d-sal-top .muted', term.id); }

@@ -435,7 +435,7 @@ export function createInsights(container, { onFilter, headingLevel = 2 } = {}) {
   function stats(jobs) {
     const s = summaryStats(jobs);
     const enough = s.basisN >= MIN_SAMPLE;
-    // MR-39: "of 13,076 in the US" when the median is the main currency's (pay in several currencies in view).
+    // MR-39: "of 13,177 in the US" when the median is the main currency's (pay in several currencies in view).
     const where = s.basis ? payBasisPlace(s.basis).replace(/^paid /, '') : '';
     const tile = (label, value, note) => h('div', { class: 'msi-stat' },
       h('div', { class: 'msi-stat__label' }, label),

@@ -300,6 +300,19 @@ function mainBasis(items) {
   if (n.size < 2) return null;
   return [...n].sort((a, b) => b[1] - a[1] || (a[0] === 'USD' ? -1 : 1))[0][0];
 }
+/**
+ * MR-39 (fix-mr-3): the caption's median on the rows' basis. With pay in several currencies it is the main currency's
+ * (the rows' rule, and the app's stats line and Insights' tiles: shared.js mainPayCurrency), with `basis` and
+ * `basisLeft` (the plotted postings paid in other currencies); the left-out counts by kind stay the whole chart's.
+ */
+function headPay(items) {
+  const all = basePayStats(items);
+  const b = basisStats(items, mainBasis(items));
+  if (!b.basis || b.basis === 'mixed' || !b.left) return all;
+  return { ...all, median: b.stats.median, p25: b.stats.p25, p75: b.stats.p75, n: b.stats.n, basis: b.basis, basisLeft: b.left };
+}
+/** MR-39: " US" after the caption's median when it is one currency's pay of several ("Median base pay $149K US"). */
+const medianBasis = (pay) => (pay?.basis && pay.basis !== 'mixed' && pay.basisLeft ? ` ${basisShort(pay.basis)}` : '');
 /** " in the US" after a median, "" when the row has no basis; "mixed" names its currencies. */
 const basisWords = (r) => (r.basis === 'mixed' ? ', several countries’ pay' : r.basis ? ` ${payBasisPlace(r.basis)}` : '');
 const basisWordsShort = (r) => (r.basis === 'mixed' ? ' mixed' : r.basis ? ` ${basisShort(r.basis)}` : '');
@@ -862,7 +875,7 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
     const same = payMemo && (payMemo.jobs === jobs || (payMemo.jobs.length === jobs.length && jobs.every((j, i) => j === payMemo.jobs[i])));
     if (!same || payMemo.pk !== pk || payMemo.test !== opts.placeTest) {
       const r = chartPay(jobs, { places: opts.places, placeTest: opts.placeTest });
-      payMemo = { jobs, pk, test: opts.placeTest, r, pay: basePayStats(r.plotted), keyDim: null, v: ++payVersion };
+      payMemo = { jobs, pk, test: opts.placeTest, r, pay: headPay(r.plotted), keyDim: null, v: ++payVersion }; // MR-39
     }
     plotted = payMemo.r.plotted;
     if (payMemo.keyDim !== opts.colorBy) { for (const p of plotted) p.key = keyOf(p.job, opts.colorBy); payMemo.keyDim = opts.colorBy; }
@@ -1084,12 +1097,13 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
     if (pay?.oteOnly) return `The middle of the on-target earnings (base plus commission at target) ranges${here}: half are above and half below`;
     if (pay?.notBaseOnly) return `The middle of the posted pay${here}, none of which is a posted base pay range (${notBaseWords(pay.notBaseKinds)}): half are above and half below`;
     const nb = notBaseWords(pay?.notBaseLeftOut);
-    return `The middle of the base pay ranges${here}: half are above and half below${pay?.oteLeftOut ? `. ${plural(pay.oteLeftOut, 'posting')} with on-target earnings (base plus commission) left out` : ''}${nb ? `. ${nb} left out` : ''}`;
+    const basis = medianBasis(pay) ? `. Pay ${payBasisPlace(pay.basis)} only: ${plural(pay.basisLeft, 'posting')} with pay for other countries ${pay.basisLeft === 1 ? 'is' : 'are'} on the chart, not in the median` : '';
+    return `The middle of the base pay ranges${here}: half are above and half below${pay?.oteLeftOut ? `. ${plural(pay.oteLeftOut, 'posting')} with on-target earnings (base plus commission) left out` : ''}${nb ? `. ${nb} left out` : ''}${basis}`;
   }
   /** V-46: the label column a landscape phone's axis caption needs, "US dollars a year · median $214K", in px. */
   function capNeed(pay) {
     const f = `12px ${curFam}`, med = pay?.median ?? median(plotted.map((p) => p.mid));
-    return Math.ceil(textWidth('US dollars a year · ', f) + textWidth(`median ${formatMoney(med)}`, `600 ${f}`)) + 16 + 6;
+    return Math.ceil(textWidth('US dollars a year · ', f) + textWidth(`median ${formatMoney(med)}${medianBasis(pay)}`, `600 ${f}`)) + 16 + 6;
   }
   /**
    * V-46, UX-61 (fix-viz-5): what the axis is, in one currency name ("US dollars a year"), as long as fits `w` px:
@@ -1115,7 +1129,7 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
     if (labelW > 0) {
       const cap = el('div', 'ms-hist__cap');
       cap.style.width = labelW + 'px';
-      cap.append(el('span', 'ms-hist__title', medianCaption(pay)), el('span', 'ms-hist__sub', formatMoney(med)));
+      cap.append(el('span', 'ms-hist__title', medianCaption(pay)), el('span', 'ms-hist__sub', `${formatMoney(med)}${medianBasis(pay)}`));
       cap.title = medianTitle(pay);
       hist.append(cap);
     }
@@ -1148,7 +1162,7 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
       if (!histShown) {
         // V-46: a landscape phone hides the strip and its median caption, so the axis caption carries the median too.
         const med = pay?.median ?? median(plotted.map((p) => p.mid));
-        const m = `median ${formatMoney(med)}`;
+        const m = `median ${formatMoney(med)}${medianBasis(pay)}`;
         const units = approx ? ['US dollars a year, converted', 'US dollars a year'] : ['US dollars a year'];
         const unit = units.find((u) => textWidth(`${u} · `, f) + textWidth(m, `600 ${f}`) <= w) || units[units.length - 1];
         const mEl = el('span', 'ms-chart__capmed', m);
@@ -1164,7 +1178,7 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
       // strip: "US dollars a year · Median base pay $141K", shorter forms when that does not fit.
       const med = pay?.median ?? median(plotted.map((p) => p.mid));
       const room = Math.max(0, width - 24);
-      const medFull = `${medianCaption(pay).trim()} ${formatMoney(med)}`, medShort = `median ${formatMoney(med)}`;
+      const medFull = `${medianCaption(pay).trim()} ${formatMoney(med)}${medianBasis(pay)}`, medShort = `median ${formatMoney(med)}${medianBasis(pay)}`;
       const cands = [];
       for (const unit of approx ? ['US dollars a year, converted', 'US dollars a year'] : ['US dollars a year']) cands.push([unit, medFull], [unit, medShort]);
       const f = `12px ${fam}`, fb = `600 12px ${fam}`;
@@ -1282,7 +1296,7 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
         need = Math.max(need, textWidth(r.sub, SUB_FONT), nameW > 150 ? Math.min(nameW, nameW / 2 + 24) : nameW);
       }
       // BP-13: the median caption ("Median base pay $347K") shows in full too.
-      need = Math.max(need, textWidth(`${medianCaption(stats.pay)}${formatMoney(stats.pay?.median)}`, `600 ${SUB_FONT}`) - 8);
+      need = Math.max(need, textWidth(`${medianCaption(stats.pay)}${formatMoney(stats.pay?.median)}${medianBasis(stats.pay)}`, `600 ${SUB_FONT}`) - 8);
       labelW = Math.round(Math.max(150, Math.min(maxW, need + LABEL_PAD)));
       // V-46: with the strip hidden (landscape phones) the axis caption carries the median too, on one line.
       if (!histShown) labelW = Math.max(labelW, Math.min(Math.round(width * 0.4), capNeed(stats.pay)));

@@ -378,7 +378,7 @@ Quoted lines and their corrections (all in `methodology-review-beta-2-guide.diff
 - **Tests:** MR-37.
 
 ### MR-39 (Low): the headline median mixes countries without saying so
-- **Status: fixed** by [fix-mr-3](fix-mr-3.md) (2026-10-23, 99d5640): with pay in several currencies in view, the stats line's and Insights' median is the main currency's (the chart rows' rule) and says so: Amazon "$141K base pay median" (all 13,980, 803 converted) is "$149K base pay median (US)" (13,177; its Details: "It is the median of the 13,177 roles paid in the US; 803 roles paid in other currencies are left out"), and the tiles read "of 13,177 in the US". The chart caption's change is a patch for fix-viz-5 (docs/process/patches/fix-mr-3-chart-caption.diff). Tests: test/fix-mr-3.test.js MR-39 ×3, e2e [MR-39] ×2.
+- **Status: fixed** by [fix-mr-3](fix-mr-3.md) (2026-10-23, 99d5640): with pay in several currencies in view, the stats line's and Insights' median is the main currency's (the chart rows' rule) and says so: Amazon "$141K base pay median" (all 13,980, 803 converted) is "$149K base pay median (US)" (13,177; its Details: "It is the median of the 13,177 roles paid in the US; 803 roles paid in other currencies are left out"), and the tiles read "of 13,177 in the US". The chart's caption uses the same basis ("Median base pay $149K US"; `chart.js` `headPay`). Tests: test/fix-mr-3.test.js MR-39 ×3, e2e [MR-39] ×2.
 - **Where:**
   - the stats line "$141K base pay median" (Amazon);
   - the chart caption "Median base pay $141K";

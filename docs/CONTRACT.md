@@ -1029,8 +1029,9 @@ unchanged: `salary.min/max` stay annualized.
 **Shared and Insights (MR-39):** `mainPayCurrency(currencies) -> code | null` (`shared.js`): the most common currency when there are
 two or more (USD on a tie), the chart rows' rule (`chart.js mainBasis`, V-21). `insights.js summaryStats(jobs)` adds `basis` and
 `basisN`; `median`, `p25` and `p75` are the basis currency's, `salaried` and `payShare` still count every country. The tiles read
-"of 13,177 in the US" and "of roles in the US" (Amazon, 2026-10-16: $149K of 13,177 US roles, was $141K of all 13,980). The chart's own caption is fix-viz-5's: [`docs/process/patches/fix-mr-3-chart-caption.diff`](process/patches/fix-mr-3-chart-caption.diff)
-gives it the same basis ("Median base pay $149K US").
+"of 13,177 in the US" and "of roles in the US" (Amazon, 2026-10-16: $149K of 13,177 US roles, was $141K of all 13,980). The chart's caption (`public/viz/chart.js` `headPay`, `medianBasis`) uses the same basis: the strip's "Median base pay $149K US",
+the phone's axis line "US dollars a year · median $149K US", and its tip says how many postings are paid elsewhere; the left-out
+counts by kind (MR-28) stay the whole chart's.
 
 **Locations (`server/geo.js`, MR-40):** 43 New York, New Jersey and Connecticut towns within about 80 km of Manhattan (the 2026-10-16
 crawl's towns that were at their state's centre) are gazetteer cities. A `CITIES_RAW` name prefixed with `?` is read only with its
