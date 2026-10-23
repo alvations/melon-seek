@@ -1,15 +1,457 @@
+diff --git a/data/freshness.json b/data/freshness.json
+index a3ef986..29294f8 100644
+--- a/data/freshness.json
++++ b/data/freshness.json
+@@ -15175,7 +15175,7 @@
+         "server/vet.js:1 vet.js roleFamily",
+         "public/features/roles.js:65 roles.js FAMILIES",
+         "public/features/roles.js:163 FAMILY_LABELS",
+-        "public/features/roles.js:163 FAMILY_LABELS (28)",
++        "public/features/roles.js:163 FAMILY_LABELS (29)",
+         "public/features/roles.js:219 FAMILIES regex lexicon",
+         "public/features/roles.js:254 DEPT_HINTS",
+         "public/features/roles.js:21 ABBREV / SYNONYM / LEVEL_WORDS / STOPWORDS",
+@@ -15183,7 +15183,7 @@
+         "public/features/roles.js:203 CHIP (chip-design family)",
+         "public/features/roles.js:211 TECHNICIAN / :208 DC_CONTEXT (data-center technician family)"
+       ],
+-      "values": "28 families (public/features/roles.js FAMILY_LABELS; BP-4 added chip (chip design) and dc-tech (data-center technician), 2026-10-11), FAMILIES / DEPT_HINTS / PRIORITY lexicons, FAMILY_AFFINITY partial credits; 2026-10-02: 6 of 5,413 postings without a family (0.1%); 2026-10-11: 1,668 beta postings (965 with pay) changed family with BP-4",
++      "values": "29 families (public/features/roles.js FAMILY_LABELS; BP-4 added chip (chip design) and dc-tech (data-center technician), 2026-10-11; fix-data-6 added ops-associates (warehouse, delivery and store associates, R-1), 2026-10-23), FAMILIES / DEPT_HINTS / PRIORITY lexicons, FAMILY_AFFINITY partial credits; 2026-10-02: 6 of 5,413 postings without a family (0.1%); 2026-10-11: 1,668 beta postings (965 with pay) changed family with BP-4; 2026-10-23: 441 postings (Amazon 440, Anduril 1) moved to ops-associates with R-1, 273 of them from support, 136 that had none",
+       "consumers": [
+         {
+           "at": "server/vet.js:205",
+diff --git a/docs/DATA_FRESHNESS.md b/docs/DATA_FRESHNESS.md
+index d55b2a4..060b3e4 100644
+--- a/docs/DATA_FRESHNESS.md
++++ b/docs/DATA_FRESHNESS.md
+@@ -3525,10 +3525,10 @@ Each dataset is listed under every surface that shows it or computes from it.
+ <details><summary><code>role-families</code>: Role-family taxonomy (26 families) and its label copies.</summary>
+ 
+ - **Type / cadence / mechanism:** product-policy · monthly (+14 days grace) · detect via `scripts/refresh/jobs.js`
+-- **Values:** 28 families (public/features/roles.js FAMILY_LABELS; BP-4 added chip (chip design) and dc-tech (data-center technician), 2026-10-11), FAMILIES / DEPT_HINTS / PRIORITY lexicons, FAMILY_AFFINITY partial credits; 2026-10-02: 6 of 5,413 postings without a family (0.1%); 2026-10-11: 1,668 beta postings (965 with pay) changed family with BP-4
++- **Values:** 29 families (public/features/roles.js FAMILY_LABELS; BP-4 added chip (chip design) and dc-tech (data-center technician), 2026-10-11; fix-data-6 added ops-associates (warehouse, delivery and store associates, R-1), 2026-10-23), FAMILIES / DEPT_HINTS / PRIORITY lexicons, FAMILY_AFFINITY partial credits; 2026-10-02: 6 of 5,413 postings without a family (0.1%); 2026-10-11: 1,668 beta postings (965 wi…
+ - **As of:** 2026-10-02 · last checked 2026-10-10
+ - **Source:** [melon-seek (our own choice)](https://github.com/alvations/melon-seek) (no licence file; owner decision pending (the repo has no LICENSE and package.json no "license" field, so the code and o…)
+-- **Defined in:** `server/vet.js:1 vet.js FAMILIES (10 + other)`, `server/vet.js:1 vet.js roleFamily`, `public/features/roles.js:65 roles.js FAMILIES`, `public/features/roles.js:163 FAMILY_LABELS`, `public/features/roles.js:163 FAMILY_LABELS (28)`, `public/features/roles.js:219 FAMILIES regex lexicon`, `public/features/roles.js:254 DEPT_HINTS`, `public/features/roles.js:21 ABBREV / SYNONYM / LEVEL_WORDS / STOPWORDS`, `public/app.js:1 app FAMILY_LABEL (15 older labels, overridden by FAMILY_LABELS)`, `public/features/roles.js:203 CHIP (chip-design family)`, `public/features/roles.js:211 TECHNICIAN / :208 DC_CONTEXT (data-center technician family)`
++- **Defined in:** `server/vet.js:1 vet.js FAMILIES (10 + other)`, `server/vet.js:1 vet.js roleFamily`, `public/features/roles.js:65 roles.js FAMILIES`, `public/features/roles.js:163 FAMILY_LABELS`, `public/features/roles.js:163 FAMILY_LABELS (29)`, `public/features/roles.js:219 FAMILIES regex lexicon`, `public/features/roles.js:254 DEPT_HINTS`, `public/features/roles.js:21 ABBREV / SYNONYM / LEVEL_WORDS / STOPWORDS`, `public/app.js:1 app FAMILY_LABEL (15 older labels, overridden by FAMILY_LABELS)`, `public/features/roles.js:203 CHIP (chip-design family)`, `public/features/roles.js:211 TECHNICIAN / :208 DC_CONTEXT (data-center technician family)`
+ - **Used in:** `server/vet.js:205` (API); `scripts/build-market.js:82` (Same role elsewhere); `public/app.js:399` (badge); `public/features/comps.js:73` (Same role elsewhere); `public/features/comps.js:143` (Compare); `test/features.test.js:412` (tests)
+ - **Validator:** scripts/refresh/jobs.js role-families; test/features.test.js roleFamily; yearly 100-title hand check (docs/process/product.md)
+ - **Before:** one-off hand checks (92/100 on 2026-10-02)
 diff --git a/public/app.js b/public/app.js
-index 6ca3bc9..392b6f9 100644
+index 6ca3bc9..410cc89 100644
 --- a/public/app.js
 +++ b/public/app.js
-@@ -3894,7 +3894,9 @@ function cardTerm(job) {
- function payPlaceText(job) {
+@@ -153,6 +153,8 @@ function termFactor(s) {
+   const m = Math.round((w * 12) / 52);
+   return m > 0 && Math.abs((m * 52) / 12 - w) < 0.5 ? 12 / m : 52 / w;
+ }
++/** P-2 (fix-data-6): the posting states this pay as a yearly figure (not annualized from an hourly, daily, weekly or monthly rate). */
++const statedYearly = (s) => !!s && (!s.originalInterval || s.originalInterval === 'year') && (!s.interval || s.interval === 'year') && !s.partTime;
+ /** Two posted amounts, both with cents when either has them: "$22.00–28.88", "$40–55", "$3,850". */
+ function postedPair(lo, hi, currency) {
+   const cents = (v) => Math.abs(v - Math.round(v)) >= 0.005;
+@@ -3890,13 +3892,21 @@ function cardTerm(job) {
+   const text = programText(job, t);
+   return { text, tip: t.fixed ? `${t.amount}${perText(t.per)}: fixed-term pay for a ${text}, not a yearly salary` : `${t.amount}${perText(t.per)} for a ${text}` };
+ }
+-/** The pay's own country, in a sentence: "the US", "Germany and Ireland", "other countries" (shared decision 1). */
+-function payPlaceText(job) {
++/**
++ * Where the pay is posted, in a sentence (shared decision 1): the places ("Tempe", "Herndon and Seattle", "Seattle,
++ * Bellevue and 3 more"), or the pay's own country ("the US", "Germany and Ireland", "other countries"). `max` places
++ * are named before "and N more".
++ */
++function payPlaceText(job, max = 2) {
    // fix-pay-at-place: a posting that prices each place on a row of its own names those places ("Seattle and
    // Bellevue"); one with no row for the place picked has no posted pay there (the lead decision of 2026-10-16).
 -  if (Array.isArray(job.salary?.ranges) && job.salary.ranges.length) {
-+  // P-1 (fix-data-6): so does one whose one range was posted for some of its places (salary.places: "Tempe", not "the
-+  // US", for a posting listed in Tempe, Nashville, Bellevue and Atlanta, under Atlanta).
++  // P-1 (fix-data-6): so does one whose one range was posted for some of its places (salary.places): "Pay posted for
++  // Tempe only", not "for the US only", for amazon:10487128 under Atlanta. The country is named only when those
++  // places are in another country than the places picked ("Pay posted for the US only" under Zurich).
 +  if ((Array.isArray(job.salary?.ranges) && job.salary.ranges.length) || (Array.isArray(job.salary?.places) && job.salary.places.length)) {
      const own = pricedPlaces(job);
-     if (own.length) return placeLabel(own);
+-    if (own.length) return placeLabel(own);
++    const here = viewSpec?.l.size ? new Set(job.locations.filter((l) => locMatches(job, viewSpec, [l])).map((l) => l?.country).filter(Boolean)) : null;
++    if (own.length && (!here?.size || own.some((l) => here.has(l?.country)))) return placeLabel(own, max);
    }
+   const cs = [...new Set((job._payLocs || payLocations(job)).map((l) => l?.country && String(l.country).toUpperCase()).filter(Boolean))];
+   if (!cs.length) return 'other places';
+@@ -4547,7 +4557,7 @@ const rangeText = (r, cur) => moneyRange(Number(r.min), Number(r.max ?? r.min),
+ function payPlacesLine(s, job = null) {
+   const rs = payRanges(s);
+   if (!rs) return null;
+-  const unit = job ? payUnit(job) : null;
++  const unit = job ? payUnit(job, true) : null; // P-2: each place's row as posted
+   const pay = (r) => (unit ? unit.fmt(Number(r.min), Number(r.max ?? r.min)) : rangeText(r, s.currency));
+   // fix-pay-at-place: one line per range, with no place name cut off (rangeName); the pay block's Details list every place.
+   // D-39: ranges posted for the same places (Amazon's two hourly rates for Boardman, Hermiston and Umatilla) share one
+@@ -4614,14 +4624,16 @@ function placeCount(rs) {
+  * hourly pay as an hourly rate, fixed-term pay per week, month or for the whole term, a programme's yearly rate with
+  * "/year", any other pay as a yearly range. `note` says what the unit is, for tips.
+  */
+-function payUnit(job) {
++function payUnit(job, exact = false) {
+   const s = job.salary, cur = s.currency;
+   if (isPartTimeHourly(job)) return { fmt: (a, b) => `${postedPair(a / 2080, b / 2080, cur)}/hour`, note: 'Part-time, paid by the hour' };
+   const term = postedTerm(s, job);
+-  if (!term) return { fmt: (a, b) => moneyRange(a, b, cur), note: '' };
++  // P-2 (fix-data-6): on the job page (`exact`), a yearly figure the posting states is written as posted ("$119,800–234,700").
++  const year = (a, b) => (exact && statedYearly(s) ? postedPair(a, b, cur) : moneyRange(a, b, cur));
++  if (!term) return { fmt: year, note: '' };
+   const prog = programText(job, term);
+   if (term.fixed && term.per === 'term') return { fmt: (a, b) => `${moneyRange(a / term.toTerm, b / term.toTerm, cur)} total`, note: `fixed-term pay for a ${prog}` };
+-  if (term.per === 'year') return { fmt: (a, b) => `${moneyRange(a, b, cur)}/year`, note: prog };
++  if (term.per === 'year') return { fmt: (a, b) => `${year(a, b)}/year`, note: prog };
+   const f = PER_YEAR[term.per] || 1;
+   return { fmt: (a, b) => `${postedPair(a / f, b / f, cur)}/${term.per}`, note: term.fixed ? (term.unstated ? 'fixed-term pay, length not stated' : `fixed-term pay for a ${prog}`) : prog };
+ }
+@@ -4634,11 +4646,11 @@ function payUnit(job) {
+  * drawer's rank and strip use (the posting's headline row: Amazon's search city, Microsoft's U.S. range), '' when
+  * that is the span. null for a posting with one range.
+  */
+-function payHeadline(job, F = viewSpec) {
++function payHeadline(job, F = viewSpec, exact = false) {
+   const s = job.salary;
+   const rs = s ? payRanges(s) : null;
+   if (!rs) return null;
+-  const unit = payUnit(job);
++  const unit = payUnit(job, exact);
+   const byPlace = `Pay by place: ${rs.map((r) => `${rangeLabel(r)} ${unit.fmt(Number(r.min), Number(r.max ?? r.min))}`).join(' · ')}`;
+   const what = unit.note ? ` (${unit.note})` : '';
+   const picked = pickedRange(job, F);
+@@ -4691,7 +4703,10 @@ function payLabels(job) {
+     lo === hi ? ['One number, not a range', ph ? 'The posting gives one number, not a range, for this place' : 'The posting gives one number, not a range'] : null,
+     job.extras?.equity ? ['+ equity mentioned', 'The description mentions equity; it isn\u2019t in this figure'] : null,
+     // P-1: on-target earnings already include the commission at target, so a "bonus" note would be wrong.
+-    job.extras?.bonus && !isOte(job) ? ['+ bonus mentioned', 'The description mentions a bonus; it isn\u2019t in this figure'] : null,
++    // K-1 (fix-data-6): a bonus target the posting states as a percentage reads as posted ("+ 20% bonus target"); a stated
++    // 0% target is no bonus (no chip); "+ bonus mentioned" is for a bonus with no figure.
++    job.extras?.bonus && !isOte(job) ? (job.extras.bonusTarget ? [`+ ${job.extras.bonusTarget} bonus target`, `The posting states a ${job.extras.bonusTarget} bonus target; it isn\u2019t in this figure`]
++      : ['+ bonus mentioned', 'The description mentions a bonus; it isn\u2019t in this figure']) : null,
+   ].filter(Boolean).slice(0, 2);
+   return labels.length ? h('div', { class: 'pay-labels' }, ...labels.map(([t, tip]) => h('span', { class: 'pay-label', title: tip }, t))) : null;
+ }
+@@ -4923,7 +4938,10 @@ function drawerContent(job) {
+     : partHourly ? 'Posted hourly pay for a part-time role. Equity and bonus aren’t included.'
+       : term?.fixed ? 'Fixed-term pay as posted. Equity and bonus aren’t included.' : 'Posted base pay. Equity and bonus aren’t included.') + elsewhere;
+   // fix-density: the caption's one line: what the pay is, or, under a Location filter, where it is for.
+-  const captionLine = !sal ? null : elsewhere ? `Posted for ${payPlaceText(job)}, not ${placesPicked()}`
++  // P-1 (fix-data-6): one line at every size; where the places don't fit, "only" stands for the places picked, then one
++  // place is named ("Seattle and 3 more"). The whole sentence is in Details (caption).
++  const captionLine = !sal ? null : elsewhere ? fitOneLine(h('span'), [`Posted for ${payPlaceText(job)}, not ${placesPicked()}`,
++    `Posted for ${payPlaceText(job)} only`, `Posted for ${payPlaceText(job, 1)} only`])
+     : isOte(job) ? 'On-target earnings' : isMinimum(job) ? 'Posted minimum base pay' : sal.includesShiftDifferential ? 'Posted pay, including shift pay'
+       : partHourly ? 'Posted hourly pay, part-time' : term?.fixed ? 'Fixed-term pay as posted' : 'Posted base pay';
+   // UX-22: under a Location filter, the range posted for the place picked.
+@@ -4931,6 +4949,7 @@ function drawerContent(job) {
+   // span of its ranges ("$60K–129K · 5 places"), or under a Location filter the range posted for the place picked,
+   // which the line under it names. The rank and the strip say in Details whose range they use.
+   const ph = sal && !isOte(job) && !isMinimum(job) ? payHeadline(job) : null;
++  const phExact = ph ? payHeadline(job, viewSpec, true) : null; // P-2: the posted figures, exact
+   // Shared decisions 3 and 4: the amount as it was stated. Fixed-term pay: "$3,850 a week · for about 17
+   // weeks"; a rate for a programme: "€72,000 a year · 13-week internship"; part-time: "$22.00–28.88 an hour".
+   const cur = sal?.currency || 'USD';
+@@ -4938,6 +4957,10 @@ function drawerContent(job) {
+   const shiftR = sal && !ph ? shiftRange(sal) : null;
+   const amountText = !sal ? null : ph ? ph.range : shiftR ? shiftText(job, shiftR, ' an hour') : partHourly ? `${postedPair(sal.min / 2080, sal.max / 2080, sal.currency)} an hour`
+     : term ? `${term.amount}${perText(term.per)}` : isMinimum(job) ? `from ${money(sal.min, sal.currency)}` : salaryRange(sal);
++  // P-2 (fix-data-6): the heading gives a yearly figure the posting states exactly ("€46,400", "$119,800–234,700"), as
++  // fixed-term and part-time pay already are; where that doesn't fit one line (280 px), the card's rounded figure.
++  const exactText = !sal || !statedYearly(sal) || shiftR || partHourly || term ? null : phExact ? phExact.range
++    : isMinimum(job) ? `from ${postedMoney(sal.min, sal.currency)}` : postedPair(sal.min, sal.max ?? sal.min, sal.currency);
+   const subText = !sal ? null : (ph?.picked ? `Posted for ${ph.picked.label} · ` : ph?.sub ? `${ph.sub} · ` : '') + (partHourly ? `${cur} · part-time, paid by the hour`
+     : term?.fixed ? `${cur} · ${term.unstated ? 'length not stated' : `for ${termText(term.weeks)}`}` : term ? `${cur} · ${programText(job, term)}` : `${cur} · per year`);
+   // Whose range the rank and the strip use: the place picked, the posting's headline row (Bellevue), or its span.
+@@ -4946,7 +4969,7 @@ function drawerContent(job) {
+   const salaryBlock = h('section', { class: 'd-salary' },
+     sal ? h('div', { class: 'd-sal-top' },
+       h('div', null,
+-        h('div', { class: 'd-sal-amt' }, amountText),
++        exactText && exactText !== amountText ? fitOneLine(h('div', { class: 'd-sal-amt' }), [exactText, amountText]) : h('div', { class: 'd-sal-amt' }, amountText),
+         h('div', { class: 'muted' }, subText),
+         (annualEl = annualNote(sal, job)),
+         // QA round 3: "Pay by place" for fixed-term and part-time pay too, in the unit it was posted in.
+diff --git a/public/features/compstimate.js b/public/features/compstimate.js
+index d1b0e25..57f630c 100644
+--- a/public/features/compstimate.js
++++ b/public/features/compstimate.js
+@@ -685,7 +685,7 @@ export const FAMILY_TITLES = Object.freeze({
+   support: 'Customer Success Manager', marketing: 'Marketing Manager', legal: 'Counsel', policy: 'Policy Manager',
+   'trust-safety': 'Trust and Safety Analyst', people: 'Recruiter', finance: 'Finance Manager',
+   it: 'IT Systems Engineer', admin: 'Executive Assistant', 'ai-training': 'AI Tutor',
+-  chip: 'Design Verification Engineer', 'dc-tech': 'Data Center Technician',
++  chip: 'Design Verification Engineer', 'dc-tech': 'Data Center Technician', 'site-ops': 'Transportation Associate',
+ });
+ 
+ // ---------------------------------------------------------------------------
+diff --git a/public/features/roles.js b/public/features/roles.js
+index fc0e08f..7e1df88 100644
+--- a/public/features/roles.js
++++ b/public/features/roles.js
+@@ -170,6 +170,7 @@ export const FAMILY_LABELS = Object.freeze({
+   chip: 'Chip design & silicon engineering',
+   manufacturing: 'Manufacturing, production & technicians',
+   'supply-chain': 'Supply chain & procurement',
++  'site-ops': 'Warehouse, delivery & store operations',
+   facilities: 'Facilities, construction & data centers',
+   'dc-tech': 'Data center technicians',
+   'field-ops': 'Field operations & test',
+@@ -207,8 +208,18 @@ const CHIP_CONTEXT = /\b(cpu|gpu|npu|tpu|socs?|asic|rtl|silicon|circuits?|mixed
+ // Environment Technician"): their own family, not the data-center engineers and real-estate
+ // managers in facilities (fix wave 3, BP-4: a Google technician compared with Anthropic's $362K
+ // data-center engineers).
+-const DC_CONTEXT = /\b(data ?centers?|datacenters?|critical environment)\b/;
+-const TECHNICIAN = /\btechnicians?\b/;
++// R-3 (fix-data-6): AWS writes its data-center operations "DCO" ("DCO Tech 3"), and Microsoft and AWS write a
++// technician "Tech" ("Critical Environment Ops Tech").
++const DC_CONTEXT = /\b(data ?centers?|datacenters?|critical environment|dco)\b/;
++const TECHNICIAN = /\b(technicians?|(ops|dco|dc) techs?)\b/;
++// R-1 (fix-data-6): warehouse, delivery-station, transport and store operations: the hourly associates, the leads and
++// process assistants of their shifts (Amazon "Delivery Station Customer Service Associate", "Transportation Associate",
++// "Retail Lead Associate (Reduced-Time)", "Lead Associate", "Process Assistant"), and, by Amazon's departments (DEPT_HINTS:
++// "Fulfillment & Operations Management", "Fulfillment Associate"), the area and station managers who run them. Their own
++// family, as BP-4 gave data-center technicians theirs; levels keep associates and managers apart. "Customer service" put
++// the associates in customer support beside technical account managers, so Same role elsewhere priced Google's Technical
++// Account Manager I in Toronto against a CA$46K delivery-station associate; the managers had no family at all (R-3).
++const OPS_ASSOCIATE = /\b(delivery station (customer service )?(associates?|liaisons?|agents?)|estacion de entrega|transportation associates?|(interim )?process assistants?|shift assistants?|(retail|store|warehouse|fulfil?lment( cent(er|re))?|sortation|inbound|outbound|seasonal) (lead )?associates?|lead (fulfil?lment |warehouse |store |retail )?associates?|warehouse (team members?|workers?))\b/;
+ 
+ /**
+  * Specific families, tested in order against the expanded text. Order matters:
+@@ -223,6 +234,7 @@ const FAMILIES = [
+   ['people', /\b(recruit\w*|talent|people|human resources|sourcer|compensation|benefits|payroll partner|learning and development|hr business partner|hr)\b/],
+   ['admin', /\b(executive assistant|administrative|office manager|receptionist|executive business partner|executive operations|front desk)\b/],
+   ['finance', /\b(financ\w*\b(?! (services|systems))|accountant|accounting|accounts (payable|receivable)|tax|treasury|(?<!(flight|memory|cache|display|dma|interrupt|motor|storage|ddr|dram|pcie|usb|management|embedded|io) )controller|payroll|fpanda|audit\w*|billing|order to cash|revenue manager|investor relations|pricing)\b/],
++  ['site-ops', OPS_ASSOCIATE], // R-1: before support ("customer service associate") and supply chain ("warehouse")
+   ['support', /\b(support|customer success|customer (experience|service|learning|education)|technical account manager|user operations|technical (training|education|instructor))\b/],
+   ['solutions', /\b(solutions? (architect\w*|engineer\w*|consultant|lead|specialist|principal)|sales engineer|forward deployed|deployment (strategist|lead)|ai deployment specialist|(?<!(cloud|itav|it) )deployment engineer|applied ai (engineer\w*|architect)|customer engineer|field (application|solutions) engineer|(?<!(fe|frontend|physical|soc|rtl|design) )implementation (engineer|manager|consultant|lead)|technical success|ai advisory|engagement manager|delivery (lead|manager)|(field|executive|enterprise|principal|customer) architect|field engineer|technical deployment)\b/],
+   ['supply-chain', /\b(supply (chain|planner|planning)|demand (and supply|planner|planning)|sourcing|procurement|buyer|purchasing|materials? (planner|associate|handler|manager|management|coordinator|specialist)|capacity (planner|planning)|logistics|warehous\w*|inventory|shipping|receiving|sales and operations planning|master scheduler|subcontracts?|supplier (development|management)|vendor manager|commodity|expediter|cost value engineer)\b/],
+@@ -252,6 +264,7 @@ const FAMILIES = [
+ 
+ /** Department text -> family, used only when the title alone is not specific. */
+ const DEPT_HINTS = [
++  ['site-ops', /\bfulfil?lment\b/], // R-1, R-3: Amazon's "Fulfillment & Operations Management" and "Fulfillment Associate"
+   ['ai-training', /\bhuman (data|frontier)/],
+   ['facilities', /\b(data ?center|facilit|real estate|ehs|workplace|construction|compute)\b/],
+   ['supply-chain', /\b(supply chain|procurement|sourcing|logistics|warehous)/],
+@@ -330,8 +343,12 @@ export function roleFamily(title, ctx) {
+   if (fam === 'hardware' && (/\b(facilit\w*|construction)\b/.test(full) ||
+     (/\bdata ?center\b/.test(full) && /\b(electrical|mechanical|controls)\b/.test(full)))) fam = 'facilities';
+   if (fam === 'policy' && /\bsecurity\b/.test(deptText)) fam = 'security';
+-  // Technicians, operators and ops staff on a data-center campus are facilities work.
+-  if (['manufacturing', 'bizops', 'field-ops'].includes(fam) && /\bdata ?center\b/.test(`${full} ${deptText}`)) fam = 'facilities';
++  // Technicians, operators and ops staff on a data-center campus are facilities work. R-3 (fix-data-6): so is a subject
++  // matter expert there (Meta's "Electrical Subject Matter Expert" in Data Center Operations is no AI tutor), asset
++  // management on a data-center campus (Meta's "Asset Management Operations Manager" is not enterprise IT), and Microsoft's
++  // "Critical Environment Ops" (the department names the data center as DC_CONTEXT reads it).
++  if (['manufacturing', 'bizops', 'field-ops', 'ai-training'].includes(fam) && DC_CONTEXT.test(`${full} ${deptText}`)) fam = 'facilities';
++  if (fam === 'it' && /\basset management\b/.test(full) && DC_CONTEXT.test(`${full} ${deptText}`)) fam = 'facilities';
+   if (fam === 'policy' && /\b(safeguards|trust and safety|integrity)\b/.test(deptText)) fam = 'trust-safety';
+   // A design manager or designer of chips is chip design ("CPU Cache Subsystem Senior Design Manager").
+   if (fam === 'design' && CHIP_CONTEXT.test(full)) fam = 'chip';
+@@ -357,6 +374,7 @@ const FAMILY_AFFINITY = {
+   'swe|it': 0.4, 'security|it': 0.35, 'hardware|field-ops': 0.35, 'policy|legal': 0.35,
+   'policy|trust-safety': 0.4, 'facilities|manufacturing': 0.25, 'swe|ai-training': 0, 'ml|ai-training': 0,
+   'hardware|chip': 0.85, 'swe|chip': 0.5, 'dc-tech|facilities': 0.7, 'dc-tech|manufacturing': 0.5, 'dc-tech|it': 0.4, 'dc-tech|support': 0.3,
++  'site-ops|supply-chain': 0.4, 'site-ops|manufacturing': 0.3, 'site-ops|support': 0.2, // R-1
+ };
+ 
+ /** Similarity of two family ids in [0,1] (0.35 when either is unknown). */
+diff --git a/server/keywords.js b/server/keywords.js
+index 5c844e8..d05116d 100644
+--- a/server/keywords.js
++++ b/server/keywords.js
+@@ -1312,6 +1312,12 @@ const FELLOW_RE = /\bfellows?\b/i;
+ // Researcher", "Student Worker Opportunities", French "Stagiaire", "Étudiant-chercheur"),
+ // but not a role that serves students ("Student Success Manager").
+ const STUDENT_RE = /\bstudents?\b(?!\s+(?:success|affairs|loans?|services?|experience|engagement|recruit\w*|outreach|programs?|community|support|marketing))|\bstagiaires?\b|(?:^|[\s,(])[ÉéEe]tudiante?s?[- ]chercheu(?:r|se)s?\b/i;
++// R-2 (fix-data-6): a lead associate leads a shift of hourly associates: Amazon's "Lead Associate", "Lead Associate,
++// Amazon Now" and "Retail Lead Associate (Reduced-Time), Customer Experience Operations" ($24-31 an hour, 126 US postings
++// filed Senior under $60K a year), Anduril's "Lead Materials Associate". It is the rung above an associate (Entry): Mid,
++// not Senior, as BP-11 made Art, Creative and Technical Directors Senior rather than Director+. Only where "associate"
++// ends the role ("Lead Associate Scientist" is not one); "Senior Lead Associate" stays Senior.
++const LEAD_ASSOCIATE_RE = /\blead\s+(?:[\w&-]+\s+){0,2}?associates?\b(?=\s*(?:$|[,(|/–—-]))/i;
+ // "Associate General Counsel", "Associate Product Counsel": a lawyer's title, not entry level.
+ const ASSOCIATE_COUNSEL_RE = /\bassociate\s+(?:[\w&-]+\s+){0,3}?counsel\b/gi;
+ 
+@@ -1359,6 +1365,7 @@ function seniorityOf(title, company = null) {
+   const isManager = /\bmanager\b/i.test(t) && !NON_PEOPLE_MANAGER.test(t);
+   if (isManager || /\b(?:team lead|people lead|supervisor|engineering lead|lead,? (?:people|team))\b/i.test(t)
+     || /\bmanager,\s/i.test(t) && !NON_PEOPLE_MANAGER.test(t)) return byTitle('Manager');
++  if (LEAD_ASSOCIATE_RE.test(t) && !/\b(?:senior|sr\.?)\b/i.test(t) && !icDirector) return byTitle('Mid'); // R-2
+   if (/\b(?:senior|sr\.?|lead)\b/i.test(t) || icDirector) return byTitle('Senior');
+   if (/\b(?:junior|jr\.?|associate|new (?:college |university )?grad(?:uate)?|(?:college|university) grad(?:uate)?|graduate|entry[- ]level|early careers?)\b/i.test(t.replace(ASSOCIATE_COUNSEL_RE, ' counsel'))) return byTitle('Entry');
+   // A numbered rung on the board's ladder (Google "III", Netflix "(L5)", "Engineer II").
+@@ -1530,6 +1537,25 @@ export function extractCompExtras(text, opts = {}) {
+   return { equity, bonus };
+ }
+ 
++// K-1 (the lead, persona-beta-2-25-34): a bonus target the posting states as a percentage ("+ 20% bonus target", "+ 42.86%
++// bonus target": Google's pay lines, 2,455 postings with one figure on the 2026-10-16 crawl, none with two) is shown as
++// posted, not as "+ bonus mentioned".
++const BONUS_TARGET_RE = /(?<![\d.,])(\d{1,3}(?:[.,]\d+)?)\s*%\s*(?:(?:annual|target|performance)\s+)?bonus(?:es)?(?:\s+target)?\b/gi;
++/**
++ * K-1: the bonus target a posting states, as posted ("20%", "42.86%"), when it states exactly one figure above zero;
++ * null for none, only 0%, or two different figures (which one is this job's is not said).
++ */
++export function statedBonusTarget(text) {
++  let src = String(text || '');
++  if (/<(?:p|li|ul|div|br|h[1-6])\b/i.test(src)) src = htmlToText(src);
++  const vals = new Map();
++  for (const m of src.matchAll(BONUS_TARGET_RE)) {
++    const v = Number(m[1].replace(',', '.'));
++    if (v > 0 && v <= 300) vals.set(v, `${m[1].replace(',', '.')}%`);
++  }
++  return vals.size === 1 ? [...vals.values()][0] : null;
++}
++
+ /**
+  * K-1: true when the posting's only bonus wording is a stated 0% bonus target, so a stored `extras.bonus` from before
+  * norm-14 is wrong (normalize.js relabelJobs clears it). Anything else that reads as a bonus keeps it.
+diff --git a/server/normalize.js b/server/normalize.js
+index 934ae8b..c48efb5 100644
+--- a/server/normalize.js
++++ b/server/normalize.js
+@@ -74,8 +74,13 @@ export function compExtras(raw, text, title) {
+   const fn = keywordsModule.extractCompExtras;
+   if (typeof fn !== 'function') return { ...NO_EXTRAS };
+   const summary = [raw && raw.compensationSummary, raw && raw.salary && raw.salary.text].filter(Boolean).join('\n');
+-  const out = safe(() => fn(summary ? `${text}\n${summary}` : text, { title }), NO_EXTRAS);
+-  return { equity: out.equity === true, bonus: out.bonus === true };
++  const src = summary ? `${text}\n${summary}` : text;
++  const out = safe(() => fn(src, { title }), NO_EXTRAS);
++  const res = { equity: out.equity === true, bonus: out.bonus === true };
++  // K-1 (fix-data-6): a bonus target stated as a percentage, as posted ("20%"), for the drawer's chip.
++  const target = res.bonus && typeof keywordsModule.statedBonusTarget === 'function' ? safe(() => keywordsModule.statedBonusTarget(src), null) : null;
++  if (target) res.bonusTarget = target;
++  return res;
+ }
+ 
+ function safe(fn, fallback) {
+@@ -291,9 +296,14 @@ export function relabelJobs(jobs) {
+     if (lvl) { next.seniority = lvl.level; next.seniorityBasis = lvl.basis; }
+     else if (!next.seniorityBasis) next.seniorityBasis = (next.seniority || 'Mid') === 'Mid' ? 'default' : 'title';
+     // K-1 (fix-data-6): a stored bonus whose only wording is a stated 0% bonus target ("+ 0% bonus target") is no bonus.
++    // A stated bonus target ("+ 20% bonus target") is kept as posted (extras.bonusTarget).
+     if (j.extras && j.extras.bonus === true && typeof keywordsModule.zeroBonusOnly === 'function') {
+       const src = [text, j.salary && j.salary.text, j.salaryRaw && j.salaryRaw.text].filter(Boolean).join('\n');
+-      if (safe(() => keywordsModule.zeroBonusOnly(src, { title }), false)) next.extras = { ...j.extras, bonus: false };
++      if (safe(() => keywordsModule.zeroBonusOnly(src, { title }), false)) next.extras = { equity: j.extras.equity === true, bonus: false };
++      else {
++        const target = safe(() => keywordsModule.statedBonusTarget(src), null);
++        if (target && j.extras.bonusTarget !== target) next.extras = { ...j.extras, bonusTarget: target };
++      }
+     }
+     // (Not safe(): a fresh null, "no salary", must replace the stored one.)
+     let fresh;
+diff --git a/test/fix-data-6.test.js b/test/fix-data-6.test.js
+index 81418de..360308e 100644
+--- a/test/fix-data-6.test.js
++++ b/test/fix-data-6.test.js
+@@ -1,5 +1,6 @@
+ // Fix lane fix-data-6 (docs/process/fix-data-6.md): G-1 (towns at their state's or country's centre near the big-tech
+-// hubs), K-1 ("+ 0% bonus target" read as a bonus), and the lead's later findings. Each test fails on the code before the
++// hubs), K-1 ("+ 0% bonus target" read as a bonus; a stated bonus target shown as posted), R-1 (warehouse, delivery and
++// store associates in customer support), R-2 (lead associates filed Senior), and the lead's later findings. Each test fails on the code before the
+ // fix (00bd52c) and passes after it. What only the built page shows (pins, the drawer's chips, at the phone sizes) is in
+ // test/e2e/fix-data-6.e2e.js. Every test here reads only the repo or builds its own small input; none needs the crawl.
+ import { test } from 'node:test';
+@@ -12,6 +13,8 @@ import { geocode, geocodeMany, splitLocations, locationPrecision, GAZETTEER_SIZE
+ import { payAreaOf } from '../server/salary.js';
+ import { NORMALIZER_VERSION, relabelJobs } from '../server/normalize.js';
+ import * as keywords from '../server/keywords.js';
++import { roleFamily, FAMILY_LABELS, familySim } from '../public/features/roles.js';
++import { FAMILY_TITLES } from '../public/features/compstimate.js';
+ 
+ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+ const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
+@@ -140,3 +143,75 @@ test('K-1 a stored bonus whose only wording is "+ 0% bonus target" is cleared on
+   assert.equal(keywords.zeroBonusOnly('Canada: $99000 (CAD) + 0% bonus target', {}), true);
+   assert.equal(keywords.zeroBonusOnly('+ 0% bonus target, and a signing bonus', {}), false);
+ });
++test('K-1 a bonus target stated as a percentage is kept as posted (extras.bonusTarget); none without a figure', () => {
++  assert.equal(keywords.statedBonusTarget('US: $171000 - $247000 (USD) + 20% bonus target + equity + benefits'), '20%');
++  assert.equal(keywords.statedBonusTarget('US: $150000 - $200000 (USD) + 100% bonus target'), '100%');
++  assert.equal(keywords.statedBonusTarget('Germany: €80000 (EUR) + 42.86% bonus target'), '42.86%');
++  assert.equal(keywords.statedBonusTarget('Canada: $99000 (CAD) + 0% bonus target'), null, 'zero is no bonus');
++  assert.equal(keywords.statedBonusTarget('eligible for an annual bonus'), null, 'no figure');
++  assert.equal(keywords.statedBonusTarget('+ 15% bonus target ... + 20% bonus target'), null, 'two figures: which is this job\'s is not said');
++  const job = (html, extras = { equity: true, bonus: true }) => ({ id: 'g:3', company: 'google', title: 'Software Engineer III', descriptionHtml: html, extras, locations: [], salary: null });
++  const [a] = relabelJobs([job('<p>US: $171000 - $247000 (USD) + 20% bonus target + equity + benefits</p>')]);
++  assert.deepEqual(a.extras, { equity: true, bonus: true, bonusTarget: '20%' });
++  const [b] = relabelJobs([job('<p>We offer an annual bonus.</p>')]);
++  assert.deepEqual(b.extras, { equity: true, bonus: true }, 'no figure: unchanged');
++});
++
++/* ------------------------------------------------------------- R-1 */
++// Amazon's hourly warehouse, delivery-station, transport and store associates sat in "Customer support & success" (by
++// "customer service" in the title, or the department "Administrative Support"), beside $181K technical account managers:
++// Same role elsewhere priced Google's Technical Account Manager I in Toronto against a CA$46K delivery-station associate.
++test('R-1 warehouse, delivery and store associates have their own family, not customer support', () => {
++  const ops = [
++    ['Delivery Station Customer Service Associate, DSL', 'Customer Service'],
++    ['Transportation Associate', 'Administrative Support'],
++    ['Retail Lead Associate (Reduced-Time), Customer Experience Operations', 'Fulfillment & Operations Management'],
++    ['Process Assistant', 'Administrative Support'],
++    ['Process Assistant, RSR', 'Fulfillment Associate'],
++    ['Lead Associate', 'Fulfillment Associate'],
++    ['Lead Associate, Amazon Now', null],
++    ['CS Delivery Station Liaison, DSL', 'Customer Service'],
++    ['Asociado de Servicio al Cliente en Estación de Entrega, DSL', 'Customer Service'],
++  ];
++  for (const [title, department] of ops) assert.equal(roleFamily(title, { department }), 'site-ops', title);
++  assert.equal(FAMILY_LABELS['site-ops'], 'Warehouse, delivery & store operations');
++  assert.equal(roleFamily(FAMILY_TITLES['site-ops']), 'site-ops', 'the family\'s own title reads back as the family');
++  assert.ok(familySim('site-ops', 'support') < 0.5, 'not weighed like customer support');
++});
++test('R-1 technical account managers and other support roles stay where they were', () => {
++  for (const [title, department, want] of [
++    ['Technical Account Manager I, Google Cloud Consulting', null, 'support'],
++    ['Sr. Technical Account Manager, Sr. TAM', 'Operations, IT, & Support Engineering', 'support'],
++    ['Customer Success Manager, Zappos', 'Customer Service', 'support'],
++    ['Seasonal MyHR Live Support Sr. Advisor', 'Administrative Support', 'support'],
++    ['Area Manager, AMZL - Delivery Station', 'Fulfillment & Operations Management', null],
++    ['Supply Chain Manager', null, 'supply-chain'],
++    ['Data Center Technician III', null, 'dc-tech'],
++  ]) assert.equal(roleFamily(title, { department }), want, title);
++});
++test('R-1 the registry counts the new family, and every family has a label and a title', () => {
++  assert.equal(Object.keys(FAMILY_LABELS).length, 29);
++  const reg = JSON.parse(read('data/freshness.json')).entries.find((e) => e.id === 'role-families');
++  assert.match(reg.values, /^29 families/);
++  for (const id of Object.keys(FAMILY_LABELS)) assert.ok(FAMILY_TITLES[id], `FAMILY_TITLES.${id}`);
++});
++
++/* ------------------------------------------------------------- R-2 */
++// Amazon's hourly "Lead Associate" titles were filed Senior by the title rule ("lead"): 126 US postings filed Senior paid
++// under $60K a year, so the Senior filter and the Senior comparison cells held shift leads.
++test('R-2 a lead associate is Mid, by its title, not Senior', () => {
++  for (const title of ['Lead Associate', 'Lead Associate, Amazon Now', 'Retail Lead Associate (Reduced-Time), Customer Experience Operations',
++    'Lead Fulfillment Associate', 'Lead Associate, Quick Commerce F F Center-VAR (L3)', 'Lead Materials Associate']) {
++    assert.deepEqual(keywords.jobSeniority({ title, company: 'amazon' }), { level: 'Mid', basis: 'title' }, title);
++  }
++});
++test('R-2 professional leads, senior associates and a company\'s own level are unchanged', () => {
++  for (const [title, level] of [['Tech Lead', 'Senior'], ['Lead Engineer', 'Senior'], ['Lead Designer, Maps', 'Senior'], ['Lead Software Engineer', 'Senior'],
++    ['Senior Lead Associate', 'Senior'], ['Lead Associate Scientist', 'Senior'], ['Team Lead, Associates', 'Manager'], ['Warehouse Associate', 'Entry'],
++    ['Lead Technical Writer, Maritime & Undersea Systems', 'Senior'], ['Lead Production Technician', 'Senior']]) {
++    assert.equal(keywords.jobSeniority({ title, company: 'anduril' }).level, level, title);
++  }
++  // VT-8: Microsoft's own level in the pay sentence still beats the title.
++  const ms = keywords.jobSeniority({ title: 'Lead Associate', company: 'microsoft', text: 'Lead Associate IC4 - The typical base pay range for this role across the U.S. is USD $119,800 - $234,700 per year.' });
++  assert.equal(ms.basis, 'pay');
++});
+diff --git a/test/fixtures/golden-normalize.json b/test/fixtures/golden-normalize.json
+index 43ca963..b3f7373 100644
+--- a/test/fixtures/golden-normalize.json
++++ b/test/fixtures/golden-normalize.json
+@@ -68,8 +68,8 @@
+   },
+   {
+    "normalizerVersion": "norm-14",
+-   "reason": "norm-14 fix-data-6 (G-1: 359 towns near the big-tech hubs at their own place, not their state's or country's centre; K-1: a stated '+ 0% bonus target' is not a bonus mention). 2 of 300 hashes changed, both G-1 towns: palantir:802add74 Kitsap, WA and xai:5216075007 Bastrop, TX",
+-   "at": "2026-10-23T21:37:32.884Z"
++   "reason": "norm-14 fix-data-6 (G-1: 359 towns near the big-tech hubs at their own place, not their state's or country's centre; K-1: a stated '+ 0% bonus target' is not a bonus mention; R-2: a lead associate is Mid, not Senior). 2 of 300 hashes changed, both G-1 towns: palantir:802add74 Kitsap, WA and xai:5216075007 Bastrop, TX",
++   "at": "2026-10-23T21:51:53.691Z"
+   }
+  ],
+  "hashes": {
