@@ -1,7 +1,7 @@
 From 853cd5bfed1def733c7a299c34b322df78cb2fae Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 23 Oct 2026 15:43:55 +0000
-Subject: [PATCH 10/11] Integration: qa-suite-beta's patches (runner stops
+Subject: [PATCH 10/12] Integration: qa-suite-beta's patches (runner stops
  cleanly on signals, --shard; T-1 board list; T-4 links; T-11 state waits;
  T-19 skips; CPU-time flake fixes; the sharded E2E workflow)
 

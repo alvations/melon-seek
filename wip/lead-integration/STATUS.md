@@ -2,11 +2,12 @@
 
 - Worktree: `/tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92f3-f582ebca24d9/scratchpad/wt-int`
 - Base (on claude/stoic-ride-54ddxp): `9979e589405ecffff9c454108b63b2e96a392ad7`
-- Head: `da73008b6e41f5071697eba0200289361d17b4c3`
+- Head: `9676fbed0f9f28086a7e24091f687783319fc03f`
 - Restore: `bash scripts/cycle/restore-wip.sh lead-integration <new worktree dir>`
 
 ## Commits since the base
 ```
+9676fbe e2e harness: bound each cleanup step (30 s, E2E_CLEANUP_TIMEOUT), so a hung context.close() can't stall a run
 da73008 qa-suite-beta: log final: State, T-18/T-19/T-20, E1 is the lead's batch-3 gate, E4 and U4 results, the patch apply order
 853cd5b Integration: qa-suite-beta's patches (runner stops cleanly on signals, --shard; T-1 board list; T-4 links; T-11 state waits; T-19 skips; CPU-time flake fixes; the sharded E2E workflow)
 ac1ba07 qa-suite-beta: on 433aa59 (batch 3): this lane's files from c4f7909, the patches regenerated, the expected-red list

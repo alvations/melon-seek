@@ -1,0 +1,213 @@
+From 8d02948400eb6b76346b3532fed7e13d46d9d3fd Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 23 Oct 2026 14:07:58 +0000
+Subject: [PATCH 21/29] fix-mr-3: T-17 job titles on one line (line breaks and
+ runs of whitespace are one space), in the norm-13 bump
+
+cleanTitle in normalizeJob and relabelJobs (stored snapshots): Meta "Research Scientist,\nMachine Learning ..." and
+Amazon's two "...\n, ..." titles read as one line; words and order as posted, a posted space before a comma kept.
+362 titles change on the 2026-10-16 crawl (3 line breaks, 340 double spaces, 19 non-breaking spaces). Golden
+re-baselined once for norm-13 (MR-40 and T-17) with UPDATE_GOLDEN: 3 of 300 hashes changed, all double-spaced titles.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+---
+ docs/CONTRACT.md                    | 11 +++++++++-
+ server/normalize.js                 | 20 ++++++++++++++---
+ test/fix-mr-3.test.js               | 34 ++++++++++++++++++++++++++++-
+ test/fixtures/golden-normalize.json | 10 ++++-----
+ test/golden-normalize.test.js       |  2 +-
+ 5 files changed, 66 insertions(+), 11 deletions(-)
+
+diff --git a/docs/CONTRACT.md b/docs/CONTRACT.md
+index 492fd36..546ce81 100644
+--- a/docs/CONTRACT.md
++++ b/docs/CONTRACT.md
+@@ -998,7 +998,8 @@ groupings are unchanged.
+ Findings MR-21, MR-22 ([docs/process/methodology-review-beta.md](process/methodology-review-beta.md)) and MR-26, MR-29 (the UI
+ half), MR-33, MR-37, MR-38, MR-39, MR-40 and MR-41 ([docs/process/methodology-review-beta-2.md](process/methodology-review-beta-2.md)).
+ Log: [docs/process/fix-mr-3.md](process/fix-mr-3.md). Every addition is optional for readers; no export changed its return shape.
+-`NORMALIZER_VERSION` is `norm-13` (the gazetteer moved 43 towns): stored older snapshots are re-derived once. Nothing is dropped:
++`NORMALIZER_VERSION` is `norm-13` (the gazetteer moved 43 towns, and titles are on one line, T-17): stored older snapshots
++are re-derived once. Nothing is dropped:
+ every posting, pay row and place string is kept; one Microsoft posting gains the second range it posts (1,821 → 1,822 rows).
+ 
+ **Fixed-term pay of unstated length (MR-38, `public/features/shared.js`):** `isTermUnstated(job)` is true for a posting at level
+@@ -1036,6 +1037,14 @@ crawl's towns that were at their state's centre) are gazetteer cities. A `CITIES
+ own state named: never bare, never by its country alone, never to split a comma list and never in the last-resort scan. On the
+ 2026-10-16 crawl 101 postings change, latitude and longitude only. `GAZETTEER_SIZE` is 384 cities.
+ 
++**Titles (`server/normalize.js`, T-17, from the test-suite review):** `cleanTitle(title)`: a line break and the spaces around it
++before a comma or period go, every other run of whitespace (line breaks, non-breaking spaces, double spaces) is one space, and
++the ends are trimmed; the words and their order are kept, and so is a space the posting itself puts before a comma ("Technician
++, AWS"). `normalizeJob` writes it, and `relabelJobs` applies it to stored titles. On the 2026-10-16 crawl 362 titles change
++(3 line breaks: meta:1747806499828365, amazon:10538351, amazon:10574668; 340 runs of spaces; 19 non-breaking spaces); the history
++ledger's fingerprints do not change (`normText` already reads whitespace as one space). Golden: 3 of the 300 hashes changed, all
++titles with a double space.
++
+ **Freshness (`scripts/refresh/lib.js`, MR-26):** `isPipelineEntry(entry)` (cadence `daily`) and `shownOverdue(entry, now)`. A daily
+ pipeline entry (the postings) is never "update due" on the page built from it: `run.js` `stalenessRows` and `genericResult`, the
+ methodology's sources table (`methodology-figures.js loadFigureInputs`) and `api/freshness.json` (`derived.js publicFreshness`:
+diff --git a/server/normalize.js b/server/normalize.js
+index 5d9ab2c..f63161e 100644
+--- a/server/normalize.js
++++ b/server/normalize.js
+@@ -42,7 +42,8 @@ import { postingRule } from './companies.js';
+  * an intern's, "Data Residency" is not a residency, one "St." spelling in US and Canadian towns, "New York State"
+  * and "Washington State", Cajamar and six other Brazilian towns, Luxembourg City, Town and Country, MO); norm-13 =
+  * fix-mr-3 (docs/process/fix-mr-3.md, MR-40: 43 New York, New Jersey and Connecticut towns near Manhattan are at their
+- * own place, not their state's centre, so Microsoft's NYC-metro range reaches them). Stored
++ * own place, not their state's centre, so Microsoft's NYC-metro range reaches them; T-17: a title's line breaks and runs
++ * of whitespace are one space, cleanTitle). Stored
+  * snapshots are upgraded with relocateJobs (which also re-derives text-sourced pay, the
+  * pay labels and the level, then re-runs the vetting gate) and rekeyBoardJobs.
+  */
+@@ -50,6 +51,18 @@ export const NORMALIZER_VERSION = 'norm-13';
+ 
+ const NO_EXTRAS = Object.freeze({ equity: false, bonus: false });
+ 
++/**
++ * T-17 (fix-mr-3): a job title on one line, as posted. A line break and the spaces around it before a comma or period
++ * go ("Partner Development Manager\n, Benelux Partner Team" -> "Partner Development Manager, Benelux Partner Team"),
++ * then every run of whitespace is one space and the ends are trimmed. The words and their order are kept exactly; a
++ * space the posting itself puts before a comma ("Technician , AWS", Amazon) is kept too. Titles held line breaks
++ * that split CSV lines in naive readers and broke one-line places (Meta 1, Amazon 2 on the 2026-10-16 crawl).
++ */
++export function cleanTitle(title) {
++  if (title == null) return '';
++  return String(title).replace(/[^\S\r\n]*[\r\n][\s]*(?=[,.])/g, '').replace(/\s+/g, ' ').trim();
++}
++
+ /**
+  * F2 extras: { equity, bonus } from keywords.extractCompExtras (feature-detected,
+  * so an older keywords.js still works). Input: the description text plus the
+@@ -267,11 +280,12 @@ export function relabelJobs(jobs) {
+   let changed = false;
+   const out = jobs.map((j) => {
+     if (!j || typeof j !== 'object') return j;
+-    const title = j.title || '';
++    const title = typeof j.title === 'string' ? cleanTitle(j.title) : j.title || ''; // T-17: stored titles too
+     const html = typeof j.descriptionHtml === 'string' ? j.descriptionHtml : '';
+     const text = html ? htmlToText(html) : '';
+     const lvl = title ? safe(() => jobSeniority({ title, text, company: j.company || null }), null) : null;
+     const next = { ...j };
++    if (typeof j.title === 'string' && title && title !== j.title) next.title = title;
+     if (lvl) { next.seniority = lvl.level; next.seniorityBasis = lvl.basis; }
+     else if (!next.seniorityBasis) next.seniorityBasis = (next.seniority || 'Mid') === 'Mid' ? 'default' : 'title';
+     // (Not safe(): a fresh null, "no salary", must replace the stored one.)
+@@ -338,7 +352,7 @@ export function normalizeJob(raw, company, { boilerplate = null, team = null } =
+   const skillText = team && team.size && html && typeof keywordsModule.descriptionText === 'function'
+     ? safe(() => keywordsModule.descriptionText(html, { skip: team }), null)
+     : null;
+-  const title = raw.title || 'Untitled role';
++  const title = cleanTitle(raw.title) || 'Untitled role'; // T-17: one line, words as posted
+   const locations = normalizeLocations(raw);
+   const remote = raw.remote === true || locations.some((l) => l && l.remote === true);
+ 
+diff --git a/test/fix-mr-3.test.js b/test/fix-mr-3.test.js
+index f567d53..093b03c 100644
+--- a/test/fix-mr-3.test.js
++++ b/test/fix-mr-3.test.js
+@@ -15,7 +15,7 @@ import { summaryStats } from '../public/features/insights.js';
+ import { FX_SOURCE } from '../public/viz/palette.js';
+ import { geocode, locationPrecision } from '../server/geo.js';
+ import { payAreaOf } from '../server/salary.js';
+-import { NORMALIZER_VERSION } from '../server/normalize.js';
++import { NORMALIZER_VERSION, cleanTitle, normalizeJob, relabelJobs } from '../server/normalize.js';
+ import { jobSeniority } from '../server/keywords.js';
+ import { listCompanies } from '../server/companies.js';
+ import { extractConst } from '../scripts/refresh/lib.js';
+@@ -212,3 +212,35 @@ test('MR-39 the stats line\'s median is the main currency\'s, and the line and i
+   const k = fnBody('renderKpis');
+   assert.match(k, /st\.basis/, 'the stats line does not say which country its median is for');
+ });
++
++/* ------------------------------------------------------------- T-17 */
++// Titles held line breaks as posted (Meta 1, Amazon 2 on the 2026-10-16 crawl). They split CSV lines in naive readers and
++// read oddly in one-line places. normalizeJob (fresh crawls) and relabelJobs (stored snapshots, run on a version change)
++// put them on one line: the words and their order exactly as posted.
++const T17 = [
++  ['Research Scientist,\nMachine Learning for Monetization (PhD)', 'Research Scientist, Machine Learning for Monetization (PhD)'],
++  ['Partner Development Manager\n, Benelux Partner Team', 'Partner Development Manager, Benelux Partner Team'],
++  ['Payroll Analyst - BENELUX, 12 months fixed contract \n, EMEA Payroll Operations', 'Payroll Analyst - BENELUX, 12 months fixed contract, EMEA Payroll Operations'],
++];
++const words = (t) => t.replace(/[,.]/g, ' ').split(/\s+/).filter(Boolean);
++test('T-17 a title\'s line breaks become one space, with no space left before the comma; words and order as posted', () => {
++  for (const [raw, want] of T17) {
++    assert.equal(cleanTitle(raw), want);
++    assert.deepEqual(words(cleanTitle(raw)), words(raw), `${JSON.stringify(raw)}: the words or their order changed`);
++    assert.doesNotMatch(cleanTitle(raw), /[\r\n]/);
++  }
++  assert.equal(cleanTitle('Senior Solutions Architect, AI Compute  – NPN'), 'Senior Solutions Architect, AI Compute – NPN', 'a run of spaces is one space');
++  assert.equal(cleanTitle('Performance Ops Specialist\u00a0II, Delivery'), 'Performance Ops Specialist II, Delivery', 'a non-breaking space is a space');
++  assert.equal(cleanTitle('Engineering Operation Technician , AWS Opportunity'), 'Engineering Operation Technician , AWS Opportunity', 'a space the posting puts before a comma stays');
++  assert.equal(cleanTitle('Senior .NET Developer'), 'Senior .NET Developer');
++  assert.equal(cleanTitle('  Data Analyst  '), 'Data Analyst');
++});
++test('T-17 normalizeJob and relabelJobs (stored snapshots) both write the one-line title', () => {
++  const company = { slug: 'meta', name: 'Meta' };
++  for (const [raw, want] of T17) {
++    const job = normalizeJob({ sourceId: '1', title: raw, locationText: 'Menlo Park, CA', html: '<p>x</p>', text: 'x' }, company);
++    assert.equal(job.title, want);
++    const [stored] = relabelJobs([{ ...job, title: raw }]);
++    assert.equal(stored.title, want, 'a stored snapshot keeps the line break until it is upgraded');
++  }
++});
+diff --git a/test/fixtures/golden-normalize.json b/test/fixtures/golden-normalize.json
+index c8d87ff..63255de 100644
+--- a/test/fixtures/golden-normalize.json
++++ b/test/fixtures/golden-normalize.json
+@@ -63,8 +63,8 @@
+   },
+   {
+    "normalizerVersion": "norm-13",
+-   "reason": "norm-13 fix-mr-3 (MR-40: 43 New York-area towns in the gazetteer); 0 of the 300 hashes changed, version only",
+-   "at": "2026-10-23T13:38:09.764Z"
++   "reason": "norm-13 fix-mr-3: MR-40 (43 New York-area towns in the gazetteer) and T-17 (titles on one line: line breaks and runs of whitespace are one space); 3 of 300 hashes changed (titles with a double space)",
++   "at": "2026-10-23T14:07:18.645Z"
+   }
+  ],
+  "hashes": {
+@@ -285,7 +285,7 @@
+   "scaleai:4481921005": "3412d236ff697d29",
+   "scaleai:4716445005": "67df62a03fb4ed97",
+   "scaleai:4693449005": "1f8ca12633f8f6f4",
+-  "scaleai:4722811005": "e73e193f5044d0e9",
++  "scaleai:4722811005": "885739cbc61070b9",
+   "scaleai:4565836005": "05bf9110094f0920",
+   "scaleai:4677657005": "a6989ad5916c22fc",
+   "scaleai:4695042005": "c16c4b7282352cdc",
+@@ -300,7 +300,7 @@
+   "shieldai:9f3bb3e2-acea-4f52-b6af-9445920877b0": "f912debebebe63a0",
+   "shieldai:1d33c48e-92c6-48c4-b8e2-0e412b889672": "7a99848ada5f7089",
+   "shieldai:70f28ba1-aac2-4911-8253-fe86e1e0242a": "46f316aea0dd80c0",
+-  "shieldai:9e5b2887-d40e-48ac-bfb3-f08bc9aa8829": "1cc1246a1879e8cb",
++  "shieldai:9e5b2887-d40e-48ac-bfb3-f08bc9aa8829": "7607c8555c84aa4f",
+   "shieldai:ee7f7c27-9e53-4e20-a7fc-3a37ad35d47d": "65592059ffd770bf",
+   "shieldai:4b31c2db-feb0-4a4f-96e3-20af7b267e2d": "6a2a3320a00b8e87",
+   "shieldai:ce904fcd-f35e-4f69-8544-26178c18e956": "932d9c58098378d5",
+@@ -348,7 +348,7 @@
+   "xai:5238779007": "0e3a3c2d7255e17e",
+   "xai:5251860007": "a8bda759aeeb249b",
+   "xai:5210802007": "18bcca6348e66c74",
+-  "xai:5215034007": "38b1eab90c1e2bfb",
++  "xai:5215034007": "20af8f8d5684ca03",
+   "xai:5207340007": "f104daea4b822d58",
+   "xai:5253534007": "7a15801056d20aa1",
+   "xai:5252678007": "88ead873004e769a",
+diff --git a/test/golden-normalize.test.js b/test/golden-normalize.test.js
+index 2df0a2c..8b9993d 100644
+--- a/test/golden-normalize.test.js
++++ b/test/golden-normalize.test.js
+@@ -7,7 +7,7 @@
+ // NORMALIZER_VERSION in server/normalize.js (stored snapshots are then upgraded
+ // once by the server), then regenerate with:
+ //   UPDATE_GOLDEN=1 GOLDEN_REASON="what changed" node --test test/golden-normalize.test.js
+-// Re-baselines: 2026-10-02 initial; norm-3 "UX-3 canonical locations" (geo.js name/rawName); norm-7 job.seniorityBasis (fix-beta-pay); norm-8 fix wave 3 (fix3-data: sections.preferred, tag rules, team paragraphs, salary.originalInterval/partTime); norm-9 fix wave 4 (fix4-data: 0 of the 300 hashes changed, version only); norm-10 fix wave 5 (fix5-data: 0 of the 300 hashes changed, version only); norm-11 salary audit (salary-audit-backend: 0 of the 300 hashes changed, version only: the sample is the stable boards, which have no Amazon rows or Microsoft area ranges); norm-12 fix-data-3 (0 of the 300 hashes changed, version only: the sample's stable boards have no Fellow ranks, "Saint" towns, state-only places or Brazilian towns); norm-13 fix-mr-3 (0 of the 300 hashes changed, version only: none of the sample's postings is in the 43 New York-area towns MR-40 adds).
++// Re-baselines: 2026-10-02 initial; norm-3 "UX-3 canonical locations" (geo.js name/rawName); norm-7 job.seniorityBasis (fix-beta-pay); norm-8 fix wave 3 (fix3-data: sections.preferred, tag rules, team paragraphs, salary.originalInterval/partTime); norm-9 fix wave 4 (fix4-data: 0 of the 300 hashes changed, version only); norm-10 fix wave 5 (fix5-data: 0 of the 300 hashes changed, version only); norm-11 salary audit (salary-audit-backend: 0 of the 300 hashes changed, version only: the sample is the stable boards, which have no Amazon rows or Microsoft area ranges); norm-12 fix-data-3 (0 of the 300 hashes changed, version only: the sample's stable boards have no Fellow ranks, "Saint" towns, state-only places or Brazilian towns); norm-13 fix-mr-3 (MR-40 towns and T-17 titles: 3 of the 300 hashes changed, the titles of scaleai:4722811005, shieldai:9e5b2887 and xai:5215034007, whose double spaces are one space; none of the sample is in the 43 New York-area towns).
+ import { test } from 'node:test';
+ import assert from 'node:assert/strict';
+ import fs from 'node:fs';
+-- 
+2.43.0
+

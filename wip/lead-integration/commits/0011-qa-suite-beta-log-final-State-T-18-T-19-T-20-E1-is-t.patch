@@ -1,7 +1,7 @@
 From da73008b6e41f5071697eba0200289361d17b4c3 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 23 Oct 2026 15:44:54 +0000
-Subject: [PATCH 11/11] qa-suite-beta: log final: State, T-18/T-19/T-20, E1 is
+Subject: [PATCH 11/12] qa-suite-beta: log final: State, T-18/T-19/T-20, E1 is
  the lead's batch-3 gate, E4 and U4 results, the patch apply order
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

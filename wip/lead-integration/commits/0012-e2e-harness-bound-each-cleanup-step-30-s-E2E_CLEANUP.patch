@@ -1,0 +1,49 @@
+From 9676fbed0f9f28086a7e24091f687783319fc03f Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 23 Oct 2026 15:58:16 +0000
+Subject: [PATCH 12/12] e2e harness: bound each cleanup step (30 s,
+ E2E_CLEANUP_TIMEOUT), so a hung context.close() can't stall a run
+
+fix-mr-3's run sat 15 minutes after a passing test (2026-10-23): its cleanup awaited a context close that never
+returned, so the next test never started and the per-test timeout never applied. Now the step times out, is
+logged ("! cleanup after <test> timed out"), and the run moves on.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+---
+ test/e2e/harness.js | 12 +++++++++++-
+ 1 file changed, 11 insertions(+), 1 deletion(-)
+
+diff --git a/test/e2e/harness.js b/test/e2e/harness.js
+index 5c3e62a..ea97ad9 100644
+--- a/test/e2e/harness.js
++++ b/test/e2e/harness.js
+@@ -131,6 +131,7 @@ export function guarded(promise) {
+ }
+ 
+ const TEST_TIMEOUT = Number(process.env.E2E_TEST_TIMEOUT || 120000);
++const CLEANUP_TIMEOUT = Number(process.env.E2E_CLEANUP_TIMEOUT || 30000);
+ 
+ /**
+  * Tiny sequential test runner: failures are collected, not fatal.
+@@ -200,7 +201,16 @@ export function createSuite() {
+             clearTimeout(timer);
+             if (ctx.cleanup) {
+               // Close anything a timed-out / failed test left open.
+-              for (const fn of ctx.cleanup.splice(0)) { try { await fn(); } catch { /* ignore */ } }
++              // Each step is bounded: a context.close() on a renderer that stopped answering hung a run for 15 minutes
++              // after a passing test (2026-10-23), and the next test never started.
++              for (const fn of ctx.cleanup.splice(0)) {
++                let ct;
++                try {
++                  await Promise.race([Promise.resolve().then(fn), new Promise((_, rej) => { ct = setTimeout(() => rej(new Error('cleanup timed out')), CLEANUP_TIMEOUT); })]);
++                } catch (err) {
++                  if (err && err.message === 'cleanup timed out') console.log(`  ! cleanup after "${t.name}" timed out after ${CLEANUP_TIMEOUT} ms`);
++                } finally { clearTimeout(ct); }
++              }
+             }
+           }
+         }
+-- 
+2.43.0
+
