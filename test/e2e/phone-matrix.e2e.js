@@ -349,7 +349,10 @@ async function checkFilters(page, screenW, label) {
   if (overlay) {
     await clickEl(page, '#filtersToggle');
     await page.waitForFunction(() => document.body.classList.contains('filters-open'), null, { timeout: 5000 }).catch(() => {});
-    await sleep(450);
+    // The sheet slides in once its panel has rendered (PERF-2 renders it on open after a mode switch), which on a busy
+    // machine started after the old fixed 450 ms: wait for the slide to end (or 4 s, and then report where it is).
+    await page.waitForFunction(() => { const el = document.querySelector('#filters'); return el.getAnimations().length === 0 && el.getBoundingClientRect().left > -1; }, null, { timeout: 4000 }).catch(() => {});
+    await sleep(150);
   }
   const f = await page.evaluate(overlayFacts, '#filters');
   const p = overlayProblems(f, overlay ? 'filter sheet' : 'filter column', screenW, label);
