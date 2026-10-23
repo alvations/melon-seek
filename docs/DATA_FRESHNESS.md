@@ -3612,7 +3612,7 @@ Each dataset is listed under every surface that shows it or computes from it.
 <details><summary><code>geo-gazetteer</code>: Gazetteer size and coordinates as cited in docs and copied into mock/demo data.</summary>
 
 - **Type / cadence / mechanism:** static-data · yearly (+365 days grace) · manual via `manual`
-- **Values:** GAZETTEER_SIZE 341 cities, 52 states, 73 countries (2026-10-17; fix-data-3 added Cajamar, Osasco, Barueri, Embu das Artes, Jundiai, Paulinia, Sao Joao de Meriti and Belford Roxo in Brazil, Luxembourg City and Town and Country, MO; fix6-fresh-data added Jordan, Bahrain and Puerto Rico and ISO-3 codes)
+- **Values:** GAZETTEER_SIZE 384 cities, 52 states, 73 countries (2026-10-23; fix-mr-3 added 43 New York, New Jersey and Connecticut towns within about 80 km of Manhattan (MR-40); fix-data-3 added Cajamar, Osasco, Barueri, Embu das Artes, Jundiai, Paulinia, Sao Joao de Meriti and Belford Roxo in Brazil, Luxembourg City and Town and Country, MO; fix6-fresh-data added Jordan, Bahrain and Puerto Rico and ISO-3 co…
 - **As of:** 2026-10-02 · last checked -
 - **Source:** [hand-built gazetteer](https://github.com/alvations/melon-seek/blob/main/server/geo.js) (no licence file; owner decision pending (the repo has no LICENSE and package.json no "license" field, so the code and o…)
 - **Defined in:** `server/geo.js:25 US_STATES_RAW`, `server/geo.js:81 OTHER_REGIONS_RAW`, `server/geo.js:117 COUNTRIES_RAW`, `server/geo.js:220 CITIES_RAW`, `server/geo.js:648 GAZETTEER_SIZE`, `server/geo.js:1118 COUNTRY_LABEL`, `server/juice.js:6 juice.js REGION_COUNTRIES (US, CA, AU)`, `data/cities.json cities[].aliases / nearby`, `server/geo.js [core]`, `server/geo.js:595 ISO3_TO_ISO2`, `server/geo.js:605 ISO3_US_TERRITORY (PRI is Puerto Rico)`

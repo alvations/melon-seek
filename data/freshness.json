@@ -15608,7 +15608,7 @@
         "server/geo.js:595 ISO3_TO_ISO2",
         "server/geo.js:605 ISO3_US_TERRITORY (PRI is Puerto Rico)"
       ],
-      "values": "GAZETTEER_SIZE 341 cities, 52 states, 73 countries (2026-10-17; fix-data-3 added Cajamar, Osasco, Barueri, Embu das Artes, Jundiai, Paulinia, Sao Joao de Meriti and Belford Roxo in Brazil, Luxembourg City and Town and Country, MO; fix6-fresh-data added Jordan, Bahrain and Puerto Rico and ISO-3 codes)",
+      "values": "GAZETTEER_SIZE 384 cities, 52 states, 73 countries (2026-10-23; fix-mr-3 added 43 New York, New Jersey and Connecticut towns within about 80 km of Manhattan (MR-40); fix-data-3 added Cajamar, Osasco, Barueri, Embu das Artes, Jundiai, Paulinia, Sao Joao de Meriti and Belford Roxo in Brazil, Luxembourg City and Town and Country, MO; fix6-fresh-data added Jordan, Bahrain and Puerto Rico and ISO-3 codes)",
       "consumers": [
         {
           "at": "server/normalize.js:53",
@@ -15660,7 +15660,7 @@
       "validator": "test/geo.test.js",
       "before": "none",
       "lastChecked": null,
-      "notes": "NO SOURCE recorded for any coordinate. Coordinates do not age, but the alias coverage does (new office cities). Changes re-geocode every job (relocateJobs). Coverage is watched monthly through jobs.js job-juice (the top unmatched location strings per company) as the big-tech boards with worldwide offices arrive; a missing city drops its pins from the map and the Juice from the drawer. Methodology review beta round 3 (2026-10-16, docs/process/methodology-review-beta-2.md, MR-40): towns outside CITIES_RAW geocode to their state's centre (Garden City NY 42.17,-74.95; Fort Lee and Paramus NJ 40.3,-74.52), so distance rules such as Microsoft's PAY_AREAS cannot place them.",
+      "notes": "NO SOURCE recorded for any coordinate. Coordinates do not age, but the alias coverage does (new office cities). Changes re-geocode every job (relocateJobs). Coverage is watched monthly through jobs.js job-juice (the top unmatched location strings per company) as the big-tech boards with worldwide offices arrive; a missing city drops its pins from the map and the Juice from the drawer. Methodology review beta round 3 (2026-10-16, docs/process/methodology-review-beta-2.md, MR-40): towns outside CITIES_RAW geocode to their state's centre (Garden City NY 42.17,-74.95; Fort Lee and Paramus NJ 40.3,-74.52), so distance rules such as Microsoft's PAY_AREAS cannot place them. fix-mr-3 (2026-10-23, docs/process/fix-mr-3.md, MR-40): the 43 NY, NJ and CT towns of the 2026-10-16 crawl within about 80 km of Manhattan that geocoded to their state's centre are in CITIES_RAW, so Microsoft's NYC-metro range (PAY_AREAS, 60 km) reaches Garden City, Fort Lee, Paramus and Bridgewater; NORMALIZER_VERSION norm-13 re-geocodes stored snapshots once. Other towns outside CITIES_RAW still geocode to their state's centre.",
       "extract": [
         {
           "file": "server/geo.js",

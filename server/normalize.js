@@ -40,11 +40,13 @@ import { postingRule } from './companies.js';
  * and late Microsoft level paragraphs kept as salary.levels, a stored salary kept when trimming cut its
  * pay sentence); norm-12 = fix-data-3 (docs/process/fix-data-3.md: a Fellow rank is Staff+ and its pay is not
  * an intern's, "Data Residency" is not a residency, one "St." spelling in US and Canadian towns, "New York State"
- * and "Washington State", Cajamar and six other Brazilian towns, Luxembourg City, Town and Country, MO). Stored
+ * and "Washington State", Cajamar and six other Brazilian towns, Luxembourg City, Town and Country, MO); norm-13 =
+ * fix-mr-3 (docs/process/fix-mr-3.md, MR-40: 43 New York, New Jersey and Connecticut towns near Manhattan are at their
+ * own place, not their state's centre, so Microsoft's NYC-metro range reaches them). Stored
  * snapshots are upgraded with relocateJobs (which also re-derives text-sourced pay, the
  * pay labels and the level, then re-runs the vetting gate) and rekeyBoardJobs.
  */
-export const NORMALIZER_VERSION = 'norm-12';
+export const NORMALIZER_VERSION = 'norm-13';
 
 const NO_EXTRAS = Object.freeze({ equity: false, bonus: false });
 

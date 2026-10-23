@@ -120,7 +120,7 @@ test('MR-40 NYC-metro towns are placed at their own town, so the NYC pay area se
   }
 });
 test('MR-40 a town of the same name elsewhere is not moved to New York or New Jersey', () => {
-  for (const s of ['Oceanside, California, USA', 'Woodside, CA, USA', 'Astoria, Oregon, USA', 'Somerset, Kentucky, USA', 'Greenwich, London, United Kingdom', 'Melville, Saskatchewan, Canada', 'Bridgewater, MA, US']) {
+  for (const s of ['Oceanside, California, USA', 'Woodside, CA, USA', 'Astoria, Oregon, USA', 'Somerset, Kentucky, USA', 'Greenwich, London, United Kingdom', 'Melville, Saskatchewan, Canada', 'Bridgewater, MA, US', 'Greenwich', 'Edison, United States', 'Garden City, KS, US']) {
     const [loc] = geocode(s);
     assert.ok(!['NY', 'NJ', 'CT'].includes(loc.region), `${s} geocodes to ${loc.city}, ${loc.region} (${loc.lat},${loc.lng})`);
   }

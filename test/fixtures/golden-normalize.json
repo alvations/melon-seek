@@ -1,5 +1,5 @@
 {
- "normalizerVersion": "norm-12",
+ "normalizerVersion": "norm-13",
  "history": [
   {
    "normalizerVersion": "norm-2",
@@ -60,6 +60,11 @@
    "normalizerVersion": "norm-12",
    "reason": "norm-12 fix-data-3: Fellow ranks, Data Residency, St. spelling, state-only labels, Brazilian towns, Luxembourg City, Town and Country (0 of 300 hashes changed)",
    "at": "2026-10-17T01:16:57.915Z"
+  },
+  {
+   "normalizerVersion": "norm-13",
+   "reason": "norm-13 fix-mr-3 (MR-40: 43 New York-area towns in the gazetteer); 0 of the 300 hashes changed, version only",
+   "at": "2026-10-23T13:38:09.764Z"
   }
  ],
  "hashes": {

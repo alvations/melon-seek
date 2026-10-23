@@ -214,7 +214,17 @@ NZ|New Zealand|-40.90|174.89|NZ
 // postings, at the country's centre; Amazon's Luxembourg offices are in the city; the label stays
 // "Luxembourg"), and Town and Country, MO (Amazon "Town and Country, Missouri, USA", read as "Town" and
 // "Country" because " and " splits places; see AND_PLACES).
-// A name prefixed with "!" becomes the default for an ambiguous name.
+// fix-mr-3 (MR-40, 2026-10-16 crawl) adds the New York, New Jersey and Connecticut towns within about 80 km of
+// Manhattan that the boards list and the gazetteer placed at their state's centre (New York State's is 42.17,-74.95,
+// 200 km from the city), so Microsoft's NYC-metro range (salary.js PAY_AREAS: 60 km) never reached them: Garden
+// City NY (3 Microsoft postings), Fort Lee NJ (1), Paramus NJ (1), Bridgewater NJ (4), and 39 more for Amazon, Apple,
+// Google and NVIDIA (the Bronx, Staten Island and Queens neighbourhoods, Long Island, Westchester, North and Central
+// Jersey, Greenwich and Darien CT). Each keeps the name the posting gives; a town of the same name in another state
+// or country still needs that state ("Oceanside, CA" and "Woodside, CA" are not moved).
+// A name prefixed with "!" becomes the default for an ambiguous name. A name prefixed with "?" is read only with its
+// own state named ("Garden City, NY", "Woodside, New York, USA"): never alone, never by its country alone, never to
+// split a comma list into two places and never in the last-resort scan, so "Greenwich, London", a bare "Oceanside" and
+// "Edison, United States" read as they did before it was added (fix-mr-3, MR-40).
 // ---------------------------------------------------------------------------
 
 const CITIES_RAW = `
@@ -247,6 +257,49 @@ Groton|CT|US|41.3501|-72.0784|
 Newark|NJ|US|40.7357|-74.1724|
 Jersey City|NJ|US|40.7178|-74.0431|
 Princeton|NJ|US|40.3573|-74.6672|
+?Bronx|NY|US|40.8448|-73.8648|The Bronx
+?Staten Island|NY|US|40.5795|-74.1502|
+?Astoria|NY|US|40.7644|-73.9235|
+?Long Island City|NY|US|40.7447|-73.9485|
+?Maspeth|NY|US|40.7294|-73.9066|
+?Woodside|NY|US|40.7454|-73.9030|
+?Yonkers|NY|US|40.9312|-73.8988|
+?White Plains|NY|US|41.0340|-73.7629|
+?Elmsford|NY|US|41.0551|-73.8201|
+?Port Chester|NY|US|41.0018|-73.6657|
+?Garden City|NY|US|40.7268|-73.6343|
+?Carle Place|NY|US|40.7526|-73.6104|
+?Bethpage|NY|US|40.7443|-73.4821|
+?Syosset|NY|US|40.8262|-73.5021|
+?Oceanside|NY|US|40.6387|-73.6401|
+?Massapequa Park|NY|US|40.6804|-73.4554|
+?Melville|NY|US|40.7934|-73.4151|
+?Huntington Station|NY|US|40.8534|-73.4115|
+?East Northport|NY|US|40.8768|-73.3240|
+?Lake Grove|NY|US|40.8529|-73.1151|
+?Fort Lee|NJ|US|40.8509|-73.9701|
+?Paramus|NJ|US|40.9445|-74.0754|
+?Teterboro|NJ|US|40.8598|-74.0563|
+?Rutherford|NJ|US|40.8265|-74.1068|
+?Kearny|NJ|US|40.7684|-74.1454|
+?Woodland Park|NJ|US|40.8898|-74.1946|
+?Mahwah|NJ|US|41.0887|-74.1438|
+?Parsippany|NJ|US|40.8579|-74.4260|Parsippany-Troy Hills
+?Mountainside|NJ|US|40.6726|-74.3574|
+?Linden|NJ|US|40.6220|-74.2446|
+?Avenel|NJ|US|40.5804|-74.2854|
+?Carteret|NJ|US|40.5773|-74.2282|
+?Edison|NJ|US|40.5187|-74.4121|
+?Somerset|NJ|US|40.4976|-74.4885|
+?Bridgewater|NJ|US|40.5970|-74.6050|
+?Holmdel|NJ|US|40.3451|-74.1840|
+?Tinton Falls|NJ|US|40.3043|-74.1005|
+?Freehold|NJ|US|40.2601|-74.2738|
+?Cranbury|NJ|US|40.3162|-74.5138|
+?Budd Lake|NJ|US|40.8712|-74.7341|
+?Greenwich|CT|US|41.0262|-73.6282|
+?Darien|CT|US|41.0787|-73.4693|
+?Westport|CT|US|41.1415|-73.3579|
 Philadelphia|PA|US|39.9526|-75.1652|
 Pittsburgh|PA|US|40.4406|-79.9959|
 Rochester|NY|US|43.1566|-77.6088|
@@ -629,8 +682,9 @@ const CITY_INDEX = new Map(); // key -> [entries], default first
 for (const line of CITIES_RAW.trim().split('\n')) {
   const [rawName, region, country, lat, lng, aliases] = line.split('|');
   const preferred = rawName.startsWith('!');
-  const name = preferred ? rawName.slice(1) : rawName;
+  const name = rawName.replace(/^[!?]/, '');
   const c = { city: name, region: region || null, country, lat: +lat, lng: +lng };
+  if (rawName.startsWith('?')) c.contextOnly = true; // MR-40: read only with its own state named
   CITIES.push(c);
   for (const k of [name, ...(aliases ? aliases.split(';') : [])]) {
     const key = normKey(k);
@@ -641,8 +695,10 @@ for (const line of CITIES_RAW.trim().split('\n')) {
     CITY_INDEX.set(key, list);
   }
 }
-// Keys sorted longest-first for substring scanning.
-const CITY_KEYS_BY_LENGTH = [...CITY_INDEX.keys()].filter((k) => k.length >= 4).sort((a, b) => b.length - a.length);
+/** The entries a name may be read as without its state named (MR-40: not a "?" entry). */
+const openCities = (cands) => (cands || []).filter((c) => !c.contextOnly);
+// Keys sorted longest-first for substring scanning (never a "?" entry: it needs its state).
+const CITY_KEYS_BY_LENGTH = [...CITY_INDEX.keys()].filter((k) => k.length >= 4 && openCities(CITY_INDEX.get(k)).length).sort((a, b) => b.length - a.length);
 
 /** Number of distinct gazetteer cities (for tests / diagnostics). */
 export const GAZETTEER_SIZE = { cities: CITIES.length, states: STATE_BY_ABBR.size, countries: COUNTRY_BY_CODE.size };
@@ -696,7 +752,7 @@ function regionInfo(token) {
 }
 
 function isKnownCity(token) {
-  return CITY_INDEX.has(normKey(token));
+  return openCities(CITY_INDEX.get(normKey(token))).length > 0;
 }
 
 /** ISO2 code for a country name, alias or code ("United States of America" -> "US"), or null. */
@@ -876,7 +932,7 @@ function parens(s) {
 
 function pickCity(cands, ctx) {
   if (!cands || !cands.length) return null;
-  if (!ctx.length) return cands[0];
+  if (!ctx.length) return openCities(cands)[0] || null;
   const regions = ctx.map((c) => c.region).filter(Boolean);
   const countries = ctx.map((c) => c.country).filter(Boolean);
   const byRegion = cands.find((c) => c.region && regions.includes(c.region));
@@ -884,7 +940,7 @@ function pickCity(cands, ctx) {
   // A country match only when the context names no state or region in that country:
   // "Springfield, IL" is not Springfield, VA (P-9, norm-6).
   const stated = new Set(ctx.filter((c) => c.region && c.kind !== 'country').map((c) => c.country));
-  const byCountry = cands.find((c) => countries.includes(c.country) && !stated.has(c.country));
+  const byCountry = cands.find((c) => !c.contextOnly && countries.includes(c.country) && !stated.has(c.country));
   if (byCountry) return byCountry;
   return null; // known name but context says elsewhere
 }
@@ -926,16 +982,18 @@ function resolvePlaceIn(name, countries = []) {
   if (!cleaned) return { loc: extra.length ? fromRegion(name, extra[0]) : unknown(name), ambiguous: false };
 
   // Whole-string alias ("Washington, D.C.", "New York City", "Bay Area").
-  const whole = CITY_INDEX.get(normKey(name.replace(/\([^()]*\)/g, ' '))) || CITY_INDEX.get(normKey(cleaned));
+  const wholeAll = CITY_INDEX.get(normKey(name.replace(/\([^()]*\)/g, ' '))) || CITY_INDEX.get(normKey(cleaned));
+  // MR-40: a "?" entry only with its state in brackets ("Garden City (NY)").
+  const whole = wholeAll && (openCities(wholeAll).length || (extra.length && pickCity(wholeAll, extra))) ? wholeAll : null;
   if (whole) {
     if (!extra.length && !cleaned.includes(',')) {
-      const readings = bareReadings(cleaned, whole);
+      const readings = bareReadings(cleaned, openCities(whole));
       if (new Set(readings.map((r) => r.country)).size > 1) {
         const pick = readings.find((r) => countries.includes(r.country)) || readings[0];
         return { loc: pick.city ? fromCity(name, pick.city) : fromRegion(name, pick.region), ambiguous: true };
       }
     }
-    const c = pickCity(whole, extra) || whole[0];
+    const c = pickCity(whole, extra) || openCities(whole)[0];
     return { loc: fromCity(name, c), ambiguous: false };
   }
   return { loc: resolvePlaceTokens(name, cleaned, extra), ambiguous: false };
@@ -1014,7 +1072,7 @@ function resolvePlaceTokens(name, cleaned, extra) {
   }
   // "Seattle WA" / "Austin TX" / "Sydney NSW, Australia" without comma.
   const m = tokens[0].match(/^(.*\S)\s+([A-Z]{2,3}|[A-Z]\.[A-Z]\.)$/);
-  if (m && regionInfo(m[2]) && isKnownCity(m[1])) tokens = [m[1], m[2], ...tokens.slice(1)];
+  if (m && regionInfo(m[2]) && CITY_INDEX.has(normKey(m[1]))) tokens = [m[1], m[2], ...tokens.slice(1)]; // the state follows, so a "?" entry too
   const [first, ...rest] = tokens;
   const cands = CITY_INDEX.get(normKey(first));
   const lastToken = rest.length ? rest[rest.length - 1] : null;
@@ -1079,7 +1137,7 @@ function resolvePlaceTokens(name, cleaned, extra) {
   // Last resort: look for a known city name inside the string.
   const key = ` ${normKey(cleaned)} `;
   for (const k of CITY_KEYS_BY_LENGTH) {
-    if (key.includes(` ${k} `)) return fromCity(name, CITY_INDEX.get(k)[0]);
+    if (key.includes(` ${k} `)) return fromCity(name, openCities(CITY_INDEX.get(k))[0]);
   }
   return unknown(name);
 }
@@ -1100,8 +1158,8 @@ function resolveRemote(name) {
         lat: country ? country.lat : null, lng: country ? country.lng : null, remote: true,
       };
     }
-    const cands = CITY_INDEX.get(normKey(p));
-    if (cands) {
+    const cands = openCities(CITY_INDEX.get(normKey(p)));
+    if (cands.length) {
       const c = cands[0];
       const country = COUNTRY_BY_CODE.get(c.country);
       return { name, city: null, region: null, country: c.country, lat: country ? country.lat : null, lng: country ? country.lng : null, remote: true };
