@@ -42,13 +42,26 @@ import { postingRule } from './companies.js';
  * an intern's, "Data Residency" is not a residency, one "St." spelling in US and Canadian towns, "New York State"
  * and "Washington State", Cajamar and six other Brazilian towns, Luxembourg City, Town and Country, MO); norm-13 =
  * fix-mr-3 (docs/process/fix-mr-3.md, MR-40: 43 New York, New Jersey and Connecticut towns near Manhattan are at their
- * own place, not their state's centre, so Microsoft's NYC-metro range reaches them). Stored
+ * own place, not their state's centre, so Microsoft's NYC-metro range reaches them; T-17: a title's line breaks and runs
+ * of whitespace are one space, cleanTitle). Stored
  * snapshots are upgraded with relocateJobs (which also re-derives text-sourced pay, the
  * pay labels and the level, then re-runs the vetting gate) and rekeyBoardJobs.
  */
 export const NORMALIZER_VERSION = 'norm-13';
 
 const NO_EXTRAS = Object.freeze({ equity: false, bonus: false });
+
+/**
+ * T-17 (fix-mr-3): a job title on one line, as posted. A line break and the spaces around it before a comma or period
+ * go ("Partner Development Manager\n, Benelux Partner Team" -> "Partner Development Manager, Benelux Partner Team"),
+ * then every run of whitespace is one space and the ends are trimmed. The words and their order are kept exactly; a
+ * space the posting itself puts before a comma ("Technician , AWS", Amazon) is kept too. Titles held line breaks
+ * that split CSV lines in naive readers and broke one-line places (Meta 1, Amazon 2 on the 2026-10-16 crawl).
+ */
+export function cleanTitle(title) {
+  if (title == null) return '';
+  return String(title).replace(/[^\S\r\n]*[\r\n][\s]*(?=[,.])/g, '').replace(/\s+/g, ' ').trim();
+}
 
 /**
  * F2 extras: { equity, bonus } from keywords.extractCompExtras (feature-detected,
@@ -267,11 +280,12 @@ export function relabelJobs(jobs) {
   let changed = false;
   const out = jobs.map((j) => {
     if (!j || typeof j !== 'object') return j;
-    const title = j.title || '';
+    const title = typeof j.title === 'string' ? cleanTitle(j.title) : j.title || ''; // T-17: stored titles too
     const html = typeof j.descriptionHtml === 'string' ? j.descriptionHtml : '';
     const text = html ? htmlToText(html) : '';
     const lvl = title ? safe(() => jobSeniority({ title, text, company: j.company || null }), null) : null;
     const next = { ...j };
+    if (typeof j.title === 'string' && title && title !== j.title) next.title = title;
     if (lvl) { next.seniority = lvl.level; next.seniorityBasis = lvl.basis; }
     else if (!next.seniorityBasis) next.seniorityBasis = (next.seniority || 'Mid') === 'Mid' ? 'default' : 'title';
     // (Not safe(): a fresh null, "no salary", must replace the stored one.)
@@ -338,7 +352,7 @@ export function normalizeJob(raw, company, { boilerplate = null, team = null } =
   const skillText = team && team.size && html && typeof keywordsModule.descriptionText === 'function'
     ? safe(() => keywordsModule.descriptionText(html, { skip: team }), null)
     : null;
-  const title = raw.title || 'Untitled role';
+  const title = cleanTitle(raw.title) || 'Untitled role'; // T-17: one line, words as posted
   const locations = normalizeLocations(raw);
   const remote = raw.remote === true || locations.some((l) => l && l.remote === true);
 

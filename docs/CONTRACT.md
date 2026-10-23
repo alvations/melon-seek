@@ -998,7 +998,8 @@ groupings are unchanged.
 Findings MR-21, MR-22 ([docs/process/methodology-review-beta.md](process/methodology-review-beta.md)) and MR-26, MR-29 (the UI
 half), MR-33, MR-37, MR-38, MR-39, MR-40 and MR-41 ([docs/process/methodology-review-beta-2.md](process/methodology-review-beta-2.md)).
 Log: [docs/process/fix-mr-3.md](process/fix-mr-3.md). Every addition is optional for readers; no export changed its return shape.
-`NORMALIZER_VERSION` is `norm-13` (the gazetteer moved 43 towns): stored older snapshots are re-derived once. Nothing is dropped:
+`NORMALIZER_VERSION` is `norm-13` (the gazetteer moved 43 towns, and titles are on one line, T-17): stored older snapshots
+are re-derived once. Nothing is dropped:
 every posting, pay row and place string is kept; one Microsoft posting gains the second range it posts (1,821 → 1,822 rows).
 
 **Fixed-term pay of unstated length (MR-38, `public/features/shared.js`):** `isTermUnstated(job)` is true for a posting at level
@@ -1035,6 +1036,14 @@ gives it the same basis ("Median base pay $149K US").
 crawl's towns that were at their state's centre) are gazetteer cities. A `CITIES_RAW` name prefixed with `?` is read only with its
 own state named: never bare, never by its country alone, never to split a comma list and never in the last-resort scan. On the
 2026-10-16 crawl 101 postings change, latitude and longitude only. `GAZETTEER_SIZE` is 384 cities.
+
+**Titles (`server/normalize.js`, T-17, from the test-suite review):** `cleanTitle(title)`: a line break and the spaces around it
+before a comma or period go, every other run of whitespace (line breaks, non-breaking spaces, double spaces) is one space, and
+the ends are trimmed; the words and their order are kept, and so is a space the posting itself puts before a comma ("Technician
+, AWS"). `normalizeJob` writes it, and `relabelJobs` applies it to stored titles. On the 2026-10-16 crawl 362 titles change
+(3 line breaks: meta:1747806499828365, amazon:10538351, amazon:10574668; 340 runs of spaces; 19 non-breaking spaces); the history
+ledger's fingerprints do not change (`normText` already reads whitespace as one space). Golden: 3 of the 300 hashes changed, all
+titles with a double space.
 
 **Freshness (`scripts/refresh/lib.js`, MR-26):** `isPipelineEntry(entry)` (cadence `daily`) and `shownOverdue(entry, now)`. A daily
 pipeline entry (the postings) is never "update due" on the page built from it: `run.js` `stalenessRows` and `genericResult`, the

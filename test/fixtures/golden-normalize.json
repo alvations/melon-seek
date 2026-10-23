@@ -63,8 +63,8 @@
   },
   {
    "normalizerVersion": "norm-13",
-   "reason": "norm-13 fix-mr-3 (MR-40: 43 New York-area towns in the gazetteer); 0 of the 300 hashes changed, version only",
-   "at": "2026-10-23T13:38:09.764Z"
+   "reason": "norm-13 fix-mr-3: MR-40 (43 New York-area towns in the gazetteer) and T-17 (titles on one line: line breaks and runs of whitespace are one space); 3 of 300 hashes changed (titles with a double space)",
+   "at": "2026-10-23T14:07:18.645Z"
   }
  ],
  "hashes": {
@@ -285,7 +285,7 @@
   "scaleai:4481921005": "3412d236ff697d29",
   "scaleai:4716445005": "67df62a03fb4ed97",
   "scaleai:4693449005": "1f8ca12633f8f6f4",
-  "scaleai:4722811005": "e73e193f5044d0e9",
+  "scaleai:4722811005": "885739cbc61070b9",
   "scaleai:4565836005": "05bf9110094f0920",
   "scaleai:4677657005": "a6989ad5916c22fc",
   "scaleai:4695042005": "c16c4b7282352cdc",
@@ -300,7 +300,7 @@
   "shieldai:9f3bb3e2-acea-4f52-b6af-9445920877b0": "f912debebebe63a0",
   "shieldai:1d33c48e-92c6-48c4-b8e2-0e412b889672": "7a99848ada5f7089",
   "shieldai:70f28ba1-aac2-4911-8253-fe86e1e0242a": "46f316aea0dd80c0",
-  "shieldai:9e5b2887-d40e-48ac-bfb3-f08bc9aa8829": "1cc1246a1879e8cb",
+  "shieldai:9e5b2887-d40e-48ac-bfb3-f08bc9aa8829": "7607c8555c84aa4f",
   "shieldai:ee7f7c27-9e53-4e20-a7fc-3a37ad35d47d": "65592059ffd770bf",
   "shieldai:4b31c2db-feb0-4a4f-96e3-20af7b267e2d": "6a2a3320a00b8e87",
   "shieldai:ce904fcd-f35e-4f69-8544-26178c18e956": "932d9c58098378d5",
@@ -348,7 +348,7 @@
   "xai:5238779007": "0e3a3c2d7255e17e",
   "xai:5251860007": "a8bda759aeeb249b",
   "xai:5210802007": "18bcca6348e66c74",
-  "xai:5215034007": "38b1eab90c1e2bfb",
+  "xai:5215034007": "20af8f8d5684ca03",
   "xai:5207340007": "f104daea4b822d58",
   "xai:5253534007": "7a15801056d20aa1",
   "xai:5252678007": "88ead873004e769a",

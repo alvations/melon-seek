@@ -15,7 +15,7 @@ import { summaryStats } from '../public/features/insights.js';
 import { FX_SOURCE } from '../public/viz/palette.js';
 import { geocode, locationPrecision } from '../server/geo.js';
 import { payAreaOf } from '../server/salary.js';
-import { NORMALIZER_VERSION } from '../server/normalize.js';
+import { NORMALIZER_VERSION, cleanTitle, normalizeJob, relabelJobs } from '../server/normalize.js';
 import { jobSeniority } from '../server/keywords.js';
 import { listCompanies } from '../server/companies.js';
 import { extractConst } from '../scripts/refresh/lib.js';
@@ -211,4 +211,36 @@ test('MR-39 the stats line\'s median is the main currency\'s, and the line and i
   assert.match(body, /mainPayCurrency\(/, 'stats() pools every currency into the median');
   const k = fnBody('renderKpis');
   assert.match(k, /st\.basis/, 'the stats line does not say which country its median is for');
+});
+
+/* ------------------------------------------------------------- T-17 */
+// Titles held line breaks as posted (Meta 1, Amazon 2 on the 2026-10-16 crawl). They split CSV lines in naive readers and
+// read oddly in one-line places. normalizeJob (fresh crawls) and relabelJobs (stored snapshots, run on a version change)
+// put them on one line: the words and their order exactly as posted.
+const T17 = [
+  ['Research Scientist,\nMachine Learning for Monetization (PhD)', 'Research Scientist, Machine Learning for Monetization (PhD)'],
+  ['Partner Development Manager\n, Benelux Partner Team', 'Partner Development Manager, Benelux Partner Team'],
+  ['Payroll Analyst - BENELUX, 12 months fixed contract \n, EMEA Payroll Operations', 'Payroll Analyst - BENELUX, 12 months fixed contract, EMEA Payroll Operations'],
+];
+const words = (t) => t.replace(/[,.]/g, ' ').split(/\s+/).filter(Boolean);
+test('T-17 a title\'s line breaks become one space, with no space left before the comma; words and order as posted', () => {
+  for (const [raw, want] of T17) {
+    assert.equal(cleanTitle(raw), want);
+    assert.deepEqual(words(cleanTitle(raw)), words(raw), `${JSON.stringify(raw)}: the words or their order changed`);
+    assert.doesNotMatch(cleanTitle(raw), /[\r\n]/);
+  }
+  assert.equal(cleanTitle('Senior Solutions Architect, AI Compute  – NPN'), 'Senior Solutions Architect, AI Compute – NPN', 'a run of spaces is one space');
+  assert.equal(cleanTitle('Performance Ops Specialist\u00a0II, Delivery'), 'Performance Ops Specialist II, Delivery', 'a non-breaking space is a space');
+  assert.equal(cleanTitle('Engineering Operation Technician , AWS Opportunity'), 'Engineering Operation Technician , AWS Opportunity', 'a space the posting puts before a comma stays');
+  assert.equal(cleanTitle('Senior .NET Developer'), 'Senior .NET Developer');
+  assert.equal(cleanTitle('  Data Analyst  '), 'Data Analyst');
+});
+test('T-17 normalizeJob and relabelJobs (stored snapshots) both write the one-line title', () => {
+  const company = { slug: 'meta', name: 'Meta' };
+  for (const [raw, want] of T17) {
+    const job = normalizeJob({ sourceId: '1', title: raw, locationText: 'Menlo Park, CA', html: '<p>x</p>', text: 'x' }, company);
+    assert.equal(job.title, want);
+    const [stored] = relabelJobs([{ ...job, title: raw }]);
+    assert.equal(stored.title, want, 'a stored snapshot keeps the line break until it is upgraded');
+  }
 });
