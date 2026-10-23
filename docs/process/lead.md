@@ -1511,3 +1511,14 @@ screenshots in `docs/screenshots/`.
     - T21 and S-6 root causes;
     - sharding to about 31 minutes per shard.
 - **fix-qa4:** resumed on UX-51, UX-50 and MR-35.
+- **Gate on 5c0cda3** (fix-phone-sizes second set, fix-qa4 round 1, qa-desktop-beta-4, plus fix-phone-sizes' first set and fix-viz-5 on e57151f):
+  - `npm test` CI-like: 0 fail.
+  - build and check-lists: clean.
+  - **Full e2e: 858/864 passed, 1 failed, 5 skipped. The browser was never relaunched**, and the run took 2 h 6 min with its 3-hour limit.
+  - The one failure, T21 (cold server), passes alone in 24.7 s; qa-suite-beta has its root cause and a patch.
+  - Every reviewer red test that waited on these lanes now passes, including the Amazon department-row cut (7 guards) and UX-39.
+- **Next batch:**
+  - fix-qa4 round 2: UX-51, MR-35, UX-50;
+  - fix-phone-sizes' last two commits;
+  - fix-mr-3, which rebases onto that head itself;
+  - qa-suite-beta's patches: the runner, T-1, T-4, the flake fixes, T-11 and the CI workflow.
