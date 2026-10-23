@@ -1,0 +1,26 @@
+--- a/test/e2e/fix3-viz.e2e.js
++++ b/test/e2e/fix3-viz.e2e.js
+@@ -146,14 +146,21 @@
+     assert(left > 0, `the US and Munich ranges should be counted as left out: "${c.empty}" / "${c.foot}"`);
+   });
+ 
+-  suite.test('Fix viz 3: [BP-2] NVIDIA, Munich, Senior and Staff+, from €110,000: no Polish pay on the chart', async (ctx) => {
+-    const { st, page } = await openBeta(ctx, 'c=nvidia&l=Munich&s=Senior&s=Staff%2B&smin=110000');
++  // No minimum (qa-suite-beta T-19): NVIDIA posts no German pay, so since BP-2's fix a €110,000 minimum left 0 Munich
++  // roles and this test skipped on every run. The minimum on cards is fix3-app's [BP-2] test.
++  suite.test('Fix viz 3: [BP-2] NVIDIA, Munich, Senior and Staff+: no Polish pay on the chart, and the chart says what it left out', async (ctx) => {
++    const { st, page } = await openBeta(ctx, 'c=nvidia&l=Munich&s=Senior&s=Staff%2B');
+     await needBoard(page, st.beta, 'nvidia');
+     const s = await statsLine(page);
+     if (s.withSalary == null || s.n < 2) skip(`no such roles ("${s.text}")`);
+     const c = await chartSays(page);
+     assertEq(num(c.plotted) ?? 0, s.withSalary, `the stats line says "${s.text}", the chart "${c.foot || c.empty}"`);
+     if (s.withSalary && s.median) assert(c.cap.includes(s.median), `one median on the screen: the stats line "${s.median}", the chart "${c.cap}"`);
++    if (!s.withSalary) {
++      assert(!c.rows.some((r) => /median /.test(r)), `no pay is posted for Munich, but the chart has medians: ${JSON.stringify(c.rows)}`);
++      const left = num((/([\d,]+) (?:postings? )?(?:with|list|lists) pay (?:posted )?for another country/.exec(c.empty + ' ' + c.foot) || [])[1]);
++      assert(left > 0, `the Polish ranges listed in Munich should be counted as left out: "${c.empty}" / "${c.foot}"`);
++    }
+   });
+ 
+   /* ------------------------------------------------------------ BP-13 chart */

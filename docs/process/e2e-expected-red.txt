@@ -1,0 +1,24 @@
+# Expected red in the full e2e suite (node scripts/e2e.js). Read by .github/scripts/e2e-summary.mjs, the summary
+# job of .github/workflows/e2e.yml (qa-suite-beta T-14). The lead keeps it.
+#
+# One entry per line: `<ID> <lane or decision>`. The ID matches a test whose name holds `[<ID>]` (or the ID in a
+# list such as `[V-33, V-34]`), or whose name starts with it after the group (`Compstimate: T21 cold server`).
+# A reason starting with `flaky` marks a known flake: that test may pass or fail.
+# Any other entry is red by design. When its test passes, the summary fails and asks for the entry to go.
+# Lines starting with # are notes.
+#
+# Source: the lead's gate on 5c0cda3 (= 8898566's code), 2026-10-23 13:18-15:24: 858/864 passed, 1 failed, 5 skipped,
+# browser never relaunched. No red-by-design e2e test is left after fix wave 5: every reviewer's [ID] test passes.
+#
+# The 5 skips are not entries here, because a skip passes. They are:
+#   [D-11] needs data with no listing dates (a fixture);
+#   the Methodology screenshots run only with E2E_SHOTS=1;
+#   [P-2] needs a low-confidence estimate in the data;
+#   [BP-2] NVIDIA Munich has 0 roles in this crawl;
+#   [V-18] has skipped since D-44 folded London; qa-suite-beta-t19-v18-fold.diff fixes it.
+# Each is in docs/process/qa-suite-beta.md section 9.1.
+
+# Compstimate T21: the cold server re-normalizes Anduril's 2,537 postings (crawl norm-9, code norm-12), which takes
+# past the 30 s ready limit on a loaded machine. The test passed alone in 24.7 s on 8898566.
+# Remove this entry when qa-suite-beta-flake-t21-cpu.diff lands.
+T21 flaky until qa-suite-beta-flake-t21-cpu.diff lands

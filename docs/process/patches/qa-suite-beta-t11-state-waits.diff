@@ -1,0 +1,226 @@
+--- a/test/e2e/fix-phone-text.e2e.js
++++ b/test/e2e/fix-phone-text.e2e.js
+@@ -40,6 +40,27 @@
+ const WORDS = 12;
+ const BOARDS = ['amazon', 'apple', 'google', 'meta', 'microsoft', 'netflix', 'nvidia'];
+ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
++
++/**
++ * Wait until the page is still, at most `cap` ms: at least 150 ms after the action (a hash change or a tap is handled
++ * in a later task), then until no DOM change for 120 ms, the fonts are loaded (a swap re-flows text with no DOM
++ * change), and no transition or animation is running (an endless one, a
++ * skeleton's shimmer, does not count). It replaces fixed sleeps of 0.4-1.5 s, which were 68-85% of a guard walk
++ * (qa-suite-beta T-11, measured): a page that settles sooner is measured sooner, and one that never settles is measured
++ * after `cap`, as before. The mutation clock is installed by STILL_INIT in every context.
++ */
++async function quiet(page, cap = 700) {
++  await sleep(Math.min(150, cap));
++  if (cap <= 150) return;
++  await page.waitForFunction(() => performance.now() - (window.__qsbMut || 0) > 120 && document.fonts.status === 'loaded'
++    && document.getAnimations().every((a) => a.playState !== 'running' || a.effect?.getComputedTiming?.().iterations === Infinity),
++  null, { timeout: cap - 150, polling: 50 }).catch(() => {});
++}
++/** Init script: the time of the page's last DOM change (window.__qsbMut), for quiet(). */
++const STILL_INIT = () => {
++  window.__qsbMut = performance.now();
++  new MutationObserver(() => { window.__qsbMut = performance.now(); }).observe(document, { subtree: true, childList: true, attributes: true, characterData: true });
++};
+ const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.csv': 'text/csv', '.txt': 'text/plain', '.woff2': 'font/woff2' };
+ 
+ /**
+@@ -120,6 +141,7 @@
+     : mobile ? { viewport: vp, isMobile: engine !== 'firefox', hasTouch: true, deviceScaleFactor: 2, userAgent: vp.width <= 360 ? ANDROID : IOS } : { viewport: vp };
+   const context = await ctx.browser.newContext({ ...opts, colorScheme: theme });
+   ctx.cleanup.push(() => context.close().catch(() => {}));
++  await context.addInitScript(STILL_INIT);
+   await context.route((u) => !u.href.startsWith(st.origin) && !u.href.startsWith('data:') && !u.href.startsWith('blob:'), (r) => r.abort('blockedbyclient'));
+   const page = await context.newPage();
+   const errors = [];
+@@ -135,12 +157,12 @@
+       await page.goto('about:blank');
+       await page.goto(`${base}${h ? `#${h}` : ''}`);
+       await ready();
+-      await sleep(settle);
++      await quiet(page, settle);
+     },
+     async hash(h, settle = 700) {
+       await page.evaluate((x) => { location.hash = x; }, h);
+       await ready();
+-      await sleep(settle);
++      await quiet(page, settle);
+     },
+   };
+ }
+@@ -152,10 +174,27 @@
+   const mobile = await page.evaluate(() => matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window);
+   if (mobile) await page.touchscreen.tap(b.x + b.width / 2, b.y + b.height / 2);
+   else await loc.click();
+-  await sleep(wait);
++  await quiet(page, wait);
+ }
+ const sheetState = (page) => page.evaluate(() => document.body.dataset.sheet);
+-async function sheetTo(page, s) { for (let i = 0; i < 4 && (await sheetState(page)) !== s; i++) await tap(page, '#sheetHandle', 600); }
++/** The popover is open (visible) and still; at most `cap` ms more. */
++async function popoverOpen(page, cap) {
++  await page.waitForSelector('#popover:not([hidden])', { state: 'visible', timeout: cap }).catch(() => {});
++  await quiet(page, cap);
++}
++/** The popover is closed; at most `cap` ms. */
++async function popoverClosed(page, cap) {
++  await page.waitForFunction(() => { const p = document.querySelector('#popover'); return !p || p.hidden || !p.getClientRects().length; }, null, { timeout: cap, polling: 50 }).catch(() => {});
++  await quiet(page, Math.min(cap, 300));
++}
++async function sheetTo(page, s) {
++  for (let i = 0; i < 4 && (await sheetState(page)) !== s; i++) {
++    const before = await sheetState(page);
++    await tap(page, '#sheetHandle', 0);
++    await page.waitForFunction((b) => document.body.dataset.sheet !== b, before, { timeout: 600, polling: 50 }).catch(() => {});
++    await quiet(page, 600);
++  }
++}
+ async function shot(page, name) {
+   const dir = process.env.FIX_PHONE_TEXT_SHOTS;
+   if (!dir) return;
+@@ -166,11 +205,11 @@
+ async function openFolds(page) {
+   await page.evaluate(() => { for (const d of document.querySelectorAll('#drawer details.d-fold')) d.open = true; });
+   await page.waitForFunction(() => !document.querySelector('#drawer .comps-body .sk'), null, { timeout: 15000 }).catch(() => {});
+-  await sleep(500);
++  await quiet(page, 500);
+ }
+ async function openJob(s, slug, id) {
+   await s.hash(`c=${slug}&job=${encodeURIComponent(id)}`, 900);
+-  await s.page.waitForSelector('#drawer:not([hidden]) #drawerTitle', { timeout: 20000 });
++  await s.page.waitForSelector('#drawer.is-open:not([hidden]) #drawerTitle', { timeout: 20000 });
+   await openFolds(s.page);
+ }
+ const topPaidId = (page) => page.evaluate(() => document.querySelector('#resultsList .card[data-id]')?.dataset.id);
+@@ -358,7 +397,7 @@
+   await s.hash(`c=${slug}&m=insights`, 900);
+   await page.waitForSelector('#insightsHost .msi-stat', { timeout: 60000 }).catch(() => {});
+   await page.waitForSelector('#compHost .ms-comp__card, #compHost .ms-comp__empty', { timeout: 60000 }).catch(() => {});
+-  await sleep(600);
++  await quiet(page, 600);
+   await look('Insights', ['#main']);
+   for (const [what, id] of [['top-paid job', top], ['job with no pay', p.noPay?.id], ['stated minimum', p.minimum?.id], ['general application', p.pool?.id], ['open 180+ days', p.longOpen?.id], ['on-target earnings', p.ote?.id]]) {
+     if (!id) continue;
+@@ -368,22 +407,25 @@
+   await s.hash(`c=${slug}`, 900);
+   if (await page.locator('#filtersToggle').isVisible()) await tap(page, '#filtersToggle', 900);
+   await page.evaluate(() => { for (const d of document.querySelectorAll('#filterBody details')) d.open = true; });
+-  await sleep(500);
++  await quiet(page, 500);
+   await look('filter sheet', ['#filters']);
+   await page.keyboard.press('Escape');
+-  await sleep(500);
++  await quiet(page, 500);
+   await s.hash(`c=${slug}`, 600);
+   await tap(page, '#dataBadge', 900);
++  await popoverOpen(page, 900);
+   await look('data badge popover', ['#popover']);
+   await page.keyboard.press('Escape');
+-  await sleep(400);
++  await popoverClosed(page, 400);
+   await page.evaluate(() => document.querySelector('#quickChips [data-pop=more]')?.scrollIntoView({ inline: 'center' }));
+-  await sleep(250);
++  await quiet(page, 250);
+   await tap(page, '#quickChips [data-pop=more]', 900);
++  await popoverOpen(page, 900);
+   await look('More sheet', ['#popover']);
+   await page.keyboard.press('Escape');
+-  await sleep(400);
++  await popoverClosed(page, 400);
+   await tap(page, '#companyMenuBtn', 900);
++  await popoverOpen(page, 900);
+   await look('company menu', ['#popover']);
+   await page.keyboard.press('Escape');
+   return out;
+--- a/test/e2e/phone-matrix.e2e.js
++++ b/test/e2e/phone-matrix.e2e.js
+@@ -37,6 +37,27 @@
+ const SHOTS = process.env.PHONE_MATRIX_SHOTS || '';
+ const SHOT_DIR = path.resolve(process.env.PHONE_MATRIX_SHOT_DIR || path.join(ROOT, 'docs', 'screenshots', 'fix-phone-sizes'));
+ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
++
++/**
++ * Wait until the page is still, at most `cap` ms: at least 150 ms after the action (a hash change or a tap is handled
++ * in a later task), then until no DOM change for 120 ms, the fonts are loaded (a swap re-flows text with no DOM
++ * change), and no transition or animation is running (an endless one, a
++ * skeleton's shimmer, does not count). It replaces fixed sleeps of 0.4-1.5 s, which were 68-85% of a guard walk
++ * (qa-suite-beta T-11, measured): a page that settles sooner is measured sooner, and one that never settles is measured
++ * after `cap`, as before. The mutation clock is installed by STILL_INIT in every context.
++ */
++async function quiet(page, cap = 700) {
++  await sleep(Math.min(150, cap));
++  if (cap <= 150) return;
++  await page.waitForFunction(() => performance.now() - (window.__qsbMut || 0) > 120 && document.fonts.status === 'loaded'
++    && document.getAnimations().every((a) => a.playState !== 'running' || a.effect?.getComputedTiming?.().iterations === Infinity),
++  null, { timeout: cap - 150, polling: 50 }).catch(() => {});
++}
++/** Init script: the time of the page's last DOM change (window.__qsbMut), for quiet(). */
++const STILL_INIT = () => {
++  window.__qsbMut = performance.now();
++  new MutationObserver(() => { window.__qsbMut = performance.now(); }).observe(document, { subtree: true, childList: true, attributes: true, characterData: true });
++};
+ const slug = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+ const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.csv': 'text/csv', '.txt': 'text/plain', '.woff2': 'font/woff2', '.webmanifest': 'application/manifest+json' };
+ // The Surface Duo's hinge when spanned: two 540 px screens with 34 px between them.
+@@ -91,6 +112,7 @@
+   const opts = size.ua ? contextFor(size, engine) : { viewport: { width: size.width, height: size.height }, deviceScaleFactor: 1, hasTouch: !!size.touch };
+   const context = await ctx.browser.newContext({ ...opts, colorScheme });
+   ctx.cleanup.push(() => context.close());
++  await context.addInitScript(STILL_INIT);
+   await context.route((u) => !u.href.startsWith(st.origin) && !u.href.startsWith('data:') && !u.href.startsWith('blob:'), (r) => r.abort('blockedbyclient'));
+   const page = await context.newPage();
+   const errors = [];
+@@ -108,7 +130,7 @@
+     const t = document.querySelector('#resultsTitle');
+     return t && !/Loading/.test(t.textContent) && /\d/.test(t.textContent) && document.querySelector('#resultsList .card[data-id]');
+   }, null, { timeout: 90000 });
+-  await sleep(700);
++  await quiet(page, 700);
+   return { page, errors, context, cdp };
+ }
+ 
+@@ -326,7 +348,7 @@
+ async function checkDrawer(page, screenW, label) {
+   await page.evaluate(() => document.querySelector('#resultsList .card[data-id]').click());
+   await page.waitForFunction(() => document.querySelector('#drawer.is-open #drawerTitle'), null, { timeout: 15000 }).catch(() => {});
+-  await sleep(900); // the slide-in (0.22 s) and the description file
++  await quiet(page, 900); // the slide-in (0.22 s) and the description file
+   const f = await page.evaluate(overlayFacts, '#drawer');
+   const p = overlayProblems(f, 'job page', screenW, label);
+   const ctl = await page.evaluate(() => ['#drawerClose', '.drawer-foot .apply'].map((s) => {
+@@ -339,7 +361,7 @@
+   p.push(...(await page.evaluate(drawerTextFacts)).map((c) => `${label}: job page: ${c}`));
+   await page.keyboard.press('Escape');
+   await page.waitForFunction(() => !document.querySelector('#drawer.is-open'), null, { timeout: 5000 }).catch(() => {});
+-  await sleep(350);
++  await quiet(page, 350);
+   return p;
+ }
+ 
+@@ -366,7 +388,7 @@
+     if (done) p.push(`${label}: filter sheet: ${done}`);
+     await page.keyboard.press('Escape');
+     await page.waitForFunction(() => !document.body.classList.contains('filters-open'), null, { timeout: 5000 }).catch(() => {});
+-    await sleep(350);
++    await quiet(page, 350);
+   }
+   return p;
+ }
+@@ -433,11 +455,12 @@
+           for (const mode of ['map', 'insights']) {
+             await clickEl(page, `.topbar .seg [data-mode="${mode}"]`);
+             if (mode === 'map') await page.waitForFunction(() => document.querySelector('.ms-map .ms-pin'), null, { timeout: 20000 }).catch(() => {});
+-            await sleep(mode === 'map' ? 1500 : 900);
++            if (mode === 'insights') await page.waitForSelector('#insightsHost .msi-stat', { timeout: 20000 }).catch(() => {});
++            await quiet(page, mode === 'map' ? 1500 : 900);
+             bad.push(...problemsOf(await page.evaluate(measure, OTHER_CONTROLS), size.width, `${label} ${mode}`));
+           }
+           await clickEl(page, '.topbar .seg [data-mode="chart"]');
+-          await sleep(900);
++          await quiet(page, 900);
+         }
+         bad.push(...await checkDrawer(page, size.width, label));
+         bad.push(...await checkFilters(page, size.width, label));

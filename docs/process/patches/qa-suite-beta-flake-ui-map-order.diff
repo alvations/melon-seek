@@ -1,0 +1,34 @@
+diff --git a/test/e2e/ui.e2e.js b/test/e2e/ui.e2e.js
+index ff24c0c..7f763fd 100644
+--- a/test/e2e/ui.e2e.js
++++ b/test/e2e/ui.e2e.js
+@@ -239,6 +239,9 @@ export function registerUiTests(suite) {
+     const { page, errors, close } = await openApp(ctx);
+     try {
+       await modeBtn(page, 'map').click();
++      // The switch re-renders the view; read aria-pressed once it has (qa-suite-beta T-18: "map pressed: expected true,
++      // got false" in a full run at load 7-10, fps/e2e-full3.log).
++      await page.waitForFunction(() => document.querySelector('.topbar .seg button[data-mode="map"]')?.getAttribute('aria-pressed') === 'true', null, { timeout: 5000 }).catch(() => {});
+       assertEq(await modeBtn(page, 'map').getAttribute('aria-pressed'), 'true', 'map pressed');
+       await page.locator('#mapHost .ms-pin').first().waitFor({ timeout: 10000 });
+       const pins = await page.locator('#mapHost .ms-pin').count();
+@@ -292,7 +295,9 @@ export function registerUiTests(suite) {
+   });
+ 
+   suite.test('UI: map initial fit keeps every pin inside the visible map', async (ctx) => {
+-    assert(ctx.mapClipped, 'map test did not run');
++    // Reads what the map test measured (one page load for both). Run alone (a --grep, or a --shard cut between them),
++    // it has nothing to read: a skip, not a failure (qa-suite-beta T-18).
++    if (!ctx.mapClipped) skip('needs "UI: map mode shows price pins…" to run first');
+     const { clipped, total } = ctx.mapClipped;
+     assert(clipped.length === 0, `${clipped.length}/${total} pins outside the visible map after initial fit: ${clipped.map((g) => g.label).join('; ')}`);
+   });
+@@ -894,7 +899,7 @@ export function registerUiTests(suite) {
+   });
+ 
+   suite.test('UI: mobile 390x844 buttons keep visible text / accessible names', async (ctx) => {
+-    assert(ctx.mobileUnnamed, 'mobile test did not run');
++    if (!ctx.mobileUnnamed) skip('needs "UI: mobile 390x844 renders without horizontal scroll…" to run first'); // T-18
+     const u = [...new Set(ctx.mobileUnnamed)];
+     assert(u.length === 0, `${u.length} visible buttons have no text or accessible name at 390px:\n${u.join('\n')}`);
+   });

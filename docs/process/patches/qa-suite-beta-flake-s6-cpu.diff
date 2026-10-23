@@ -1,0 +1,31 @@
+diff --git a/test/beta-security-review.test.js b/test/beta-security-review.test.js
+index 14cd4c1..c40e322 100644
+--- a/test/beta-security-review.test.js
++++ b/test/beta-security-review.test.js
+@@ -232,15 +232,24 @@ test('S-6: /methodology/ is not re-rendered on every request in server mode', as
+     const first = await fetch(`${base}/methodology/`);
+     assert.equal(first.status, 200);
+     await first.text();
++    // CPU time, not wall time (qa-suite-beta T-13): a re-render costs this thread's CPU whatever the load, while a
++    // loaded machine stretches the wall time of a cached reply (29 ms median at load 10, 2026-10-23). The server runs
++    // in this process; process.threadCpuUsage (Node 22.19+, 23.9+) counts this thread only, process.cpuUsage all.
++    const cpu = () => { const u = typeof process.threadCpuUsage === 'function' ? process.threadCpuUsage() : process.cpuUsage(); return (u.user + u.system) / 1000; };
+     const times = [];
++    const walls = [];
+     for (let i = 0; i < 5; i++) {
+       const t0 = performance.now();
++      const c0 = cpu();
+       const r = await fetch(`${base}/methodology/`);
+       await r.text();
+-      times.push(performance.now() - t0);
++      times.push(cpu() - c0);
++      walls.push(performance.now() - t0);
+     }
+     times.sort((a, b) => a - b);
+-    assert.ok(times[2] < 25, `median ${Math.round(times[2])} ms per request (the guide and its charts are rebuilt each time)`);
++    walls.sort((a, b) => a - b);
++    assert.ok(times[2] < 25, `median ${Math.round(times[2])} ms of CPU per request (the guide and its charts are rebuilt each time); wall ${walls.map(Math.round)} ms`);
++    assert.ok(walls[2] < 1000, `median ${Math.round(walls[2])} ms per request`);
+   } finally {
+     await new Promise((r) => server.close(r));
+   }

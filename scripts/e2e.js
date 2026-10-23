@@ -45,6 +45,7 @@ import { registerPhoneMatrixTests } from '../test/e2e/phone-matrix.e2e.js';
 import { registerFixPhoneTextTests } from '../test/e2e/fix-phone-text.e2e.js';
 import { registerFixPayAtPlaceTests } from '../test/e2e/fix-pay-at-place.e2e.js';
 import { registerBetaMobileQa4Tests } from '../test/e2e/beta-mobile-qa-4.e2e.js';
+import { registerBetaCoverageTests } from '../test/e2e/beta-coverage.e2e.js';
 import { registerFixViz5Tests } from '../test/e2e/fix-viz-5.e2e.js';
 import { registerBetaDesktopQa4Tests } from '../test/e2e/beta-desktop-qa-4.e2e.js';
 import { registerFixQa4Tests } from '../test/e2e/fix-qa4.e2e.js';
@@ -126,6 +127,7 @@ if (!apiOnly) {
   registerFixPhoneTextTests(suite);
   registerFixPayAtPlaceTests(suite);
   registerBetaMobileQa4Tests(suite);
+  registerBetaCoverageTests(suite);
   registerFixViz5Tests(suite);
   registerBetaDesktopQa4Tests(suite);
   registerFixQa4Tests(suite);

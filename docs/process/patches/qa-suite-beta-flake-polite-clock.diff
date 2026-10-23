@@ -1,0 +1,105 @@
+diff --git a/test/amazon-meta-adapters.test.js b/test/amazon-meta-adapters.test.js
+index b7c96ba..539b15d 100644
+--- a/test/amazon-meta-adapters.test.js
++++ b/test/amazon-meta-adapters.test.js
+@@ -2,7 +2,7 @@
+ // on the real fixture rows (test/fixtures/bigtech-*.json) and the synthetic boards
+ // (test/amazon-meta-synth.js). No network. Each fetch test lifts the registry's `paused` in this
+ // process only (server/companies.js PAUSING); the paused path itself is test/amazon-meta-resume.test.js.
+-import { test, afterEach } from 'node:test';
++import { test, afterEach, mock } from 'node:test';
+ import assert from 'node:assert/strict';
+ import fs from 'node:fs';
+ import path from 'node:path';
+@@ -18,7 +18,18 @@ import { amazonRows, amazonSite, metaRecords, metaSite, metaPageHtml, installFet
+ 
+ const FIX = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures');
+ const fixture = (slug) => JSON.parse(fs.readFileSync(path.join(FIX, `bigtech-${slug}.json`), 'utf8'));
+-afterEach(() => { setMinInterval(null); resetRateLimits(); resetRobots(); });
++afterEach(() => { mock.timers.reset(); setMinInterval(null); resetRateLimits(); resetRobots(); });
++
++/** Run `promise` on node:test's virtual clock (setTimeout and Date), 1 ms per event-loop turn (qa-suite-beta T-13). */
++async function onVirtualClock(promise) {
++  let done = false;
++  const p = Promise.resolve(promise).finally(() => { done = true; });
++  for (let i = 0; !done && i < 600000; i++) {
++    await new Promise((r) => setImmediate(r));
++    if (!done) mock.timers.tick(1);
++  }
++  return p;
++}
+ 
+ async function resumed(slug, fn) {
+   const c = COMPANIES.find((x) => x.slug === slug);
+@@ -93,12 +104,14 @@ test('fetchAmazon: honest User-Agent, robots.txt first, spaced requests, every p
+   globalThis.fetch = async (url, init) => { seen.push({ url: String(url), at: Date.now(), ua: init.headers['User-Agent'], redirect: init.redirect }); return site(String(url)); };
+   try {
+     const stats = newStats();
+-    const { jobs } = await resumed('amazon', () => fetchAmazon('amazon', { stats }));
++    mock.timers.enable({ apis: ['setTimeout', 'Date'], now: 1_000_000 });
++    const { jobs } = await onVirtualClock(resumed('amazon', () => fetchAmazon('amazon', { stats })));
++    mock.timers.reset();
+     assert.equal(jobs.length, 260);
+     assert.match(seen[0].url, /\/robots\.txt$/);
+     assert.ok(seen.every((c) => c.ua === BOT_USER_AGENT && c.redirect === 'manual'));
+     const gaps = seen.slice(1).map((c, i) => c.at - seen[i].at);
+-    assert.ok(gaps.every((g) => g >= 20), `request starts at least the interval apart: ${gaps}`);
++    assert.ok(gaps.every((g) => g >= 25), `request starts at least the interval apart (virtual clock): ${gaps}`);
+     assert.equal(stats.requests, seen.length);
+   } finally {
+     globalThis.fetch = real;
+diff --git a/test/bigtech-polite.test.js b/test/bigtech-polite.test.js
+index af6658c..9f8c313 100644
+--- a/test/bigtech-polite.test.js
++++ b/test/bigtech-polite.test.js
+@@ -1,7 +1,7 @@
+ // Beta channel plumbing: the polite HTTP client (server/sources/polite.js), the
+ // channel-aware registry (server/companies.js) and `snapshot.js --channel`.
+ // docs/CONTRACT.md v3, docs/DATA_SOURCES.md §7.
+-import { test, afterEach } from 'node:test';
++import { test, afterEach, mock } from 'node:test';
+ import assert from 'node:assert/strict';
+ import {
+   politeRequest, politeJson, robotsRules, robotsAllows, checkRobots, resetRobots, setMinInterval, resetRateLimits,
+@@ -11,7 +11,23 @@ import { listCompanies, getCompany, resolveCompany, SOURCES, COMPANIES } from '.
+ import { targetsFor, fitSnapshot, trimDescription } from '../scripts/snapshot.js';
+ 
+ const realFetch = globalThis.fetch;
+-afterEach(() => { globalThis.fetch = realFetch; setMinInterval(null); resetRateLimits(); resetRobots(); });
++afterEach(() => { mock.timers.reset(); globalThis.fetch = realFetch; setMinInterval(null); resetRateLimits(); resetRobots(); });
++
++/**
++ * Run `promise` on a virtual clock (node:test mock timers for setTimeout and Date, enabled by the caller): advance
++ * 1 ms per turn of the event loop until it settles. The spacing is then measured in the clock polite.js reads, so a
++ * loaded machine (a preempted process, a late timer) cannot shrink a measured gap below the one the code kept
++ * (qa-suite-beta T-13: "gaps 27,42" at load 10-12).
++ */
++async function onVirtualClock(promise) {
++  let done = false;
++  const p = Promise.resolve(promise).finally(() => { done = true; });
++  for (let i = 0; !done && i < 600000; i++) {
++    await new Promise((r) => setImmediate(r));
++    if (!done) mock.timers.tick(1);
++  }
++  return p;
++}
+ 
+ const STABLE = ['anthropic', 'anduril', 'openai', 'scaleai', 'xai', 'cohere', 'palantir', 'shieldai'];
+ const BETA_ALL = ['google', 'microsoft', 'meta', 'apple', 'netflix', 'amazon', 'nvidia'];
+@@ -145,11 +161,13 @@ test('politeRequest: honest User-Agent, per-host spacing, backoff on 429/5xx wit
+     return new Response('{"ok":true}', { status: 200, headers: { 'content-type': 'application/json' } });
+   };
+   const stats = newStats();
++  mock.timers.enable({ apis: ['setTimeout', 'Date'], now: 1_000_000 });
+   const t0 = Date.now();
+-  await Promise.all([1, 2, 3].map((i) => politeJson(`https://x.test/p${i}`, { stats })));
+-  assert.ok(Date.now() - t0 >= 75, 'three requests to one host are spaced');
++  await onVirtualClock(Promise.all([1, 2, 3].map((i) => politeJson(`https://x.test/p${i}`, { stats }))));
++  assert.ok(Date.now() - t0 >= 80, `three requests to one host are spaced (${Date.now() - t0} ms)`);
+   const gaps = calls.slice(1).map((c, i) => c.at - calls[i].at);
+-  assert.ok(gaps.every((g) => g >= 35), `gaps ${gaps}`);
++  assert.ok(gaps.every((g) => g >= 40), `gaps ${gaps}`); // exact on the virtual clock: the minimum interval is 40
++  mock.timers.reset();
+   assert.equal(calls[0].headers['User-Agent'], BOT_USER_AGENT);
+   assert.match(BOT_USER_AGENT, /^melon-seek\/\S+ \(\+https:\/\/alvations\.github\.io\/melon-seek\//);
+   assert.ok(!/Mozilla|Chrome|Safari/.test(BOT_USER_AGENT), 'no browser impersonation');

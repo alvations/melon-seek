@@ -1,0 +1,165 @@
+diff --git a/test/e2e/beta-boards.mjs b/test/e2e/beta-boards.mjs
+new file mode 100644
+index 0000000..758a516
+--- /dev/null
++++ b/test/e2e/beta-boards.mjs
+@@ -0,0 +1,16 @@
++// The beta site's boards, from the registry (server/companies.js): every non-paused company of the beta channel.
++// e2e files that mean "every big-tech board" read them here, so a board added (Amazon and Meta, 2026-10-11) or resumed
++// is tested without editing each file (qa-suite-beta T-1: three files kept five hand-written boards for 12 days).
++import { COMPANIES } from '../../server/companies.js';
++
++export const BETA_COMPANIES = Object.freeze(COMPANIES.filter((c) => c.channel === 'beta' && !c.paused));
++/** Slugs, in registry order. */
++export const BETA_BOARDS = Object.freeze(BETA_COMPANIES.map((c) => c.slug));
++/** slug -> the name the company menu shows. */
++export const BETA_NAMES = Object.freeze(Object.fromEntries(BETA_COMPANIES.map((c) => [c.slug, c.name])));
++/** The hosts (no "www.") a board's postings may link to: its postingHosts and the hosts of its postingPrefixes. */
++export function postingHostsOf(slug) {
++  const c = BETA_COMPANIES.find((x) => x.slug === slug);
++  if (!c) return new Set();
++  return new Set([...(c.postingHosts || []), ...(c.postingPrefixes || []).map((p) => new URL(p).hostname)].map((h) => h.replace(/^www\./, '')));
++}
+diff --git a/test/e2e/beta-desktop-qa-2.e2e.js b/test/e2e/beta-desktop-qa-2.e2e.js
+index 7bc707e..8bc9435 100644
+--- a/test/e2e/beta-desktop-qa-2.e2e.js
++++ b/test/e2e/beta-desktop-qa-2.e2e.js
+@@ -10,9 +10,11 @@ import http from 'node:http';
+ import fs from 'node:fs';
+ import path from 'node:path';
+ import { ROOT, assert, assertEq, skip } from './harness.js';
++import { BETA_BOARDS } from './beta-boards.mjs';
+ 
+ const DESKTOP = { width: 1440, height: 900 };
+-const BIG_TECH = ['apple', 'google', 'nvidia', 'microsoft', 'netflix'];
++// Every non-paused beta board, from the registry (T-1: Amazon and Meta were missing from a hand-written list).
++const BIG_TECH = BETA_BOARDS;
+ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+ const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.csv': 'text/csv', '.txt': 'text/plain', '.woff2': 'font/woff2' };
+ 
+diff --git a/test/e2e/beta-desktop-qa.e2e.js b/test/e2e/beta-desktop-qa.e2e.js
+index 8ba8b4f..49f183c 100644
+--- a/test/e2e/beta-desktop-qa.e2e.js
++++ b/test/e2e/beta-desktop-qa.e2e.js
+@@ -9,10 +9,12 @@ import http from 'node:http';
+ import fs from 'node:fs';
+ import path from 'node:path';
+ import { ROOT, assert, assertEq, skip, startServer } from './harness.js';
++import { BETA_BOARDS, postingHostsOf } from './beta-boards.mjs';
+ import { COMPANIES } from '../../server/companies.js';
+ 
+ const DESKTOP = { width: 1440, height: 900 };
+-const BIG_TECH = { apple: 'jobs.apple.com', google: 'google.com', nvidia: 'jobs.nvidia.com', microsoft: 'apply.careers.microsoft.com', netflix: 'explore.jobs.netflix.net' };
++// Every non-paused beta board, from the registry (T-1: Amazon and Meta were missing from a hand-written list).
++const BIG_TECH = BETA_BOARDS;
+ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+ 
+ /** Serve ROOT/dist under /melon-seek/ (the GitHub Pages layout) on a free port; null without a beta build. */
+@@ -116,7 +118,7 @@ export function registerBetaDesktopQaTests(suite) {
+   // ---------------------------------------------------------------- guards (pass today)
+   suite.test('Beta desktop QA: big-tech boards load from the bundle only (Snapshot badge, no live request)', async (ctx) => {
+     const { st, page, errors, external, requests } = await openBeta(ctx, null);
+-    for (const c of Object.keys(BIG_TECH)) {
++    for (const c of BIG_TECH) {
+       const e0 = external.length, r0 = requests.length;
+       await page.goto(`${st.beta}/#c=${c}`); await ready(page); await sleep(1200);
+       const label = await page.locator('#dataBadge .badge-label').innerText();
+@@ -130,11 +132,11 @@ export function registerBetaDesktopQaTests(suite) {
+     assert(!errors.length, `console errors: ${errors.slice(0, 3).join(' | ')}`);
+   });
+ 
+-  suite.test('Beta desktop QA: paused and absent companies (Meta, Amazon, Tesla) are nowhere; the main site lists no beta company', async (ctx) => {
++  suite.test('Beta desktop QA: paused and absent companies (the registry\'s paused ones, and Tesla) are nowhere; the main site lists no beta company', async (ctx) => {
+     const { st, page } = await openBeta(ctx, 'c=netflix');
+     await page.click('#companyMenuBtn'); await sleep(300);
+     const names = await page.$$eval('#popover .company-item-name', (e) => e.map((x) => x.textContent));
+-    for (const n of ['Google', 'Microsoft', 'Apple', 'Netflix', 'NVIDIA']) assert(names.includes(n), `company menu lacks ${n}`);
++    for (const n of COMPANIES.filter((c) => BIG_TECH.includes(c.slug)).map((c) => c.name)) assert(names.includes(n), `company menu lacks ${n}`);
+     // Paused companies come from the registry (server/companies.js `paused`), so resuming one needs no edit here.
+     const paused = COMPANIES.filter((c) => c.paused);
+     for (const n of [...paused.map((c) => c.name), 'Tesla']) assert(!names.includes(n), `company menu lists ${n}`);
+@@ -142,7 +144,7 @@ export function registerBetaDesktopQaTests(suite) {
+       assertEq((await fetch(`${st.main}/${p}`)).status, 404, `/${p}`);
+     }
+     const main = await (await fetch(`${st.main}/api/companies.json`)).json();
+-    assert(!main.some((c) => c.channel === 'beta' || c.slug in BIG_TECH), `main site companies.json lists ${main.map((c) => c.slug).join(',')}`);
++    assert(!main.some((c) => c.channel === 'beta' || BIG_TECH.includes(c.slug)), `main site companies.json lists ${main.map((c) => c.slug).join(',')}`);
+   });
+ 
+   suite.test('Beta desktop QA: Apple (6,105 roles) facet counts stay consistent and each update lands quickly', async (ctx) => {
+@@ -175,12 +177,13 @@ export function registerBetaDesktopQaTests(suite) {
+ 
+   suite.test('Beta desktop QA: Apply opens each big-tech careers host in a new tab', async (ctx) => {
+     const { st, page } = await openBeta(ctx, null);
+-    for (const [c, host] of Object.entries(BIG_TECH)) {
++    for (const c of BIG_TECH) {
+       await page.goto(`${st.beta}/#c=${c}`); await ready(page);
+       await page.locator('#resultsList .card[data-id]').first().click(); await sleep(700);
+       const a = page.locator('#drawer a.apply');
+       const href = await a.getAttribute('href');
+-      assertEq(new URL(href).hostname.replace(/^www\./, ''), host, `${c}: Apply host`);
++      const host = new URL(href).hostname.replace(/^www\./, '');
++      assert(postingHostsOf(c).has(host), `${c}: Apply goes to ${host}, not ${[...postingHostsOf(c)].join(' or ')}`);
+       assertEq(await a.getAttribute('target'), '_blank', `${c}: Apply target`);
+       assert(/noopener/.test(await a.getAttribute('rel')), `${c}: Apply rel`);
+       assert((await a.locator('.apply-host').innerText()) === host, `${c}: host shown under Apply`);
+@@ -190,7 +193,7 @@ export function registerBetaDesktopQaTests(suite) {
+ 
+   suite.test('Beta desktop QA: beta share pages /beta/c/<slug>/ have their own titles and open the beta app', async (ctx) => {
+     const { st, page } = await openBeta(ctx, null);
+-    for (const c of Object.keys(BIG_TECH)) {
++    for (const c of BIG_TECH) {
+       const r = await fetch(`${st.beta}/c/${c}/`);
+       assertEq(r.status, 200, `/beta/c/${c}/`);
+       const html = await r.text();
+diff --git a/test/e2e/beta-mobile-qa.e2e.js b/test/e2e/beta-mobile-qa.e2e.js
+index ea03d25..af5c3ca 100644
+--- a/test/e2e/beta-mobile-qa.e2e.js
++++ b/test/e2e/beta-mobile-qa.e2e.js
+@@ -12,6 +12,7 @@ import fs from 'node:fs';
+ import path from 'node:path';
+ import zlib from 'node:zlib';
+ import { ROOT, assert, assertEq, skip } from './harness.js';
++import { BETA_BOARDS, BETA_NAMES } from './beta-boards.mjs';
+ import { COMPANIES } from '../../server/companies.js';
+ 
+ const SHOTS = path.join(ROOT, 'docs', 'screenshots', 'qa-mobile-beta');
+@@ -19,7 +20,8 @@ const IOS = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/
+ const ANDROID = 'Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Mobile Safari/537.36';
+ const PHONE = { width: 390, height: 844 };
+ const SMALL = { width: 360, height: 740 };
+-const BIG_TECH = ['netflix', 'google', 'microsoft', 'apple', 'nvidia']; // the first is opened by URL
++// Every non-paused beta board, from the registry (T-1: Amazon and Meta were missing); the first is opened by URL.
++const BIG_TECH = ['netflix', ...BETA_BOARDS.filter((s) => s !== 'netflix')];
+ const KEYBOARD = 336; // simulated on-screen keyboard height (px)
+ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+ const num = (s) => Number(String(s).replace(/,/g, '').match(/(\d+)/)?.[1]);
+@@ -154,7 +156,7 @@ export function registerBetaMobileQaTests(suite) {
+ 
+   suite.test('Beta mobile QA: every big-tech board loads from its snapshot with no live request; badge, popover and CSV agree', async (ctx) => {
+     const { page, errors, external } = await openBeta(ctx, { hash: `c=${BIG_TECH[0]}` });
+-    const names = { google: 'Google', microsoft: 'Microsoft', apple: 'Apple', netflix: 'Netflix', nvidia: 'NVIDIA' };
++    const names = BETA_NAMES;
+     for (const slug of BIG_TECH) {
+       if (slug !== BIG_TECH[0]) await switchTo(page, names[slug]);
+       const roles = num(await page.textContent('#resultsTitle'));
+@@ -171,7 +173,18 @@ export function registerBetaMobileQaTests(suite) {
+       assert(!pop.refreshShown, `${slug}: "Refresh from the live board" offered for a live: false board`);
+       assertEq(pop.csv, `/melon-seek/beta/data/${slug}.csv`, `${slug}: CSV link`);
+       assert(pop.csvH >= 44, `${slug}: CSV link is ${pop.csvH}px tall`);
+-      const lines = await page.evaluate(async (u) => (await (await fetch(u)).text()).split('\n').filter(Boolean).length, pop.csv);
++      // Records, not lines: a quoted field may hold a line break (RFC 4180; Meta's "Research Scientist,\nMachine
++      // Learning…" title does, qa-suite-beta T-17), which a split on "\n" counts as a row.
++      const lines = await page.evaluate(async (u) => {
++        const t = await (await fetch(u)).text();
++        let n = 0, q = false, any = false;
++        for (const c of t) {
++          if (c === '"') q = !q;
++          else if (c === '\n' && !q) { if (any) n++; any = false; continue; }
++          if (c !== '\r') any = true;
++        }
++        return n + (any ? 1 : 0);
++      }, pop.csv);
+       assertEq(lines, roles + 1, `${slug}: CSV rows (header + roles)`);
+       await tapSel(page, '#popover .pop-head .icon-btn');
+     }
