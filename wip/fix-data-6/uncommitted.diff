@@ -1,0 +1,15 @@
+diff --git a/public/app.js b/public/app.js
+index 6ca3bc9..392b6f9 100644
+--- a/public/app.js
++++ b/public/app.js
+@@ -3894,7 +3894,9 @@ function cardTerm(job) {
+ function payPlaceText(job) {
+   // fix-pay-at-place: a posting that prices each place on a row of its own names those places ("Seattle and
+   // Bellevue"); one with no row for the place picked has no posted pay there (the lead decision of 2026-10-16).
+-  if (Array.isArray(job.salary?.ranges) && job.salary.ranges.length) {
++  // P-1 (fix-data-6): so does one whose one range was posted for some of its places (salary.places: "Tempe", not "the
++  // US", for a posting listed in Tempe, Nashville, Bellevue and Atlanta, under Atlanta).
++  if ((Array.isArray(job.salary?.ranges) && job.salary.ranges.length) || (Array.isArray(job.salary?.places) && job.salary.places.length)) {
+     const own = pricedPlaces(job);
+     if (own.length) return placeLabel(own);
+   }

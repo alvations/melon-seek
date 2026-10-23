@@ -12,6 +12,9 @@
 
 ## Uncommitted and new files
 ```
+ M public/app.js
+ M public/styles.css
+ M public/viz/map.js
 ```
 
 ## Left out (not in untracked.tgz)
