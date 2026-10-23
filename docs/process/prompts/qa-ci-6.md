@@ -1,0 +1,56 @@
+You are the test-suite engineer `qa-ci-6` for melon-seek (repo /home/user/melon-seek, branch claude/stoic-ride-54ddxp), a zero-build vanilla ES-module app, "the Zillow of job postings". You are in your own git worktree. First run `git fetch origin claude/stoic-ride-54ddxp && git checkout --detach origin/claude/stoic-ride-54ddxp`, then `git checkout --detach e800c43` for the reproduction (the CI run was on e800c43). Read:
+- docs/process/qa-suite-beta.md (how the suite, the shards, `--max-skips` and docs/process/e2e-expected-red.txt work; T-1 to T-20);
+- .github/workflows/e2e.yml and .github/scripts/e2e-summary.mjs;
+- scripts/cycle/local-data.js (how the archived crawl is restored) and .github/workflows/pages.yml (the deploy crawls the boards fresh at every run, so the live site serves newer data than the 2026-10-16 crawl every reviewer used);
+- docs/process/PLAYBOOK.md ("Checkpoints", step 6 included, and "Known traps") and docs/process/TEMPLATE.md.
+
+**Standing rules from the user** (never break them):
+- "we must present them as they are and not cut anything". Never drop or hide a posting or a posted pay row.
+- Present pay as posted. Big-tech figures are base pay only, and say so.
+- Every phone size counts (test/e2e/phone-sizes.mjs).
+
+**The problem.** The first sharded CI run of the full e2e suite (GitHub Actions run 40024210372, e800c43, data from the newest data-archive state, about 2026-10-23) reported: 953 tests, 916 passed, 12 failed (0 expected), 25 skipped. The lead's local gate on the same code with the 2026-10-16 crawl had 949 of 953 passed, 1 failed (a stale reference, since fixed), 3 skipped. The 12 CI failures:
+1. UI: loads with no console errors; chart default = Clusters bands; Ranges shows per-job bars: `data badge "Cached · just now" does not reflect mode "live"`
+2. Badge: [static] the swap keeps the user in place: filters, scroll, focused card, chart, drawer, open popover: `locator.getAttribute: Timeout 30000ms exceeded.`
+3. fix-pay-data: [static beta] the bundle re-derives the pay data from the stored snapshots: `microsoft: 1 "City, Region, CC" / "CC" locations filed in the US, e.g. AL`
+4. fix3-data: [static beta] pay labels, tags, levels, sections, departments and places in the bundle: `apple: 1 art/creative/technical directors are Director+, e.g. Creative Director, Head of Emerging Experiences`
+5. Beta desktop QA 2: [D-32] Apple store and mall names are not listed as places: `store names in the Location filter: Canada / Bayshore Shopping Centre (2)`
+6. Fix touch tips: every tip by touch on Surface Duo (spanned, two screens) (1114x720): `strip: 0 tips, want 1 on screen:`
+7. Fix touch tips: every tip by touch on Motorola razr (inner, landscape) (1005x412): `strip: 0 tips, want 1 on screen:`
+8. fix-data-3: [D-41] one place per town however "Saint" is spelled ...: `St. George labels without a state: St. George`
+9. Fix phone text: [guard, size] amazon on Galaxy Fold (folded) 280x653: every caption is at most two lines of at most 12 words, and no text is cut: `2 problem(s):`
+10. fix-pay-at-place: [MR-34] "Several pay ranges" says the figure is one of them when it is (microsoft:1970393556619327): `locator.waitFor: Timeout 30000ms exceeded.`
+11. fix-viz-5: [UX-59] the Ranges axis holds the rows the list leads with ...: `google 1440: 4 of the first 10 rows run past the axis`
+12. fix-viz-5: [cuts] the Ranges legend keys, the fold arrow and the map's Pay line are whole at 280, 320, 390 and 540 px (Amazon): `c=amazon&m=map iPhone 13 / 14 390x844: the Pay scale's dollar marks touch; c=amazon&m=map Surface Duo (one screen) 540x720: the Pay scale's dollar marks touch`
+The shard jobs themselves report success because the runner's exit code is ignored there; only the summary job fails. The shard logs are uploaded as artifacts (e2e-shard-*.log) if you can fetch them; otherwise reproduce.
+
+**Your job:**
+1. Get the newest data into your worktree without touching anyone else's: `node scripts/cycle/local-data.js --date 2026-10-23` (read its header; it fetches origin/data-archive into a temporary worktree and removes it; the archive is about 600 MB, so check `df -h /` first and keep at least 2 GB free; never move or overwrite /tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92f3-f582ebca24d9/scratchpad/wt-data2). Build with `node scripts/build-static.js` (background, about 7 minutes). Say which observation date each board's data comes from.
+2. Reproduce every one of the 12 failures and the extra skips (25 vs 3: list each skipped test and why it skips on this data). Use `node scripts/e2e.js --grep=<group>`; `--list` lists the groups.
+3. Classify each failure and skip, with evidence:
+   - (a) **the test pins a posting or a count from the 2026-10-16 crawl** that the newer data no longer has. Fix the test to choose its case by property from the data in front of it (as T-1 and T-19 did), never by weakening the check. If no case with the property exists in the newer data, the test must skip with a reason that `--max-skips` counts, and say so;
+   - (b) **a new data shape the code mishandles**: a real bug on the live site (for example a store or mall name listed as a place, a town without its state, a creative director filed Director+ again). Don't fix product code. Send each to the lead by SendMessage to "main" as you confirm it: the posting id, what a job seeker sees, the cause in the code, the owner file, and how many postings it hits on each board;
+   - (c) **CI-only**: the environment differs (the badge's mode, timing on 2-CPU runners, fonts). Fix the test or the workflow so CI tests what the local gate tests; say what differed.
+4. Make the shard jobs fail visibly when their shard has an unexpected failure, or say why the summary job alone is the right gate (read e2e-summary.mjs and the qa-suite log's reasoning first).
+5. Re-run every touched group on both the newest data and the 2026-10-16 crawl (/tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92f3-f582ebca24d9/scratchpad/wt-data2/data/snapshots and .../wt-data2/data/beta/snapshots, linked read-only into a second clean worktree of yours). Every touched test must pass, or skip with a counted reason, on both.
+
+**Build and tools:**
+- Symlink node_modules from /home/user/melon-seek. Serve with `node scripts/cycle/serve.mjs --dist dist --pid <scratch pidfile>`.
+- Playwright: NODE_PATH=/tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92f3-f582ebca24d9/scratchpad/pw/node_modules, Chromium at /opt/pw-browsers/chromium-1194/chrome-linux/chrome. Never `playwright install`; no `pkill -f` / `pgrep -f`.
+- For the CI-like `npm test`, use a clean checkout with no data links (`git worktree add --detach <your scratch>/clean HEAD`, `ln -s /home/user/melon-seek/node_modules <clean>/node_modules`, `cd <clean> && MELON_BETA_SNAPSHOT_DIR= timeout 1500 npm test`), with run_in_background.
+- Your scratch folder: /tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92f3-f582ebca24d9/scratchpad/qci6/.
+- Give every command a timeout. Run anything longer than a few minutes in the background and poll its log. Five fix lanes share this 4-CPU machine: run one e2e group at a time and note `uptime` with any timing. No crawling: work from the archive and the stored snapshots.
+
+**Ownership:**
+- Yours: the e2e test files of the 12 failing tests and the skipping tests, for case selection only (a); the harness (test/e2e/harness.js, scripts/e2e.js) and .github/workflows/e2e.yml and .github/scripts/e2e-summary.mjs for (c) and step 4; docs/process/e2e-expected-red.txt (keep it empty unless a test is red for a known, reported reason, with that reason).
+- Not yours: any product code (public/, server/, scripts/build-*.js). Five fix lanes run beside you (fix-ui-6 layout, fix-data-6 geo/roles/keywords, fix-app-6 filters and stats, fix-salary-6 the salary parser, fix-juice-6 Juice words); the lead routes your (b) findings to them.
+- Also yours:
+  - docs/process/qa-ci-6.md, your log in TEMPLATE.md structure with a `## State` section at the top;
+  - docs/process/prompts/qa-ci-6.md, this prompt verbatim.
+
+**Rules:**
+- Commit small and often with explicit paths; never `git add -A data`.
+- Send the lead each finished piece by SendMessage to "main": the SHA, what it fixes, and its tests. The lead checkpoints your worktree every 15 minutes and integrates. Never push.
+- Before you send any SHA: npm test in the clean checkout, 0 fail; the touched groups on both data sets.
+
+Report: a table of the 12 failures and every extra skip: class (a/b/c), cause, evidence, and what you did (test fix SHA, or the finding sent to the lead); then step 4's outcome and the SHAs.
