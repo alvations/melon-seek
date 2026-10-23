@@ -81,6 +81,21 @@ export function isOTE(job) { return job?.salary?.kind === 'ote'; }
 /** 'ote' for on-target earnings, else 'base'. */
 export function payKind(job) { return isOTE(job) ? 'ote' : 'base'; }
 
+/** Units pay for a programme is posted in that are not a year (salary.originalInterval). */
+const TERM_UNITS = new Set(['hour', 'day', 'week', 'month']);
+/**
+ * MR-38 (fix-mr-3): an internship, fellowship, co-op, residency or apprenticeship (level 'Intern') paid by the hour,
+ * day, week or month whose posting gives no length (no salary.termWeeks). Its pay is for a term of unstated length:
+ * shown as posted ("$6,688–10,800 a month"), never as a yearly salary. On the 2026-10-16 crawl: 182 on the big-tech
+ * boards and Anduril (Amazon 93, Meta 35, NVIDIA 34, Microsoft 14, Anduril 5, Apple 1), and Palantir 35, Shield AI 6,
+ * xAI 4. Part-time hourly pay (salary.partTime) is shown as its hourly rate already, so it is left to that rule.
+ */
+export function isTermUnstated(job) {
+  const s = job?.salary;
+  return !!s && job.seniority === 'Intern' && !(Number(s.termWeeks) > 0) && s.kind !== 'stipend' && s.partTime !== true
+    && TERM_UNITS.has(s.originalInterval);
+}
+
 /**
  * MR-28 (fix-viz-5): the base-pay rule for every median the browser draws (the chart's rows and caption, the stats
  * line, the map's pins and Remote button, Insights). Why a posted figure is not a posted base-pay range, or null when
@@ -103,11 +118,12 @@ export function notBasePay(job) {
 
 /**
  * Pay for a fixed term (a 12-week internship, a 4-month fellowship): salary.termWeeks when the
- * posting states the length, or a stipend. Never a plain yearly salary.
+ * posting states the length, a stipend, or (MR-38) an internship paid by the hour, day, week or
+ * month whose length the posting doesn't give. Never a plain yearly salary.
  */
 export function isFixedTerm(job) {
   const s = job?.salary;
-  return !!s && (Number(s.termWeeks) > 0 || s.kind === 'stipend');
+  return !!s && (Number(s.termWeeks) > 0 || s.kind === 'stipend' || isTermUnstated(job));
 }
 
 /**
@@ -145,6 +161,20 @@ export function percentile(values, p) {
 }
 
 export function median(values) { return percentile(values, 0.5); }
+
+/**
+ * MR-39 (fix-mr-3): the pay currency a headline median is for. With pay in two or more currencies in view, the most
+ * common one (USD on a tie; a missing currency is USD), which is the chart rows' rule (chart.js mainBasis, V-21), so
+ * the stats line, Insights' tiles and the rows compare one country's pay. null with one currency or none: the median
+ * then needs no basis. `currencies`: one entry per posting.
+ *   mainPayCurrency(['USD', 'USD', 'EUR']) -> 'USD'; mainPayCurrency(['USD']) -> null
+ */
+export function mainPayCurrency(currencies) {
+  const n = new Map();
+  for (const c of currencies || []) { const k = String(c || 'USD').toUpperCase(); n.set(k, (n.get(k) || 0) + 1); }
+  if (n.size < 2) return null;
+  return [...n].sort((a, b) => b[1] - a[1] || (a[0] === 'USD' ? -1 : b[0] === 'USD' ? 1 : 0))[0][0];
+}
 
 /**
  * Weighted percentile over [value, weight] pairs. Each value sits at the centre

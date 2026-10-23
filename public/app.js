@@ -4,7 +4,7 @@
 // chart and the map is delegated to ./viz/* (see docs/CONTRACT.md).
 
 import { colorFor, formatMoney, resetColors, assignColors, otherColor, toUSD, SLOT_COUNT, hasFx, juiceNetForScore, JUICE_BREAKS, FX_AS_OF, FX_SOURCE } from './viz/palette.js';
-import { createChart, keyOf, VIEWS, DEFAULT_VIEW } from './viz/chart.js';
+import { createChart, keyOf, VIEWS, DEFAULT_VIEW, payBasisPlace } from './viz/chart.js';
 import { renderNote, noteLine, fitLine as fitOneLine } from './viz/note.js';
 import { createMap } from './viz/map.js';
 import * as api from './api.js';
@@ -13,7 +13,7 @@ import { compsForJob, compsNote, createCompsCard } from './features/comps.js';
 import { loadFreshness, freshnessDoc, juiceAsOfText, juiceSpanText, marketAsOfText, compstimateAsOfText, asOf, formatAsOf } from './features/freshness.js';
 import { createCompsChart } from './viz/comps.js';
 import { roleFamily, FAMILY_LABELS, readableTitle, levelLabel, displayLevel, NOT_STATED, DISPLAY_LEVEL_ORDER, levelKey, levelFromKey } from './features/roles.js';
-import { payLocations, payRank, rankText, samePayCountry, countryInSentence, payAt, pricedPlaces, placeLabel, notBasePay } from './features/shared.js';
+import { payLocations, payRank, rankText, samePayCountry, countryInSentence, payAt, pricedPlaces, placeLabel, notBasePay, isTermUnstated, mainPayCurrency } from './features/shared.js';
 // ./features/insights.js is imported on first use (Insights mode), see renderInsights.
 // api.js: getCompanies, getJobs, getJobDetail (namespace import: tolerate a missing optional export)
 
@@ -169,18 +169,23 @@ function postedPair(lo, hi, currency) {
  * - otherwise a rate for a programme of `weeks` ("€72,000 a year (13-week internship)"); per is 'year',
  *   'hour' or 'day'. termWeeks is the programme's length, for information only.
  * toTerm: what divides the yearly figures (salary.min, Juice) to give the whole term's amount.
+ * MR-38 (fix-mr-3): `job` (the posting of `s`) also gives a term of unstated length, an internship paid by the hour,
+ * day, week or month whose posting gives no length (shared.js isTermUnstated): `unstated: true`, `weeks` and
+ * `toTerm` null. It is shown as posted, never as a yearly salary, and Juice is per month while it lasts.
  */
-function postedTerm(s) {
-  if (!s || !(s.termWeeks > 0)) return null;
+function postedTerm(s, job = null) {
+  const unstated = !!s && !(s.termWeeks > 0) && !!job && isTermUnstated({ seniority: job.seniority, salary: s });
+  if (!s || !(s.termWeeks > 0 || unstated)) return null;
   const unit = s.originalInterval === 'term' ? 'term' : PER_UNIT[s.originalInterval] || 'year';
   const f = unit === 'term' ? termFactor(s) : PER_YEAR[unit];
   const lo = s.min / f, hi = s.max / f;
   const amount = unit === 'term' ? postedPair(Math.round(lo), Math.round(hi), s.currency) : postedPair(lo, hi, s.currency);
+  if (unstated) return { amount, per: unit, weeks: null, weeksMax: null, fixed: isFixedPay(s), toTerm: null, unstated: true };
   const weeks = Math.round(s.termWeeks), weeksMax = s.termWeeksMax > s.termWeeks ? Math.round(s.termWeeksMax) : null;
   return { amount, per: unit, weeks, weeksMax, fixed: isFixedPay(s), toTerm: unit === 'term' ? f : 52 / s.termWeeks };
 }
-/** "about 17 weeks" (P-8). */
-const termText = (weeks) => `about ${plural(weeks, 'week')}`;
+/** "about 17 weeks" (P-8); MR-38: "a length the posting doesn’t give" when it gives none. */
+const termText = (weeks) => (weeks ? `about ${plural(weeks, 'week')}` : 'a length the posting doesn’t give');
 /** What a fixed-term programme is called: "internship", "fellowship", … ("programme" when the title doesn't say). */
 function programNoun(job) {
   const t = `${job?.title || ''} ${job?.employmentType || ''}`;
@@ -188,7 +193,8 @@ function programNoun(job) {
     : /\bresiden/i.test(t) ? 'residency' : /\bapprentic/i.test(t) ? 'apprenticeship' : 'programme';
 }
 /** "13-week internship", "16–24-week internship". */
-const programText = (job, t) => `${t.weeksMax ? `${t.weeks}–${t.weeksMax}` : t.weeks}-week ${programNoun(job)}`;
+// MR-38: "internship, length not stated" for a term of unstated length.
+const programText = (job, t) => (t.unstated ? `${programNoun(job)}, length not stated` : `${t.weeksMax ? `${t.weeks}–${t.weeksMax}` : t.weeks}-week ${programNoun(job)}`);
 /** " a year", " an hour", " a week", " for the whole term": how the posted amount was stated. */
 const perText = (per) => (per === 'term' ? ' for the whole term' : per === 'hour' ? ' an hour' : ` a ${per}`);
 /**
@@ -204,8 +210,8 @@ function statedHours(j) {
 }
 /** P-1: on-target earnings (base plus commission at target; salary.kind from server/salary.js). */
 const isOte = (j) => j?.salary?.kind === 'ote';
-/** P-8: pay for a fixed term (a fellowship or internship length), never a yearly salary. */
-const isTerm = (j) => j?.salary?.termWeeks > 0;
+/** P-8: pay for a fixed term (a fellowship or internship length), never a yearly salary; MR-38: or of unstated length. */
+const isTerm = (j) => j?.salary?.termWeeks > 0 || isTermUnstated(j);
 const OTE_LABEL = 'On-target earnings (base plus commission at target)';
 /* Fix wave 5 (fix5-data, VT-17/VT-18): what the posting says its figure is. One short label on the card
    and in the pay block; the detail is in the label's tip and the pay block's caption. */
@@ -1155,9 +1161,15 @@ function stats(list, F = viewSpec) {
     if (!payHere(j, F)) continue;
     // MR-28 (fix-viz-5): the chart's rule (features/shared.js notBasePay): a stated minimum, shift-inclusive or
     // part-time figure is shown and counted as pay, and left out of the median unless nothing else is left.
-    (notBasePay(j) ? nb : isOte(j) ? ote : base).push(usdHere(j, F).mid);
+    // MR-39: the currency of the pay that counts (under a Location filter, the places' own range).
+    const cur = (F?.l.size ? placePay(j, F)?.currency : j.salary.currency) || 'USD';
+    (notBasePay(j) ? nb : isOte(j) ? ote : base).push({ mid: usdHere(j, F).mid, cur });
   }
-  const mids = (base.length ? base : ote.length ? ote : nb).sort((a, b) => a - b);
+  // MR-39 (fix-mr-3): with pay in two or more currencies in view, the median is the main currency's (the chart rows'
+  // rule, V-21: "median $222K in the US"), not every country's pay converted and pooled.
+  const use = base.length ? base : ote.length ? ote : nb;
+  const basis = mainPayCurrency(use.map((x) => x.cur));
+  const mids = (basis ? use.filter((x) => String(x.cur).toUpperCase() === basis) : use).map((x) => x.mid).sort((a, b) => a - b);
   const depts = new Map();
   for (const j of list) depts.set(deptKey(j), (depts.get(deptKey(j)) || 0) + 1);
   const top = [...depts].sort((a, b) => b[1] - a[1])[0] || null;
@@ -1166,6 +1178,7 @@ function stats(list, F = viewSpec) {
     median: quantile(mids, 0.5), p25: quantile(mids, 0.25), p75: quantile(mids, 0.75), top,
     oteOnly: !base.length && ote.length > 0, oteLeftOut: base.length ? ote.length : 0,
     notBaseOnly: !base.length && !ote.length && nb.length > 0, notBaseLeftOut: base.length || ote.length ? nb.length : 0,
+    basis, basisN: mids.length, basisLeft: use.length - mids.length,
   };
 }
 
@@ -2949,6 +2962,9 @@ function renderKpis() {
   const capNote = cappedNote();
   const capWhole = capNote && capNote.salariedFirst && capNote.whole != null ? capNote : null;
   const onePlace = viewSpec?.l.size ? (viewSpec.l.size === 1 ? [...viewSpec.l][0] : 'these places') : '';
+  // MR-39 (fix-mr-3): which country the median is for, when the pay in view is in more than one currency.
+  const basisWhere = st.basis ? ` ${payBasisPlace(st.basis)}` : '';
+  const basisTip = st.basis ? `; of the ${st.basisN.toLocaleString()} roles paid ${payBasisPlace(st.basis).replace(/^paid /, '')}, as the chart rows compare one country's pay; ${plural(st.basisLeft, 'role')} paid in other currencies left out` : '';
   // fix-density: one line (roles · share with pay · median); the rest in the list behind "Details" (viz/note.js).
   const line = [
     item(st.n.toLocaleString(), st.n === total ? plural(st.n, 'role').replace(/^[\d,]+ /, '') : `of ${total.toLocaleString()} roles`, null, 'stat--count'),
@@ -2957,8 +2973,9 @@ function renderKpis() {
       : capNote?.salariedFirst ? `of the ${capNote.kept.toLocaleString()} kept show pay` : onePlace ? `show pay for ${onePlace}` : 'show pay',
       `${st.withSalary.toLocaleString()} of ${st.n.toLocaleString()} postings include a pay range${here}${here ? ' (pay posted only for other places or another country is not counted)' : ''}${capNote ? `. ${capNote.tip}` : ''}`, 'stat--share') : null,
     // BP-13: it says which pay the median is of; the chart's median uses the same set.
-    st.median != null ? item(money(st.median), st.oteOnly ? 'median on-target earnings' : st.notBaseOnly ? 'posted pay median' : 'base pay median',
-      `Half of these roles pay more than this and half less (the middle of each posted range, ${ote || 'base pay, '}in US dollars${here}${left})`, 'stat--median') : null,
+    // MR-39: with pay in several currencies, the median is the main one's and says where ("base pay median in the US").
+    st.median != null ? item(money(st.median), `${st.oteOnly ? 'median on-target earnings' : st.notBaseOnly ? 'posted pay median' : 'base pay median'}${basisWhere}`,
+      `Half of these roles pay more than this and half less (the middle of each posted range, ${ote || 'base pay, '}in US dollars${here}${left}${basisTip})`, 'stat--median') : null,
   ].filter(Boolean);
   // M-46 (fix-phone-text): a phone shows only the median, so with no pay in view its line said nothing but "Details".
   const noPay = st.n && st.median == null ? h('span', { class: 'stat stat--nopay' }, st.withSalary ? 'Too few with pay for a median' : 'No pay listed') : null;
@@ -2966,7 +2983,9 @@ function renderKpis() {
     // Phones show the median only (the chart's notes line has the with/without counts), so the share is here too.
     st.n ? `${st.withSalary.toLocaleString()} of ${st.n.toLocaleString()} roles show pay${onePlace ? ` for ${onePlace}` : ''} (${pct}%)` : '',
     st.p25 != null && st.p75 != null && money(st.p25) !== money(st.p75) ? `Half of these roles pay between ${money(st.p25)} and ${money(st.p75)} (the middle of each posted range)` : '',
-    st.median != null ? `The median is ${st.oteOnly ? 'on-target earnings' : 'base pay'}, in approx US dollars${here}: half of these roles pay more, half less` : '',
+    st.median != null ? `The median is ${st.oteOnly ? 'on-target earnings' : 'base pay'}${basisWhere}, in approx US dollars${here}: half of these roles pay more, half less` : '',
+    // MR-39: the median compares one country's pay, as the chart rows do; the rest is counted, not pooled.
+    st.median != null && st.basis ? `It is the median of the ${st.basisN.toLocaleString()} roles paid ${payBasisPlace(st.basis).replace(/^paid /, '')}; ${plural(st.basisLeft, 'role')} paid in other currencies ${st.basisLeft === 1 ? 'is' : 'are'} left out, so countries' pay is never pooled` : '',
     st.oteLeftOut ? `${plural(st.oteLeftOut, 'posting')} with on-target earnings (base plus commission) left out of the median` : '',
     // MR-28 (fix-viz-5): as the market comparisons say it (in Chart view the chart's notes say it, with the counts).
     S.m !== 'chart' && st.notBaseLeftOut ? `${plural(st.notBaseLeftOut, 'posting')} with a stated minimum, top shift pay or part-time pay left out of the median (not a base pay range)` : '',
@@ -2975,6 +2994,8 @@ function renderKpis() {
     capNote ? capNote.tip : '',
     // P-6: "mostly" only for a real majority (it read "mostly Sales" at 19%).
     share > 0.5 ? `Mostly ${st.top[0]}: ${st.top[1].toLocaleString()} of ${st.n.toLocaleString()} roles (${Math.round(share * 100)}%)` : '',
+    // MR-29 (fix-mr-3): where the departments are read (the chart rows, the cards): the board publishes none (Google).
+    deptFromTitles() ? deptTitleLine().details[0] : '',
   ];
   // UX-57: in Chart view the stats line is its one line, and its facts are listed first in the chart notes'
   // Details (chart.setNotes), so the main view has one Details (ROADMAP §8). The map has no chart notes, so its
@@ -3834,7 +3855,7 @@ function payPill(job) {
     const hr = postedPair(s.min / 2080, s.max / 2080, s.currency);
     return { text: `${hr}/hour`, tip: `Part-time, paid by the hour: ${hr} an hour (${postedPair(Math.round(s.min), Math.round(s.max), s.currency)} a year if full-time, 2,080 hours)` };
   }
-  const term = postedTerm(s);
+  const term = postedTerm(s, job); // MR-38: the job gives a term of unstated length
   if (term?.fixed) {
     const text = term.per === 'term' ? `${moneyRange(s.min / term.toTerm, s.max / term.toTerm, s.currency)} total` : `${term.amount}/${term.per}`;
     return { text, tip: `${term.amount}${perText(term.per)} for ${termText(term.weeks)} (fixed-term pay, not a yearly salary)` };
@@ -3861,8 +3882,9 @@ function payPill(job) {
 }
 /** UX-29: the term of a fixed-term role for the card's first keyword slot: { text: "13-week internship", tip }, or null. */
 function cardTerm(job) {
-  const t = postedTerm(job.salary);
-  if (!t || isPartTimeHourly(job)) return null;
+  const t = postedTerm(job.salary, job);
+  // MR-38: no length to name (the pill says "/month" and the level chip "Intern").
+  if (!t || t.unstated || isPartTimeHourly(job)) return null;
   const text = programText(job, t);
   return { text, tip: t.fixed ? `${t.amount}${perText(t.per)}: fixed-term pay for a ${text}, not a yearly salary` : `${t.amount}${perText(t.per)} for a ${text}` };
 }
@@ -4096,6 +4118,46 @@ function svgEl(tag, attrs) {
   return el;
 }
 
+/**
+ * The drawer's converted line. fix-density: one line ("≈ $53K in US dollars at Jul 2026 rates"; it was "… in approx US
+ * dollars for comparison, at Jul 2026 exchange rates", two lines on a phone). The rates' month stays in the line,
+ * linked to their source (MR-2). MR-33 (fix-mr-3): fixed-term pay (a term of known or unstated length, postedTerm) is
+ * converted at the interval it was posted in ("≈ $5,686–6,000 a month", "≈ $78K a year"), never as an unlabelled
+ * year; where that line would wrap, "in US dollars" is left to the tip, so it stays one line on a phone.
+ */
+function approxLine(job, own, fullTime = '') {
+  const title = `In approx US dollars, for comparison. Rates: ${FX_SOURCE}`;
+  const term = postedTerm(job.salary, job);
+  if (!term) return h('p', { class: 'fnote dist-approx', title }, `≈ ${moneyRange(own.min, own.max)}${fullTime} in US dollars at `, docLink(UPDATED_DOC, `${fxAsOf()} rates`));
+  const f = term.per === 'term' ? term.toTerm : PER_YEAR[term.per] || 1;
+  const lo = own.min / f, hi = own.max / f;
+  const amount = term.per === 'year' || term.per === 'term' ? moneyRange(lo, hi) : term.per === 'hour' ? postedPair(lo, hi, 'USD') : postedPair(Math.round(lo), Math.round(hi), 'USD');
+  const usd = h('span', { class: 'dist-approx-usd' }, ' in US dollars');
+  return dropWhenWrapped(h('p', { class: 'fnote dist-approx', title }, `≈ ${amount}${perText(term.per)}`, usd, ' at ', docLink(UPDATED_DOC, `${fxAsOf()} rates`)), usd);
+}
+/** MR-33: hide `part` (a span of `el`) while `el` would take more than one line, and show it again when it fits. */
+function dropWhenWrapped(el, part) {
+  if (typeof ResizeObserver !== 'function') return el;
+  const lines = () => {
+    const r = document.createRange();
+    r.selectNodeContents(el);
+    const mids = [];
+    for (const x of r.getClientRects()) { if (x.width < 0.5) continue; const m = x.top + x.height / 2; if (!mids.some((t) => Math.abs(t - m) < 6)) mids.push(m); }
+    return mids.length;
+  };
+  let w = -1;
+  const ro = new ResizeObserver(() => {
+    if (!el.isConnected) { ro.disconnect(); return; }
+    const now = el.getBoundingClientRect().width;
+    if (Math.abs(now - w) < 0.5) return;
+    w = now;
+    part.hidden = false;
+    if (lines() > 1) part.hidden = true;
+  });
+  ro.observe(el);
+  return el;
+}
+
 /** Company pay distribution (midpoints, approx USD) with this job's range marked. DOM-built, no HTML strings. */
 function salaryDistribution(job) {
   const pool = payPool(job);
@@ -4105,9 +4167,7 @@ function salaryDistribution(job) {
   const mids = (pool || []).map((j) => j._mid).concat(own ? [own.mid] : []).sort((a, b) => a - b);
   const foreign = job.salary.currency && job.salary.currency !== 'USD';
   const fullTime = isPartTimeHourly(job) ? ' a year if full-time' : ''; // shared decision 4
-  // fix-density: one line ("≈ $53K in US dollars at Jul 2026 rates"; it was "… in approx US dollars for comparison, at
-  // Jul 2026 exchange rates", two lines on a phone). The rates' month stays in the line, linked to their source (MR-2).
-  const approx = foreign && own ? h('p', { class: 'fnote dist-approx', title: `In approx US dollars, for comparison. Rates: ${FX_SOURCE}` }, `≈ ${moneyRange(own.min, own.max)}${fullTime} in US dollars at `, docLink(UPDATED_DOC, `${fxAsOf()} rates`))
+  const approx = foreign && own ? approxLine(job, own, fullTime)
     // MR-1: a currency with no rate in the table is shown as posted, and says why it is left out of comparisons.
     : foreign ? h('p', { class: 'fnote' }, `We can’t convert ${job.salary.currency} to US dollars yet (no exchange rate), so this pay is left out of charts and comparisons.`) : null;
   if (!pool || !dom || !own) return approx ? h('div', { class: 'd-dist' }, approx) : null;
@@ -4259,7 +4319,7 @@ function juiceBlock(job) {
   const others = jb.byLocation.filter((l) => !(l.locationName === b.locationName && l.city === b.city));
   // Labels follow the household the numbers were computed for (it is the chosen one unless juice.js failed to load).
   const [hhKey, , , beds, people] = householdInfo(jb.household || b.household || 'single');
-  const term = postedTerm(job.salary);
+  const term = postedTerm(job.salary, job);
   const place = b.cityName || b.locationName;
   // MR-12 / UX-30: when the costs come from another city than the job's own, the headline names the job's own
   // place; M-37 (fix-phone-text): the stand-in ("using San Jose's rent and living costs") is the fold's first line,
@@ -4272,6 +4332,10 @@ function juiceBlock(job) {
   // BP-1: the length is said the way the pay block says it (a yearly rate for a 13-week internship, or
   // fixed-term pay for 17 weeks); the whole term divides the yearly figures as the pay block does.
   const lasts = !term ? null : term.fixed ? `This pay lasts ${termText(term.weeks)}` : `The ${programNoun(job)} lasts ${termText(term.weeks)}`;
+  // MR-38: a term of unstated length has no whole term: Juice is per month while it lasts, never a year.
+  const termNote = !term ? null : term.unstated
+    ? `The posting doesn’t say how long the ${programNoun(job)} lasts, so Juice is shown per month while it lasts. Tax is worked out as if the pay lasted a year, so it may be lower.`
+    : `${lasts}, so Juice covers only that term. Tax is worked out as if the pay lasted a year, so it may be lower.`;
   // MR-28 (fix-data-3): one line when the gross pay Juice starts from is not a base-pay range (one line on every phone).
   const grossNote = job.salary?.kind === 'minimum' ? 'Gross pay is the posted minimum.'
     : job.salary?.includesShiftDifferential ? 'Gross pay includes top shift pay.' : null;
@@ -4280,7 +4344,7 @@ function juiceBlock(job) {
   const where = [
     standIn ? `${own} uses ${b.cityName}’s rent and living costs, the nearest city with cost data.` : null,
     'Juice: what’s left after tax, rent and living costs (in US dollars).',
-    term ? `${lasts}, so Juice covers only that term. Tax is worked out as if the pay lasted a year, so it may be lower.` : null,
+    termNote,
     isOte(job) ? 'The pay is on-target earnings, so this assumes commission at target.' : null,
     b.estimated ? 'Some costs here are estimates.' : null,
     noneHere ? (elsewhere ? `This posting’s pay is for ${elsewhere} only, so there is no Juice for ${noneHere}. This is ${place}, the best place its pay covers.`
@@ -4297,7 +4361,7 @@ function juiceBlock(job) {
       h('p', { class: 'juice-where' }, where),
       body));
   const render = (focusPeriod) => {
-    const period = term ? (juicePeriod === 'term' ? 'term' : 'month') : juicePeriod === 'month' ? 'month' : 'year';
+    const period = term ? (juicePeriod === 'term' && !term.unstated ? 'term' : 'month') : juicePeriod === 'month' ? 'month' : 'year';
     const div = period === 'month' ? 12 : period === 'term' ? term.toTerm : 1;
     const per = period === 'month' ? '/mo' : period === 'term' ? ' total' : '/yr';
     const step = period === 'year' ? 100 : 10;
@@ -4324,8 +4388,9 @@ function juiceBlock(job) {
       ['Living costs', amt(lv, '−'), seg(b.net, afterRent), 'living', `everyday costs for ${people}, excluding rent`],
       ['Juice left', `${nv < 0 ? '−' : ''}${fmt(Math.abs(nv))}${per}`, seg(0, b.net), nv < 0 ? 'net is-neg' : 'net', null],
     ];
-    const periods = term ? [['month', 'Monthly'], ['term', 'Whole term']] : [['month', 'Monthly'], ['year', 'Yearly']];
-    const toggle = h('div', { class: 'seg seg--sm', role: 'group', 'aria-label': 'Show amounts per' },
+    // MR-38: a term of unstated length shows Monthly only, so the toggle is left out.
+    const periods = term?.unstated ? [] : term ? [['month', 'Monthly'], ['term', 'Whole term']] : [['month', 'Monthly'], ['year', 'Yearly']];
+    const toggle = !periods.length ? null : h('div', { class: 'seg seg--sm', role: 'group', 'aria-label': 'Show amounts per' },
       ...periods.map(([v, label]) => h('button', {
         type: 'button', 'aria-pressed': String(period === v), dataset: { period: v },
         onclick: () => { juicePeriod = v; render(v); }, // V5: re-render this block only and keep focus here
@@ -4542,13 +4607,13 @@ function placeCount(rs) {
 function payUnit(job) {
   const s = job.salary, cur = s.currency;
   if (isPartTimeHourly(job)) return { fmt: (a, b) => `${postedPair(a / 2080, b / 2080, cur)}/hour`, note: 'Part-time, paid by the hour' };
-  const term = postedTerm(s);
+  const term = postedTerm(s, job);
   if (!term) return { fmt: (a, b) => moneyRange(a, b, cur), note: '' };
   const prog = programText(job, term);
   if (term.fixed && term.per === 'term') return { fmt: (a, b) => `${moneyRange(a / term.toTerm, b / term.toTerm, cur)} total`, note: `fixed-term pay for a ${prog}` };
   if (term.per === 'year') return { fmt: (a, b) => `${moneyRange(a, b, cur)}/year`, note: prog };
   const f = PER_YEAR[term.per] || 1;
-  return { fmt: (a, b) => `${postedPair(a / f, b / f, cur)}/${term.per}`, note: term.fixed ? `fixed-term pay for a ${prog}` : prog };
+  return { fmt: (a, b) => `${postedPair(a / f, b / f, cur)}/${term.per}`, note: term.fixed ? (term.unstated ? 'fixed-term pay, length not stated' : `fixed-term pay for a ${prog}`) : prog };
 }
 
 /**
@@ -4704,10 +4769,24 @@ function annualNote(sal, job = null) {
   }
   // P-8, shared decision 3: pay stated per week, per month or for the whole term is shown as posted and is
   // fixed-term pay. A rate (a year, an hour) for a programme is shown as that rate: no fixed-term label.
-  if (sal.termWeeks > 0) {
-    if (isFixedPay(sal)) return annualLine('Fixed-term pay, not a yearly salary', sal.text ? `As posted: ${sal.text}` : '');
+  // MR-38 (fix-mr-3): so is an internship's pay per hour, day, week or month when the posting gives no length.
+  const unstated = !(sal.termWeeks > 0) && !!job && isTermUnstated({ seniority: job.seniority, salary: sal });
+  if (sal.termWeeks > 0 || unstated) {
+    const asPosted = sal.text ? `As posted: ${sal.text}` : '';
+    const note = !unstated ? asPosted : `${asPosted ? `${asPosted}. ` : ''}The posting doesn’t say how long the ${programNoun(job)} lasts, so this is not turned into a yearly salary.`;
+    if (isFixedPay(sal)) return annualLine('Fixed-term pay, not a yearly salary', note);
     const unit = PER_UNIT[sal.originalInterval];
-    return unit ? annualLine(`Paid by the ${unit}`, sal.text ? `As posted: ${sal.text}` : '') : null; // a yearly rate needs no note
+    return unit ? annualLine(`Paid by the ${unit}`, note) : null; // a yearly rate needs no note
+  }
+  // MR-37 (fix-mr-3): a yearly figure the posting states ("EUR 47'000 gross annually", Austria) is the pay, not 12 × the
+  // monthly row it also gives (server/sources/amazon.js statedAnnual, VT-19). The line says so; Details quote the posting.
+  const sa = sal.statedAnnual;
+  if (sa && Number(sa.amount) > 0) {
+    const per = Number(sa.paymentsPerYear), monthly = Number(sa.monthly) > 0 ? postedMoney(Number(sa.monthly), sa.currency || sal.currency) : null;
+    const pays = !monthly ? '' : Number.isInteger(per) ? ` It is paid as ${per} monthly payments of ${monthly}, not 12.`
+      : ` Its monthly row is ${monthly}, so the year is about ${(Math.round(per * 10) / 10).toLocaleString('en-US')} of those payments, not 12.`;
+    const quoted = sal.text ? `As posted: ${sal.text.replace(/[.\s]+$/, '')}.` : `As posted: ${postedMoney(Number(sa.amount), sa.currency || sal.currency)} a year.`;
+    return annualLine('Stated as a yearly figure', `${quoted} The yearly figure is the one the posting states.${pays}`);
   }
   const orig = sal.originalInterval || (sal.interval && sal.interval !== 'year' ? sal.interval : null);
   if (!orig) return null;
@@ -4809,7 +4888,7 @@ function drawerContent(job) {
   const head = drawerHead();
 
   const sal = job.salary;
-  const term = postedTerm(sal);
+  const term = postedTerm(sal, job);
   const noun = poolNoun(job);
   // P-16: no "0% percentile" in big green type; one plain sentence, and none for fixed-term pay.
   const place = rank?.country ? ` in ${countryInSentence(rank.country)}` : '';
@@ -4850,7 +4929,7 @@ function drawerContent(job) {
   const amountText = !sal ? null : ph ? ph.range : shiftR ? shiftText(job, shiftR, ' an hour') : partHourly ? `${postedPair(sal.min / 2080, sal.max / 2080, sal.currency)} an hour`
     : term ? `${term.amount}${perText(term.per)}` : isMinimum(job) ? `from ${money(sal.min, sal.currency)}` : salaryRange(sal);
   const subText = !sal ? null : (ph?.picked ? `Posted for ${ph.picked.label} · ` : ph?.sub ? `${ph.sub} · ` : '') + (partHourly ? `${cur} · part-time, paid by the hour`
-    : term?.fixed ? `${cur} · for ${termText(term.weeks)}` : term ? `${cur} · ${programText(job, term)}` : `${cur} · per year`);
+    : term?.fixed ? `${cur} · ${term.unstated ? 'length not stated' : `for ${termText(term.weeks)}`}` : term ? `${cur} · ${programText(job, term)}` : `${cur} · per year`);
   // Whose range the rank and the strip use: the place picked, the posting's headline row (Bellevue), or its span.
   const rankWhose = !ph ? '' : ph.rankPlace ? `the range posted for ${ph.rankPlace}` : 'the middle of its span';
   let salaryNotes = null, annualEl = null, labelsEl = null;

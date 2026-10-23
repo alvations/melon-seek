@@ -282,7 +282,7 @@ const CARD = ['payPill', 'salaryRange', 'money', 'moneyRange', 'payRanges', 'ran
 function liftApp(names) {
   const body = names.map(fnSource).filter(Boolean).join('\n');
   // eslint-disable-next-line no-new-func
-  return new Function('formatMoney', 'payAt', 'placeLabel', `
+  return new Function('formatMoney', 'payAt', 'placeLabel', 'isTermUnstated', `
     const CUR_SYM = { USD: '$', GBP: '£', EUR: '€', CAD: 'CA$', AUD: 'A$', JPY: '¥', INR: '₹', CHF: 'CHF ', SGD: 'S$' };
     const OTE_LABEL = 'On-target earnings (base plus commission at target)';
     let viewSpec = null;
@@ -290,7 +290,7 @@ function liftApp(names) {
     const plural = (n, w) => \`\${n} \${n === 1 ? w : w + 's'}\`;
     ${body}
     return { payPill: typeof payPill === 'function' ? payPill : null, severalRangesTip: typeof severalRangesTip === 'function' ? severalRangesTip : null,
-      payHeadline: typeof payHeadline === 'function' ? payHeadline : null, placeCount: typeof placeCount === 'function' ? placeCount : null };`)(formatMoney, payAt, shared.placeLabel);
+      payHeadline: typeof payHeadline === 'function' ? payHeadline : null, placeCount: typeof placeCount === 'function' ? placeCount : null };`)(formatMoney, payAt, shared.placeLabel, shared.isTermUnstated); // fix-mr-3: postedTerm reads isTermUnstated (MR-38)
 }
 const app = liftApp(CARD);
 
