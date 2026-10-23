@@ -2,8 +2,7 @@
 
 ## State
 
-- 2026-10-23 21:30 UTC: brief saved; server up on the lead's `cycle-beta7-dist` (e800c43); personas picked
-  from the 2026-10-16 crawl. Next: P1 run.
+- 2026-10-23 22:15 UTC: P1 (Gord, Pixel 8) and P2 (Linda, iPhone 13 mini + landscape) run; notes below are drafts. Next: P3 (razr inner + cover), P4 (laptop at 150%), P5 (Duo spanned), then the wave-1 re-check.
 
 ## 1. Brief
 
