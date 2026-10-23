@@ -230,9 +230,10 @@ export function registerFixApp6Tests(suite) {
         };
         for (const slug of ['google', 'amazon']) {
           await board(page, st, `c=${slug}`);
-          const n = await page.evaluate(() => document.querySelector('#resultsTitle strong')?.textContent || '');
+          // The board's count as this locale writes it ("3.821", "3 821" with a narrow no-break space, "3’821").
+          const n = (await page.evaluate(() => document.querySelector('#resultsTitle strong')?.textContent || '')).replace(/\s+/g, ' ').replace(/ roles?$/, '').trim();
           const line = (await page.locator('#statsLine .ms-note__line').first().innerText()).replace(/\s+/g, ' ').trim();
-          const times = line.split(n).length - 1;
+          const times = n ? line.split(n).length - 1 : 0;
           if (await page.locator('#statsLine .stat--count').first().isVisible()) { if (times !== 1) bad.push(`${slug} stats line: "${line}" shows ${n} ${times} times`); }
           await check('#statsLine .ms-note__line', `${slug} stats line`);
           await check('#resultsTitle', `${slug} results title`);
@@ -370,7 +371,7 @@ export function registerFixApp6Tests(suite) {
   // [phone] Every line this lane added or changed, at every phone size: the stats line and the chart caption over Canadian
   // pay (Amazon interns in Vancouver) and over part-time hourly pay (Apple), and Insights' tiles.
   for (const d of ALL_SIZES) {
-    suite.test(`fix-app-6: [phone] ${d.name} ${d.width}x${d.height}: the stats line, the chart caption and Insights' tiles in the pay's currency are ${linesAt(d.width) === 1 ? 'one line' : 'at most two lines'}, never cut`, async (ctx) => {
+    suite.test(`fix-app-6: [phone] ${d.name} ${d.width}x${d.height}: the stats line, the chart caption, Insights' tiles and the Location rows' counts are ${linesAt(d.width) === 1 ? 'one line' : 'at most two lines'}, never cut`, async (ctx) => {
       const { st, page, errors } = await open(ctx, { device: d });
       const bad = [];
       const measure = async (sel, where) => {
@@ -392,6 +393,16 @@ export function registerFixApp6Tests(suite) {
       await board(page, st, 'c=google&l=Warsaw&m=insights');
       await page.waitForSelector('.msi-stats', { timeout: 60000 });
       await measure('.msi-stat__note', 'Insights tiles');
+      // BN-1: a town's own count and its country- or state-wide postings ("3 +294") fit their row, never cut.
+      await board(page, st, 'c=microsoft');
+      if (await page.locator('#filtersToggle').isVisible().catch(() => false)) { await page.locator('#filtersToggle').click(); await sleep(700); }
+      await page.evaluate(() => { for (const x of document.querySelectorAll('#filterBody details.fsec')) if (/Location/.test(x.querySelector('summary')?.textContent || '')) x.open = true; });
+      await sleep(500);
+      const nums = await page.evaluate(() => [...document.querySelectorAll('#filterBody .check-nums')].filter((e) => e.getClientRects().length).map((e) => {
+        const r = e.getBoundingClientRect(), row = e.closest('.check').getBoundingClientRect();
+        return { t: e.textContent, over: Math.max(0, r.right - row.right, e.scrollWidth - e.clientWidth), lines: Math.round(r.height / (parseFloat(getComputedStyle(e).lineHeight) || parseFloat(getComputedStyle(e).fontSize) * 1.3)) };
+      }));
+      for (const n of nums) if (n.over > 0.5 || n.lines > 1) bad.push(`Location row count "${n.t}": cut by ${n.over} px, ${n.lines} lines`);
       assert(!bad.length, bad.join('; '));
       noErrors(errors);
     });
