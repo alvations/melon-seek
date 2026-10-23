@@ -79,10 +79,18 @@ const SENIORITY_ORDER = ['Intern', 'Entry', 'Mid', 'Senior', 'Staff+', 'Manager'
 const SENIORITY_SHOWN = DISPLAY_LEVEL_ORDER;
 const senKey = (j) => displayLevel(j);
 const senLabel = (k) => levelLabel(k);
+/**
+ * MR-41 (fix-mr-3): a mid level each board names, read on its own ladder (server/keywords.js): Amazon's "III" is
+ * Senior and Google's "II" is Entry, so no one numeral holds on every board. Microsoft and NVIDIA name the level in
+ * the pay sentence ("IC3 - The typical base pay range …", "… for Level 2"). test/fix-mr-3.test.js reads each one
+ * through jobSeniority.
+ */
+const MID_EXAMPLE = Object.freeze({ google: 'III', amazon: 'II', microsoft: 'IC3', nvidia: 'Level 2', netflix: 'L4', other: ['II', 'L4'] });
+const midTip = () => `A mid level the posting names (for example ${[].concat(MID_EXAMPLE[data?.company?.slug] || MID_EXAMPLE.other).map((x) => `“${x}”`).join(' or ')})`;
 const SEN_TIP = {
   'Staff+': 'Staff, principal or distinguished level',
   'Director+': 'Director, head of, vice president or chief',
-  Mid: 'A mid level the posting names (for example “III” or “L4”)',
+  get Mid() { return midTip(); },
   [NOT_STATED]: 'The posting’s title names no level',
 };
 /* The Seniority filter in the link (s=, roles.js levelKey): "Level not stated" keeps its old value 'Mid', so

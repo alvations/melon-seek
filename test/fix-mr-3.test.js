@@ -86,9 +86,10 @@ test('MR-41 the Mid tip\'s example is a mid level on every board\'s own ladder',
       assert.deepEqual([got.level, got.basis === 'default' ? 'default' : 'stated'], ['Mid', 'stated'], `${slug}: the tip's example “${ex}” reads ${got.level} (${got.basis})`);
     }
   }
-  const tipLine = APP.split('\n').find((l) => /\bMid: /.test(l) && /mid level the posting names/.test(l));
+  const tipLine = APP.split('\n').find((l) => /mid level the posting names/.test(l) && !/^\s*(?:\/\/|\*)/.test(l));
   assert.ok(tipLine, 'public/app.js: no Mid tip (update this test)');
-  assert.doesNotMatch(tipLine, /“III” or “L4”/, 'the Mid tip still names “III”, which is Senior at Amazon');
+  assert.doesNotMatch(tipLine, /“III”/, 'the Mid tip still names “III” on every board, which is Senior at Amazon');
+  assert.match(tipLine, /MID_EXAMPLE/, 'the Mid tip does not use the board\'s own example');
 });
 
 /* ------------------------------------------------------------- MR-40 */
