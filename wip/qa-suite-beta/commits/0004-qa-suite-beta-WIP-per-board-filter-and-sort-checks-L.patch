@@ -1,0 +1,434 @@
+From aae31c473ec85eae94412445512a0afc60408ccf Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 23 Oct 2026 13:48:33 +0000
+Subject: [PATCH 4/4] qa-suite-beta: WIP per-board filter and sort checks,
+ Listed and Juice grades; the e2e shard patch
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+---
+ .../patches/qa-suite-beta-e2e-shard.diff      | 162 ++++++++++++++++
+ test/e2e/beta-coverage.e2e.js                 | 182 ++++++++++++------
+ 2 files changed, 282 insertions(+), 62 deletions(-)
+ create mode 100644 docs/process/patches/qa-suite-beta-e2e-shard.diff
+
+diff --git a/docs/process/patches/qa-suite-beta-e2e-shard.diff b/docs/process/patches/qa-suite-beta-e2e-shard.diff
+new file mode 100644
+index 0000000..e97ea05
+--- /dev/null
++++ b/docs/process/patches/qa-suite-beta-e2e-shard.diff
+@@ -0,0 +1,162 @@
++--- a/scripts/e2e.js
+++++ b/scripts/e2e.js
++@@ -1,9 +1,17 @@
++ #!/usr/bin/env node
++ // End-to-end suite: real server + headless Chromium via Playwright.
++-// Usage: node scripts/e2e.js [--api-only] [--headed] [--grep=<regex>]
+++// Usage: node scripts/e2e.js [--api-only] [--headed] [--grep=<regex>] [--list] [--shard=<i>/<n> [--timings=<log>]]
+++//                            [--max-skips=<n>]
+++//   --list           print the tests the run would take (after --grep and --shard), start nothing, exit 0.
+++//   --shard=i/n      run the i-th of n contiguous slices of the test list (1-based), so CI can run the ~900 tests in
+++//                    n parallel jobs. Slices keep the registration order; with --timings=<an earlier e2e log> they
+++//                    are cut at equal time (each test weighs its last duration), else at equal test counts.
+++//   --max-skips=n    exit 1 when more than n tests skip (E2E_MAX_SKIPS): a build without a board turns that board's
+++//                    tests into skips, which pass (qa-suite-beta T-5).
++ // Not part of `npm test` (needs a browser). Playwright is NOT a repo dependency:
++ //   npm i playwright --no-save            (or install anywhere and set NODE_PATH / PLAYWRIGHT_MODULE)
++ // Uses a preinstalled Chromium (PLAYWRIGHT_BROWSERS_PATH, /opt/pw-browsers, or CHROMIUM_PATH).
+++import fs from 'node:fs';
++ import { createSuite, loadPlaywright, findChromium, startServer, playwrightInfo } from '../test/e2e/harness.js';
++ import { registerApiTests } from '../test/e2e/api.e2e.js';
++ import { registerUiTests } from '../test/e2e/ui.e2e.js';
++@@ -53,9 +61,35 @@
++ const apiOnly = args.has('--api-only');
++ const grepArg = process.argv.find((a) => a.startsWith('--grep='));
++ const grep = grepArg ? new RegExp(grepArg.slice(7), 'i') : null;
+++const listOnly = args.has('--list');
+++const valueOf = (k) => { const a = process.argv.find((x) => x.startsWith(`--${k}=`)); return a ? a.slice(k.length + 3) : null; };
+++const shardArg = valueOf('shard');
+++const shard = shardArg ? (/^(\d+)\/(\d+)$/.exec(shardArg) || []).slice(1).map(Number) : null;
+++if (shardArg && !(shard.length === 2 && shard[0] >= 1 && shard[0] <= shard[1])) { console.error(`e2e: --shard=${shardArg}: expected i/n with 1 <= i <= n`); process.exit(2); }
+++const maxSkips = valueOf('max-skips') ?? process.env.E2E_MAX_SKIPS ?? null;
++ 
++-const pw = apiOnly ? null : await loadPlaywright();
++-if (!apiOnly && !pw) {
+++/** Contiguous slices of `names` with about equal weight (a test's ms in an earlier log, else the median; 1 without a log). */
+++function shardOf(names, [i, n], logFile) {
+++  const ms = new Map();
+++  if (logFile) {
+++    for (const m of fs.readFileSync(logFile, 'utf8').matchAll(/^ {2}[\u2713\u2717] (.*) \((\d+)ms\)$/gm)) ms.set(m[1], Number(m[2]));
+++  }
+++  const known = [...ms.values()].sort((a, b) => a - b);
+++  const fallback = known.length ? known[Math.floor(known.length / 2)] : 1;
+++  const w = names.map((x) => ms.get(x) ?? fallback);
+++  const total = w.reduce((a, b) => a + b, 0);
+++  const out = new Set();
+++  let acc = 0;
+++  names.forEach((x, k) => {
+++    const mid = acc + w[k] / 2; // a test belongs to the slice its midpoint falls in
+++    acc += w[k];
+++    if (Math.min(n - 1, Math.floor((mid / total) * n)) === i - 1) out.add(x);
+++  });
+++  return out;
+++}
+++
+++const pw = apiOnly || listOnly ? null : await loadPlaywright();
+++if (!apiOnly && !listOnly && !pw) {
++   console.error(
++     'e2e: the `playwright` package was not found.\n' +
++     '  Install it without touching package.json:  npm i playwright --no-save\n' +
++@@ -66,10 +100,10 @@
++   process.exit(2);
++ }
++ 
++-const server = await startServer();
++-console.log(`e2e: server at ${server.baseUrl}`);
+++const server = listOnly ? null : await startServer();
+++if (server) console.log(`e2e: server at ${server.baseUrl}`);
++ const suite = createSuite();
++-const ctx = { baseUrl: server.baseUrl, data: {}, notes: [], cleanup: [], pw, browser: null };
+++const ctx = { baseUrl: server?.baseUrl ?? null, data: {}, notes: [], cleanup: [], pw, browser: null };
++ registerApiTests(suite);
++ 
++ let browser = null;
++@@ -77,16 +111,18 @@
++ if (!apiOnly) {
++   const executablePath = findChromium();
++   const launch = () => pw.chromium.launch({ headless: !args.has('--headed'), executablePath });
++-  browser = await launch();
++-  ctx.browser = browser;
+++  if (!listOnly) {
+++    browser = await launch();
+++    ctx.browser = browser;
+++    console.log(`e2e: playwright ${playwrightInfo.path}`);
+++    console.log(`e2e: chromium ${browser.version()} (${executablePath || 'playwright default'})`);
+++  }
++   ctx.ensureBrowser = async () => {
++     if (ctx.browser.isConnected()) return;
++     relaunches += 1;
++     console.log(`  ! the browser closed; relaunching it (${relaunches})`);
++     browser = ctx.browser = await launch();
++   };
++-  console.log(`e2e: playwright ${playwrightInfo.path}`);
++-  console.log(`e2e: chromium ${browser.version()} (${executablePath || 'playwright default'})`);
++   registerUiTests(suite);
++   registerMobileQaTests(suite);
++   registerDesktopQaTests(suite);
++@@ -131,9 +167,18 @@
++   registerFixQa4Tests(suite);
++ }
++ 
+++const only = shard ? shardOf(suite.names(grep), shard, valueOf('timings')) : null;
+++if (listOnly) {
+++  const names = suite.names(grep).filter((x) => !only || only.has(x));
+++  for (const x of names) console.log(x);
+++  console.error(`e2e: ${names.length} tests${shard ? ` in shard ${shard.join('/')}` : ''}`);
+++  process.exit(0);
+++}
+++if (shard) console.log(`e2e: shard ${shard.join('/')}: ${only.size} of ${suite.names(grep).length} tests`);
+++
++ let results;
++ try {
++-  results = await suite.run(ctx, grep);
+++  results = await suite.run(ctx, grep, { only });
++ } finally {
++   if (browser) await browser.close().catch(() => {});
++   await server.stop();
++@@ -150,4 +195,11 @@
++   for (const f of failed) console.log(`  - ${f.name}`);
++   if (process.env.E2E_SERVER_LOGS) console.log('\nserver logs:\n' + server.logs.join(''));
++ }
++-process.exit(failed.length ? 1 : 0);
+++const tooManySkips = maxSkips != null && skipped > Number(maxSkips);
+++if (skipped) {
+++  const why = new Map();
+++  for (const r of results.filter((x) => x.skipped)) why.set(r.reason, (why.get(r.reason) || 0) + 1);
+++  console.log(`\ne2e: skipped, by reason${tooManySkips ? ` (more than --max-skips=${maxSkips}: the run fails)` : ''}:`);
+++  for (const [r, k] of [...why].sort((a, b) => b[1] - a[1])) console.log(`  ${k} × ${r}`);
+++}
+++process.exit(failed.length || tooManySkips ? 1 : 0);
++--- a/test/e2e/harness.js
+++++ b/test/e2e/harness.js
++@@ -142,7 +142,10 @@
++   const results = [];
++   return {
++     test(name, fn) { tests.push({ name, fn }); },
++-    async run(ctx, grep = null) {
+++    /** The names the run would take, in order (--list, --shard). */
+++    names(grep = null) { return tests.filter((t) => !grep || grep.test(t.name)).map((t) => t.name); },
+++    /** only: a Set of names to run (one shard); null runs every test grep takes. */
+++    async run(ctx, grep = null, { only = null } = {}) {
++       let current = null;
++       const stray = (err) => {
++         if (current) current.stray.push(err);
++@@ -153,6 +156,7 @@
++       try {
++         for (const t of tests) {
++           if (grep && !grep.test(t.name)) continue;
+++          if (only && !only.has(t.name)) continue;
++           // A browser that died in an earlier test (it did twice near test 750 of a full run, 2026-10-17)
++           // is relaunched here, so one crash fails one test, not every test after it.
++           if (ctx.ensureBrowser) await ctx.ensureBrowser();
++@@ -178,7 +182,9 @@
++               continue;
++             }
++             results.push({ name: t.name, ok: false, ms: Date.now() - start, error: err });
++-            console.log(`  \u2717 ${t.name}\n      ${String(err && err.message || err).split('\n').join('\n      ')}`);
+++            // The duration too (qa-suite-beta T-9): a failure that waited out a timeout costs minutes, and a run's
+++            // time can only be split by group when every line says how long it took.
+++            console.log(`  \u2717 ${t.name} (${Date.now() - start}ms)\n      ${String(err && err.message || err).split('\n').join('\n      ')}`);
++           } finally {
++             clearTimeout(timer);
++             if (ctx.cleanup) {
+diff --git a/test/e2e/beta-coverage.e2e.js b/test/e2e/beta-coverage.e2e.js
+index 7e4c6dc..2b95f6b 100644
+--- a/test/e2e/beta-coverage.e2e.js
++++ b/test/e2e/beta-coverage.e2e.js
+@@ -100,11 +100,16 @@ async function ready(page, timeout = 90000) {
+   }, null, { timeout });
+   await sleep(300);
+ }
+-/** Change the hash in place (the board stays loaded) and wait for the list to follow. */
+-async function hashTo(page, h) {
++/**
++ * Change the hash in place (the board stays loaded) and wait for the list to follow: for the count or the first card
++ * to change (at most `wait` ms: a sort that keeps the first card, or a filter that keeps the count, changes neither),
++ * then for two frames and the list.
++ */
++async function hashTo(page, h, wait = 4000) {
+   const before = await page.evaluate(() => document.querySelector('#resultsTitle')?.textContent + '|' + document.querySelector('#resultsList .card[data-id]')?.dataset.id);
+   await page.evaluate((x) => { location.hash = x; }, h);
+-  await page.waitForFunction((b) => document.querySelector('#resultsTitle')?.textContent + '|' + document.querySelector('#resultsList .card[data-id]')?.dataset.id !== b, before, { timeout: 15000 }).catch(() => {});
++  await page.waitForFunction((b) => document.querySelector('#resultsTitle')?.textContent + '|' + document.querySelector('#resultsList .card[data-id]')?.dataset.id !== b, before, { timeout: wait, polling: 50 }).catch(() => {});
++  await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(r, 50)))));
+   await ready(page);
+ }
+ async function count(page) {
+@@ -123,9 +128,15 @@ const cardIds = (page, n = 30) => page.$$eval('#resultsList .card[data-id]', (el
+  */
+ function boardFacts(page, base, company, ids = []) {
+   return page.evaluate(async ({ base, company, ids }) => {
+-    const api = await import(`${base}/api.js`);
++    // One getJobs per board and page (Amazon's list is 22,179 postings): kept on the window for the next call.
++    window.__bcJobs ??= {};
++    const key = `${base}|${company}`;
++    if (!window.__bcJobs[key]) {
++      const api = await import(`${base}/api.js`);
++      window.__bcJobs[key] = await api.getJobs({ company });
++    }
+     const { toUSD } = await import(`${base}/viz/palette.js`);
+-    const res = await api.getJobs({ company });
++    const res = window.__bcJobs[key];
+     const usd = (j) => {
+       const s = j.salary;
+       if (!s || (s.min == null && s.max == null)) return null;
+@@ -133,7 +144,10 @@ function boardFacts(page, base, company, ids = []) {
+       const u = { min: toUSD(min, s.currency), max: toUSD(max, s.currency), mid: toUSD(mid, s.currency) };
+       return Number.isFinite(u.min) && Number.isFinite(u.max) ? u : null;
+     };
+-    const jobs = res.jobs.map((j) => ({ id: j.id, url: j.url || null, team: j.team || '', title: j.title, usd: usd(j) }));
++    // Listing age as prepare() reads it: ageDays when the list has it, else days since updatedAt.
++    const now = Date.now();
++    const age = (j) => ('ageDays' in j ? (Number.isFinite(j.ageDays) ? j.ageDays : null) : (Date.parse(j.updatedAt || '') ? Math.max(0, Math.floor((now - Date.parse(j.updatedAt)) / 864e5)) : null));
++    const jobs = res.jobs.map((j) => ({ id: j.id, url: j.url || null, team: j.team || '', title: j.title, usd: usd(j), age: age(j) }));
+     const paid = jobs.filter((j) => j.usd);
+     const med = (a) => { const s = a.slice().sort((x, y) => x - y); return s.length ? s[Math.floor(s.length / 2)] : null; };
+     const want = new Set(ids);
+@@ -143,6 +157,7 @@ function boardFacts(page, base, company, ids = []) {
+       maxMid: paid.length ? Math.max(...paid.map((j) => j.usd.mid)) : null,
+       minMid: paid.length ? Math.min(...paid.map((j) => j.usd.mid)) : null,
+       maxes: paid.map((j) => j.usd.max), mins: paid.map((j) => j.usd.min),
++      ages: jobs.map((j) => j.age),
+       pick: jobs.filter((j) => want.has(j.id)),
+       sampleIds: [jobs[0], jobs[Math.floor(jobs.length / 2)], jobs[jobs.length - 1]].filter(Boolean).map((j) => j.id),
+       urls: Object.fromEntries([jobs[0], jobs[Math.floor(jobs.length / 2)], jobs[jobs.length - 1]].filter(Boolean).map((j) => [j.id, j.url])),
+@@ -187,7 +202,9 @@ export function registerBetaCoverageTests(suite) {
+     const missing = BETA.filter((c) => !fs.existsSync(path.join(st.dist, 'beta', 'api', 'jobs', `${c.slug}.json`))).map((c) => c.slug);
+     assertEq(missing.join(', '), '', 'beta boards the build does not publish (their tests would only skip)');
+     const bad = [];
++    let betaExternal = 0;
+     for (const [site, slug] of [...BETA.map((c) => ['beta', c.slug]), ['main', MAIN_BOARD]]) {
++      if (site === 'main') betaExternal = external.length; // the main site's boards are live: the browser asks Greenhouse
+       await go(page, `${base(site)}/#c=${slug}`);
+       const f = await needBoard(page, base(site), slug);
+       const shown = await count(page);
+@@ -197,7 +214,7 @@ export function registerBetaCoverageTests(suite) {
+       else if (csvRecords(csv) !== f.n + 1) bad.push(`${site} ${slug}: the CSV has ${csvRecords(csv) - 1} rows for ${f.n} roles`);
+     }
+     assertEq(bad.length, 0, bad.join('; '));
+-    assertEq(external.length, 0, `requests to other hosts: ${external.slice(0, 3).join(', ')}`);
++    assertEq(betaExternal, 0, `the beta boards asked other hosts: ${external.slice(0, 3).join(', ')}`);
+     assertEq(errors.length, 0, errors.slice(0, 3).join(' | '));
+   });
+ 
+@@ -231,64 +248,104 @@ export function registerBetaCoverageTests(suite) {
+ 
+   /* ------------------------------------------------------------------ filters, sorts, search */
+ 
+-  suite.test('Beta coverage: the pay filter on every big-tech board shows exactly the roles whose approx-USD pay meets it (minimum, maximum, "only with pay")', async (ctx) => {
+-    const { page, errors, base } = await open(ctx, { hash: `c=${BETA[0].slug}` });
+-    const bad = [];
+-    for (const c of BETA) {
+-      await go(page, `${base()}/#c=${c.slug}`);
+-      const f = await needBoard(page, base(), c.slug);
+-      if (f.paid < 20) { bad.push(`${c.slug}: only ${f.paid} roles with pay`); continue; }
+-      const lo = roundTo(f.medMax, 10000), hi = roundTo(f.medMin, 10000);
+-      const wantMin = f.maxes.filter((x) => x >= lo).length;
+-      const wantMax = f.mins.filter((x) => x <= hi).length;
+-      await hashTo(page, `c=${c.slug}&smin=${lo}`);
+-      let got = await count(page);
+-      if (got !== wantMin) bad.push(`${c.slug}: pay at least $${lo}: ${got} roles shown, ${wantMin} have a top approx-USD pay that high`);
+-      const ids = await cardIds(page, 40);
+-      const g = await boardFacts(page, base(), c.slug, ids);
+-      for (const j of g.pick) if (!j.usd || j.usd.max < lo) bad.push(`${c.slug}: ${j.id} is listed under "at least $${lo}" with ${j.usd ? `$${Math.round(j.usd.max)} at most` : 'no pay'}`);
+-      await hashTo(page, `c=${c.slug}&smax=${hi}`);
+-      got = await count(page);
+-      if (got !== wantMax) bad.push(`${c.slug}: pay up to $${hi}: ${got} roles shown, ${wantMax} have a lowest approx-USD pay that low`);
+-      await hashTo(page, `c=${c.slug}&so=1`);
+-      got = await count(page);
+-      if (got !== f.paid) bad.push(`${c.slug}: only roles with pay: ${got} shown, ${f.paid} have pay`);
+-      await hashTo(page, `c=${c.slug}`);
+-      if ((await count(page)) !== f.n) bad.push(`${c.slug}: clearing the pay filter shows ${await count(page)} of ${f.n}`);
++  /** The pay filter: minimum, maximum and "only with pay", against each posting's approx-USD pay. */
++  async function payFilter(page, base, c, f, bad) {
++    if (f.paid < 20) { bad.push(`only ${f.paid} roles with pay`); return; }
++    const lo = roundTo(f.medMax, 10000), hi = roundTo(f.medMin, 10000);
++    const wantMin = f.maxes.filter((x) => x >= lo).length;
++    const wantMax = f.mins.filter((x) => x <= hi).length;
++    await hashTo(page, `c=${c.slug}&smin=${lo}`);
++    let got = await count(page);
++    if (got !== wantMin) bad.push(`pay at least $${lo}: ${got} roles shown, ${wantMin} have a top approx-USD pay that high`);
++    const ids = await cardIds(page, 40);
++    const g = await boardFacts(page, base, c.slug, ids);
++    for (const j of g.pick) if (!j.usd || j.usd.max < lo) bad.push(`${j.id} is listed under "at least $${lo}" with ${j.usd ? `$${Math.round(j.usd.max)} at most` : 'no pay'}`);
++    await hashTo(page, `c=${c.slug}&smax=${hi}`);
++    got = await count(page);
++    if (got !== wantMax) bad.push(`pay up to $${hi}: ${got} roles shown, ${wantMax} have a lowest approx-USD pay that low`);
++    await hashTo(page, `c=${c.slug}&so=1`);
++    got = await count(page);
++    if (got !== f.paid) bad.push(`only roles with pay: ${got} shown, ${f.paid} have pay`);
++    await hashTo(page, `c=${c.slug}`);
++    if ((await count(page)) !== f.n) bad.push(`clearing the pay filter shows ${await count(page)} of ${f.n}`);
++  }
++  /** Listed (past 7, 30 and 90 days; hide 180+) against each posting's age; each Juice grade against its own count. */
++  async function listedAndJuice(page, c, f, bad) {
++    const known = f.ages.filter((a) => a != null).length;
++    if (!known) bad.push('no posting has a listing date: the Listed filter is unchecked');
++    for (const p of known ? [7, 30, 90] : []) {
++      await hashTo(page, `c=${c.slug}&p=${p}`);
++      const want = f.ages.filter((a) => a != null && a <= p).length;
++      const got = await count(page);
++      if (got !== want) bad.push(`listed in the past ${p} days: ${got} shown, ${want} postings are that young`);
+     }
+-    assertEq(bad.length, 0, bad.slice(0, 12).join('; '));
+-    assertEq(errors.length, 0, errors.slice(0, 3).join(' | '));
+-  });
+-
+-  suite.test('Beta coverage: "Highest pay", "Lowest pay" and "Title A–Z" order every big-tech board\'s list by its data (pay from the top role down; roles with no pay last)', async (ctx) => {
+-    const { page, errors, base } = await open(ctx, { hash: `c=${BETA[0].slug}` });
+-    const bad = [];
+-    for (const c of BETA) {
+-      await go(page, `${base()}/#c=${c.slug}`);
+-      const f = await needBoard(page, base(), c.slug);
+-      for (const sort of ['salary-desc', 'salary-asc']) {
+-        await hashTo(page, `c=${c.slug}&sort=${sort}`);
+-        const ids = await cardIds(page, 30);
+-        const g = await boardFacts(page, base(), c.slug, ids);
+-        const by = new Map(g.pick.map((j) => [j.id, j]));
+-        const mids = ids.map((id) => by.get(id)?.usd?.mid ?? null);
+-        const first = mids[0];
+-        const extreme = sort === 'salary-desc' ? f.maxMid : f.minMid;
+-        if (first == null || Math.abs(first - extreme) > 1) bad.push(`${c.slug} ${sort}: the first role pays $${Math.round(first)} (mid), the board's ${sort === 'salary-desc' ? 'highest' : 'lowest'} is $${Math.round(extreme)}`);
+-        for (let i = 1; i < mids.length; i++) {
+-          const a = mids[i - 1], b = mids[i];
+-          if (a == null && b != null) { bad.push(`${c.slug} ${sort}: a role with no pay (#${i}) before one with pay (#${i + 1})`); break; }
+-          if (a != null && b != null && (sort === 'salary-desc' ? b > a + 0.5 : b < a - 0.5)) { bad.push(`${c.slug} ${sort}: #${i} $${Math.round(a)} then #${i + 1} $${Math.round(b)} (${ids[i - 1]}, ${ids[i]})`); break; }
+-        }
++    if (known) {
++      await hashTo(page, `c=${c.slug}&ho=1`);
++      const want = f.ages.filter((a) => a == null || a < 180).length;
++      const got = await count(page);
++      if (got !== want) bad.push(`hide 180+ days: ${got} shown, ${want} postings are younger (or undated)`);
++    }
++    await hashTo(page, `c=${c.slug}`);
++    const g = await page.evaluate(() => ({
++      grades: Object.fromEntries([...document.querySelectorAll('#filterBody .kw--juice')].map((b) => [b.firstChild.textContent, Number(b.querySelector('.kw-count').textContent.replace(/,/g, ''))])),
++      note: [...document.querySelectorAll('#filterBody .fnote')].map((n) => n.textContent).find((t) => /Juice Score/.test(t)) || '',
++    }));
++    if (Object.keys(g.grades).length !== 3) { bad.push(`Juice grade buttons ${JSON.stringify(g.grades)}`); return; }
++    const scored = Number((g.note.replace(/,/g, '').match(/(\d+) of \d+ have a Juice Score/) || [])[1] ?? NaN);
++    const sum = Object.values(g.grades).reduce((a, b) => a + b, 0);
++    if (Number.isFinite(scored) && sum !== scored) bad.push(`the grades count ${sum} roles, the note says ${scored} have a Juice Score`);
++    for (const [grade, n] of Object.entries(g.grades)) {
++      await hashTo(page, `c=${c.slug}&jg=${grade}`);
++      const got = await count(page);
++      if (got !== n) bad.push(`Juice ${grade} counts ${n}, the list shows ${got}`);
++    }
++    await hashTo(page, `c=${c.slug}`);
++  }
++  /** Every sort: Highest and Lowest pay by approx-USD mid (no pay last), Most juice by the cards' scores, Title A–Z. */
++  async function sorts(page, base, c, f, bad) {
++    for (const sort of ['salary-asc', 'salary-desc']) {
++      await hashTo(page, `c=${c.slug}&sort=${sort}`, 2000);
++      const ids = await cardIds(page, 30);
++      const g = await boardFacts(page, base, c.slug, ids);
++      const by = new Map(g.pick.map((j) => [j.id, j]));
++      const mids = ids.map((id) => by.get(id)?.usd?.mid ?? null);
++      const extreme = sort === 'salary-desc' ? f.maxMid : f.minMid;
++      if (mids[0] == null || Math.abs(mids[0] - extreme) > 1) bad.push(`${sort}: the first role pays $${Math.round(mids[0])} (mid), the board's ${sort === 'salary-desc' ? 'highest' : 'lowest'} is $${Math.round(extreme)}`);
++      for (let i = 1; i < mids.length; i++) {
++        const a = mids[i - 1], b = mids[i];
++        if (a == null && b != null) { bad.push(`${sort}: a role with no pay (#${i}) before one with pay (#${i + 1})`); break; }
++        if (a != null && b != null && (sort === 'salary-desc' ? b > a + 0.5 : b < a - 0.5)) { bad.push(`${sort}: #${i} $${Math.round(a)} then #${i + 1} $${Math.round(b)} (${ids[i - 1]}, ${ids[i]})`); break; }
+       }
+-      await hashTo(page, `c=${c.slug}&sort=title`);
+-      const titles = await page.$$eval('#resultsList .card[data-id] .card-title', (e) => e.slice(0, 30).map((x) => x.textContent));
+-      const sorted = await page.evaluate((t) => t.slice().sort((a, b) => a.localeCompare(b)), titles);
+-      if (JSON.stringify(titles) !== JSON.stringify(sorted)) bad.push(`${c.slug} title: "${titles.find((t, i) => t !== sorted[i])}" is out of order`);
+     }
+-    assertEq(bad.length, 0, bad.join('; '));
+-    assertEq(errors.length, 0, errors.slice(0, 3).join(' | '));
+-  });
++    // Most juice: the cards' own scores (the badge reads "🍉 <score> · <grade>"), highest first, unscored last.
++    await hashTo(page, `c=${c.slug}&sort=juice`, 2000);
++    const scores = await page.$$eval('#resultsList .card[data-id]', (e) => e.slice(0, 30).map((x) => {
++      const m = /🍉\s*(\d+)/.exec(x.querySelector('.juice-badge')?.textContent || '');
++      return m ? Number(m[1]) : null;
++    }));
++    for (let i = 1; i < scores.length; i++) {
++      const a = scores[i - 1], b = scores[i];
++      if ((a == null && b != null) || (a != null && b != null && b > a)) { bad.push(`juice: #${i} scores ${a}, #${i + 1} scores ${b}`); break; }
++    }
++    if (scores[0] == null && (await page.$$eval('.juice-badge', (e) => e.length)) > 0) bad.push('juice: the first card has no Juice Score');
++    await hashTo(page, `c=${c.slug}&sort=title`, 2000);
++    const titles = await page.$$eval('#resultsList .card[data-id] .card-title', (e) => e.slice(0, 30).map((x) => x.textContent));
++    const sorted = await page.evaluate((t) => t.slice().sort((a, b) => a.localeCompare(b)), titles);
++    if (JSON.stringify(titles) !== JSON.stringify(sorted)) bad.push(`title: "${titles.find((t, i) => t !== sorted[i])}" is out of order`);
++  }
++
++  for (const c of BETA) {
++    suite.test(`Beta coverage: [${c.slug}] the pay filter (minimum, maximum, only with pay), the Listed filter and the Juice grades give exactly the roles the data says, and every sort (Highest pay, Lowest pay, Most juice, Title A–Z) orders the list by it`, async (ctx) => {
++      const { page, errors, base } = await open(ctx, { hash: `c=${c.slug}` });
++      const f = await needBoard(page, base(), c.slug);
++      const bad = [];
++      await payFilter(page, base(), c, f, bad);
++      await listedAndJuice(page, c, f, bad);
++      await sorts(page, base(), c, f, bad);
++      assertEq(bad.length, 0, bad.slice(0, 12).join('; '));
++      assertEq(errors.length, 0, errors.slice(0, 3).join(' | '));
++    });
++  }
+ 
+   suite.test('Beta coverage: a search lists the roles whose title (or team) has the word before the roles that match it elsewhere (Amazon, Apple, Google)', async (ctx) => {
+     const { page, errors, base } = await open(ctx, { hash: 'c=amazon' });
+@@ -393,6 +450,7 @@ export function registerBetaCoverageTests(suite) {
+         const closed = await page.waitForFunction(() => !document.querySelector('#drawer.is-open'), null, { timeout: 5000 }).then(() => true, () => false);
+         if (!closed) bad.push('the job page\'s Back button did not close it');
+         if ((await params(page)).get('job')) bad.push('after Back the address still names the job');
++        await sleep(700); // the job page slides out (0.22 s) and focus returns to the card, as a person would wait
+       }
+       // The browser's Back closes a job page too, and stays on the board.
+       const second = page.locator('#resultsList .card[data-id]').nth(1);
+-- 
+2.43.0
+

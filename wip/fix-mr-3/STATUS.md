@@ -2,11 +2,15 @@
 
 - Worktree: `/home/user/melon-seek/.claude/worktrees/agent-a2e3d85e328fdbc3e`
 - Base (on claude/stoic-ride-54ddxp): `05263e8c010758f51cca4bcbcfb2871eac1defd3`
-- Head: `c59177f1f96facaa7b77bc0221b3a046236b09e9`
+- Head: `9054eaea2b2a685ea8b84b4afc5436d560800cba`
 - Restore: `bash scripts/cycle/restore-wip.sh fix-mr-3 <new worktree dir>`
 
 ## Commits since the base
 ```
+9054eae fix-mr-3: e2e on the built site (every ID, and every phone size), docs, and the chart caption patch for fix-viz-5
+e598d8a fix-mr-3: refresh fixtures regenerated at norm-13 (make-fixtures.mjs)
+99d5640 fix-mr-3: MR-38/MR-33 fixed-term pay of unstated length, MR-37 stated annual figure, MR-29 departments note, MR-39 headline median basis
+ff2b272 fix-mr-3: MR-40 43 NYC-area towns in the gazetteer, so the NYC pay area sees them; norm-13
 c59177f fix-mr-3: MR-41 the Mid chip's tip gives each board's own example of a mid level
 055fa0f fix-mr-3: MR-26 build-day data is never "update due"
 62899e8 fix-mr-3: MR-21 registry.js usage lists --docs; MR-22 market.json fx.source is FX_SOURCE
@@ -17,16 +21,6 @@ d8818ca fix-mr-3: brief, verbatim
 
 ## Uncommitted and new files
 ```
- M data/freshness.json
- M docs/DATA_FRESHNESS.md
- M public/features/shared.js
- M server/geo.js
- M server/normalize.js
- M test/fix-beta-pay.test.js
- M test/fix-pay-data.test.js
- M test/fixtures/golden-normalize.json
- M test/golden-normalize.test.js
- M test/salary-pipeline.test.js
 ```
 
 ## Left out (not in untracked.tgz)
