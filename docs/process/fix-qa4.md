@@ -8,11 +8,14 @@
   heading and the CSV), MR-35 (the stated base keeps its cents) and UX-50 (the company beside its dot under Group by
   Company). Commits 6185ba3 (fixes and tests), 40a11f2 (MR-35 marked fixed), 15edb5c (salary-audit's lifted helpers).
   - Red first: 4 unit tests and 21 e2e checks fail on dcebc6a, and MR-35's test fails there once it is a plain test.
-  - Gate at 15edb5c: clean `npm test` 1,204 pass, 0 fail. The e2e and the phone smoke on 6185ba3's build: §5.
-- **In progress:** the e2e groups (fix-qa4 per size, the card, the drawer, fix-phone-text, google-grouping) and the
-  phone smoke, one at a time, while the lead's gate also runs.
-- **Next step:** send the lead the SHAs. At integration: test/beta-methodology-2.test.js `FIXED` gains MR-35, and the
-  methodology lane starting now edits the same line; test/salary-audit.test.js `CARD_IF_PRESENT` gains the shift helpers.
+  - Gate: clean `npm test` at 25eb1ba 1,204 pass, 0 fail. On 6185ba3's build: e2e fix-qa4 63/63; the card, drawer,
+    fix-phone-text, google-grouping and fix-density groups 191/195 (the 3 failures fail on 1ef0646 too: D-43, V-41,
+    UX-39, the chart and phone lanes'); the phone smoke 95/95. Screenshots before and after, shrunk. Commits up to
+    25eb1ba, sent to the lead.
+- **In progress:** none.
+- **Next step:** the lead integrates 6185ba3..25eb1ba. At integration: test/beta-methodology-2.test.js `FIXED` gains
+  MR-35, and the methodology lane starting now edits the same line; test/salary-audit.test.js `CARD_IF_PRESENT` gains the
+  shift helpers; fix-phone-sizes makes `.sal-sub` 12 px (M-48), which carries "with top shift pay".
 
 ## 1. Brief
 - **Prompt:** [prompts/fix-qa4.md](prompts/fix-qa4.md), verbatim.
