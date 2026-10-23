@@ -102,3 +102,30 @@ household of three. Google, the board he lands on, has no account executive in A
 
 About 15 minutes. The base-pay rule held everywhere he looked: every sales drawer says "Posted base
 pay. Equity and bonus aren't included."
+
+### 3.3 Petra Hoffmann: mid-career designer, Munich, Surface Duo spanned (de-DE)
+
+**Goal:** "A product or UX design role in Munich or Berlin, or remote in Germany, at a big-tech
+company, paying at least €85,000 and leaving me at least €1,500 a month; ideally four days a week."
+
+**Reached it? Partly.** One role fits, as in wave 1: Google's *Senior UX Designer, Chrome*, Munich,
+€112K–114K (as posted: "€112000 - €114000 (EUR) + 15% bonus target"). It leaves **$3,250 a month**
+for one person, which clears €1,500, but she has to convert it herself. No big-tech board has a
+part-time design role, and Employment type offers only "Not stated", "Contract" and "Intern".
+
+I ran her on the Duo first without the hinge (a 1114×720 touch screen, desktop layout) and then
+with the hinge emulated over CDP (`displayFeature` at x 540, 34 px), as fix-phone-sizes does.
+
+| Step | What she did and saw | Page | ≈ human |
+|---|---|---|---|
+| 1 | Arrives cold. With the hinge: chart on the left screen, cards on the right, nothing readable on the hinge; the quick chips end in a fade at the hinge. The stats line reads **"3.821 3.821 roles · 66% show pay · $199K base pay median (US)"**. Without the hinge, the tagline "Beta: adds 7 big-tech companies' own careers sites" runs across x 457–752. [p3-01 hinge](../screenshots/persona-beta-2-45-54/p3-01-arrive-duo-hinge.png), [p3-01 no hinge](../screenshots/persona-beta-2-45-54/p3-01-arrive-duo-spanned.png) | first card 1.4–1.7 s (load 8.3) | 30 s |
+| 2 | Location: "München", "Muenchen", "Deutschland" and "Germany" all find Munich (35); "Deutschland" lists Munich, Hamburg, Frankfurt, Berlin… (wave 1's dead end is fixed). [p3-03](../screenshots/persona-beta-2-45-54/p3-03-location-muenchen.png), [p3-04](../screenshots/persona-beta-2-45-54/p3-04-location-deutschland.png) | no wait | 1 min |
+| 3 | Searches "UX Designer" in Munich: 1 role, *Senior UX Designer, Chrome*, €112K–114K. The stats line says "$130K base pay median", the card says euros. [p3-05](../screenshots/persona-beta-2-45-54/p3-05-google-munich-ux.png) | 1.1 s | 1 min |
+| 4 | Drawer (on the right screen): "€112K–114K · EUR · per year", "≈ $129K–131K in US dollars at Sep 2026 rates", "Pays more than 48% of Google's roles in Germany", "Same role elsewhere: Nothing to compare yet in Germany … Pay for other countries isn't used" (wave 1's US comparison is fixed). One age: "Updated 14 days ago" and "Listed 14 days ago (9. Okt. 2026)" (fixed). [p3-06](../screenshots/persona-beta-2-45-54/p3-06-chrome-ux-drawer.png) | drawer 0.2 s | 2 min |
+| 5 | Juice → Monthly: **$3,250/mo** for one person; "Gross pay $10,840/mo". In de-DE, the money uses English separators ("$3,250") while counts use German ones ("3.821", "2.513 with pay"); to a German reader "$3,250" is three dollars. [p3-07](../screenshots/persona-beta-2-45-54/p3-07-juice-single-munich.png) | no wait | 2 min |
+| 6 | Filters → Employment type: Not stated 31, Contract 2, Intern 2. "Teilzeit" and "part-time": 0, with "Without the search "Teilzeit": 35 roles · Remove the search" (good). [p3-08](../screenshots/persona-beta-2-45-54/p3-08-employment-type.png), [p3-09](../screenshots/persona-beta-2-45-54/p3-09-teilzeit-empty.png) | 0.9 s | 2 min |
+| 7 | Tries Microsoft, Apple, Amazon and NVIDIA with "designer": Microsoft "Kept "designer" · dropped Munich (not at Microsoft) for now"; Apple "**put back Munich**" (wave 1's lost filter is fixed); Amazon one *Sr Mechanical Designer* with no pay; NVIDIA none. [p3-10 Microsoft](../screenshots/persona-beta-2-45-54/p3-10-switch-microsoft.png), [p3-10 Apple](../screenshots/persona-beta-2-45-54/p3-10-switch-apple.png) | 0.4–3.5 s each (load 13.8) | 4 min |
+| 8 | Insights → Pay estimate "UX Designer · Munich": "Not enough comparable roles … Remove a filter or try a broader title" (honest). [p3-11](../screenshots/persona-beta-2-45-54/p3-11-insights-google-munich.png) | 1.2 s | 1 min |
+| 9 | Saves; Map: one pin "Munich, Germany · $134K · 35", the legend in US dollars. Comes back: "Reopened where you left off: Google · Munich"; the saved search is in the menu. [p3-12](../screenshots/persona-beta-2-45-54/p3-12-map-google-munich.png), [p3-13](../screenshots/persona-beta-2-45-54/p3-13-return-menu.png) | map under 2.6 s; return 1.7 s | 1 min |
+
+About 15 minutes. The dual-screen layout works well for her: chart on one screen, the job on the other.
