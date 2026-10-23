@@ -400,7 +400,11 @@ export function registerFix3AppTests(suite) {
     const body = await plainList(st, 'anthropic');
     if (!body?.jobs.some((j) => j.salary?.kind === 'ote')) skip('no on-target earnings on Anthropic');
     const { toUSD, formatMoney } = await lib('viz/palette.js');
-    const mids = body.jobs.filter((j) => j.salary && j.salary.kind !== 'ote').map((j) => toUSD(j.salary.mid ?? (j.salary.min + j.salary.max) / 2, j.salary.currency)).filter(Number.isFinite).sort((a, b) => a - b);
+    // fix-mr-3 (MR-39): with pay in two or more currencies, the median is the main currency's (shared.js mainPayCurrency).
+    const { mainPayCurrency } = await lib('features/shared.js');
+    const base = body.jobs.filter((j) => j.salary && j.salary.kind !== 'ote');
+    const main = mainPayCurrency(base.map((j) => j.salary.currency));
+    const mids = base.filter((j) => !main || String(j.salary.currency || 'USD').toUpperCase() === main).map((j) => toUSD(j.salary.mid ?? (j.salary.min + j.salary.max) / 2, j.salary.currency)).filter(Number.isFinite).sort((a, b) => a - b);
     const q = (mids.length - 1) * 0.5;
     const median = mids[Math.floor(q)] + (mids[Math.ceil(q)] - mids[Math.floor(q)]) * (q - Math.floor(q));
     const { page, errors } = await open(ctx, st, { url: `${st.beta}/#c=anthropic` });
