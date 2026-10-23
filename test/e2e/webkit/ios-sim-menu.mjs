@@ -98,9 +98,11 @@ for (const device of DEVICES) {
     for (const board of BOARDS) {
       log = [];
       sh('xcrun', ['simctl', 'openurl', udid, `${ORIGIN}/melon-seek/beta/?board=${board}#c=${board}`]);
-      const st = await waitFor((e) => e.kind === 'state' && e.data.ms >= 24000, 60000);
-      const first = log.find((e) => e.kind === 'ready');
-      const errors = log.filter((e) => e.kind === 'error').map((e) => `${e.data.msg}${e.data.src ? ` (${String(e.data.src).replace(ORIGIN, '')}:${e.data.line}:${e.data.col})` : ''}`);
+      // Only this page's messages: the tabs opened before it are still reporting.
+      const here = (e) => e.page === `?board=${board}`;
+      const st = await waitFor((e) => here(e) && e.kind === 'state' && e.data.ms >= 24000, 60000);
+      const first = log.find((e) => here(e) && e.kind === 'ready');
+      const errors = log.filter((e) => here(e) && e.kind === 'error').map((e) => `${e.data.msg}${e.data.src ? ` (${String(e.data.src).replace(ORIGIN, '')}:${e.data.line}:${e.data.col})` : ''}`);
       snap(`0-${board}`);
       const ok = st && st.data.cards > 0 && !errors.length && st.data.scrollW <= st.data.inner[0] + 1;
       if (!ok) failed++;
@@ -110,7 +112,8 @@ for (const device of DEVICES) {
     }
     log = [];
     sh('xcrun', ['simctl', 'openurl', udid, `${ORIGIN}/melon-seek/beta/?board=apple-menu#c=apple`]);
-    if (!(await waitFor((e) => e.kind === 'ready', 60000))) throw new Error('apple did not load again for the menu checks');
+    const menuPage = (e) => e.page === '?board=apple-menu';
+    if (!(await waitFor((e) => menuPage(e) && e.kind === 'ready', 60000))) throw new Error('apple did not load again for the menu checks');
     measures.push(ready);
     await sleep(1500);
     snap('1-landing');
@@ -122,29 +125,30 @@ for (const device of DEVICES) {
     for (let attempt = 0; attempt < 2; attempt++) {
       log = log.filter((e) => e.kind !== 'touch' && e.kind !== 'geom');
       idb('tap', String(Math.round(tapAt.x)), String(Math.round(tapAt.y)));
-      const t = await waitFor((e) => e.kind === 'touch', 5000);
+      const t = await waitFor((e) => menuPage(e) && e.kind === 'touch', 5000);
       if (t) off = { x: tapAt.x - t.data.x, y: tapAt.y - t.data.y };
-      const g0 = await waitFor((e) => e.kind === 'geom', 5000);
+      const g0 = await waitFor((e) => menuPage(e) && e.kind === 'geom', 5000);
       if (g0?.data?.open) break;
       // Missed: aim again with the offset the probe measured from this tap.
       tapAt = { x: (bl + br) / 2 + off.x, y: (bt + bb) / 2 + off.y };
       await sleep(800);
     }
-    let g = (await waitFor((e) => e.kind === 'geom', 5000))?.data;
-    if (!g?.open) { send('open-menu'); await sleep(1500); g = (await waitFor((e) => e.kind === 'geom' && e.data.open, 5000))?.data; say(`${device}: the real tap missed the menu button; opened it from the page instead`); }
+    let g = (await waitFor((e) => menuPage(e) && e.kind === 'geom', 5000))?.data;
+    if (!g?.open) { send('open-menu'); await sleep(1500); g = (await waitFor((e) => menuPage(e) && e.kind === 'geom' && e.data.open, 5000))?.data; say(`${device}: the real tap missed the menu button; opened it from the page instead`); }
     measures.push({ step: 'menu-open', off, g });
     snap('2-menu-open');
     say(`${device}: menu open: focus "${g?.focus}", keyboard ${g?.kbOpen ? 'UP' : 'down'} (visual viewport ${g?.vv}), ${g?.fullRows?.length} rows fully visible`);
     // 2. and 3.: swipe the rows, before and after the keyboard opens
     const swipeRows = async (label) => {
       let cur = g;
+      if (!cur?.list || !cur?.body) { say(`${device}: FAIL ${label}: the company menu reported no list (open: ${cur?.open})`); failed++; return cur; }
       for (let i = 0; i < 6; i++) {
         const top = Math.max(cur.list[1], cur.body[1], cur.vv ? cur.vv[0] : 0), bottom = Math.min(cur.list[3], cur.body[3], cur.vv ? cur.vv[0] + cur.vv[1] : 9999);
         if (bottom - top < 24) break;
         const x = (cur.list[0] + cur.list[2]) / 2 + off.x;
         log = log.filter((e) => e.kind !== 'geom');
         idb('swipe', String(Math.round(x)), String(Math.round(top + (bottom - top) * 0.85 + off.y)), String(Math.round(x)), String(Math.round(top + (bottom - top) * 0.15 + off.y)), '--duration', '0.35');
-        cur = (await waitFor((e) => e.kind === 'geom', 5000))?.data || cur;
+        cur = (await waitFor((e) => menuPage(e) && e.kind === 'geom', 5000))?.data || cur;
         measures.push({ step: `${label}-swipe-${i + 1}`, g: cur });
       }
       return cur;
@@ -158,7 +162,7 @@ for (const device of DEVICES) {
     log = log.filter((e) => e.kind !== 'geom');
     idb('tap', String(Math.round((a.search[0] + a.search[2]) / 2 + off.x)), String(Math.round((a.search[1] + a.search[3]) / 2 + off.y)));
     await sleep(2000);
-    g = (await waitFor((e) => e.kind === 'geom', 5000))?.data || a;
+    g = (await waitFor((e) => menuPage(e) && e.kind === 'geom', 5000))?.data || a;
     measures.push({ step: 'keyboard', g });
     snap('4-keyboard');
     const sheetVisible = !g.vv || (g.pop[1] >= g.vv[0] - 1 && g.pop[3] <= g.vv[0] + g.vv[1] + 1);

@@ -4,7 +4,9 @@
 //   - after each touch ends, the company menu's geometry (as test/e2e/beta-mobile-qa-2.e2e.js menuGeom measures it);
 //   - it runs the driver's commands ("open-menu", "close-menu", "reset") polled from /qa-cmd.
 (function () {
-  const post = (kind, data) => fetch('/qa-log', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ kind, data, t: Date.now() }) }).catch(() => {});
+  // Each message names its page (?board=…): Safari keeps the earlier tabs open, and they keep reporting (run
+  // 39978511587: a board's check read another tab's company and card count).
+  const post = (kind, data) => fetch('/qa-log', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ kind, data, t: Date.now(), page: location.search }) }).catch(() => {});
   const geom = () => {
     const pop = document.querySelector('#popover');
     if (!pop || pop.hidden) return { open: false };
@@ -54,6 +56,9 @@
       const cmd = await r.json();
       if (!cmd || !cmd.id) return;
       seq = cmd.id;
+      // Only the tab on screen acts on the driver's commands; a background tab opening its own menu sent the driver a
+      // geometry with no list (the "reading '1'" crash in run 39978511587).
+      if (document.visibilityState !== 'visible') return;
       if (cmd.name === 'open-menu') { if (document.querySelector('#popover').hidden) document.querySelector('#companyMenuBtn').click(); }
       if (cmd.name === 'close-menu') { const x = document.querySelector('#popover .pop-head .icon-btn'); if (x) x.click(); }
       if (cmd.name === 'blur') document.activeElement && document.activeElement.blur();
