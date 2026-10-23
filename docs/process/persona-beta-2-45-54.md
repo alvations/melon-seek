@@ -156,3 +156,33 @@ listed in Austin and San Jose; the site holds that pay for San Jose and says "th
 | 9 | Back on the desktop: "Reopened where you left off: NVIDIA · "physical design" · Austin", the saved search in the menu, and the Ranges view stacks identical bands ("×3") with stripes for "several levels or places". [p4-15](../screenshots/persona-beta-2-45-54/p4-15-return-menu.png), [p4-16](../screenshots/persona-beta-2-45-54/p4-16-ranges.png) | 0.7 s | 1 min |
 
 About 18 minutes.
+
+### 3.5 Rosalind Achebe: director, London, Razr cover screen then desktop (en-GB)
+
+**Goal:** "Head of, or Director of, public policy, government affairs or regulatory affairs for the
+UK or EMEA, at a big-tech company in London, paying at least £140,000 base and leaving the two of
+us at least £4,000 a month."
+
+**Reached it? No.** No big-tech board lists a policy or regulatory leadership role in London with pay.
+In London, Microsoft posts pay on 36 of its 37 roles. The others post little: Google 37 of 151,
+Amazon 2 of 528, Meta 1 of 70, Apple 0 of 89. The nearest she found:
+- Meta's *Privacy and Data Policy Manager*: honestly "Pay posted for Italy only".
+- Google's *Director, Corporate Communications, Google Cloud*: "Pay posted for the US only".
+- Microsoft's *EMEA Channel Partner Sales Director* (£120K–202K): leaves a couple **$4,720 a month**,
+  under her £4,000 (≈ $5,360), and it isn't policy.
+
+The site says all of this plainly; the gap is in the data, not the screens.
+
+| Step | What she did and saw | Page | ≈ human |
+|---|---|---|---|
+| 1 | On the train, opens a friend's link (`#c=meta&q=policy`) on her Razr's cover screen (352×355): the company, search, views, filters and Save all fit with no sideways scroll; the list is a sheet under one chart row: "226 roles · 32 in title". [p5-01](../screenshots/persona-beta-2-45-54/p5-01-razr-cover-meta-policy.png) | first card 0.6 s (load 5.4) | 30 s |
+| 2 | Opens the sheet and the first card (*Communications Director, Enterprise Business*, $223K–287K): the job page fills the cover screen and Apply stays visible. "Same role elsewhere" says only "Director+ level in the US", with no counts; the family (Marketing, comms & content) is under Details. The card's place is Los Angeles; the Juice line is "for one person in Seattle". [p5-02](../screenshots/persona-beta-2-45-54/p5-02-razr-list.png), [p5-03](../screenshots/persona-beta-2-45-54/p5-03-razr-drawer.png), [p5-13](../screenshots/persona-beta-2-45-54/p5-13-razr-same-role-director.png) | drawer under 0.3 s | 1 min |
+| 3 | At home on the desktop (1440×900): Meta "policy" + London: 13 roles · 3 in title, "0% show pay for London"; *Privacy and Data Policy Manager* "Pay posted for Italy only". [p5-04](../screenshots/persona-beta-2-45-54/p5-04-meta-policy-london.png) | 0.6 s | 2 min |
+| 4 | Switches Google → Microsoft → Amazon → Apple, each "Kept "policy", London". Google: 18 roles and none with "policy" in the title (no "in title" count is shown at all); Microsoft: 13, all GBP, none policy; Amazon 40 · 2 in title, no pay; Apple 3, no pay. The place shows as "London" on four boards and "London, England" on Amazon. [p5-05 Google](../screenshots/persona-beta-2-45-54/p5-05-google-policy-london.png), [p5-05 Microsoft](../screenshots/persona-beta-2-45-54/p5-05-microsoft-policy-london.png) | 0.7–4.0 s (Amazon) | 4 min |
+| 5 | Microsoft London without a search: a DKK posting listed "Denmark · London" now says "Pay posted for Denmark only" and has no Juice; EUR ones say "Pay posted for Spain only" / "Ireland only" (wave 1's Juice-from-another-currency is fixed). [p5-06](../screenshots/persona-beta-2-45-54/p5-06-microsoft-london-dkk-card.png) | no wait | 1 min |
+| 6 | Insights → Compare companies: now "Posted pay in the UK, by company" (good), but Policy & government affairs isn't offered for the UK and nothing says why; it opens on "Software engineering" for a "public policy" search. [p5-08](../screenshots/persona-beta-2-45-54/p5-08-compare-policy.png) | 0.3 s | 2 min |
+| 7 | Pay estimate "Head of Public Policy · London · Director+": "No similar role at Google in the UK lists pay, so there is no pay estimate. Pay from other countries isn't used" (honest). [p5-09](../screenshots/persona-beta-2-45-54/p5-09-estimate-head-policy-london.png) | no wait | 1 min |
+| 8 | Types "£140,000" in the salary box: "Min: £140,000 ≈ $188K a year"; 16 Microsoft London roles. *EMEA Channel Partner Sales Director* (£120K–202K): Couple → Monthly **$4,720/mo**, "income tax $6,560 · social security $580 · Couple here means one earner; each person is taxed separately here". [p5-10](../screenshots/persona-beta-2-45-54/p5-10-salary-box-gbp.png), [p5-11](../screenshots/persona-beta-2-45-54/p5-11-juice-couple-london.png) | 0.9 s | 3 min |
+| 9 | Saves two searches; comes back: "Reopened where you left off: Google · "policy" · London". The menu lists "Google · "policy" · London" and **"Microsoft · $188K+ · London"**: her £140,000 is renamed in dollars. [p5-12](../screenshots/persona-beta-2-45-54/p5-12-return-menu-2-saved.png) | 0.6 s | 30 s |
+
+About 16 minutes.
