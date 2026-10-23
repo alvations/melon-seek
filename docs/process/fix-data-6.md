@@ -1,12 +1,14 @@
 # Process log: fix-data-6 (data and test engineer, fix wave 6)
 
 ## State
-- 2026-10-23 21:20 UTC: started. Base 00bd52c (origin/claude/stoic-ride-54ddxp, batch 3 e800c43 and later), detached.
-  Brief saved (4d675bb). Data links made; base build in `scratchpad/fd6/dist-base` (7/7 beta).
-- **In progress:** G-1, finding the towns at their state's or country's centre near the big metros (scan.mjs: 1,469
-  such places, 9,365 postings, on the 2026-10-16 crawl).
-- **Queue:** G-1, K-1 (from the lead: "+ bonus mentioned" on "+ 0% bonus target"), T-19 (P-2, D-11), C-1. One norm-14
-  bump for G-1 and K-1.
+- 2026-10-23 22:00 UTC: base 00bd52c, detached. Brief 4d675bb, log 93dfb08. Base build in `scratchpad/fd6/dist-base` (7/7 beta).
+- **Done, not committed yet:** G-1 code (server/geo.js: 359 "?" entries, the region-less "?" rule, finalCountry ignores "?"
+  entries; geodiff: 359 results, 2,206 postings, latitude and longitude only), K-1 code (server/keywords.js ZERO_BONUS_RE,
+  zeroBonusOnly; normalize.js relabelJobs), norm-14, the registry's gazetteer size (743).
+- **Next:** unit tests (red on base), golden re-baseline (UPDATE_GOLDEN=1), refresh fixtures, commit; build; before/after counts;
+  e2e; docs; send G-1 + K-1.
+- **Queue (from the lead):** P-1 (payPlaceText names salary.places), R-1 (roles.js: warehouse and store associates are not
+  customer support), then T-19 (P-2, D-11) and C-1.
 
 ## 1. Brief
 - **Prompt:** [prompts/fix-data-6.md](prompts/fix-data-6.md), verbatim.
