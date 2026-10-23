@@ -311,7 +311,7 @@ function headPay(items) {
   if (!b.basis || b.basis === 'mixed' || !b.left) return all;
   return { ...all, median: b.stats.median, p25: b.stats.p25, p75: b.stats.p75, n: b.stats.n, basis: b.basis, basisLeft: b.left };
 }
-/** MR-39: " US" after the caption's median when it is one currency's pay of several ("Median base pay $149K US"). */
+/** MR-39: " US" after the caption's median when it is one currency's pay of several ("Median base pay $152K US"). */
 const medianBasis = (pay) => (pay?.basis && pay.basis !== 'mixed' && pay.basisLeft ? ` ${basisShort(pay.basis)}` : '');
 /** " in the US" after a median, "" when the row has no basis; "mixed" names its currencies. */
 const basisWords = (r) => (r.basis === 'mixed' ? ', several countries’ pay' : r.basis ? ` ${payBasisPlace(r.basis)}` : '');

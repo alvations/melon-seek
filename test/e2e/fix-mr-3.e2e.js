@@ -203,7 +203,8 @@ export function registerFixMr3Tests(suite) {
   suite.test('fix-mr-3: [MR-39] the stats line\'s median is the main currency\'s (US pay on Amazon), says "(US)", and equals that median, as the chart caption does', async (ctx) => {
     const { st, page } = await open(ctx);
     await board(page, st, 'c=amazon&m=map');
-    const pay = await appJobs(page, st, 'amazon', `(j, sh, pal) => j.salary && j.salary.kind !== 'ote' && pal.hasFx(j.salary.currency || 'USD') ? { cur: String(j.salary.currency || 'USD').toUpperCase(), mid: pal.toUSD(j.salary.mid, j.salary.currency || 'USD') } : null`);
+    // Base pay ranges only (MR-28, shared.js notBasePay: a stated minimum, shift-inclusive or part-time figure is not one).
+    const pay = await appJobs(page, st, 'amazon', `(j, sh, pal) => j.salary && j.salary.kind !== 'ote' && !(sh.notBasePay && sh.notBasePay(j)) && pal.hasFx(j.salary.currency || 'USD') ? { cur: String(j.salary.currency || 'USD').toUpperCase(), mid: pal.toUSD(j.salary.mid, j.salary.currency || 'USD') } : null`);
     const curs = new Set(pay.map((p) => p.cur));
     if (curs.size < 2) skip('Amazon\'s pay is in one currency in this build');
     const us = pay.filter((p) => p.cur === 'USD').map((p) => p.mid).sort((a, b) => a - b);
@@ -214,7 +215,7 @@ export function registerFixMr3Tests(suite) {
     assertEq(shown, `${fmt} base pay median (US)`, 'Amazon stats line median');
     const details = await text(page, '#statsLine');
     assert(new RegExp(`median of the ${us.length.toLocaleString('en-US')} roles paid in the US; ${(pay.length - us.length).toLocaleString('en-US')} roles paid in other currencies are left out`).test(details), `the stats Details don't say whose median it is: "${details.slice(0, 400)}"`);
-    // The chart's caption has the same median on the same basis ("Median base pay $149K US"; chart.js headPay).
+    // The chart's caption has the same median on the same basis ("Median base pay $152K US"; chart.js headPay).
     await board(page, st, 'c=amazon&m=chart');
     await page.waitForSelector('#chartHost .ms-hist__sub', { timeout: 60000 });
     assertEq((await text(page, '#chartHost .ms-hist__sub')), `${fmt} US`, 'Amazon chart caption median');

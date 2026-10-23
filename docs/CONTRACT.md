@@ -1019,7 +1019,7 @@ unchanged: `salary.min/max` stay annualized.
 - `annualNote` (MR-37): a stated yearly figure (`salary.statedAnnual`) reads "Stated as a yearly figure"; its Details quote the
   posting and its payments a year ("paid as 14 monthly payments of €3,358.33, not 12").
 - `stats(list, F)` (MR-39) adds `basis` (the main pay currency when the paid postings in view use two or more, else null), `basisN`
-  and `basisLeft`; the median and quartiles are the basis currency's. The stats line reads "$149K base pay median (US)" (short, within fix-density's 12 words) and
+  and `basisLeft`; the median and quartiles are the basis currency's. The stats line reads "$152K base pay median (US)" (short, within fix-density's 12 words) and
   its Details say how many roles the median is of and how many are left out. `payBasisPlace` is imported from `viz/chart.js`.
 - The stats line's Details (also the chart notes' Details) say, on a board whose departments are read from titles, "Google doesn't
   publish departments, so its roles are grouped by what their titles say." (MR-29).
@@ -1029,8 +1029,8 @@ unchanged: `salary.min/max` stay annualized.
 **Shared and Insights (MR-39):** `mainPayCurrency(currencies) -> code | null` (`shared.js`): the most common currency when there are
 two or more (USD on a tie), the chart rows' rule (`chart.js mainBasis`, V-21). `insights.js summaryStats(jobs)` adds `basis` and
 `basisN`; `median`, `p25` and `p75` are the basis currency's, `salaried` and `payShare` still count every country. The tiles read
-"of 13,177 in the US" and "of roles in the US" (Amazon, 2026-10-16: $149K of 13,177 US roles, was $141K of all 13,980). The chart's caption (`public/viz/chart.js` `headPay`, `medianBasis`) uses the same basis: the strip's "Median base pay $149K US",
-the phone's axis line "US dollars a year · median $149K US", and its tip says how many postings are paid elsewhere; the left-out
+"of 12,529 in the US" and "of roles in the US" (Amazon, 2026-10-16: $152K of 12,529 US base-pay ranges, was $149K of all 13,045). The chart's caption (`public/viz/chart.js` `headPay`, `medianBasis`) uses the same basis: the strip's "Median base pay $152K US",
+the phone's axis line "US dollars a year · median $152K US", and its tip says how many postings are paid elsewhere; the left-out
 counts by kind (MR-28) stay the whole chart's.
 
 **Locations (`server/geo.js`, MR-40):** 43 New York, New Jersey and Connecticut towns within about 80 km of Manhattan (the 2026-10-16

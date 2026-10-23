@@ -162,7 +162,7 @@ NODE_PATH=$S/pw/node_modules node scripts/e2e.js --grep="fix-mr-3"
   "Garden City at 42.17,-74.95 … priced at 102100–234700", "Daily · update due".
 - **Phone lines** (fix-phone-text's scanText): every line I added or changed is one line from 344 px up. Below that the guard allows
   two, and these take two: at 280 px the converted line "≈ $6,025 a month at Sep 2026 rates" (the yearly one, "≈ $72K in US dollars
-  at Sep 2026 rates", took two there before), and at 280 and 320 px the Insights tile notes ("of 13,177 in the US" as "of 13,980
+  at Sep 2026 rates", took two there before), and at 280 and 320 px the Insights tile notes ("of 12,529 in the US" as "of 13,980
   with pay" did) and the Juice headline ("$1,650/mo left for one person in Menlo Park"). The first phone run found the Juice
   headline at 2 lines from 360 to 393 px with " while it lasts"; that part now moves to the text below when it would wrap (2f51186).
 - **T-17 on the rebuilt dist:** no title with a line break is left; the three read "Research Scientist, Machine Learning for
