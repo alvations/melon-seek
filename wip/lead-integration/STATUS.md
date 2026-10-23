@@ -44,6 +44,17 @@ c1c2e2b fix-qa4: UX-51 and UX-50 screenshots before and after (shrunk); the phon
 
 ## Uncommitted and new files
 ```
+ M docs/screenshots/chart.png
+ M docs/screenshots/dark-drawer.png
+ M docs/screenshots/dark.png
+ M docs/screenshots/drawer-juice.png
+ M docs/screenshots/drawer.png
+ M docs/screenshots/insights.png
+ M docs/screenshots/map-juice.png
+ M docs/screenshots/map.png
+ M docs/screenshots/mobile.png
+ M docs/screenshots/qa-mobile-beta/e2e-M-19-sort-while-scrolled.png
+ M docs/screenshots/qa-mobile/e2e-landscape-map.png
 ?? docs/screenshots/fix-pay-at-place/e2e-card-720x1114.png
 ```
 
