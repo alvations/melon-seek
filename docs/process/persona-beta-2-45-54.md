@@ -129,3 +129,30 @@ with the hinge emulated over CDP (`displayFeature` at x 540, 34 px), as fix-phon
 | 9 | Saves; Map: one pin "Munich, Germany · $134K · 35", the legend in US dollars. Comes back: "Reopened where you left off: Google · Munich"; the saved search is in the menu. [p3-12](../screenshots/persona-beta-2-45-54/p3-12-map-google-munich.png), [p3-13](../screenshots/persona-beta-2-45-54/p3-13-return-menu.png) | map under 2.6 s; return 1.7 s | 1 min |
 
 About 15 minutes. The dual-screen layout works well for her: chart on one screen, the job on the other.
+
+### 3.4 Deb Lindqvist: staff engineer, Austin, desktop and a landscape phone
+
+**Goal:** "A staff or principal physical-design role in Austin at NVIDIA, Apple, Google, Amazon or
+Meta, paying at least $230K base, that leaves my husband and me at least $7,000 a month."
+
+**Reached it? Yes for NVIDIA and Google; no for Apple.** NVIDIA's *Principal CPU Architect -
+High-Performance and Physical Design* ($272K–431K) and Google's *Staff CPU Physical Design Engineer*
+($192K–278K) fit, and NVIDIA's *Senior Physical Design Engineer* ($168K–310K, "2 levels") leaves a
+couple **$11,470 a month** in Austin. That figure is the midpoint of Level 4 and Level 5 together, and
+she can't pick her level. On Apple, all 34 Austin physical-design roles read "Pay posted for the US
+only" or "No pay listed", and "0% show pay for Austin". Apple posts "$150,400 and $277,600" for a role
+listed in Austin and San Jose; the site holds that pay for San Jose and says "the US".
+
+| Step | What she did and saw | Page | ≈ human |
+|---|---|---|---|
+| 1 | Arrives cold at 1280×800: "3,821 roles · 66% show pay · $199K base pay median (US)" (one count in en-US). Opens NVIDIA: the stats line and the chart both say $239K (wave 1's two medians are fixed); departments are spelled out ("Systems Software Engineering", "ASIC Engineering"), with "135 more departments". [p4-01](../screenshots/persona-beta-2-45-54/p4-01-arrive-desktop-1280.png), [p4-02](../screenshots/persona-beta-2-45-54/p4-02-nvidia.png) | first card 2.4 s (load 9.8); switch 0.7 s | 1 min |
+| 2 | Location Austin, search "physical design": 13 roles · 12 in title, "100% show pay for Austin · $200K". Most cards read "$168K–310K · 2 levels". [p4-03](../screenshots/persona-beta-2-45-54/p4-03-nvidia-austin-pd.png) | 1.1 s | 2 min |
+| 3 | Opens *Senior Physical Design Engineer*: "Pay by level · Level 4 $168K–264.5K · Level 5 $196K–310.5K", "These are NVIDIA's own level names" (no plain word for what Level 5 is). "Same role elsewhere: **Chip design & silicon engineering**, Senior level in the US" with a count per company (Meta 3, NVIDIA 152, Apple 8…): wave 1's "compared with software engineers" is fixed. "Open 180+ days" is explained. [p4-04](../screenshots/persona-beta-2-45-54/p4-04-nvidia-pd-drawer.png) | drawer 0.3 s | 3 min |
+| 4 | Juice → Couple → Monthly: **$11,470/mo**, from a $19,940/mo gross (the two-level midpoint). Compare locations: Austin "best", Santa Clara $8,200. [p4-05](../screenshots/persona-beta-2-45-54/p4-05-juice-couple-austin.png), [p4-06](../screenshots/persona-beta-2-45-54/p4-06-compare-locations.png) | no wait | 2 min |
+| 5 | Switches Apple → Amazon → Google → Meta → Microsoft, each "Kept "physical design", Austin". Apple: 34 roles, **"Pay posted for the US only"** on the cards, "Posted for the US, not Austin" in the drawer, chart "No pay posted for Austin". Amazon: 15 roles, Austin's own rows ($185K–250K for *Sr. Physical Design Engineer*). Google: 1 (Staff, $192K–278K). Meta: 1. Microsoft: 3. [p4-07](../screenshots/persona-beta-2-45-54/p4-07-apple-austin-pd.png), [p4-08](../screenshots/persona-beta-2-45-54/p4-08-apple-pd-drawer.png) | 0.3–0.5 s each | 4 min |
+| 6 | Insights → Compare companies: the role family follows her search (Chip design & silicon engineering); at Staff+: NVIDIA 10 · $300K, Google 9 · $235K, Microsoft 14 · $209K, and "Not shown: Anduril (fewer than 3…); OpenAI, Meta and Apple (don't state levels for most of these roles)". [p4-10](../screenshots/persona-beta-2-45-54/p4-10-compare-chip-staff.png) | Insights 0.3 s | 2 min |
+| 7 | Pay estimate "Staff Physical Design Engineer · Austin · Staff+": $239K, "Medium confidence · Based on 23 similar roles at NVIDIA, mixed levels · Austin", "Typically within ±13%", Low $168K, High $311K. [p4-11](../screenshots/persona-beta-2-45-54/p4-11-estimate-staff-pd-austin.png) | under 1 s | 2 min |
+| 8 | Saves; opens the same link on her iPhone 13 mini in landscape (812×375): no sideways scroll, but only about two chart rows show above the collapsed list. After opening the sheet, the job page fills the screen with Apply pinned at the bottom. [p4-12](../screenshots/persona-beta-2-45-54/p4-12-landscape-shared-link.png), [p4-14](../screenshots/persona-beta-2-45-54/p4-14-landscape-drawer.png) | link 0.7 s; drawer 0.1 s | 1 min |
+| 9 | Back on the desktop: "Reopened where you left off: NVIDIA · "physical design" · Austin", the saved search in the menu, and the Ranges view stacks identical bands ("×3") with stripes for "several levels or places". [p4-15](../screenshots/persona-beta-2-45-54/p4-15-return-menu.png), [p4-16](../screenshots/persona-beta-2-45-54/p4-16-ranges.png) | 0.7 s | 1 min |
+
+About 18 minutes.
