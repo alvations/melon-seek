@@ -133,7 +133,7 @@ test('MR-40 the gazetteer change is a normalizer change: NORMALIZER_VERSION is n
 
 /* ------------------------------------------------------------- MR-38, MR-33 */
 // 182 internships on /beta/ (Amazon 93, Meta 35, NVIDIA 34, Microsoft 14, Anduril 5, Apple 1; and Palantir 35, Shield AI
-// 6, xAI 4) post pay per hour or per month and no length. They were shown as yearly salaries, and 111 of the big-tech
+// 6, xAI 4) post pay per hour or per month and no length (2 of Amazon's are part-time hourly pay, already shown hourly). They were shown as yearly salaries, and 111 of the big-tech
 // ones got a yearly Juice view. Pay for a programme of unstated length is fixed-term pay: shown as posted, never as a
 // yearly salary, and Juice is per month while it lasts.
 const intern = (salary, extra = {}) => ({ seniority: 'Intern', title: 'Thermal Engineering Intern', ...extra, salary: { min: 80256, max: 129600, mid: 104928, currency: 'USD', interval: 'year', kind: 'salary', ...salary } });

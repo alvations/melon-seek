@@ -993,3 +993,53 @@ by Company, `colorBy() === 'brand'`), the card's meta names the company first, b
 "YouTube · User Experience and Design". The department still gives way first on a narrow card (UX-16); other
 groupings are unchanged.
 
+## fix-mr-3 additions (2026-10-23): fixed-term pay, headline medians, NYC-area towns and build-day freshness (fix-mr-3 lane)
+
+Findings MR-21, MR-22 ([docs/process/methodology-review-beta.md](process/methodology-review-beta.md)) and MR-26, MR-29 (the UI
+half), MR-33, MR-37, MR-38, MR-39, MR-40 and MR-41 ([docs/process/methodology-review-beta-2.md](process/methodology-review-beta-2.md)).
+Log: [docs/process/fix-mr-3.md](process/fix-mr-3.md). Every addition is optional for readers; no export changed its return shape.
+`NORMALIZER_VERSION` is `norm-13` (the gazetteer moved 43 towns): stored older snapshots are re-derived once. Nothing is dropped:
+every posting, pay row and place string is kept; one Microsoft posting gains the second range it posts (1,821 → 1,822 rows).
+
+**Fixed-term pay of unstated length (MR-38, `public/features/shared.js`):** `isTermUnstated(job)` is true for a posting at level
+`'Intern'` paid by the hour, day, week or month (`salary.originalInterval`) with no `termWeeks`, no stipend and no `partTime`.
+`isFixedTerm(job)` includes it; `isInternLike` is unchanged (the market cells and Compstimate's pools are unchanged). Job fields are
+unchanged: `salary.min/max` stay annualized.
+
+**App (`public/app.js`):**
+- `postedTerm(s, job = null)`: with `job`, a term of unstated length returns `{ amount, per, weeks: null, weeksMax: null, fixed,
+  toTerm: null, unstated: true }`. Every caller passes the job (the card pill, `cardTerm`, `payUnit`, the drawer, the Juice block).
+  `isTerm(j)` includes it, so such a posting is out of the drawer's rank and strip pools, like any fixed-term pay.
+- The pay block shows it as posted ("$6,688–10,800 a month", "USD · length not stated", "Fixed-term pay, not a yearly salary";
+  hourly: "Paid by the hour"); the card has no term tag for it; the Juice block shows Monthly only (no period toggle) and says why.
+- `approxLine(job, own, fullTime)` (MR-33): the drawer's "≈ … in US dollars" line converts fixed-term pay at its posted interval
+  ("≈ $5,686–6,000 a month", "≈ $78K a year", "≈ $15K for the whole term"); "in US dollars" is hidden while the line would wrap
+  (`dropWhenWrapped`), and the tip keeps it.
+- `annualNote` (MR-37): a stated yearly figure (`salary.statedAnnual`) reads "Stated as a yearly figure"; its Details quote the
+  posting and its payments a year ("paid as 14 monthly payments of €3,358.33, not 12").
+- `stats(list, F)` (MR-39) adds `basis` (the main pay currency when the paid postings in view use two or more, else null), `basisN`
+  and `basisLeft`; the median and quartiles are the basis currency's. The stats line reads "$149K base pay median in the US" and
+  its Details say how many roles the median is of and how many are left out. `payBasisPlace` is imported from `viz/chart.js`.
+- The stats line's Details (also the chart notes' Details) say, on a board whose departments are read from titles, "Google doesn't
+  publish departments, so its roles are grouped by what their titles say." (MR-29).
+- `MID_EXAMPLE` and `SEN_TIP.Mid` (MR-41): the Mid chip's tip gives the board's own example (Google "III", Amazon "II", Microsoft
+  "IC3", NVIDIA "Level 2", Netflix "L4", else "II" or "L4").
+
+**Shared and Insights (MR-39):** `mainPayCurrency(currencies) -> code | null` (`shared.js`): the most common currency when there are
+two or more (USD on a tie), the chart rows' rule (`chart.js mainBasis`, V-21). `insights.js summaryStats(jobs)` adds `basis` and
+`basisN`; `median`, `p25` and `p75` are the basis currency's, `salaried` and `payShare` still count every country. The tiles read
+"of 13,177 in the US" and "of roles in the US" (Amazon, 2026-10-16: $149K of 13,177 US roles, was $141K of all 13,980). The chart's own caption is fix-viz-5's: [`docs/process/patches/fix-mr-3-chart-caption.diff`](process/patches/fix-mr-3-chart-caption.diff)
+gives it the same basis ("Median base pay $149K US").
+
+**Locations (`server/geo.js`, MR-40):** 43 New York, New Jersey and Connecticut towns within about 80 km of Manhattan (the 2026-10-16
+crawl's towns that were at their state's centre) are gazetteer cities. A `CITIES_RAW` name prefixed with `?` is read only with its
+own state named: never bare, never by its country alone, never to split a comma list and never in the last-resort scan. On the
+2026-10-16 crawl 101 postings change, latitude and longitude only. `GAZETTEER_SIZE` is 384 cities.
+
+**Freshness (`scripts/refresh/lib.js`, MR-26):** `isPipelineEntry(entry)` (cadence `daily`) and `shownOverdue(entry, now)`. A daily
+pipeline entry (the postings) is never "update due" on the page built from it: `run.js` `stalenessRows` and `genericResult`, the
+methodology's sources table (`methodology-figures.js loadFigureInputs`) and `api/freshness.json` (`derived.js publicFreshness`:
+`stale: false`, `staleAfter: null`).
+
+**Market doc (`scripts/build-market.js`, MR-22):** `fx.source` is `palette.js FX_SOURCE` (the rates' own source), not a code path.
+**Registry tool (`scripts/refresh/registry.js`, MR-21):** the usage header lists `--docs [--write]`.

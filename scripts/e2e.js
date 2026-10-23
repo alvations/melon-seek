@@ -58,6 +58,7 @@ import { registerBetaCoverageTests } from '../test/e2e/beta-coverage.e2e.js';
 import { registerFixViz5Tests } from '../test/e2e/fix-viz-5.e2e.js';
 import { registerBetaDesktopQa4Tests } from '../test/e2e/beta-desktop-qa-4.e2e.js';
 import { registerFixQa4Tests } from '../test/e2e/fix-qa4.e2e.js';
+import { registerFixMr3Tests } from '../test/e2e/fix-mr-3.e2e.js';
 
 const args = new Set(process.argv.slice(2));
 const apiOnly = args.has('--api-only');
@@ -195,6 +196,7 @@ if (!apiOnly) {
   registerFixViz5Tests(suite);
   registerBetaDesktopQa4Tests(suite);
   registerFixQa4Tests(suite);
+  registerFixMr3Tests(suite);
 }
 
 const only = shard ? shardOf(suite.names(grep), shard, valueOf('timings')) : null;

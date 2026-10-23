@@ -1,0 +1,51 @@
+--- a/public/viz/chart.js	2026-10-23 13:46:58.513413515 +0000
++++ b/public/viz/chart.js	2026-10-23 13:47:14.536734800 +0000
+@@ -661,7 +661,10 @@
+     const r = chartPay(jobs, { places: opts.places, placeTest: opts.placeTest });
+     plotted = r.plotted;
+     for (const p of plotted) p.key = keyOf(p.job, opts.colorBy);
+-    return { ...r, pay: basePayStats(plotted) };
++    // MR-39 (fix-mr-3): the caption's median compares one currency's pay, as the rows do (V-21) and as the app's stats
++    // line and Insights' tiles do (shared.js mainPayCurrency): with pay in several currencies, the main one's.
++    const head = basisStats(plotted, mainBasis(plotted));
++    return { ...r, pay: { ...head.stats, basis: head.basis, basisLeft: head.left } };
+   }
+ 
+   // ---------- windowed rows (PERF-2) ----------
+@@ -855,11 +858,16 @@
+   function medianCaption(pay) {
+     return pay?.oteOnly ? 'Median on-target earnings ' : 'Median base pay ';
+   }
++  /** MR-39: " US" after the caption's median when it is one currency's pay of several ("Median base pay $149K US"). */
++  function medianBasis(pay) {
++    return pay?.basis && pay.basis !== 'mixed' && pay.basisLeft ? ` ${basisShort(pay.basis)}` : '';
++  }
+   function medianTitle(pay) {
+     const where = placesPhrase(opts.places);
+     const here = where ? ` posted for ${where}` : '';
+-    if (pay?.oteOnly) return `The middle of the on-target earnings (base plus commission at target) ranges${here}: half are above and half below`;
+-    return `The middle of the base pay ranges${here}: half are above and half below${pay?.oteLeftOut ? `. ${plural(pay.oteLeftOut, 'posting')} with on-target earnings (base plus commission) left out` : ''}`;
++    const basis = medianBasis(pay) ? `. Pay ${payBasisPlace(pay.basis)} only: ${plural(pay.basisLeft, 'posting')} with pay for other countries ${pay.basisLeft === 1 ? 'is' : 'are'} in the chart, not in the median` : '';
++    if (pay?.oteOnly) return `The middle of the on-target earnings (base plus commission at target) ranges${here}: half are above and half below${basis}`;
++    return `The middle of the base pay ranges${here}: half are above and half below${pay?.oteLeftOut ? `. ${plural(pay.oteLeftOut, 'posting')} with on-target earnings (base plus commission) left out` : ''}${basis}`;
+   }
+ 
+   function renderHist(x, d0, d1, plotL, plotW, labelW, pay) {
+@@ -877,7 +885,7 @@
+     if (labelW > 0) {
+       const cap = el('div', 'ms-hist__cap');
+       cap.style.width = labelW + 'px';
+-      cap.append(el('span', 'ms-hist__title', medianCaption(pay)), el('span', 'ms-hist__sub', formatMoney(med)));
++      cap.append(el('span', 'ms-hist__title', medianCaption(pay)), el('span', 'ms-hist__sub', `${formatMoney(med)}${medianBasis(pay)}`));
+       cap.title = medianTitle(pay);
+       hist.append(cap);
+     }
+@@ -1003,7 +1011,7 @@
+         need = Math.max(need, textWidth(r.subFull, SUB_FONT), nameW > 150 ? Math.min(nameW, nameW / 2 + 24) : nameW);
+       }
+       // BP-13: the median caption ("Median base pay $347K") shows in full too.
+-      need = Math.max(need, textWidth(`${medianCaption(stats.pay)}${formatMoney(stats.pay?.median)}`, `600 ${SUB_FONT}`) - 8);
++      need = Math.max(need, textWidth(`${medianCaption(stats.pay)}${formatMoney(stats.pay?.median)}${medianBasis(stats.pay)}`, `600 ${SUB_FONT}`) - 8);
+       labelW = Math.round(Math.max(150, Math.min(maxW, need + LABEL_PAD)));
+       for (const r of cRows) r.useShort = textWidth(r.subFull, SUB_FONT) + LABEL_PAD > labelW;
+     } else {

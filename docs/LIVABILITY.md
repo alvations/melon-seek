@@ -266,11 +266,15 @@ Rules:
   (`salary.places`, else the ranges' places; DQ-27). A stated minimum (`kind: 'minimum'`, VT-17) is
   scored on the minimum, and an hourly rate with `includesShiftDifferential` (VT-18) on the posted
   rate, which includes the highest shift differential; Austria's stated annual figure
-  (`statedAnnual`, VT-19) is the salary. An internship whose posting gives no length (no
-  `termWeeks`) is annualized and scored for a year like any salary.
+  (`statedAnnual`, VT-19) is the salary. An internship paid per hour, day, week or month whose
+  posting gives no length (no `termWeeks`) is scored on its annualized pay like any term pay below.
 - **Fixed-term pay:** with `salary.termWeeks` (an internship or programme length), the drawer shows
   Juice per month and for the whole term only ("Juice covers only that term"), and tax is worked
-  out as if the pay lasted a year, so it may be lower (`public/app.js` `postedTerm`).
+  out as if the pay lasted a year, so it may be lower (`public/app.js` `postedTerm`). An internship
+  paid per hour, day, week or month with no stated length is term pay of unstated length
+  (`public/features/shared.js` `isTermUnstated`, fix-mr-3, MR-38): its pay is shown as posted and
+  never as a yearly salary, and its Juice per month only ("while it lasts"), since it has no whole
+  term.
 - **FX:** `FX_TO_USD` is copied verbatim from `public/viz/palette.js`, so juice is in the same
   "approx USD" unit the salary chart plots. A currency the palette lacks would use the city's
   `fxPerUSD`; today the palette has every city currency and every currency the postings use. RON

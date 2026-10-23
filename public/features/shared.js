@@ -86,9 +86,10 @@ const TERM_UNITS = new Set(['hour', 'day', 'week', 'month']);
 /**
  * MR-38 (fix-mr-3): an internship, fellowship, co-op, residency or apprenticeship (level 'Intern') paid by the hour,
  * day, week or month whose posting gives no length (no salary.termWeeks). Its pay is for a term of unstated length:
- * shown as posted ("$6,688–10,800 a month"), never as a yearly salary. On the 2026-10-16 crawl: 182 on the big-tech
- * boards and Anduril (Amazon 93, Meta 35, NVIDIA 34, Microsoft 14, Anduril 5, Apple 1), and Palantir 35, Shield AI 6,
- * xAI 4. Part-time hourly pay (salary.partTime) is shown as its hourly rate already, so it is left to that rule.
+ * shown as posted ("$6,688–10,800 a month"), never as a yearly salary. On the 2026-10-16 crawl: 180 on the big-tech
+ * boards and Anduril (Amazon 91, Meta 35, NVIDIA 34, Microsoft 14, Anduril 5, Apple 1), and Palantir 35, Shield AI 6,
+ * xAI 4. Part-time hourly pay (salary.partTime: Amazon's other 2) is shown as its hourly rate already, so it is left to
+ * that rule.
  */
 export function isTermUnstated(job) {
   const s = job?.salary;
