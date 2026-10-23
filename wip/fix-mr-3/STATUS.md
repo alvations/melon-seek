@@ -92,6 +92,10 @@ f348b14 Lead log: the 15:0x session-limit stop; four agents checkpointed and res
 
 ## Uncommitted and new files
 ```
+ M docs/screenshots/dark-drawer.png
+ M docs/screenshots/dark.png
+ M docs/screenshots/drawer-juice.png
+ M docs/screenshots/drawer.png
 ```
 
 ## Left out (not in untracked.tgz)

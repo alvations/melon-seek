@@ -1,0 +1,33 @@
+From 5351f9db03deda6fdeacebfb1ee4d291a26bf55d Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 23 Oct 2026 13:21:24 +0000
+Subject: [PATCH 7/8] fix-phone-sizes: the matrix waits for the filter sheet's
+ slide to end before measuring it (it started after the fixed 450 ms on a busy
+ machine: 932 and 1005 px failed 2 runs of 3)
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+(cherry picked from commit 11823adf230be8528cbd28fea1090d51c9b3db2c)
+---
+ test/e2e/phone-matrix.e2e.js | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/test/e2e/phone-matrix.e2e.js b/test/e2e/phone-matrix.e2e.js
+index 3cd7901..feb175c 100644
+--- a/test/e2e/phone-matrix.e2e.js
++++ b/test/e2e/phone-matrix.e2e.js
+@@ -349,7 +349,10 @@ async function checkFilters(page, screenW, label) {
+   if (overlay) {
+     await clickEl(page, '#filtersToggle');
+     await page.waitForFunction(() => document.body.classList.contains('filters-open'), null, { timeout: 5000 }).catch(() => {});
+-    await sleep(450);
++    // The sheet slides in once its panel has rendered (PERF-2 renders it on open after a mode switch), which on a busy
++    // machine started after the old fixed 450 ms: wait for the slide to end (or 4 s, and then report where it is).
++    await page.waitForFunction(() => { const el = document.querySelector('#filters'); return el.getAnimations().length === 0 && el.getBoundingClientRect().left > -1; }, null, { timeout: 4000 }).catch(() => {});
++    await sleep(150);
+   }
+   const f = await page.evaluate(overlayFacts, '#filters');
+   const p = overlayProblems(f, overlay ? 'filter sheet' : 'filter column', screenW, label);
+-- 
+2.43.0
+

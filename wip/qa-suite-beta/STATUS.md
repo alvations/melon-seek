@@ -1,33 +1,41 @@
 # WIP checkpoint: qa-suite-beta
 
 - Worktree: `/home/user/melon-seek/.claude/worktrees/agent-aa166069d49bf488a`
-- Base (on claude/stoic-ride-54ddxp): `05263e8c010758f51cca4bcbcfb2871eac1defd3`
-- Head: `c4f7909453a3adadbd53ca9226ea59cf309589dc`
+- Base (on claude/stoic-ride-54ddxp): `889856638f73689512dcf7845d71de2eaaa62cb0`
+- Head: `433aa59e8b21028255d3956f7c74c30ae3a74af1`
 - Restore: `bash scripts/cycle/restore-wip.sh qa-suite-beta <new worktree dir>`
 
 ## Commits since the base
 ```
-c4f7909 qa-suite-beta: log counts
-c804d64 qa-suite-beta: log State
-eaf23b9 qa-suite-beta: T-11 state waits patch (fix-phone-text, phone-matrix): same results, 44% less time on the same load
-925a582 qa-suite-beta: e2e header IDs; CI e2e job gets a 240 s per-test limit for a cold cache
-5c9e8b0 qa-suite-beta: measured fixed waits in the phone guard walks (68-85%)
-84ad21a qa-suite-beta: log State; vacuity check with data
-cf87bc0 qa-suite-beta: unit guards accept forEach size loops and registry board lists; T-9 check reads the patched fail line
-9c95329 qa-suite-beta: log (runs, flakes, speed, patches, decisions, replay)
-448895a qa-suite-beta: V15 warm check on CPU, UI map race and order-dependent pairs patch, T21 split; wait after the browser's Back on wide touch screens
-2e6fb47 qa-suite-beta: log (findings, coverage map, the crash, CI parity); the CI e2e workflow patch
-29aea44 qa-suite-beta: runner patch (SIGTERM/SIGHUP/SIGINT stop the run, relaunch only on a real disconnect, --shard, --list, --max-skips, links registered), T-1 board list, T-4 link checker, T21 patch
-e09fe53 qa-suite-beta: WIP T-17 title line breaks (todo), Juice grades in the More popover, phone filter rows; flake patches one per test
-aae31c4 qa-suite-beta: WIP per-board filter and sort checks, Listed and Juice grades; the e2e shard patch
-8e08770 qa-suite-beta: WIP the coverage groups (unit and e2e), registered in scripts/e2e.js
-6038890 qa-suite-beta: log with its State section
-f06c2f8 qa-suite-beta: the brief, verbatim
+433aa59 fix-phone-sizes: log, mobile QA 4 State, decision 14 and results (matrix, smoke 147/147, job-page tests, phone-text 104/104, npm test 1185/0 in a clean checkout)
+281e71e fix-phone-sizes: the matrix waits for the filter sheet's slide to end before measuring it (it started after the fixed 450 ms on a busy machine: 932 and 1005 px failed 2 runs of 3)
+03ff282 fix-qa4: log State after UX-51, MR-35 and UX-50 (gated, sent to the lead)
+10f57e1 fix-qa4: UX-51 and UX-50 screenshots before and after (shrunk); the phone shot opens the sheet first; log the e2e results
+4d917a8 WIP fix-qa4: log the UX-51, MR-35 and UX-50 numbers and State
+1185fda fix-qa4: salary-audit's lifted card helpers include UX-51's shift pay (payPill asks shiftRange of every posting)
+52ae20d fix-qa4: MR-35 marked fixed (6185ba3) in the methodology review; log
+f2f701f fix-qa4: UX-51 shift pay labelled on the card, its tip, the drawer heading and the CSV; MR-35 the base keeps its cents; UX-50 the company beside its dot
 ```
 
 ## Uncommitted and new files
 ```
+A  docs/process/patches/qa-suite-beta-ci-e2e.diff
+A  docs/process/patches/qa-suite-beta-e2e-runner.diff
+A  docs/process/patches/qa-suite-beta-flake-perf1-v15-cpu.diff
+A  docs/process/patches/qa-suite-beta-flake-polite-clock.diff
+A  docs/process/patches/qa-suite-beta-flake-s3-cpu.diff
+A  docs/process/patches/qa-suite-beta-flake-s6-cpu.diff
+A  docs/process/patches/qa-suite-beta-flake-t21-cpu.diff
+A  docs/process/patches/qa-suite-beta-flake-ui-map-order.diff
+A  docs/process/patches/qa-suite-beta-t1-board-list.diff
+A  docs/process/patches/qa-suite-beta-t11-state-waits.diff
+A  docs/process/patches/qa-suite-beta-t4-link-check.diff
+A  docs/process/prompts/qa-suite-beta.md
+A  docs/process/qa-suite-beta.md
+A  test/beta-coverage.test.js
+A  test/e2e/beta-coverage.e2e.js
 ?? dist
+?? docs/process/patches/qa-suite-beta-t19-v18-fold.diff
 ```
 
 ## Left out (not in untracked.tgz)

@@ -1,0 +1,45 @@
+From 52ae20da5f4ff54aa7f1604bbb67efe139b83d04 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 23 Oct 2026 13:21:35 +0000
+Subject: [PATCH 2/8] fix-qa4: MR-35 marked fixed (6185ba3) in the methodology
+ review; log
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+(cherry picked from commit 40a11f27bf59f0fd9dc5371c51abcd24e53d1f36)
+---
+ docs/process/fix-qa4.md                   | 5 ++++-
+ docs/process/methodology-review-beta-2.md | 4 ++++
+ 2 files changed, 8 insertions(+), 1 deletion(-)
+
+diff --git a/docs/process/fix-qa4.md b/docs/process/fix-qa4.md
+index 1ac9881..5bd3d58 100644
+--- a/docs/process/fix-qa4.md
++++ b/docs/process/fix-qa4.md
+@@ -221,4 +221,7 @@ Numbers are from the 2026-10-16 crawl. "Before" is eccdca9 (1ef0646's code) on i
+   - 463c5c9: the five fixes. 1a04bf5: unit tests, the e2e group, per-file sources. 03860dc: CONTRACT, this log.
+   - 196922d: the careers-site names moved to the build script (the main site's lib/ names no beta host).
+   - c43ff33: D-50's third, shorter line for 280 px. 6a9ddc0: the numbers in this log (sent to the lead).
+-  - Final commit: the screenshots and this State (integration pending).
++  - dcebc6a: the screenshots and the State (sent to the lead; integrated in its batch).
++- 2026-10-23 (after the weekly limit): UX-51, MR-35 and UX-50, from the lead.
++  - 6185ba3: the fixes, their unit tests (4 red on dcebc6a) and e2e checks (21 red on its build), CONTRACT, this log.
++  - Next commit: MR-35 marked fixed in methodology-review-beta-2.md; numbers and screenshots.
+diff --git a/docs/process/methodology-review-beta-2.md b/docs/process/methodology-review-beta-2.md
+index 0b979dc..6d89c74 100644
+--- a/docs/process/methodology-review-beta-2.md
++++ b/docs/process/methodology-review-beta-2.md
+@@ -349,6 +349,10 @@ Quoted lines and their corrections (all in `methodology-review-beta-2-guide.diff
+ - **Tests:** MR-32.
+ 
+ ### MR-35 (Low): the stated base pay loses its cents
++- **Status: fixed** by [fix-qa4](fix-qa4.md) (2026-10-23, 6185ba3): `public/app.js` `hourlyText` formats with
++  `postedPair`, which keeps the posted cents, so the shift-pay tip and the pay block's Details read "Base pay starts at
++  $18.05/hour" (amazon:10409027). Whole rates still read "$18/hour". The MR-35 test in test/beta-methodology-2.test.js
++  is a plain test now: it fails on dcebc6a and passes on 6185ba3.
+ - **Where:** the shift-pay tip and the pay block's Details read "Base pay starts at $18/hour" for the posting's "Pay starts at $18.05 per hour" (amazon:10409027, `drawer-amazon-part-time-shift-base.png`). `public/app.js:205` hourlyText uses `money()`, which rounds to whole dollars, so $19.50 can read "$20/hour".
+ - **Note:** the VT-18 comment's own example is "$18.35/hour".
+ - **Fix:** format hourly rates with two decimals.
+-- 
+2.43.0
+
