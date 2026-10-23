@@ -1,0 +1,114 @@
+From d414f1ef63a34d0c34ece5594795d6c01a6f3f36 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 17 Oct 2026 13:28:38 +0000
+Subject: [PATCH 49/56] WIP qa-desktop-beta-4: D-46 is by decision (guard
+ instead of a red test); D-49 CSV test
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+(cherry picked from commit ee254a3cfb09d63eb056b7a6a48e0464933a8342)
+---
+ test/e2e/beta-desktop-qa-4.e2e.js | 65 ++++++++++++++++++++++++++-----
+ 1 file changed, 55 insertions(+), 10 deletions(-)
+
+diff --git a/test/e2e/beta-desktop-qa-4.e2e.js b/test/e2e/beta-desktop-qa-4.e2e.js
+index 450397a..d1d4c57 100644
+--- a/test/e2e/beta-desktop-qa-4.e2e.js
++++ b/test/e2e/beta-desktop-qa-4.e2e.js
+@@ -134,8 +134,10 @@ export function registerBetaDesktopQa4Tests(suite) {
+     }
+   });
+ 
+-  // ---------------------------------------------------------------- open bugs (fail until fixed)
+-  suite.test('Beta desktop QA 4: [D-46] a pay row tied to no place the posting lists does not widen the card\'s range or its place count', async (ctx) => {
++  // Lead decision (2026-10-16, re-stated for D-46 on 2026-10-17): the card and the drawer headline present every posted
++  // row ("we must present them as they are and not cut anything"), including a row tied to no place the posting lists;
++  // only the pricing of a place (payAt) leaves such a row out. This guard keeps that: the rows are listed and counted.
++  suite.test('Beta desktop QA 4: a pay row tied to no listed place is still listed under Pay by place and inside the card\'s range (lead decision 2026-10-16)', async (ctx) => {
+     const { st, page } = await open(ctx, 'c=amazon');
+     const found = [];
+     for (const c of ['amazon', 'apple', 'microsoft']) {
+@@ -146,24 +148,28 @@ export function registerBetaDesktopQa4Tests(suite) {
+         if (!s || s.ranges.length < 2 || s.kind === 'minimum' || s.termWeeks || s.partTime || j.remote) continue;
+         if (j.locations.some((l) => /remote/i.test(l.name))) continue;
+         const own = s.ranges.filter((r) => r.locations.length), none = s.ranges.filter((r) => !r.locations.length);
+-        if (!own.length || !none.length) continue;
+-        const lo = Math.min(...own.map((r) => +r.min)), hi = Math.max(...own.map((r) => +(r.max ?? r.min)));
+-        const alo = Math.min(s.min, ...s.ranges.map((r) => +r.min)), ahi = Math.max(s.max, ...s.ranges.map((r) => +(r.max ?? r.min)));
+-        if (alo < lo - 500 || ahi > hi + 500) found.push({ c, j, lo, hi, none });
++        if (own.length && none.length && none.every((r) => r.label)) found.push({ c, j, none });
+       }
+     }
+-    if (!found.length) return; // no posting has such a row today
+-    const { c, j, lo, hi, none } = found.find((f) => f.c === 'amazon' && f.none.length >= 2) || found[0];
++    if (!found.length) skip('no posting has a pay row tied to no listed place today');
++    const { c, j, none } = found.find((f) => f.c === 'amazon' && f.none.length >= 2) || found[0];
+     await go(page, st, `c=${c}&q=${encodeURIComponent(j.title)}`);
+     const card = page.locator(`#resultsList .card[data-id="${j.id}"]`);
+     if (!(await card.count())) skip(`"${j.title}" is not in the first page of its own search`);
+     const pill = (await card.locator('.sal-pill').innerText()).replace(/\n+/g, ' ').trim();
+     const shown = parseRange(pill);
++    const s = j.salary;
++    const alo = Math.min(s.min, ...s.ranges.map((r) => +r.min)), ahi = Math.max(s.max, ...s.ranges.map((r) => +(r.max ?? r.min)));
+     const near = (a, b) => Math.abs(a - b) <= Math.max(1000, b * 0.01);
+-    assert(shown && near(shown[0], lo) && near(shown[1], hi),
+-      `${j.id} "${j.title}" is listed in ${j.locations.map((l) => l.name).join(' and ')}, whose rows span $${Math.round(lo / 1000)}K–${Math.round(hi / 1000)}K, but the card reads "${pill}": it includes ${none.map((r) => `"${r.label}" $${Math.round(r.min / 1000)}K–${Math.round((r.max ?? r.min) / 1000)}K`).join(' and ')}, rows tied to no place the posting lists (${found.length} such postings)`);
++    assert(shown && near(shown[0], alo) && near(shown[1], ahi), `${j.id}: the card reads "${pill}", not the span of every posted row ($${Math.round(alo / 1000)}K–${Math.round(ahi / 1000)}K)`);
++    await card.click();
++    await page.waitForSelector('#drawer.is-open', { timeout: 20000 }); await sleep(800);
++    const names = await page.locator('#drawer .d-sal-places .d-tier-name').allInnerTexts();
++    const missing = none.filter((r) => !names.some((n) => n.includes(r.label)));
++    assert(!missing.length, `${j.id}: Pay by place lists ${names.map((n) => `"${n}"`).join(', ')}, without the posted row(s) ${missing.map((r) => `"${r.label}"`).join(', ')}`);
+   });
+ 
++  // ---------------------------------------------------------------- open bugs (fail until fixed)
+   suite.test('Beta desktop QA 4: [D-47] after switching to a board that is not on the site, or fails to load, the previous board\'s chart is not left behind the message', async (ctx) => {
+     const { st, page } = await open(ctx, 'c=netflix', { status: (p) => (/\/beta\/api\/jobs\/apple\.json$/.test(p) ? 500 : 0) });
+     await needBoard(page, st, 'netflix');
+@@ -202,4 +208,43 @@ export function registerBetaDesktopQa4Tests(suite) {
+     }
+     assert(!bad.length, bad.join('; '));
+   });
++
++  suite.test('Beta desktop QA 4: [D-49] Download CSV says what each pay figure is (a minimum, on-target earnings, one place\'s row), and its README names the big-tech sources', async (ctx) => {
++    const { st, page } = await open(ctx, 'c=amazon');
++    const amazon = await needBoard(page, st, 'amazon');
++    const nvidia = await appJobs(page, st, 'nvidia');
++    /** RFC 4180 rows of a served CSV, as { header, rows: Map(id -> cells) }. */
++    const csv = async (slug) => {
++      const res = await page.request.get(`${st.beta}/data/${slug}.csv`);
++      assertEq(res.status(), 200, `${slug}.csv`);
++      const text = await res.text();
++      const out = []; let row = [], f = '', q = false;
++      for (let i = 0; i < text.length; i++) {
++        const ch = text[i];
++        if (q) { if (ch === '"') { if (text[i + 1] === '"') { f += '"'; i++; } else q = false; } else f += ch; }
++        else if (ch === '"') q = true; else if (ch === ',') { row.push(f); f = ''; } else if (ch === '\n') { row.push(f); out.push(row); row = []; f = ''; } else if (ch !== '\r') f += ch;
++      }
++      return { header: out[0], rows: new Map(out.slice(1).map((r) => [r[0], r])) };
++    };
++    const bad = [];
++    const readme = await (await page.request.get(`${st.beta}/data/README.txt`)).text();
++    if (/own job board\s*\(Greenhouse, Ashby or Lever\)/.test(readme)) bad.push('the README says every row comes from a board "(Greenhouse, Ashby or Lever)", but the beta CSVs hold Amazon, Apple, Google, Meta, Microsoft, NVIDIA and Netflix from their own careers sites');
++    const a = await csv('amazon');
++    const says = (cells, re) => cells.some((c, i) => i > 2 && re.test(c));
++    const min = amazon.jobs.find((j) => j.salary && j.salary.kind === 'minimum');
++    if (min && a.rows.has(min.id) && !says(a.rows.get(min.id), /minimum/i)) bad.push(`${min.id} "${min.title}" is a posted minimum ("from …" on the card), but its CSV row is salary_min ${a.rows.get(min.id)[7]}, salary_max ${a.rows.get(min.id)[8]} with nothing saying so (columns: ${a.header.join(', ')})`);
++    const span = (s) => [Math.min(s.min, ...s.ranges.map((r) => +r.min)), Math.max(s.max, ...s.ranges.map((r) => +(r.max ?? r.min)))];
++    const place = amazon.jobs.find((j) => j.salary && j.salary.ranges.length >= 3 && j.salary.ranges.every((r) => r.locations.length) && j.salary.kind === 'salary' && (span(j.salary)[0] < j.salary.min || span(j.salary)[1] > j.salary.max));
++    if (place && a.rows.has(place.id)) {
++      const r = a.rows.get(place.id), [lo, hi] = span(place.salary);
++      const named = place.salary.ranges.some((x) => says(r.slice(7), new RegExp(x.label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))));
++      if (!(Number(r[7]) === lo && Number(r[8]) === hi) && !named) bad.push(`${place.id} "${place.title}" shows ${place.salary.ranges.length} places' ranges ($${Math.round(lo / 1000)}K–${Math.round(hi / 1000)}K on the card), but its CSV row is ${r[7]}–${r[8]}, one place's row, unnamed`);
++    }
++    if (nvidia.mode === 'snapshot') {
++      const n = await csv('nvidia');
++      const ote = nvidia.jobs.find((j) => j.salary && j.salary.kind === 'ote');
++      if (ote && n.rows.has(ote.id) && !says(n.rows.get(ote.id), /on-target|\bote\b|commission/i)) bad.push(`${ote.id} "${ote.title}" is on-target earnings (base plus commission), but its CSV row reads as base pay (${n.rows.get(ote.id)[7]}–${n.rows.get(ote.id)[8]}; the README: "posted BASE pay range … Equity and bonus excluded")`);
++    }
++    assert(!bad.length, bad.join('; '));
++  });
+ }
+-- 
+2.43.0
+

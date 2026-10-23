@@ -1,7 +1,7 @@
 From f2a4b0f9a426cf06efc26de8d83212a345419060 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 17 Oct 2026 13:37:48 +0000
-Subject: [PATCH 17/25] fix-viz-5: on a landscape phone the label column fits
+Subject: [PATCH 17/56] fix-viz-5: on a landscape phone the label column fits
  the axis caption with its median (cut on Apple and Microsoft at 667 and 812
  px); the caption check covers them
 

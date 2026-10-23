@@ -1,7 +1,7 @@
 From 24b11516564a9f5268ec10493c19ed6ef69cf5c2 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 17 Oct 2026 12:59:18 +0000
-Subject: [PATCH 05/25] WIP fix-phone-sizes: log for the department rows and
+Subject: [PATCH 05/56] WIP fix-phone-sizes: log for the department rows and
  UX-39
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

@@ -1,0 +1,384 @@
+From 5c0cda3ce45594d4b5daa0a4ca2455dbdb63e327 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 23 Oct 2026 13:09:21 +0000
+Subject: [PATCH 56/56] QA: the desktop beta pass of 2026-10-17
+ (qa-desktop-beta-4) in docs/QA.md
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+---
+ docs/QA.md | 361 +++++++++++++++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 361 insertions(+)
+
+diff --git a/docs/QA.md b/docs/QA.md
+index 6a2cec9..db2e92f 100644
+--- a/docs/QA.md
++++ b/docs/QA.md
+@@ -3593,3 +3593,364 @@ Screenshots are in `docs/screenshots/qa-mobile-beta-4/`.
+ | webkit-phone.yml run 39034080230 (the lead's) | `1ef0646` | **Green in every job**: Playwright WebKit iPhone profile, and Simulator Safari on the iPhone 13 mini, 16 and SE |
+ 
+ All browser runs used `NODE_PATH=<scratchpad>/pw/node_modules PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers`.
++
++## Full QA pass (desktop, beta) 2026-10-17
++
++The fourth functional pass of the desktop beta site (`/melon-seek/beta/`), beta round 4, by the beta desktop QA agent,
++after the user's 2026-10-16 request: "Whatever was done with the ui/UX it needs to go through the mobile and desktop
++QC QA again". The process log, with every replayable command, is in
++[`docs/process/qa-desktop-beta-4.md`](process/qa-desktop-beta-4.md). No product code was changed.
++
++**Setup**
++- **Build under test:** a local static build of 1ef0646 (what Pages deployed), built with
++  `node scripts/build-static.js --out <scratch>/qa-desktop-beta-4/dist` (7/7 beta companies) and served under
++  `/melon-seek/` by `scripts/cycle/serve.mjs` with a pid file. The live site is not reachable from the sandbox.
++- **Data:** the 2026-10-16 crawl with every board whole: Amazon 22,179, Apple 4,851, Google 3,821, NVIDIA 2,711,
++  Microsoft 2,435, Meta 1,208, Netflix 414; Anduril 2,537 on the main site. All boards are `mode: "snapshot"`.
++- **Browser:** Playwright, Chromium 141. **Desktop Safari is not available here**, so nothing in this section is
++  WebKit. Every other host was aborted, so the map runs without its basemap.
++- **Viewports and themes:** 1440x900, 1280x800 and 1024x768, light and dark.
++- **Method:** counts and order were checked against the app's own data (`api.js` `getJobs()`). The card pay text of
++  all 23,509 paid big-tech postings was computed with the app's own `payPill`, `payHeadline` and `payLabels`, lifted
++  from `public/app.js`, and each finding confirmed on screen.
++- **Load:** other agents ran at the same time (load average 4 to 30); the timing table was taken at load 6 to 7.
++- **Overlap:** the chart-drawing findings in fix-viz-5 (V-33, V-34, V-38, V-41 to V-48, UX-36, UX-40 to UX-43, UX-59,
++  D-43, D-44, A-8), UX-39 (fix-phone-sizes) and the methodology review's open MR-n are re-tested for evidence below,
++  not re-filed.
++
++**New e2e tests:** [`test/e2e/beta-desktop-qa-4.e2e.js`](../test/e2e/beta-desktop-qa-4.e2e.js), registered in
++`scripts/e2e.js`. Run them with `node scripts/e2e.js --grep='^Beta desktop QA 4'`. They serve `BETA_QA_DIST`, else
++the shared `dist/`, and skip without a beta build. Each `[D-n]` test finds its case in the build's own data.
++- **3/9 pass:** the 3 guards (one span on a card and its drawer headline, with the place count under it; the closed
++  filter sheet inert at 1024 px; a pay row tied to no listed place is still listed under Pay by place and inside the
++  card's range, the lead's decision). The 6 failures are exactly `[D-47]` … `[D-52]`.
++
++### Fix wave 5 on the desktop
++| Change | Status | Checked |
++|---|---|---|
++| fix-pay-at-place (`payAt`, `payHeadline`) | **Works, one regression** | A card and its drawer headline give one span with a muted count under it ("$60K–129K" / "5 places · USD · per year"; Microsoft "$102K–261K" / "5 places"); "· N ranges" where rows share a place (amazon:10385820 "$144K–224K · 3 ranges"); Seattle's two rows read "Seattle $151K–205K or $152K–206K"; Remote rows keep their states ("Remote (IL, NJ, VA) $56K–94K"); an internship's "Pay by place" ("Fort Worth, Jacksonville and 4 more $44K/year · Mt Juliet $40K/year"). Under a Location filter the stats line, the chart caption and the map pin agree (Microsoft Mountain View: "$197K base pay median", pin "529 postings, median $197K"). But a city in the Pay estimate drops most of its postings: D-52 |
++| fix-data-3 | Works | Google "Fellow, Core AI Foundations" is Staff+ at its posted $550K (and "The highest pay of Google's roles in the US"); "St. Louis, MO" / "St. Louis, MI" and "St. George, SC" / "St. George, UT"; NVIDIA "New York State" (38) and "Washington State" (82); Amazon "Cajamar" (82) pinned as "Cajamar, Brazil"; "Town and Country" is one label (80); Amazon's departments read "Technical Project, Program and Product Management" and "Non-Technical …" |
++| fix-phone-controls on the desktop | Works | UX-56: at 1024 px the closed filter sheet is `inert` and `aria-hidden`, and 25 Tabs never leave the screen. UX-57: in Chart view the stats line has no Details; its facts lead the chart notes' Details ("2,513 of 3,821 roles show pay (66%) / Half of these roles pay between $141K and $231K …"); Map and Insights keep theirs. A-10: the Department section's lists are named "Company" and "Department" (also Location, Seniority, Employment type). A-11 and M-43: with Amazon's list held 7–9 s, a focused preview card keeps focus when the list lands, ArrowDown moves between preview cards, and a click opens the job page at once, then the whole page for the same posting |
++| fix-phone-text on the desktop | Works | The Juice explainer is "🍉 Juice: what's left after tax and rent · Details"; Same role elsewhere is "Finance & accounting, Senior level in the US · Details"; the Juice line "$36,500/yr left for one person in Irving"; the Pay estimate "Based on 500 similar roles at Amazon · Details"; Insights tiles "$188K–252K" whole (135 of 135 px); "Download a spreadsheet (CSV)", "Includes top shift pay", "Estimated base pay", "posted pay ranges"; the "/" key cap is 12 px; the stats line is one line (20 px box, 19.6 px line) at every width. The filter notes in the docked column wrap to 2 lines at 1440 and 1280 ("Matches roles whose range / overlaps yours · Details"), down from 3–4 |
++| fix-sec-3 | Works | Every Apply link of 53 drawers is on its careers host, in a new tab with `noopener`; no posting in this crawl has a dropped link, so "No link to the posting" was not seen |
++| September FX rates | Works | "≈ $53K in US dollars at Sep 2026 rates", "Pay in other currencies converted at Sep 2026 exchange rates", the map's "exchange rates Sep 2026". No figure on a page says "Jul 2026": the string is left only in code comments, and the methodology reference names the Big Mac data's 2026-07-01 release as the earlier source |
++| fix-touch-tips | Works with a mouse | Hover tips open on chart circles, Ranges rows, map pins and the edge chips, and the chart and map stay clickable under them (touch is the mobile QA's) |
++
++### Round-3 findings on this build
++Status from the round-3 red tests (run on this build) and a screenshot each, in `docs/screenshots/qa-desktop-beta-4/`.
++| ID | Status | Evidence | Screenshot |
++|---|---|---|---|
++| D-38 | Fixed | "Fellow, Core AI Foundations" Staff+, "$550K", in the chart and the Highest pay sort | `recheck-D-38-google-fellow-550k-posted.png` |
++| D-39 | Fixed | "Remote (CA) $70K–94K · Remote (IL, NJ, VA) $56K–94K · Remote (NY) · Remote (WA)", card "· 6 places" | `recheck-D-39-amazon-remote-rows-by-state.png` |
++| D-40 | Fixed | "$40K–44K/year · 7 places", Pay by place per place | `recheck-D-40-amazon-intern-pay-by-place.png` |
++| D-41 | Fixed | "St. Louis, MO" (94) / "St. Louis, MI" (80); "St. George, SC" / "St. George, UT" | `recheck-D-41-*.png` |
++| D-42 | Fixed | "New York State", "Washington State" | `recheck-D-42-nvidia-location-new-york-state.png` |
++| D-43 | Open (fix-viz-5) | "$630K to $1.1M" where the card reads "$630K–1.09M" | `recheck-D-43-netflix-ranges-1.1M.png` |
++| D-44 | Open (fix-viz-5) | Google Group by Location opens "Wyoming, US, 1 role"; Mountain View (500) is row 11 | `recheck-D-44-google-group-by-location.png` |
++| D-45, UX-37 | Fixed | card and drawer "$60K–129K · 5 places"; Microsoft "$102K–261K · 5 places" | `recheck-D-45-UX-37-*.png`, `recheck-UX-37-*.png` |
++| UX-35 | Fixed | one line, scale under Details | `recheck-UX-35-juice-explainer-1440.png` |
++| UX-36 | Open (fix-viz-5) | Ranges still reads "Group: None" | `recheck-UX-59-V-35-amazon-ranges-first-screen.png` |
++| UX-38 | Fixed | the two names now differ at the start ("Technical …", "Non-Technical …") | `recheck-UX-38-amazon-department-names.png` |
++| UX-40, UX-43 | Open (fix-viz-5) | "1,215 · $178K US" beside "759 roles · median $161K in the US"; bare "›" chips | `recheck-UX-40-UX-43-amazon-chart-rows.png` |
++| UX-41 | Open (fix-viz-5) | stacked rows read "2 roles ×2", "16 roles ×16" | `recheck-UX-41-microsoft-ranges-stacked-rows.png` |
++| UX-42 | Open (fix-viz-5) | Microsoft "118" 22.2 px in a 21.5 px circle | `recheck-UX-42-microsoft-circle-count.png` |
++| UX-45 | Open (fix-viz-5) | map "$96K or more" vs the explainer's Details "$95K or more" | `recheck-UX-45-amazon-map-juice-legend.png` |
++| UX-47, UX-48 | Fixed | one line each | `recheck-UX-47-UX-48-*.png` |
++| UX-49 | Fixed | "Based on 500 similar roles at Amazon · Details"; the accuracy line one line | `recheck-UX-49-UX-55-amazon-insights.png` |
++| UX-50 | **Still open** (no lane) | Group by Company: "● User Experience and Design" in YouTube's colour | `recheck-UX-50-google-company-colour-cards.png` |
++| UX-51 | **Still open** (no lane) | card "$24.65/hour", tip "Part-time, paid by the hour …", no shift-pay word; only the drawer says "Includes top shift pay" | `recheck-UX-51-amazon-shift-pay-card.png` |
++| UX-52 | Fixed | the range alone in the pill, "5 places" muted under it | `recheck-UX-52-microsoft-places-card.png` |
++| UX-55 | Fixed | "$188K–252K" whole | `recheck-UX-55-apple-insights-tiles.png` |
++| UX-56 | Fixed | inert, aria-hidden, Tab stays on screen | `recheck-UX-56-1024-closed-sheet.png` |
++| UX-57 | Fixed | one Details in Chart view | `recheck-UX-57-google-one-details.png` |
++| UX-58 | Fixed | "No Juice" box padding 10px 14px | `recheck-UX-58-no-juice-padding.png` |
++| UX-59 | Open (fix-viz-5) | Amazon Ranges axis $0–$300K, 32 "›" marks on the first screen | `recheck-UX-59-V-35-amazon-ranges-first-screen.png` |
++| UX-61 | Fixed (listed strings) | as above; the chart axis still reads "Yearly pay, US$ (converted)" and map pins "no published salary" (UX-25, partly) | `recheck-UX-61-badge-popover-words.png` |
++| UX-62 | Fixed | 12 px | `recheck-UX-62-search-key-cap.png` |
++| UX-39, UX-44, UX-46, UX-53, UX-54, UX-60 | Phone (mobile QA) | tests: UX-39 red (fix-phone-sizes), the rest green | – |
++| V-33, V-34, V-42 | Open (fix-viz-5) | "Operations, IT, & Support Engineering" one 1,665-posting circle; 21 circles of 20+ at the 9 px floor; bands 1.10–1.35:1 | `recheck-V-33-V-34-V-42-amazon-clusters.png`, `recheck-V-42-amazon-clusters-dark.png` |
++| V-35 | Fixed | no one-place row is striped (its test finds none); NVIDIA "Striped: several levels or places 887" | `recheck-UX-59-V-35-amazon-ranges-first-screen.png` |
++| V-36 | Fixed | test green; `l=Nashville` "Nashville, 626 roles, median $126K" | `recheck-V-36-amazon-group-by-location.png` |
++| V-37 | Fixed | test green; Google London in Ranges: "0 with pay · 117 without" | `recheck-V-37-google-ranges-london.png` |
++| V-38 | Open (fix-viz-5) | Google's "×200" row drawn like a one-posting row | `recheck-V-38-google-ranges-x200.png` |
++| V-39 | Fixed | stats line, chart and pin: $197K | `recheck-V-39-*.png` |
++| V-40 | Fixed for pricing, see D-52 | New York comparables priced at New York's rows | `recheck-V-40-microsoft-compstimate-new-york.png` |
++| V-41 | Open (fix-viz-5) | the minimum's tip "€46K EUR / 10 postings with this posted range" | `recheck-V-41-amazon-ranges-minimum-tip.png` |
++| V-43 | Open (fix-viz-5) | pill "$78K 434" from 5 with pay | `recheck-V-43-amazon-map-world.png` |
++| V-44 | Open (fix-viz-5) | Meta's 9 unplaced postings uncounted on the map | `recheck-V-44-meta-map.png` |
++| V-45 | Fixed | "Cajamar, Brazil: 67 postings" | `recheck-V-45-amazon-cajamar-pin.png` |
++| V-46 | Phone, open (fix-viz-5) | test red | – |
++| V-47 | Measured | Amazon filters, Group by and views 186–500 ms at load 6–7 (table below) | – |
++| V-48 | Open (fix-viz-5) | no key for dashed on-target bars | `recheck-V-48-nvidia-ranges-legend.png` |
++| A-8 | Open (fix-viz-5) | the fold row is still `option` with `aria-expanded=false` | `recheck-A-8-google-fold-row.png` |
++| A-9 | Fixed | every Details is described by its line or card heading, 24 px tall | `recheck-A-9-insights-details-focus.png` |
++| A-10 | Fixed | named groups | `recheck-A-10-google-company-department-groups.png` |
++| A-11 | Fixed | focus kept on the same posting | `recheck-A-11-amazon-preview-focus-kept.png` |
++
++Earlier rounds: every `[D-17]` … `[D-42]`, `[D-45]` test passes in the full suite (below).
++
++### What works on desktop, beta (all seven boards and Anduril unless noted)
++- **Beta only:**
++  - The seven boards load from the bundle only: one `api/jobs/<slug>.json` each (Amazon also `api/preview/amazon.json`;
++    Google from the early fetch), no request to any other host. The badge reads "Snapshot · Oct 16"; its popover
++    says "A saved snapshot, not a live read", the source, "Fetched Oct 16, 2026, 12:03 UTC", "About every 6 hours",
++    the count, "Download a spreadsheet (CSV)", an on-site methodology link and "This is the beta site. Go to the main
++    site".
++  - Tesla (left out) is absent: `#c=tesla` says "This board isn't on this site · Tesla isn't listed here", badge
++    hidden (but see D-47 after an in-page switch). No company is paused.
++  - The page says it is beta: tab title "melon·seek beta — job boards, plotted by salary", logo "melon·seek beta
++    home", the "Beta" tag linking to `/melon-seek/`, the tagline "Beta: adds 7 big-tech companies' own careers sites".
++    `/melon-seek/#c=amazon` on the main site links to "Open Amazon on the beta site", keeping `job=`.
++  - Apple stays responsive: filters, sorts, searches and chart changes 83–259 ms at load 7, Map 341 ms, Insights 450 ms
++    (table). Amazon, with 4.6 times Apple's postings, takes 186–500 ms, Map 858 ms and Insights 1.1 s.
++  - Big-tech ranges over several levels say so: "· 2 levels" on 876 NVIDIA, 139 Microsoft and 1 Google cards, with
++    "Pay by level" rows and "Top is 2.1× the bottom (across levels)" (but see Notes for 11 NVIDIA on-target ones).
++- **Company and boards:** the menu focuses its search; "amaz" + Enter opens Amazon, "meta" Meta; "eightfold" finds
++  Microsoft, Netflix and NVIDIA; Esc closes and returns focus; the current board has a ✓. One recent pill at 1440 and
++  1280, none at 1024, as designed. Add board flags a bad slug, opens a Lever board with labelled demo data ("Demo data
++  — the Qa-fake-board board couldn't be reached"), keeps it under "YOUR BOARDS" after a reload; removing an Ashby board
++  returns to Google.
++- **Search:** six words on all eight boards: Best match, the first "· N in title" cards all have the words in their
++  title, team or department, and clearing restores Highest pay.
++- **Filters** (1,281 checks against the data, 0 wrong): Department (Amazon 37, NVIDIA and Microsoft 142, Anduril 467),
++  Company on Google (Google 3,546, YouTube 162, DeepMind 111, Waymo 1, Wing 1), Seniority, Remote and Employment type
++  sum to the total on every board; picks give their counts; a facet's own counts hold under its own pick; Location
++  (Amazon 1,577 places); the Responsibilities, Fit and Skills chips; Salary: "Only show roles with pay" equals the paid
++  count (Amazon 13,980; Google 2,513 with the Fellow), "200k", "300000" and "£80,000" (≈ $107K at September's rates)
++  give the data's counts, ten slider steps too; Clear all restores every board.
++- **Sorting:** Highest pay, Lowest pay, Newest, Title A–Z and Most juice in order for 120 cards on all eight.
++- **Chart:** circles at their labelled median within 0.8 px on seven boards (Apple's "$349K" circle 8.7 px inside the
++  axis end, as in round 3); a cluster gives a chip with exactly its roles and dismissing it restores the board;
++  overflow markers have their own tip; arrow keys move `aria-activedescendant`; Ranges stacks identical bands (×N, a
++  click lists N); Group by Department, Location, Seniority, None and Company (Google) in both views.
++- **Map:** pins and tooltips on all eight; a pin click gives an area chip equal to the list ("San Juan and Halifax
++  (5)"); Remote lists the remote roles (Amazon 354, Microsoft 357, NVIDIA 526); Pay|Juice with both legends and
++  `mc=juice`; zoom; with the drawer open the map is 702, 582 and 638 px wide at the three widths.
++- **Insights:** Compstimate prefills from the filters, "Reset to filters" restores the title, the accuracy line shows
++  ("Typically within ±8%" Microsoft to "±15%" Meta and Netflix); Market insights rows add and remove their filter
++  (Amazon "LLMs" 22,179 → 353 → 22,179); Compare companies switches company with `rf=` and Back returns.
++- **Job drawer** (53 postings: levels, places, rows sharing a place, Remote states, minimum, shift pay with a stated
++  base, part-time hourly, monthly, terms, on-target earnings, CAD, CZK, EUR, PLN, Pay unclear, no pay):
++  - Honest labels: "Pay by level", "Pay by place", "from €46K" with "Minimum", "Includes top shift pay", "Annualized
++    from hourly pay", "≈ $53K in US dollars at Sep 2026 rates", "One number, not a range", "Top is 2.1× the bottom
++    (across places)", "On-target earnings", "Fixed-term pay, not a yearly salary".
++  - "Pay unclear" (Netflix 1, Anduril 4) says why, shows "As parsed" and a labelled estimate (but see D-50).
++  - Juice: Monthly is Yearly / 12 with focus kept; Just me, Couple and Family re-score with focus kept; internships
++    use "Whole term"; a missing Juice says why.
++  - Same role elsewhere switches company with `s=` and `rf=`; Back reopens the drawer at the same URL; Forward works.
++  - The Listing block, keywords, the lazy description (one `api/desc/…` request, 1,670–7,800 characters, collapsed
++    behind "Read full description"), Apply on the right careers host in a new tab with `noopener`.
++  - Copy link copies the `/beta/` URL with `job=`; Prev/Next and j/k step; Esc closes with focus on the card and
++    `job=` removed; a deep link to Amazon's last role opens "22,179 of 22,179"; an unknown `job=` is dropped.
++- **Other:** Save, "Meta · Senior · Remote 3 new" after ageing with 3 cards marked New; Amazon's 2,661-role save
++  stores its seen set packed (`seenHash`). Download CSV: 22,179 Amazon and 3,821 Google records, RFC 4180 (but see
++  D-49). The theme persists; `/` focuses the search; `t` on a card cycles the theme, "t/jk" typed in the search or
++  the company search only types. Two full hashes round-trip exactly (Google with `b=YouTube`, `g=brand`, `ks=`;
++  Amazon with `d`, `l`, `s`, `v=ranges`, `g=seniority`, `sort=newest`). Back and Forward walk mode and sort. Share
++  pages `/beta/c/<slug>/` are 200 for all seven ("Amazon jobs by salary · 22,179 roles · median $141K — melon·seek
++  beta"). Every methodology link opens an on-site anchor that exists.
++- **Server mode** (`MELON_CHANNEL=beta MELON_OFFLINE=1`): `/api/jobs` serves the seven snapshots (Amazon 22,179 …
++  Netflix 414), the page loads them (Amazon in 4.1 s), the drawer and descriptions work, `/api/export?company=netflix`
++  is a 414-row CSV, no console errors. The beta marks (tab title, Beta tag) are the static build's, so server mode
++  shows the main-site chrome.
++- **Layout and errors:** 128 checks at the three widths in both themes on Amazon and Google: no horizontal scroll, no
++  top-bar overlap, every popover, the 1024 filter sheet and the drawer inside the viewport; axe colour contrast 0
++  violations. No console or page error in any flow.
++
++### Timings on Amazon, Apple and Anduril (1440x900, no throttling, load 6–7)
++Wall clock from the action until the DOM changed (polled every 50 ms), and the longest task in it.
++
++| Action | Amazon (22,179) | Apple (4,851) | Anduril (2,537) |
++|---|---|---|---|
++| First cards / chart on load | 2066 / 2172 ms | 874 / 1034 ms | 766 / 837 ms |
++| Tick the first department | 223 ms, longest task 128 ms | 149 ms, longest task 92 ms | 205 ms, longest task 98 ms |
++| Seniority Senior | 186 ms, longest task 131 ms | 165 ms, longest task 85 ms | 199 ms, longest task 123 ms |
++| Location: first city | 208 ms, longest task 158 ms | 183 ms, longest task 86 ms | 190 ms, longest task 94 ms |
++| Sort Lowest pay | 301 ms, longest task 254 ms | 83 ms, longest task 61 ms | 97 ms, longest task 72 ms |
++| Sort Most juice | 242 ms, longest task 202 ms | 119 ms, longest task 91 ms | 308 ms, longest task 218 ms |
++| Search "engineer" | 449 ms, longest task 230 ms | 255 ms, longest task 101 ms | 244 ms, longest task 89 ms |
++| Group by Location | 500 ms, longest task 208 ms | 142 ms, longest task 65 ms | 120 ms, longest task 55 ms |
++| Ranges view | 471 ms, longest task 206 ms | 259 ms, longest task 75 ms | 184 ms, longest task 78 ms |
++| Clusters view | 368 ms, longest task 142 ms | 164 ms, longest task 57 ms | 137 ms, longest task 56 ms |
++| Skills chip Python | 225 ms, longest task 106 ms | 114 ms, longest task 55 ms | 150 ms, longest task 79 ms |
++| Clear all | 404 ms, longest task 202 ms | 122 ms, longest task 52 ms | 214 ms, longest task 109 ms |
++| Open Map | 858 ms, longest task 386 ms | 341 ms, longest task 174 ms | 475 ms, longest task 214 ms |
++| Map Pay → Juice | 457 ms, longest task 165 ms | 231 ms, longest task 65 ms | 211 ms, longest task 73 ms |
++| Open Insights | 1119 ms, longest task 988 ms | 450 ms, longest task 390 ms | 370 ms, longest task 303 ms |
++| Open a role | 215 ms, longest task 119 ms | 156 ms, longest task 71 ms | 193 ms, longest task 99 ms |
++| Household Family (drawer) | 697 ms, longest task 149 ms | 171 ms, longest task 61 ms | 145 ms |
++| 10 salary-slider steps | 1869 ms | 1340 ms | 955 ms |
++| JS heap after the run | 157 MB | 57 MB | 24 MB |
++
++At a third of round 3's load these are faster than round 3's (Amazon Insights 1.1 s against 2.2 s). The JS heap after
++the same run is higher on Amazon (157 MB against 114 MB) and Apple (57 against 39); it was read without a forced
++garbage collection, so it is a pointer for the perf lane (fix-pay-at-place's per-job pay tables), not a finding.
++
++### Bugs (ordered by severity)
++Repro steps assume a fresh 1440x900 light window on the static beta build, with other hosts blocked, unless stated.
++Screenshots are in `docs/screenshots/qa-desktop-beta-4/`. Owners as routed by the lead: fix-qa4 (D-47 to D-50,
++D-52), fix-viz-5 (D-51).
++
++| ID | Sev | Viewport | Summary |
++|---|---|---|---|
++| D-52 | Medium | All | The Pay estimate for a city keeps only the postings that post a range per place, so it drops most of the city's postings: Apple "Software Engineer" in Cupertino "Based on 38 similar roles" (211 there), Microsoft in Redmond 77 Principal roles (234 there), $177K → $188K, still "High confidence" |
++| D-49 | Medium | All | Download CSV loses what each pay figure is: a minimum is "46000,46000", on-target earnings read as base pay, a per-place posting carries one place's row unnamed, and the beta README says every row comes from "Greenhouse, Ashby or Lever" |
++| D-48 | Low | All | The drawer's rank line rounds: "The highest pay of Amazon's roles in the US" on the 50th-highest role, "The lowest pay" on part-time roles with 19 and 55 roles below them |
++| D-47 | Low | All | After an in-page switch to a board that isn't on the site or fails to load, the previous board's chart stays drawn behind the message (Netflix's rows under "Tesla isn't listed here"; Google's under Apple's "Couldn't load this board") |
++| D-50 | Low | All | A "Pay unclear" posting's estimate runs past the maximum the posting states: Netflix "As parsed: $71,040.00 - $464,000.00", "about $473K"; Anduril "12,600–167,000", "about $193K" |
++| D-51 | Low | 1440, 1280, 1024 | The Ranges legend shows 3–4 keys and hides the rest, "Striped: several levels or places" among them, behind a sideways scroll with no scrollbar that a mouse wheel doesn't move |
++| D-46 | – | All | Not a bug, by decision (lead, 2026-10-16): pay rows tied to no place the posting lists are part of the card's range and count ("$60K–129K · 4 places" on a Bellevue and Arlington posting) |
++
++#### D-52 (Medium): the Pay estimate for a city drops the city's postings that post one range
++- **Viewport:** 1440x900, light; the same at every width.
++- **Repro:** open `/melon-seek/beta/#c=apple&m=insights`; in Pay estimate set Level "Any level" and type "Software
++  Engineer"; note the estimate; then pick Location "Cupertino".
++- **Expected:** the estimate uses the board's similar postings that are posted for Cupertino: the 211 Apple postings in
++  Cupertino with pay and "Software Engineer" in their title, 184 of which post one range for all their places, plus
++  the per-place rows priced at Cupertino.
++- **Actual:** "Based on 38 similar roles at Apple, Cupertino" ($218K; any location: $214K from 500). Seattle: $242K
++  from 20, all "Senior … $175K–$325K" spans. Microsoft "Software Engineer": any location $177K (500); Redmond $188K
++  from 77, every listed comparable "Principal Software Engineer · Staff+ · 100% match", while 234 Redmond postings
++  have the title, 196 with one range; still "High confidence" and "Typically within ±8%". Amazon "Software Development
++  Engineer" in Seattle: 65 of 433. The "Most comparable roles" list also shows each posting's own headline range, not
++  the city's range the estimate used (Microsoft New York: estimate $231K, Low $188K, High $275K; listed "$120K–$235K").
++- **Cause:** `public/features/compstimate.js` `estimateComp`: a comparable is `local` only when it has per-place rows
++  that price the city (`p.rows ? payAtQuery(p, ql) : null`); with `LOCAL_MIN` (5) or more local ones, only those are
++  used (`comps = local`). A one-range posting that lists the city is never local, so it is cut. The list is
++  `comparables: comps.slice(0, 5).map((p) => p.job)`.
++- **Screenshots:** `D-52-apple-estimate-any-location-500-roles.png`, `D-52-apple-estimate-cupertino-38-roles.png`,
++  `D-52-microsoft-estimate-redmond-77-principal-roles.png`.
++- **Owner:** `public/features/compstimate.js` `estimateComp` (count a one-range posting whose places include the city
++  as local, priced at its range) and the comparables list (show `p.pay`).
++- **Test:** `[D-52]`.
++
++#### D-49 (Medium): Download CSV loses what each pay figure is
++- **Viewport:** any (a file).
++- **Repro:** open `/melon-seek/beta/#c=amazon`, the badge, "Download a spreadsheet (CSV)"; read `data/README.txt`
++  beside it; find `amazon:10377152`, `amazon:10371179`, and in `nvidia.csv` `nvidia:893395123425`.
++- **Expected:** each row says what its figure is, as the card does: a minimum, on-target earnings, the span of several
++  places (or which place), and the README describes the beta's sources.
++- **Actual:**
++  - "Area Manager, FC Operations" ("from €46K", a posted minimum, 285 Amazon postings) is `46000,46000,EUR`, read as
++    exact pay.
++  - "Global Energy Partner Ecosystem Manager" (on-target earnings over two levels) is `224000,396750,USD`; the README
++    says "posted BASE pay range … Equity and bonus excluded". 41 NVIDIA postings are on-target earnings.
++  - "Senior Financial Analyst, Engineering Capex Analytics & Planning" ("$60K–129K · 5 places" on the card and in the
++    drawer) is `82700,117100`: Bellevue's row, unnamed. 2,201 Amazon and 255 Microsoft postings are like it.
++  - 636 shift-inclusive Amazon postings and 876 NVIDIA two-level spans carry no mark either.
++  - The beta README: "Each row is one job posting as published on the company's own job board (Greenhouse, Ashby or
++    Lever)"; the beta CSVs hold Amazon, Apple, Google, Meta, Microsoft, NVIDIA and Netflix from their own sites.
++- **Cause:** `server/export.js` `jobsToCsv` writes `salary.min`, `salary.max` and the currency only (no kind, levels or
++  places), and `csvReadme` is one text for both sites.
++- **Screenshot:** `D-49-beta-csv-readme-and-rows.png`.
++- **Owner:** `server/export.js` (`jobsToCsv`: a `salary_kind` column (salary, hourly, minimum, on-target, shift) and a
++  basis column (levels, places, or the span), or the span the card shows; `csvReadme`: the beta's sources).
++- **Test:** `[D-49]`.
++
++#### D-48 (Low): "The highest pay" and "The lowest pay" for roles that are not
++- **Viewport:** 1440x900, light.
++- **Repro:** open `/melon-seek/beta/#c=amazon&sort=salary-desc`, then the 1st, 10th, 30th and 50th card;
++  `#c=amazon&job=amazon%3A10409027` (part-time $19.70 an hour).
++- **Expected:** "The highest pay" only when no role in the pool pays more; otherwise "Pays more than 99% of …".
++- **Actual:** all four read "The highest pay of Amazon's roles in the US"; the 50th, "Principal Applied Scientist,
++  Prime Video Personalization & D…" ($229K–309K), has about 50 roles above it (the test's case: amazon:3102651, 29
++  full-time US roles pay more). "Retail Lead Associate (Reduced-Time)" ($19.70 an hour, $40,976 if full-time) reads
++  "The lowest pay of Amazon's roles in the US" with 19 US roles below it; $21.05 an hour (amazon:10389108) the same
++  with 55 below; Apple "US-Operations Specialist" ($23.00–30.59 an hour) too. In a pool of 13,076 that is about 65
++  roles at each end.
++- **Cause:** `public/features/shared.js` `payRank` rounds (`Math.round(… * 100)`), and `public/app.js` `drawerContent`
++  writes `pct >= 100` as "The highest pay" and `pct <= 0` as "The lowest pay".
++- **Screenshots:** `D-48-amazon-50th-highest-reads-the-highest-pay.png`, `D-48-amazon-part-time-reads-the-lowest-pay.png`.
++- **Owner:** `public/app.js` `drawerContent` (pctText, pctShort, pctNote) with `payRank` returning the counts above
++  and below.
++- **Test:** `[D-48]`.
++
++#### D-47 (Low): the previous board's chart stays behind "This board isn't on this site" and "Couldn't load"
++- **Viewport:** 1440x900, light; the same in dark and at every width.
++- **Repro:** open `/melon-seek/beta/#c=netflix`; then change the address to `#c=tesla`. Or open `#c=google`, block
++  `beta/api/jobs/apple.json`, and pick Apple.
++- **Expected:** an empty chart behind the message, as a fresh load of `#c=tesla` shows.
++- **Actual:** Netflix's chart ("Data & Insights, 53 roles, median $608K in the US", 8 rows, "Median base pay $427K",
++  "259 with pay · 155 without") stays drawn under the 88% white overlay with "Tesla isn't listed here"; under Apple's
++  "Couldn't load this board" it is Google's chart. The rows stay in the accessibility tree, named as roles of the
++  board in the company menu.
++- **Cause:** `public/app.js` `renderViz` returns early for `data.status === 'unknown'` and `'error'` without hiding or
++  clearing `#chartHost` (or the map).
++- **Screenshots:** `D-47-tesla-message-over-netflix-chart.png`, `D-47-apple-error-over-google-chart.png`.
++- **Owner:** `public/app.js` `renderViz` (hide `#chartHost` and `#mapHost`, or clear them, in those branches).
++- **Test:** `[D-47]`.
++
++#### D-50 (Low): a "Pay unclear" estimate above the maximum the posting states
++- **Viewport:** 1440x900, light.
++- **Repro:** open `/melon-seek/beta/#c=netflix&job=netflix%3A790298021069` ("Distributed Systems Engineer (L4) - Data
++  Platform", Mid); open "Why?".
++- **Expected:** an estimate that stays within what the posting states when its maximum passes the checks (only the
++  ratio failed), or a line saying the posting states up to $464K.
++- **Actual:** "Pay unclear: range $71K–$464K spans 6.5x", "As parsed: $71,040.00 - $464,000.00", then "PAY ESTIMATE
++  about $473K ($330K–602K, low confidence)". On the main site Anduril "Robotics Software Engineer"
++  (anduril:5078772007): "As parsed: 12,600–167,000 USD", "about $193K ($166K–222K)". The other 6 flagged postings
++  (Anduril 3, Anthropic 1, Scale AI 2) stay under their maximum or have no estimate.
++- **Cause:** the drawer's no-pay estimate (`public/app.js` `drawerContent`, `features/compstimate.js`
++  `compstimateForJob`) ignores the quarantined figure entirely.
++- **Screenshots:** `D-50-netflix-estimate-above-posted-max.png`, `D-50-anduril-estimate-above-posted-max.png`.
++- **Owner:** `public/app.js` / `public/features/compstimate.js` `compstimateForJob` (cap at a plausible posted maximum,
++  or name it).
++- **Test:** `[D-50]`.
++
++#### D-51 (Low): the Ranges legend hides its keys on a desktop
++- **Viewport:** 1440x900, 1280x800 and 1024x768; both themes.
++- **Repro:** open `/melon-seek/beta/#c=nvidia&v=ranges` and look at the legend above the chart; scroll the mouse wheel
++  over it.
++- **Expected:** every key visible on a desktop (it has the room for a second line), at least the pattern keys:
++  "Striped: several levels or places" (887 striped bars on NVIDIA) and "Other (112)".
++- **Actual:** "Colour: department · Systems Software Engineering 385 · ASIC Engineering 111 · Architecture 73 · So…",
++  670 of 1,761 px; out of view: Solutions Architecture, Internships, Technical Program Management, Systems Design
++  Engineering, "Other (112)" and "Striped: several levels or places". Amazon 670 of 1,833 px ("Fulfillment & Op…"),
++  Google 670 of 1,723, Microsoft 670 of 1,877. A vertical wheel doesn't scroll it (scrollLeft stays 0); only
++  Shift+wheel, a trackpad or Tab then arrow keys do. It is the only such scroller on the desktop pages checked.
++- **Cause:** fix-density's one-row legend for phones applies at every width: `public/viz/viz.css` `.ms-chart__legend`
++  (`flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none`, a 28 px fade).
++- **Screenshot:** `D-51-nvidia-ranges-legend-keys-cut-off.png`.
++- **Owner:** `public/viz/viz.css` `.ms-chart__legend` (wrap from 861 px), or `public/viz/chart.js` `renderLegend` (the
++  pattern keys first). With fix-viz-5, which owns V-48's legend key.
++- **Test:** `[D-51]`.
++
++#### D-46 (not a bug, by decision)
++- `amazon:10546231` "Sr. Financial Analyst, WW Operations Sustainability Finance" is listed in Bellevue and Arlington
++  (rows $83K–117K and $67K–117K), and reads "$60K–129K · 4 places" on the card and in the drawer, because its New York
++  ($74K–129K) and Nashville ($60K–105K) rows name no listed place. amazon:10473347 (Seattle only) reads
++  "$152K–237K · 2 places" (a "SANTA CLARA" row). 17 Amazon postings and 1 Apple posting have such rows.
++- **The lead, 2026-10-17:** the 2026-10-16 decision says "The card still shows the posting's range"; the card and the
++  drawer headline present every posted row ("we must present them as they are and not cut anything"). The rule that
++  such a row prices nothing applies to pricing a place (`payAt`: the chart, map, stats line, Juice, Compstimate). The
++  guard test keeps that behaviour. Screenshot: `D-46-by-decision-amazon-rows-for-unlisted-places-in-the-span.png`.
++
++### Notes
++- **Seen on the desktop, already filed or left for the user, not re-filed (counts on this build):**
++  - UX-50 and UX-51 are still open and in no lane (table above).
++  - The lead's round-3 card leftovers, unchanged: 11 NVIDIA on-target level spans without "· 2 levels" (e.g.
++    "Global Energy Partner Ecosystem Manager" "$224K–397K", whose drawer lists "Pay by level"); 7 Google BS/MS
++    internships with degree lines ("€47K/year"); 2 Amazon fixed-term monthly minimums without "from" ("€5,233/month",
++    "€1,800/month").
++  - MR-38: Meta "Materials Regulatory Compliance Intern" reads "$80K–130K per year, Annualized from monthly pay", scored
++    for Juice on $104,900; Microsoft's PhD internship "$82K–162K".
++  - MR-34: "Several pay ranges" on 923 Microsoft, 36 Google and 23 Amazon drawers.
++  - MR-26, MR-29, MR-33, MR-35, MR-37, MR-40 and MR-41 are still to-dos in `npm test`.
++- **Not bugs, for the record:** the filter notes wrap to 2 lines in the docked column at 1440 and 1280 (the density rule
++  is for phones; it was 3–4); the Insights header is its heading plus one line; Amazon's large saved search stores a
++  packed seen set; in server mode the page has the main site's chrome (the beta marks are written by the static
++  build); the description loads collapsed behind "Read full description".
++- **Not testable here:** desktop Safari, live fetches, map tiles, and the careers hosts behind Apply.
++
++### Suite results
++| Suite | Tree | Result |
++|---|---|---|
++| `npm test` | this worktree (1ef0646 plus this pass's test file), with the 2026-10-16 data linked, load 20–28 | 1,244 tests: **1,197 pass, 2 fail, 45 to-dos**. The 2 are PERF-1 (281 ms of event-loop lag) and V15 (557 ms), the load-sensitive timing tests that run only with local data (CI skips them). Alone at load 8 both pass (59 ms and 68 ms of lag). The to-dos are the methodology and security reviews' open findings. |
++| `npm test` CI-like | the same tree, data links removed, `MELON_BETA_SNAPSHOT_DIR=` | 1,238 tests: **1,185 pass, 0 fail**, 8 skipped, 45 to-dos (the lead's gate on 1ef0646: 1,185 pass, 0 fail) |
++| `node scripts/e2e.js --grep='^Beta desktop QA 4'` | my build | **3/9**: the 3 guards pass; `[D-47]` … `[D-52]` fail by design |
++| Round 3's red groups (`Beta desktop QA 3`, `Beta UX review 2`, `Beta viz review 2`, `beta a11y 2`) | my build | **30/46 pass, 15 fail, 1 skipped**: the 15 are A-8, D-43, D-44, V-33, V-34, V-38, V-41 to V-44, V-46, V-48, UX-39, UX-42, UX-45, all on the lead's known list |
++| `node scripts/e2e.js` (full) | this worktree, `dist` linked to my build, `BETA_QA_DIST` set, load 4–14 | **748 tests: 715 pass, 28 fail, 5 skipped.** The first run (13:52–15:29) finished 701 tests and was stopped inside Fix phone text, before its time limit cut it (the session paused at an API limit while it ran); the three groups it had not finished were re-run one at a time: Fix phone text 93/100, fix-pay-at-place 25/25, Beta desktop QA 4 3/9. The 28 failures are all expected: the 15 reviewers' red-by-design tests owned by fix-viz-5 and fix-phone-sizes (A-8, D-43, D-44, V-33, V-34, V-38, V-41 to V-44, V-46, V-48, UX-39, UX-42, UX-45); 7 Fix phone text guards on Amazon at 280–360 px, all the known department row cut ("Program and Product Management" by 0.42 to 80.42 px, at 280 px also "Fulfillment & Operations" by 1.59 px; fix-phone-sizes); and this pass's 6, `[D-47]` … `[D-52]`. Every other group passes, including the earlier desktop passes' `[D-17]` … `[D-42]` and `[D-45]`, fix-pay-at-place, fix-data-3, fix-sec-3, fix-touch-tips (33), fix-phone-controls (98), the phone matrix (34) and fix-density (51). The 5 skips: `[D-11]` (these boards have listing dates), the methodology screenshots (`E2E_SHOTS=1`), fix-app `[P-2]` (no estimate for its role), fix3-viz's NVIDIA Munich case (no such roles) and `[V-35]` (no one-place striped row, the fix). |
++
++All runs used `NODE_PATH=<scratch>/pw/node_modules PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers`.
++
++---
+-- 
+2.43.0
+

@@ -1,0 +1,82 @@
+From 5cff46cc5a0fa8d00f3bd792acefe02700aa35b8 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 17 Oct 2026 15:32:17 +0000
+Subject: [PATCH 43/56] WIP fix-qa4: log the numbers (before and after,
+ backtests) and the test results so far
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+(cherry picked from commit 6a9ddc0198ab11c49e0d8ca90c98c22ab8ed5082)
+---
+ docs/process/fix-qa4.md | 55 ++++++++++++++++++++++++++++++++++++++++-
+ 1 file changed, 54 insertions(+), 1 deletion(-)
+
+diff --git a/docs/process/fix-qa4.md b/docs/process/fix-qa4.md
+index 9d333b3..7d39a04 100644
+--- a/docs/process/fix-qa4.md
++++ b/docs/process/fix-qa4.md
+@@ -112,7 +112,60 @@
+    `MELON_BETA_SNAPSHOT_DIR= timeout 1200 npm test` (`<scratch>/fqa4/npmtest.sh <label>`).
+ 
+ ## 5. Verification
+-See the tables below; filled in as the gate runs.
++Numbers are from the 2026-10-16 crawl. "Before" is eccdca9 (1ef0646's code) on its build `<scratch>/fqa4/dist-before`;
++"after" is this lane's code on its build `dist/`.
++
++| Finding | Before | After |
++|---|---|---|
++| D-52 Apple "Software Engineer" in Cupertino (Insights, any level) | 37 comparables, mid $215K ($177K–278K), High | 274, all with Cupertino pay; mid $214K ($150K–278K), High |
++| D-52 Microsoft "Software Engineer" in Redmond | 77 (multi-place postings only; the top 5 all Staff+), mid $188K ($143K–235K), High | 328, mid $177K ($120K–235K), Medium |
++| D-52 Amazon "Software Development Engineer" in Seattle | 64, mid $169K ($144K–198K) | 438, mid $169K ($144K–198K) |
++| D-52 Amazon SDE in New York | 39, mid $186K | 104, mid $186K ($158K–218K) |
++| D-52 Microsoft "Software Engineer" in New York (V-40's case) | 16, mid $231K ($188K–275K) | the same 16, $231K; each listed at its New York row ("Posted for New York · …", $160K–261K, not the U.S. headline) |
++| D-52 main-site boards and Google (one range for many places), e.g. Anthropic and OpenAI "Software Engineer" in San Francisco | 178 / 275 | 178 / 275 (unchanged) |
++| D-49 Amazon minimums written as an exact figure (min = max) | 285 | 0: `salary_max` empty, `salary_kind` minimum (283 minimum, 2 minimum+fixed-term) |
++| D-49 per-place postings whose CSV range was one place's row, unnamed | 2,201 Amazon + 255 Microsoft (min/max differ from the card's span) | 0: the card's span, and every row in `salary_ranges` (2,260 Amazon, 391 Apple, 394 Microsoft rows columns) |
++| D-49 amazon:10371179 | 82700,117100 (Bellevue's row) | 60200,128800, "New York: 73600-128800 USD \| Nashville: 60200-105400 USD \| Irving, Arlington: 66900-117100 USD \| Bellevue: 82700-117100 USD" |
++| D-49 on-target earnings read as base pay | 41 NVIDIA, 47 Anthropic | `salary_kind` ote (nvidia:893395123425 also lists its Level 5 and 6 ranges) |
++| D-49 shift pay, part-time, two-level spans unmarked | 636 Amazon shift (69 part-time too), 876+ NVIDIA level spans | `shift` 567, `shift+part-time` 69, `part-time` 14 (Amazon) and 40 (Apple); levels in `salary_ranges` for 887 NVIDIA, 158 Microsoft, 8 Google |
++| D-49 beta README | "(Greenhouse, Ashby or Lever)" for every row; "posted BASE pay … Equity and bonus excluded" | each file's source (e.g. "Amazon Jobs (amazon.jobs): the site's own search API (search.json)"); "Big-tech pay is base pay only"; on-target earnings marked |
++| D-49 rows per CSV | 22,179 Amazon … (every posting) | the same, every posting and every column kept |
++| D-50 "Pay unclear" estimates above the posting's own maximum | 2: netflix:790298021069 about $473K ($330K–602K) under "$71,040.00 - $464,000.00"; anduril:5078772007 about $193K ($166K–222K) under "12,600–167,000 USD" | 0: about $464K ($330K–464K), about $167K ($166K–167K), "An estimate, capped at the posted maximum"; Details give the figure before the cap |
++| D-50 the other 6 "Pay unclear" postings | estimates under their maximum, or `hourly_high` (Scale AI, the maximum itself failed) | unchanged |
++| D-48 Amazon base-pay roles the drawer would call "The highest pay" / "The lowest pay" (`d48.mjs`, the base-pay pool) | 67 / 80 | 8 / 10 (none paid more / less in their country); "In the top 1%" 63, "In the lowest 1%" 70 |
++| D-48 amazon:10389713 ($229K–309K, 45 roles above) | "The highest pay of Amazon’s roles in the US" | "In the top 1% of Amazon’s roles in the US" |
++| D-47 `#c=tesla` after Netflix; Apple failing after Google | the previous chart drawn, faded, behind the message, in the accessibility tree | `#chartHost` and `#mapHost` hidden; back on Netflix the chart is drawn again |
++
++**Compstimate backtest** (seeded, 500 postings, `dedupe: "role"`; median error, within 10%), from the build lines:
++
++| Board | Before | After |
++|---|---|---|
++| Amazon | 10.0%, 50.1% | 9.6%, 52.5% |
++| Apple | 13.4%, 41.5% | 12.9%, 41.7% |
++| Microsoft | 7.7%, 57.2% | 8.4%, 56.8% |
++| Google, Meta, Netflix, NVIDIA, and the 8 main-site boards | (Google 12.4%, Meta 14.8%, Netflix 15.0%, NVIDIA 12.5%, Anthropic 13.1%, Anduril 12.4%, OpenAI 10.1%, Scale AI 11.9%, xAI 18.3%, Cohere 9.9%, Palantir 8.6%, Shield AI 15.6%) | unchanged, to the decimal |
++
++- The published lines do not move: "±10%" Amazon, "±13%" Apple, "±8%" Microsoft (accuracyLine rounds). No product doc
++  quotes these figures as claims.
++- Microsoft's rise is Redmond (38 of the 41 drawn postings that got worse): before, a Redmond estimate used only the
++  multi-place postings with a Redmond row (13 to 27 of them, wide IC level spans); now every Redmond posting with pay.
++  Not taking the cut in Redmond at all (the trigger considered in §3.1) gives the same 8.4%.
++- With the cut on every board (rejected, §3.1): Google 14.2%, Palantir 10.7%, Meta 15.4%, Netflix 15.7%, Anthropic 12.3%,
++  Anduril 11.9%.
++
++**Tests.**
++- test/fix-qa4.test.js: 14 tests; 12 fail on eccdca9 (copied into `<scratch>/fqa4/base/test/`), the 2 others are guards
++  (one-range boards unchanged, V-40 still holds). All 14 pass.
++- QA round 4's group (test/e2e/beta-desktop-qa-4.e2e.js): on the before build 3 of 9 pass (the guards), [D-47] to [D-52]
++  fail; on this build 8 of 9 pass: [D-47], [D-48], [D-49], [D-50], [D-52] and the 3 guards. [D-51] (the Ranges legend)
++  is fix-viz-5's, not this lane's.
++- test/e2e/fix-qa4.e2e.js: 42 checks (4 desktop, then [D-48] and [D-50] at each of the 19 sizes of
++  test/e2e/phone-sizes.mjs, 14 phones and 5 postures, landscape included). All pass on this build. The first run failed [D-50] at 280 px: "Capped
++  at the posted maximum" took two lines, so the line has a third, shorter form ("Capped at its maximum").
++- Updated other lanes' tests for the new columns, same intent: test/export.test.js (the header and a row) and
++  test/server.test.js (the header).
++- Clean `npm test` (no data links) at c43ff33: 1,252 tests, 1,199 pass, 0 fail (8 skipped, 45 to-do). At 1a04bf5 it failed
++  test/beta-build.test.js ("lib/export.js mentions the beta posting host apply.careers.microsoft.com"), fixed in 196922d.
+ 
+ ## 6. Known gaps and follow-ups
+ - The Pay estimate's top five comparables are ordered by weight, then by date; for a level-less query many weights tie,
+-- 
+2.43.0
+

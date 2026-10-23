@@ -27,19 +27,9 @@ dd58b48 fix-phone-sizes: the Surface Duo stacked (720x1114, hinge across): chart
 ## Uncommitted and new files
 ```
  M docs/process/fix-phone-sizes.md
- M docs/screenshots/dark-drawer.png
- M docs/screenshots/dark.png
- M docs/screenshots/drawer-juice.png
- M docs/screenshots/drawer.png
- M docs/screenshots/fix-pay-at-place/e2e-card-1114x720.png
- M docs/screenshots/fix-pay-at-place/e2e-card-280x653.png
- M docs/screenshots/fix-pay-at-place/e2e-card-352x355.png
- M docs/screenshots/fix-pay-at-place/e2e-card-375x812.png
  M scripts/e2e.js
-?? docs/screenshots/fix-pay-at-place/e2e-card-720x1114.png
 ?? test/e2e/beta-mobile-qa-4.e2e.js
 ```
 
 ## Left out (not in untracked.tgz)
-- docs/screenshots/fix-pay-at-place/e2e-card-720x1114.png (screenshot; the lane's tests regenerate it)
 - node_modules (symlink)
