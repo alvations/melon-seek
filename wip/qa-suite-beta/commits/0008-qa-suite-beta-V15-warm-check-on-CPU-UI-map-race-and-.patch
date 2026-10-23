@@ -1,7 +1,7 @@
 From 448895a88ef0d2b4ad203726dba69a596353e1d8 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 23 Oct 2026 14:22:29 +0000
-Subject: [PATCH 8/9] qa-suite-beta: V15 warm check on CPU, UI map race and
+Subject: [PATCH 08/13] qa-suite-beta: V15 warm check on CPU, UI map race and
  order-dependent pairs patch, T21 split; wait after the browser's Back on wide
  touch screens
 

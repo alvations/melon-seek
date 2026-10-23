@@ -2,11 +2,15 @@
 
 - Worktree: `/home/user/melon-seek/.claude/worktrees/agent-aa166069d49bf488a`
 - Base (on claude/stoic-ride-54ddxp): `05263e8c010758f51cca4bcbcfb2871eac1defd3`
-- Head: `9c953296249f92a670d397be595ebdbf80c035b7`
+- Head: `925a582a9537d55db220eee6cf47fb23d6450559`
 - Restore: `bash scripts/cycle/restore-wip.sh qa-suite-beta <new worktree dir>`
 
 ## Commits since the base
 ```
+925a582 qa-suite-beta: e2e header IDs; CI e2e job gets a 240 s per-test limit for a cold cache
+5c9e8b0 qa-suite-beta: measured fixed waits in the phone guard walks (68-85%)
+84ad21a qa-suite-beta: log State; vacuity check with data
+cf87bc0 qa-suite-beta: unit guards accept forEach size loops and registry board lists; T-9 check reads the patched fail line
 9c95329 qa-suite-beta: log (runs, flakes, speed, patches, decisions, replay)
 448895a qa-suite-beta: V15 warm check on CPU, UI map race and order-dependent pairs patch, T21 split; wait after the browser's Back on wide touch screens
 2e6fb47 qa-suite-beta: log (findings, coverage map, the crash, CI parity); the CI e2e workflow patch

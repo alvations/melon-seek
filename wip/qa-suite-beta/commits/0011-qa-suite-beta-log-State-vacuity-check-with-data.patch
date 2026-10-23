@@ -1,0 +1,64 @@
+From 84ad21a3383332d16f30dd59aaad9dda0da1fc58 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 23 Oct 2026 14:29:32 +0000
+Subject: [PATCH 11/13] qa-suite-beta: log State; vacuity check with data
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+---
+ docs/process/qa-suite-beta.md | 32 +++++++++++++++++++++++++-------
+ 1 file changed, 25 insertions(+), 7 deletions(-)
+
+diff --git a/docs/process/qa-suite-beta.md b/docs/process/qa-suite-beta.md
+index e3b26f8..a8ce42a 100644
+--- a/docs/process/qa-suite-beta.md
++++ b/docs/process/qa-suite-beta.md
+@@ -14,10 +14,14 @@
+   - the patches in `docs/process/patches/qa-suite-beta-*.diff`, §11: the runner (signals, --shard, --list,
+     --max-skips, failure durations, links registered), T-1, T-4, five flake fixes and the CI workflow (in
+     `<scratch>/qa-suite-beta/patchwt`, to be written out).
+-- **In progress:**
+-  - the coverage group's third run;
+-  - a stress run of the timing tests, original against patched;
+-  - the lead's gate run on 5c0cda3, sampled every 30 s (`<scratch>/qa-suite-beta/mem-gate.jsonl`).
++  - the coverage group: 28/30 on its third run, and both failures were my test's own wait (fixed);
++  - the stress runs: originals fail every run, patched 0 of 9;
++  - a with-data `npm test` (`runs/unit-data-1`, 271 s, load 11–17): 1,262 tests, 1 fail (my own guard, fixed), and
++    no vacuous pass found (§9.3);
++  - the patches checked on a copy of 5c0cda3 with the runner and T-1 patches applied: my [T-1], [T-5], [T-9] and
++    [T-10] to-dos pass there.
++- **In progress:** the lead's gate run on 5c0cda3, sampled every 30 s (`<scratch>/qa-suite-beta/mem-gate.jsonl`).
++  At 14:29 it was at test 616 of 864, with only T21 failed so far.
+ - **Next:**
+   1. the red-by-design list from the gate log (`<scratch>/gate/e2e.log`);
+   2. the one full e2e run, instrumented (`tools/instrument.mjs`), on the landed head;
+@@ -361,9 +365,23 @@ Pending: the gate log finishes after test 864.
+ ### 9.3 Vacuous passes
+ - **e2e skips:** every beta group calls `skip(...)` when a board's list is missing, so a build without a board passes
+   with skips (T-5). The new build test fails instead, and the runner patch adds `--max-skips`.
+-- **npm test in CI:** the 8 skipped tests and every data-gated branch never run in CI (T-14). A with-data run
+-  (`runs/unit-data-1`) is compared with the CI-like runs to find tests that pass in both but do work only with data.
+-  Pending.
++- **npm test in CI:** the 8 tests that need data skip there, loudly, with a reason:
++  - families coverage on Google;
++  - BUG-5 on real snapshots;
++  - market.json ≤ 150 KB;
++  - PERF-1, stores persist, V15;
++  - the gate on real snapshots;
++  - the big board cache.
++
++  All 8 pass with data (`runs/unit-data-1`, 14:22–14:27, load 11–17: 1,262 tests, 1,210 pass, 1 fail, my own guard,
++  fixed). `tools/vacuity.mjs` compares U2 with that run, looking for tests that pass in both but finish in under 5 ms
++  without data while taking 20× longer with it. It found 4 candidates, and all are fixture tests with import-time
++  noise (juice guardrails, "a US range listed in Sydney", the Juice name, "companies left out are named"). **No
++  vacuous unit test was found.** The data-gated tests skip; they do not pass empty.
++- **With data, npm test takes 4.5 min instead of 2:** fix3-compare.test.js "market.json stays under 150 KB … Google
++  entry software in the US is not $89K" took **200 s** at load 13 (it builds the market from the real boards). It is
++  the slowest unit test by far and runs only locally. It is a candidate for sharing one market build across that
++  file's tests.
+ 
+ ## 10. CI parity (T-14)
+ | | CI (ci.yml, every push and PR) | A contributor or the lead in the sandbox |
+-- 
+2.43.0
+

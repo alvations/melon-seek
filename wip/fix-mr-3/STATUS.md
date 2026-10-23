@@ -2,11 +2,13 @@
 
 - Worktree: `/home/user/melon-seek/.claude/worktrees/agent-a2e3d85e328fdbc3e`
 - Base (on claude/stoic-ride-54ddxp): `05263e8c010758f51cca4bcbcfb2871eac1defd3`
-- Head: `23f8f21beef9bd8bfed4ad8f00c0964a8faf69f4`
+- Head: `ebc00e0ea27762ad147d16b50e4f333b60355fb2`
 - Restore: `bash scripts/cycle/restore-wip.sh fix-mr-3 <new worktree dir>`
 
 ## Commits since the base
 ```
+ebc00e0 fix-mr-3: MR-39 the stats line says its median's country short ("base pay median (US)"), within fix-density's 12 words when filtered
+3a109a0 fix-mr-3: the BP-13 e2e takes the stats line's median on the MR-39 rule (the main currency's, with pay in several)
 23f8f21 fix-mr-3: log: T-17, npm test, before/after e2e, phone lines
 ee08a5a fix-mr-3: T-17 job titles on one line (line breaks and runs of whitespace are one space), in the norm-13 bump
 2f51186 fix-mr-3: the Juice headline's "while it lasts" moves to the text below when it would wrap (one line from 344 px up)
@@ -29,6 +31,10 @@ d8818ca fix-mr-3: brief, verbatim
  M docs/screenshots/dark.png
  M docs/screenshots/drawer-juice.png
  M docs/screenshots/drawer.png
+ M docs/screenshots/fix-pay-at-place/e2e-card-1114x720.png
+ M docs/screenshots/fix-pay-at-place/e2e-card-280x653.png
+ M docs/screenshots/fix-pay-at-place/e2e-card-352x355.png
+ M docs/screenshots/fix-pay-at-place/e2e-card-375x812.png
 ```
 
 ## Left out (not in untracked.tgz)

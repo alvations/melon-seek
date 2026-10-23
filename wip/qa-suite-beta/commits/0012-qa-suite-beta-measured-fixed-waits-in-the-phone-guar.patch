@@ -1,0 +1,50 @@
+From 5c9e8b04e1f96f126ae977e30b9ad60cbaee6714 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 23 Oct 2026 14:31:21 +0000
+Subject: [PATCH 12/13] qa-suite-beta: measured fixed waits in the phone guard
+ walks (68-85%)
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+---
+ docs/process/qa-suite-beta.md | 17 ++++++++++++++---
+ 1 file changed, 14 insertions(+), 3 deletions(-)
+
+diff --git a/docs/process/qa-suite-beta.md b/docs/process/qa-suite-beta.md
+index a8ce42a..624a36f 100644
+--- a/docs/process/qa-suite-beta.md
++++ b/docs/process/qa-suite-beta.md
+@@ -315,7 +315,17 @@ What dominates:
+    boards × 19 sizes. Each takes about 22 s (20–28 s). One walk opens 10+ views (first screen, sheet half and full,
+    Ranges, map, Insights, up to 6 job pages, filters, badge, More, company menu). After each step it waits a fixed
+    0.4–1.2 s: about 14 s of fixed waits plus about 1.4 s per job page. So the group is mostly sleeping.
+-   Measured per test in E1 (`sleepMs` in `tools/instrument.mjs`): pending.
++   **Measured** with `tools/instrument.mjs` (setTimeout ≥ 200 ms started from a test file; `instr-probe.jsonl`,
++   05263e8, load 9):
++
++   | Test | Time | Fixed waits | Share |
++   |---|---|---|---|
++   | guard, amazon 390 light | 27.8 s | 18.9 s | 68% |
++   | guard, netflix 390 light | 22.2 s | 18.9 s | 85% |
++   | matrix, Pixel 8 (3 boards) | 19.4 s | 11.6 s | 60% |
++   | [M-40] Pixel 8 | 6.5 s | 2.1 s | 32% |
++
++   Across the 85 guard walks that is about **27 min of the group's 35 min spent in fixed waits**.
+ 2. **Phone loops that reload Amazon.** [M-43] × 22, [M-40] × 23, [M-47] × 23, the matrix × 21 (Amazon is one of 3
+    boards), the guard × 19 (one of 2) and [UX-39] × 18. That is about 130 loads of Amazon's 22,179 postings, each in a
+    fresh context, about 3–6 s each.
+@@ -331,8 +341,9 @@ Proposals, without losing coverage:
+   sandbox, one shard at a time still lets a gate stop and resume by shard.
+ - **Wait for states, not times, in the guard walk.** Replace `tap(…, 900)` and `sleep(…)` with waits on what the
+   step changes (`body[data-sheet]`, `#popover` visible, `#drawer.is-open`, `#insightsHost .msi-stat`). Same
+-  coverage. I estimate a third to a half of the 35 min goes, to be measured with E1's `sleepMs`. The owner is
+-  fix-phone-text's file; this is not patched here because it touches 20 steps of another lane's test.
++  coverage. 27 of the 35 min are fixed waits; if a state wait takes a tenth of its fixed wait, about 20 min go, and
++  about 5 more from the matrix's 60%. The file belongs to fix-phone-text. It is not patched here because it touches
++  20 steps of another lane's test.
+ - **Size checks share widths:** the 21 sizes have 18 distinct widths. Captions depend on width, so the guard can
+   run once per width (−3 sizes × 2 boards, about 2 min). A small gain.
+ - **A light/dark pair on one load:** `page.emulateMedia({ colorScheme: 'dark' })` re-themes without a reload. It saves
+-- 
+2.43.0
+

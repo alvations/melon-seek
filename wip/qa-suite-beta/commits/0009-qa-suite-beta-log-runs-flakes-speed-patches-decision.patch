@@ -1,7 +1,7 @@
 From 9c953296249f92a670d397be595ebdbf80c035b7 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 23 Oct 2026 14:25:03 +0000
-Subject: [PATCH 9/9] qa-suite-beta: log (runs, flakes, speed, patches,
+Subject: [PATCH 09/13] qa-suite-beta: log (runs, flakes, speed, patches,
  decisions, replay)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

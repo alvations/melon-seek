@@ -1,7 +1,7 @@
 From 2f51186864d79f53a0d7e7a3ac0ccd7d3b1545e4 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 23 Oct 2026 14:05:04 +0000
-Subject: [PATCH 12/14] fix-mr-3: the Juice headline's "while it lasts" moves
+Subject: [PATCH 12/16] fix-mr-3: the Juice headline's "while it lasts" moves
  to the text below when it would wrap (one line from 344 px up)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

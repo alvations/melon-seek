@@ -1,7 +1,7 @@
 From c59177f1f96facaa7b77bc0221b3a046236b09e9 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 23 Oct 2026 13:36:37 +0000
-Subject: [PATCH 06/14] fix-mr-3: MR-41 the Mid chip's tip gives each board's
+Subject: [PATCH 06/16] fix-mr-3: MR-41 the Mid chip's tip gives each board's
  own example of a mid level
 
 Amazon III is Senior and Google II is Entry, so MID_EXAMPLE names one per board (Google III, Amazon II,
