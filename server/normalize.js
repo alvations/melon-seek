@@ -323,6 +323,8 @@ function labelPlaces(label) {
 export function tieRangePlaces(salary, locations = [], text = '') {
   const rs = salary && Array.isArray(salary.ranges) ? salary.ranges : null;
   if (!rs || rs.length < 2 || rs.some((r) => r && Array.isArray(r.locations) && r.locations.length)) return salary;
+  // Amazon's pay-table rows ("USA, TX, Wink", "CAN, ON, Toronto") are tied by its own adapter (DQ-33), never here.
+  if (rs.some((r) => r && /^[A-Z]{3},\s/.test(String(r.label || '')))) return salary;
   let rows = rs.map((r) => ({ ...r }));
   // Scale AI: unnamed rows that the text names, by their figures.
   if (rows.some((r) => !r.label) && text) {
@@ -461,8 +463,9 @@ export function relabelJobs(jobs) {
     } else if (j.salary || j.salaryRaw) {
       const ctx = { text, title, employmentType: j.employmentType || '', countries: [...new Set((j.locations || []).map((l) => l && l.country).filter(Boolean))] };
       if (j.salary) next.salary = safe(() => relabelSalary(j.salary, ctx), j.salary);
-      // S-1 (fix-salary-6): stored structured rows named for places are tied to them, as fresh ones are.
-      if (next.salary) next.salary = safe(() => tieRangePlaces(next.salary, next.locations || [], text), next.salary);
+      // S-1 (fix-salary-6): stored structured rows named for places are tied to them, as fresh ones are. Amazon's stored
+      // rows are its pay table's, which server/sources/upgrade.js#upgradeAmazonJobs re-reads and ties itself (DQ-33).
+      if (next.salary && !String(j.id || '').startsWith('amazon:')) next.salary = safe(() => tieRangePlaces(next.salary, next.locations || [], text), next.salary);
       if (j.salaryRaw) next.salaryRaw = safe(() => relabelSalary(j.salaryRaw, ctx), j.salaryRaw);
     }
     changed = true;

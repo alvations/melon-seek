@@ -7,11 +7,13 @@
   - Base copy of the code in `<scratch>/fs6/base` (git archive 37f54e4); served salaries of every stored posting at the
     base in `<scratch>/fs6/served-before.json` (`tools/served.mjs`, the build's readSnapshot path).
   - Census before (`tools/census.mjs`, `tools/breakdown.mjs`, `<scratch>/fs6/census-before.json`), see §5.
-- **In progress:** the parser change (server/salary.js `byPlace` lines, weak "kr"/"$" read by the line's own country,
-  "[Degree]" header lines), then normalize.js (rows per country tied to the places, `salary.unlisted` for lines of
-  places the posting does not list, labelled structured rows tied to places).
-- **Next step:** red tests in test/fix-salary-6.test.js, then the fix, then the client (rows in another currency) and
-  Juice (a row's own currency and country), CSV, docs, golden and fixtures, build, e2e.
+  - The lead approved the plan (00:3x): rows per country line, kr by line country, main-site rows tied, and
+    `salary.unlisted` shown in the drawer's pay Details, not only the CSV.
+  - Fix committed: 015d801 (parser, normalize, Juice, app, CSV, 18 red tests), 93b8979 (norm-14, golden 0/300 changed,
+    refresh fixtures), 6926984 (bulleted degree lines, e2e file registered).
+- **In progress:** census after, backtest before/after, docs (DATA_SOURCES §7a, CONTRACT), build, e2e.
+- **Next step:** build (`node scripts/build-static.js`), `--grep=fix-salary-6` and the related e2e groups, clean-checkout
+  npm test, then send the SHA to the lead.
 
 ## 1. Brief
 - Prompt: [prompts/fix-salary-6.md](prompts/fix-salary-6.md). S-1 (persona-beta-2-45-54): pay posted for two or more

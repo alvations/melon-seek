@@ -260,6 +260,14 @@ test('S-1 main site: Scale AI\'s unnamed Greenhouse rows are named and tied by t
   assert.equal(payAt(j, at(j, 'St. Louis')).min, 135200);
 });
 
+test('S-1 Amazon\'s stored pay-table rows are left to its own upgrade (DQ-33): never tied by their labels here', () => {
+  const locations = locsOf(['Canton, Mississippi, USA', 'Wink, Texas, USA']);
+  const sal = { min: 62400, max: 112320, mid: 87360, currency: 'USD', interval: 'year', text: 'USA, TX, Wink - 30.00 - 54.00 USD hourly', kind: 'hourly', zones: 2, source: 'structured', originalInterval: 'hour',
+    ranges: [{ min: 27, max: 48, currency: 'USD', interval: 'hour', label: 'USA, MS, Canton' }, { min: 30, max: 54, currency: 'USD', interval: 'hour', label: 'USA, TX, Wink' }] };
+  const [j] = relabelJobs([{ id: 'amazon:10386388', company: 'amazon', title: 'Data Center Technician', locations, descriptionHtml: '<p>x</p>', salary: sal }]);
+  assert.deepEqual(j.salary.ranges.map((r) => r.locations), [undefined, undefined], 'server/sources/upgrade.js#upgradeAmazonJobs ties and annualizes them from the stored table');
+});
+
 /* ------------------------------------------------------------------ the card and the drawer (public/app.js) */
 // public/app.js is a browser module, so the card's pay helpers are cut out of its source and run on their own, as
 // test/salary-audit.test.js does (fnSource). Under a Location filter, placePay is the shared payAt over the places
