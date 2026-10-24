@@ -1025,7 +1025,10 @@ function salWhy(j, F) {
   if (!j._usd) return 'none';
   if (!payHere(j, F)) return 'elsewhere';
   const u = usdHere(j, F);
-  if (F.smin != null && u.max < F.smin && !isMinimum(j)) return 'under';
+  // A minimum is the posting's statement (salary.kind); a place's own row says so itself where rows carry a kind.
+  const rows = F.l.size ? placePay(j, F)?.ranges : null;
+  const minimum = rows?.length && rows.some((r) => r && r.kind) ? rows.every((r) => r && r.kind === 'minimum') : isMinimum(j);
+  if (F.smin != null && u.max < F.smin && !minimum) return 'under';
   if (F.smax != null && u.min > F.smax && !shiftRange(j.salary)?.upTo) return 'over';
   return null;
 }

@@ -271,6 +271,20 @@ test('BN-2 Insights\' tiles and the map\'s pins write the median in the pay\'s o
   assert.equal(us.price, formatMoney(170000));
 });
 
+test('BN-1, BN-2 on fix-salary-6\'s rows per country: each place is counted and its median written at its own row (Toronto CA$ beside a US headline)', () => {
+  const MUC = city('Munich', 'DE'), SFO = city('San Francisco', 'US', 'CA');
+  const row = (min, max, currency, country, ...locs) => ({ min, max, currency, interval: 'year', country, label: locs.map((l) => l.city).join(', '), locations: locs.map((l) => l.name) });
+  const g = (us, ca, de) => job({ locs: [SFO, TOR, MUC], salary: { ...sal(us[0], us[1]), country: 'US', ranges: [row(us[0], us[1], 'USD', 'US', SFO), row(ca[0], ca[1], 'CAD', 'CA', TOR), row(de[0], de[1], 'EUR', 'DE', MUC)] } });
+  const jobs = [g([180000, 250000], [150000, 153000], [150000, 153000]), g([180000, 250000], [60000, 70000], [70000, 80000]), g([200000, 280000], [140000, 160000], [120000, 130000])];
+  const m = machine();
+  m.load(jobs);
+  checkPlaces(m, jobs, { l: ['San Francisco'], smin: 90000 }, 'rows per country, a $90K floor');
+  assert.equal(m.run({ smin: 90000 }).fc.l.get('Toronto'), 2, 'Toronto: its CA$ rows over $90K (CA$150K and CA$140K–160K), not the US headline');
+  const st = m.stats(m.run({ l: ['Toronto'] }).filtered);
+  assert.equal(st.cur, 'CAD');
+  assert.match(shared.medianText(st.hm), /^CA\$/);
+});
+
 /* ------------------------------------------------------------ BN-3 */
 
 test('BN-3 no count is cut out of a localized number with a digits-and-commas pattern ("3.821 3.821 roles" in de-DE)', () => {
