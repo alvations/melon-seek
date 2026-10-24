@@ -18,6 +18,29 @@ import zlib from 'node:zlib';
 import { ROOT, assert, skip } from './harness.js';
 import { unpackJobs } from '../../public/api.js';
 
+// P-2 (fix-data-6): the job page states the posted figures exactly ("$60,200–128,800") where the card rounds them
+// ("$60K–129K"). The two are the same range when the currency matches and each exact figure rounds to the card's.
+function sameRange(card, exact) {
+  const parse = (s) => {
+    s = String(s || '').replace(/\s+/g, ' ').trim();
+    const i = s.search(/\d/);
+    const toks = (s.match(/\d[\d,]*(?:\.\d+)?[KM]?/g) || []).map((t) => {
+      const [, n, u] = t.match(/^([\d,]*(?:\.\d+)?)([KM]?)$/);
+      const v = +n.replace(/,/g, '');
+      return { v: u === 'K' ? v * 1e3 : u === 'M' ? v * 1e6 : v, u };
+    });
+    return { cur: i < 0 ? '' : s.slice(0, i).trim(), toks };
+  };
+  const a = parse(card), b = parse(exact);
+  if (a.cur !== b.cur || !a.toks.length || a.toks.length !== b.toks.length) return false;
+  return a.toks.every((t, k) => {
+    const x = b.toks[k].v;
+    if (t.u === 'K') return Math.round(x / 1e3) * 1e3 === Math.round(t.v);
+    if (t.u === 'M') return (x / 1e6).toFixed(2) === (t.v / 1e6).toFixed(2);
+    return Math.abs(x - t.v) < 0.005;
+  });
+}
+
 const SHOTS = path.join(ROOT, 'docs', 'screenshots', 'qa-mobile-beta-3');
 const IOS = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1';
 const ANDROID = 'Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Mobile Safari/537.36';
@@ -480,7 +503,7 @@ export function registerBetaMobileQa3Tests(suite) {
       await openJob(go, page, j.id);
       const amt = await page.evaluate(() => document.querySelector('#drawer .d-sal-amt')?.innerText.replace(/\s+/g, ' ').trim());
       const cardRange = (pill || '').split(' · ')[0];
-      if (!pill || cardRange !== amt) { bad.push(`${slug} ${j.id} "${j.title}": card "${pill}", job page "${amt}"`); await shot(page, `e2e-M-42-places-${slug}`); }
+      if (!pill || !sameRange(cardRange, amt)) { bad.push(`${slug} ${j.id} "${j.title}": card "${pill}", job page "${amt}"`); await shot(page, `e2e-M-42-places-${slug}`); }
     }
     assert(!bad.length, bad.join('\n  '));
   });

@@ -11,6 +11,29 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { ROOT, assert, skip } from './harness.js';
 
+// P-2 (fix-data-6): the job page states the posted figures exactly ("$60,200–128,800") where the card rounds them
+// ("$60K–129K"). The two are the same range when the currency matches and each exact figure rounds to the card's.
+function sameRange(card, exact) {
+  const parse = (s) => {
+    s = String(s || '').replace(/\s+/g, ' ').trim();
+    const i = s.search(/\d/);
+    const toks = (s.match(/\d[\d,]*(?:\.\d+)?[KM]?/g) || []).map((t) => {
+      const [, n, u] = t.match(/^([\d,]*(?:\.\d+)?)([KM]?)$/);
+      const v = +n.replace(/,/g, '');
+      return { v: u === 'K' ? v * 1e3 : u === 'M' ? v * 1e6 : v, u };
+    });
+    return { cur: i < 0 ? '' : s.slice(0, i).trim(), toks };
+  };
+  const a = parse(card), b = parse(exact);
+  if (a.cur !== b.cur || !a.toks.length || a.toks.length !== b.toks.length) return false;
+  return a.toks.every((t, k) => {
+    const x = b.toks[k].v;
+    if (t.u === 'K') return Math.round(x / 1e3) * 1e3 === Math.round(t.v);
+    if (t.u === 'M') return (x / 1e6).toFixed(2) === (t.v / 1e6).toFixed(2);
+    return Math.abs(x - t.v) < 0.005;
+  });
+}
+
 const VIEWPORTS = {
   d1440: { viewport: { width: 1440, height: 900 } },
   p390: { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 },
@@ -169,7 +192,7 @@ export function registerBetaUxReview2Tests(suite) {
         const cardRange = pill.split(' · ')[0];
         // Either the same span as the card, or a headline that names the place its range is for.
         const names = (j.salary.ranges || []).map((r) => r.label).filter(Boolean);
-        if (head !== cardRange && !names.some((n) => head.includes(n))) bad.push(`${slug} "${j.title}": card "${pill}", drawer headline "${head}" (one place's range, no place named)`);
+        if (!sameRange(cardRange, head) && !names.some((n) => head.includes(n))) bad.push(`${slug} "${j.title}": card "${pill}", drawer headline "${head}" (one place's range, no place named)`);
         await s.page.keyboard.press('Escape');
       }
     }

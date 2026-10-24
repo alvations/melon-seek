@@ -12,6 +12,29 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { ROOT, assert, assertEq, skip } from './harness.js';
 
+// P-2 (fix-data-6): the job page states the posted figures exactly ("$60,200–128,800") where the card rounds them
+// ("$60K–129K"). The two are the same range when the currency matches and each exact figure rounds to the card's.
+function sameRange(card, exact) {
+  const parse = (s) => {
+    s = String(s || '').replace(/\s+/g, ' ').trim();
+    const i = s.search(/\d/);
+    const toks = (s.match(/\d[\d,]*(?:\.\d+)?[KM]?/g) || []).map((t) => {
+      const [, n, u] = t.match(/^([\d,]*(?:\.\d+)?)([KM]?)$/);
+      const v = +n.replace(/,/g, '');
+      return { v: u === 'K' ? v * 1e3 : u === 'M' ? v * 1e6 : v, u };
+    });
+    return { cur: i < 0 ? '' : s.slice(0, i).trim(), toks };
+  };
+  const a = parse(card), b = parse(exact);
+  if (a.cur !== b.cur || !a.toks.length || a.toks.length !== b.toks.length) return false;
+  return a.toks.every((t, k) => {
+    const x = b.toks[k].v;
+    if (t.u === 'K') return Math.round(x / 1e3) * 1e3 === Math.round(t.v);
+    if (t.u === 'M') return (x / 1e6).toFixed(2) === (t.v / 1e6).toFixed(2);
+    return Math.abs(x - t.v) < 0.005;
+  });
+}
+
 const DESKTOP = { width: 1440, height: 900 };
 const BIG_TECH = ['amazon', 'apple', 'google', 'meta', 'microsoft', 'nvidia', 'netflix'];
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -277,7 +300,7 @@ export function registerBetaDesktopQa3Tests(suite) {
     const top = (await page.locator('#drawer .d-sal-top').innerText()).split('Pay by place')[0];
     const named = j.salary.ranges.some((r) => r.label && top.includes(r.label));
     const range = pill.replace(/ · \d+ places$/, '');
-    assert(amt === range || named, `"${j.title}" (${j.id}): the card reads "${pill}", the drawer's headline "${amt}" names no place (${cands.length} Amazon postings with pay per place have a headline that is one place's range)`);
+    assert(sameRange(range, amt) || named, `"${j.title}" (${j.id}): the card reads "${pill}", the drawer's headline "${amt}" names no place (${cands.length} Amazon postings with pay per place have a headline that is one place's range)`);
   });
 
   suite.test('Beta desktop QA 3: [D-43] the chart names a range end in the millions as the card does ("$1.07M", not "$1.1M")', async (ctx) => {
