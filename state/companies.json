@@ -1,26 +1,26 @@
 {
  "amazon": {
   "slug": "amazon",
-  "lastObservedAt": "2026-10-24T11:47:46.098Z",
+  "lastObservedAt": "2026-10-24T16:23:00.645Z",
   "firstObservedAt": "2026-10-11T15:04:28.012Z",
-  "observations": 49,
+  "observations": 50,
   "name": "Amazon",
   "channel": "beta",
   "source": "amazon",
   "board": "amazon",
   "color": "#ff9900",
-  "open": 21739,
-  "ids": 27370,
+  "open": 21566,
+  "ids": 27372,
   "pending": {
-   "opened": 5,
+   "opened": 7,
    "reopened": 8,
    "resumed": 0,
-   "closed": 0,
+   "closed": 175,
    "unseen": 0,
-   "changed": 73,
+   "changed": 2088,
    "payChanged": 0,
-   "sourceChanged": 73,
-   "observations": 1
+   "sourceChanged": 75,
+   "observations": 2
   },
   "lastDailyDate": "2026-10-24",
   "lastDailyAt": "2026-10-24T05:12:19.200Z"
@@ -79,26 +79,26 @@
  },
  "apple": {
   "slug": "apple",
-  "lastObservedAt": "2026-10-24T11:49:16.865Z",
+  "lastObservedAt": "2026-10-24T16:25:50.970Z",
   "firstObservedAt": "2026-10-10T12:19:51.916Z",
-  "observations": 54,
+  "observations": 55,
   "name": "Apple",
   "channel": "beta",
   "source": "apple",
   "board": "apple",
   "color": "#6e6e73",
-  "open": 4962,
-  "ids": 6967,
+  "open": 4963,
+  "ids": 6969,
   "pending": {
-   "opened": 3,
+   "opened": 5,
    "reopened": 0,
-   "resumed": 0,
-   "closed": 0,
+   "resumed": 2,
+   "closed": 1,
    "unseen": 0,
-   "changed": 2,
+   "changed": 39,
    "payChanged": 0,
-   "sourceChanged": 2,
-   "observations": 1
+   "sourceChanged": 3,
+   "observations": 2
   },
   "lastDailyDate": "2026-10-24",
   "lastDailyAt": "2026-10-24T05:17:47.707Z"
@@ -235,9 +235,9 @@
  },
  "nvidia": {
   "slug": "nvidia",
-  "lastObservedAt": "2026-10-24T11:48:20.642Z",
+  "lastObservedAt": "2026-10-24T16:24:21.289Z",
   "firstObservedAt": "2026-10-10T11:01:40.411Z",
-  "observations": 54,
+  "observations": 55,
   "name": "NVIDIA",
   "channel": "beta",
   "source": "eightfold",
@@ -254,7 +254,7 @@
    "changed": 0,
    "payChanged": 0,
    "sourceChanged": 0,
-   "observations": 1
+   "observations": 2
   },
   "lastDailyDate": "2026-10-24",
   "lastDailyAt": "2026-10-24T05:17:26.860Z"
