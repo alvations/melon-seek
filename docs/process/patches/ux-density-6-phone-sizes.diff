@@ -19,7 +19,7 @@
  const android = (name, width, height, dpr, model) => ({ name, width, height, dpr, platform: 'android', ua: ANDROID_UA(model) });
  
  /** Portrait phones, narrowest first. */
-@@ -40,7 +47,56 @@
+@@ -40,7 +47,57 @@
    android('Motorola razr (inner, landscape)', 1005, 412, 2.625, 'motorola razr 50 ultra'),
  ]);
  
@@ -73,25 +73,31 @@
 +  ipad('iPad Pro 13" (M4, landscape)', 1376, 922),
 +]);
 +
-+export const ALL_SIZES = Object.freeze([...PHONES, ...POSTURES, ...VISIBLE, ...TABLETS]);
++/** Whole screens and the iPads: every all-size check. VISIBLE drives the first-screen and density checks and phone-smoke. */
++export const ALL_SIZES = Object.freeze([...PHONES, ...POSTURES, ...TABLETS]);
  
  /** Playwright context options for one entry (isMobile is Chromium-only; WebKit takes the rest). */
  export function contextFor(d, engine = 'chromium') {
 --- a/test/beta-coverage.test.js
 +++ b/test/beta-coverage.test.js
-@@ -92,20 +92,23 @@
+@@ -92,20 +92,24 @@
    assert.deepEqual(m[1].split(',').sort(), BETA, 'the WebKit phone smoke boards');
  });
  
 -test('beta-coverage: phone-sizes.mjs lists 21 distinct sizes, each a touch phone with a viewport, DPR and user agent', async () => {
-+test('beta-coverage: phone-sizes.mjs lists 52 distinct sizes (whole screens, the page under the browser bars, iPads), each a touch screen with a viewport, DPR and user agent', async () => {
-   const { ALL_SIZES, contextFor } = await import(pathToFileURL(path.join(E2E, 'phone-sizes.mjs')).href);
+-  const { ALL_SIZES, contextFor } = await import(pathToFileURL(path.join(E2E, 'phone-sizes.mjs')).href);
 -  assert.ok(ALL_SIZES.length >= 19, `${ALL_SIZES.length} sizes`);
-+  assert.ok(ALL_SIZES.length >= 52, `${ALL_SIZES.length} sizes`);
-   const keys = ALL_SIZES.map((d) => `${d.name} ${d.width}x${d.height}`);
+-  const keys = ALL_SIZES.map((d) => `${d.name} ${d.width}x${d.height}`);
++test('beta-coverage: phone-sizes.mjs lists 31 distinct whole screens and iPads, and 21 pages under the browser bars, each a touch screen with a viewport, DPR and user agent', async () => {
++  const { ALL_SIZES, VISIBLE, contextFor } = await import(pathToFileURL(path.join(E2E, 'phone-sizes.mjs')).href);
++  assert.ok(ALL_SIZES.length >= 31, `${ALL_SIZES.length} sizes`);
++  assert.ok(VISIBLE.length >= 21, `${VISIBLE.length} visible sizes`);
++  const keys = [...ALL_SIZES, ...VISIBLE].map((d) => `${d.name} ${d.width}x${d.height}`);
    assert.equal(new Set(keys).size, keys.length, 'sizes are distinct');
-   assert.equal(new Set(ALL_SIZES.map((d) => d.name)).size, ALL_SIZES.length, 'names are distinct (tests are named by them)');
-   for (const d of ALL_SIZES) {
+-  assert.equal(new Set(ALL_SIZES.map((d) => d.name)).size, ALL_SIZES.length, 'names are distinct (tests are named by them)');
+-  for (const d of ALL_SIZES) {
++  assert.equal(new Set([...ALL_SIZES, ...VISIBLE].map((d) => d.name)).size, ALL_SIZES.length + VISIBLE.length, 'names are distinct (tests are named by them)');
++  for (const d of [...ALL_SIZES, ...VISIBLE]) {
      const o = contextFor(d);
 -    assert.ok(o.viewport.width >= 280 && o.viewport.height >= 300 && o.deviceScaleFactor >= 1 && o.hasTouch && o.isMobile, d.name);
 -    assert.match(o.userAgent, /iPhone|Android/, d.name);
@@ -101,8 +107,8 @@
    assert.ok(ALL_SIZES.some((d) => d.width === 280), 'the folded Fold (280 px)');
    assert.ok(ALL_SIZES.some((d) => d.width === 352 && d.height === 355), 'the Razr cover screen');
    assert.ok(ALL_SIZES.some((d) => d.width > d.height), 'a landscape posture');
-+  assert.ok(ALL_SIZES.some((d) => d.width === 375 && d.height === 625), 'the iPhone 13 mini under Chrome\'s bars (the user\'s, 2026-10-24)');
-+  assert.ok(ALL_SIZES.some((d) => d.width === 440 && d.height === 757), 'the largest iPhone under its bars');
++  assert.ok(VISIBLE.some((d) => d.width === 375 && d.height === 625), 'the iPhone 13 mini under Chrome\'s bars (the user\'s, 2026-10-24)');
++  assert.ok(VISIBLE.some((d) => d.width === 440 && d.height === 757), 'the largest iPhone under its bars');
 +  assert.ok(ALL_SIZES.some((d) => d.platform === 'ipados' && d.width < d.height) && ALL_SIZES.some((d) => d.platform === 'ipados' && d.width > d.height), 'iPads, portrait and landscape');
  });
  

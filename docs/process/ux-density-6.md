@@ -147,14 +147,14 @@ one to `innerHeight`. Either way the e2e tests set the viewport to the sizes abo
 - `VISIBLE` (21 entries): every phone above under its bars, the test sizes of 3.1. iPhones carry Chrome on iOS's
   user agent (`CriOS`), except the mini's Safari size and the Pro Max with Safari's bars collapsed (440x844).
 - `TABLETS` (10 entries): the five iPads, portrait and landscape, with iPadOS Safari's Mac user agent, touch and 2x.
-- `ALL_SIZES` = PHONES + POSTURES + VISIBLE + TABLETS: 52 entries (21 today).
-- test/beta-coverage.test.js: the size test now wants at least 52 sizes, a height of 260 or more (the razr cover
-  screen under its bars is 275), a user agent matching `iPhone|Android|Macintosh`, and names the mini under Chrome's
-  bars (375x625), the largest iPhone (440x757) and iPads in both orientations. It passes on the patched files
-  (`node --test --test-name-pattern=phone-sizes test/beta-coverage.test.js`: 1 pass).
-- **Cost:** every e2e file that loops over ALL_SIZES (phone-matrix, fix-phone-text, fix-phone-controls,
-  beta-coverage and seven more) runs about 2.5 times as many cases. If that is too slow for the gate, keep the new
-  lists out of ALL_SIZES and loop the density tests (3.3) over `[...VISIBLE, ...TABLETS]`; the lead decides.
+- **The lead's decision (2026-10-24):** `ALL_SIZES` = PHONES + POSTURES + TABLETS, 31 entries (21 today), so the
+  all-size loops grow by half rather than 2.5 times. VISIBLE drives the first-screen and density checks (3.3) and
+  phone-smoke. (The first draft, d0ec32e, put VISIBLE in ALL_SIZES too: 52.)
+- test/beta-coverage.test.js: the size test now wants at least 31 sizes in ALL_SIZES and 21 in VISIBLE, names distinct
+  across both, a height of 260 or more (the razr cover screen under its bars is 275), a user agent matching
+  `iPhone|Android|Macintosh`, the mini under Chrome's bars (375x625) and the largest iPhone (440x757) in VISIBLE, and
+  iPads in both orientations. It passes on the patched files (`node --test --test-name-pattern="phone-sizes|phone
+  checks" test/beta-coverage.test.js`: 2 pass).
 
 ### 3.3 The density spec
 
