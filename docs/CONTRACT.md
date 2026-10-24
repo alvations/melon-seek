@@ -145,7 +145,7 @@ freshness: "new"|"active"|"stale"|"evergreen"|null,   // F4 (≤7, 8–59, 60–
 repost: { count, firstSeenAt } | null,                // F4
 salary: { ...existing, spread, zones, kind, source } | null, // F2 (+ vetting)
 salaryRaw?, salaryFlag?: { codes, reason },           // vetting quarantine (salary is then null)
-extras: { equity: boolean, bonus: boolean },          // F2
+extras: { equity: boolean, bonus: boolean, bonusTarget?: "20%" }, // F2; bonusTarget since norm-14 (fix-data-6, K-1)
 juice: { best, byLocation, household } | null,        // livability, attached in public/api.js; household = 'single'|'couple'|'family' (default single; app.js re-attaches for the chosen household). best.taxBasis = 'single'|'joint'|'individual'|'partial' (server/juice.js taxFor)
 ```
 
@@ -1208,3 +1208,54 @@ own ladder in its pay (`seniorityBasis: 'pay'`: Microsoft IC/M, NVIDIA Level n),
 Director+. The ladders are copies of server/keywords.js's (checked rung by rung by test/fix-app-6.test.js). The Seniority filter finds such a
 posting under each of its levels (`senKeys(j)`) and counts it under each; its shown level stays the lower one (VT-8, keywords.js). The drawer's
 level chip reads "Manager · Microsoft M5–M6", and "What the levels mean" says the company's own level comes first.
+
+## fix-data-6 additions (2026-10-24): towns near the hubs, bonus targets, families, levels, pay as posted (fix-data-6 lane)
+
+Findings G-1, T-19 and C-1 (the lead's brief) and, from the persona reviews of wave 2, K-1, P-1, P-2, P-3, R-1, R-2 and R-3. Log:
+[docs/process/fix-data-6.md](process/fix-data-6.md). `NORMALIZER_VERSION` is `norm-14` (shared with fix-salary-6): stored older
+snapshots are re-derived once. Every addition is optional for readers. Nothing is dropped: every posting, pay row and place is
+kept (per-board counts in the log).
+
+**Locations (`server/geo.js`, G-1):** 359 more `?` gazetteer entries, the places of the 2026-10-16 crawl that sat at their state's
+or country's centre within about 80 km (85 km at most) of a city with 200+ big-tech postings or of Washington, DC (coordinates:
+GeoNames cities1000, CC BY 4.0, or the town's usual coordinates; a county at its seat). A `?` entry with no region ("Thane",
+"Sagamihara-shi") is read with its own country named, and only as its own place's first part (never a later token, never to split
+a list). A `?` entry never decides what a two-letter code means in `finalCountry` ("Ontario, CA" stays Ontario, Canada).
+`GAZETTEER_SIZE` is 743 cities. On the crawl 359 results in 2,206 postings change, latitude and longitude only.
+
+**Compensation extras (`server/keywords.js`, K-1):** `compExtrasEvidence(text, { title, zeroIsBonus = false })` removes a stated 0%
+bonus target before matching; `zeroBonusOnly(text, opts)` is true when that was the only bonus wording; `statedBonusTarget(text)`
+gives the one stated bonus-target percentage above zero ("20%", "42.86%"), else null. `normalize.js compExtras` adds
+`extras.bonusTarget`; `relabelJobs` clears a stored `extras.bonus` that `zeroBonusOnly` explains and adds `bonusTarget`. The
+drawer's chip (`app.js payLabels`) reads "+ 20% bonus target", "+ bonus mentioned" only without a figure.
+
+**Levels (`server/keywords.js`, R-2):** `LEAD_ASSOCIATE_RE`: "Lead Associate" and lead before an associate title ("Retail Lead
+Associate", "Lead Fulfillment Associate") is Mid by title, where "associate" ends the role and no "Senior" is named. VT-8 is
+unchanged (Microsoft's own level in the pay sentence wins).
+
+**Families (`public/features/roles.js`, R-1, R-3):** `FAMILY_LABELS` has 29 families: `site-ops` "Warehouse, delivery & store
+operations" (`OPS_ASSOCIATE` by title, before `support`; `DEPT_HINTS` /fulfil?lment/ first, not for a generic engineer title;
+`FAMILY_TITLES['site-ops']` "Transportation Associate"; affinities to supply-chain 0.4, manufacturing 0.3, support 0.2).
+`DC_CONTEXT` adds `dco`, `TECHNICIAN` "(ops|operations|dco|dc) tech". A data-center context beats a loose title word: an
+`ai-training` family (by "subject matter expert") is re-read without those words, else facilities; with the department naming
+the data center, bizops, field-ops, manufacturing and IT asset management are facilities, and electrical, mechanical and controls
+hardware titles are facilities as they were with "data center" in the title.
+
+**Compstimate (`public/features/compstimate.js`, C-1):** new pure export `shownComparables(comps, { low, mid, high }, n = 5)`:
+the comparables `estimateComp` lists (`comparables`, `comparablePay`, `scores`). The most similar first; a tie group larger than
+the room left is shown by the members nearest the estimate's mid, low, high, then halfway between, sorted by pay. `low`, `mid`,
+`high`, `n` and `confidence` are worked out from every comparable as before (the backtest does not move).
+
+**App (`public/app.js`):**
+- `payPlaceText(job, max = 2)` (P-1): pay tied to named places, by per-place rows or `salary.places`, names them ("Tempe", "Seattle
+  and Herndon") under a Location filter; the country only when none of those places is in a country of the places picked. The
+  drawer's line is `fitOneLine`d: "Posted for Tempe, not Atlanta", "Posted for Tempe only", then one place named.
+- P-2: `statedYearly(s)`; `payUnit(job, exact)` and `payHeadline(job, F, exact)`: on the job page a stated yearly figure is written
+  as posted (`postedPair`: "$119,800–234,700", "€46,400", "from €20,100"), the heading `fitOneLine`d with the card's rounded form
+  where it would wrap; Pay by place rows are exact. Cards keep the rounded figures.
+- P-3: `isFullTimeHourly(job)` (posted by the hour, not part-time, shift pay, on-target earnings or an internship's term):
+  the card's pill is the posted rate ("$31.39–54.90/hour", `short` "$31–55/hour" at 340 px and under, `narrowCard`), the tip
+  gives the yearly figure "about $65K–114K a year at 2,080 hours (converted)"; the drawer heading "$31.39–54.90 an hour", "USD ·
+  paid by the hour", and `annualNote` "About $65K–114K a year (2,080 hours)". `salary.min/max` (the 2,080-hour year) are
+  unchanged, so sorting, the pay filter, the chart and the comparisons are unchanged.
+
