@@ -1093,6 +1093,8 @@ else `salary.country`) and scored on that row's midpoint in its currency: Milan 
   figure is that row and the tip says other places are paid in another currency. Pay by place writes each row in its currency.
 - Under a Location filter `pickedRange` adds `rows` (the rows the figure is); the drawer's line under the figure names the picked
   row's currency ("Posted for Toronto · CAD · per year"), and Pay by level lists the picked row's own levels, none when it has none.
+- The drawer's rank and strip (`percentile`, `payPool`) rank a picked row of another country among that country's roles
+  (`rankSubject`): "Pays more than 88% of Google’s roles in Italy" under a Milan filter, never among the headline's country.
 - The pay block's Details add one line per `salary.unlisted` entry: "The posting also gives pay for Spain: €38K–59.7K; this role
   isn’t listed there." (`unlistedNotes`).
 
