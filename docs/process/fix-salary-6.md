@@ -17,8 +17,10 @@
     (no Cohere row tied), and "nothing is dropped" passes on both. With the related groups (fix-pay-at-place, fix-data-3,
     D-48, D-49, UX-37): 95/95.
   - CI-like npm test at da401d7: 1,328 tests, 1,318 pass, 0 fail, 10 skipped.
-- **In progress:** the CI-like npm test at 8a8fee6 (queued in heavy.sh).
-- **Next step:** send the SHA to the lead.
+  - CI-like npm test at 8a8fee6: 1,328 tests, 1,318 pass, 0 fail, 10 skipped; the doc-reading tests at 49e86ee pass.
+  - 49e86ee sent to the lead (02:3x).
+- **In progress:** none.
+- **Next step:** any further finding the lead sends; the lead re-baselines norm-14 once more after fix-data-6.
 
 ## 1. Brief
 - Prompt: [prompts/fix-salary-6.md](prompts/fix-salary-6.md). S-1 (persona-beta-2-45-54): pay posted for two or more
