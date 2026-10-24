@@ -13,6 +13,9 @@
 
 ## Uncommitted and new files
 ```
+ M public/app.js
+ M public/styles.css
+ M test/e2e/fix-ui-6.e2e.js
 ```
 
 ## Left out (not in untracked.tgz)

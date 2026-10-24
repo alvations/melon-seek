@@ -1,0 +1,300 @@
+From 80a676b8468e57c5f35361e89edf07c03e3c9198 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 23 Oct 2026 22:02:44 +0000
+Subject: [PATCH 7/8] fix-app-6: BN-1 a town's own count beside its country- or
+ state-wide postings (list and map pins); BN-7 the chip reads the level from
+ the loaded posting
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+---
+ public/app.js             | 23 +++++++++++++++++------
+ public/features/roles.js  |  9 ++++++---
+ public/styles.css         |  3 +++
+ public/viz/map.js         | 24 ++++++++++++++++++------
+ test/e2e/fix-app-6.e2e.js | 35 ++++++++++++++++++++++++++++++-----
+ test/fix-app-6.test.js    | 21 +++++++++++++++++++++
+ 6 files changed, 95 insertions(+), 20 deletions(-)
+
+diff --git a/public/app.js b/public/app.js
+index 90bf75f..ba8be06 100644
+--- a/public/app.js
++++ b/public/app.js
+@@ -1115,8 +1115,11 @@ function derive() {
+     if (counts('sal') && payHere(j, F)) fc.salMids.push(usdHere(j, F).mid);
+     if (counts('jg')) { const g = gradeOf(shownJuice(j, F)); if (g) bump(fc.jg, g); }
+   }
+-  // I-6: postings that list only a country or region add to the places other roles list (and to a place picked).
+-  for (const [k, n] of covered) if (fc.l.has(k) || (placeJudge && F.l.has(k))) fc.l.set(k, (fc.l.get(k) || 0) + n);
++  // I-6: postings that list only a country or region add to the places other roles list (and to a place picked), so a
++  // place's count is what picking it finds. BN-1 (fix-app-6): `lWide` keeps that part apart, so the list shows a town's
++  // own postings with the country- or state-wide ones beside them ("Palmetto 3 +294"), not one number of 297.
++  fc.lWide = new Map();
++  for (const [k, n] of covered) if (fc.l.has(k) || F.l.has(k)) { fc.l.set(k, (fc.l.get(k) || 0) + n); fc.lWide.set(k, n); }
+   return { filtered, fc };
+ }
+ 
+@@ -2652,8 +2655,10 @@ function makeChecklist(facet, { searchable = 'auto', grouped = false, limit = 8,
+   function sync() {
+     const counts = derived.fc?.[facet] || new Map();
+     const selected = new Set(S[facet]);
+-    let items = [...new Set([...counts.keys(), ...selected])].map((k) => ({ key: k, count: counts.get(k) || 0 }))
+-      .filter((it) => it.count > 0 || selected.has(it.key));
++    // BN-1 (fix-app-6): a place counts its own postings; those listed only for its country or state are beside them.
++    const wideOf = facet === 'l' ? derived.fc?.lWide : null;
++    let items = [...new Set([...counts.keys(), ...selected])].map((k) => { const w = wideOf?.get(k) || 0; return { key: k, count: (counts.get(k) || 0) - w, wide: w }; })
++      .filter((it) => it.count > 0 || it.wide > 0 || selected.has(it.key));
+     if (order) items.sort((a, b) => order.indexOf(a.key) - order.indexOf(b.key));
+     else items.sort((a, b) => b.count - a.count || a.key.localeCompare(b.key));
+     // BN-1 (fix-app-6): by the board's own options too, so the box doesn't vanish while filters narrow the list.
+@@ -2677,7 +2682,10 @@ function makeChecklist(facet, { searchable = 'auto', grouped = false, limit = 8,
+         h('input', { type: 'checkbox', id, value: it.key, checked: selected.has(it.key) }),
+         h('span', { class: 'check-box', 'aria-hidden': 'true' }),
+         colorDim && colorBy() === colorDim && it.key !== 'Remote' && !/^Remote/.test(it.key) ? h('span', { class: 'dot dot--sm', style: `--dot:${vizColor(it.key)}`, 'aria-hidden': 'true' }) : null,
+-        h('span', { class: `check-label${lay.cls}` }, ...lay.parts), h('span', { class: 'check-count' }, it.count));
++        h('span', { class: `check-label${lay.cls}` }, ...lay.parts), it.wide
++          ? h('span', { class: 'check-nums', title: `${plural(it.count, 'role')} listed for ${name}, and ${it.wide.toLocaleString()} listed only for its country or state, which picking ${name} finds too` },
++            h('span', { class: 'check-count' }, it.count), h('span', { class: 'check-wide' }, `+${it.wide.toLocaleString()}`))
++          : h('span', { class: 'check-count' }, it.count));
+     };
+ 
+     const nodes = [];
+@@ -5020,7 +5028,7 @@ function metaParts(job) {
+  * M5–M6"), so a "Director" title filed as Manager or Staff+ says why (VT-8).
+  */
+ function senChip(job, sen = senKey(job)) {
+-  const p = postedLevels(job);
++  const p = postedLevels(job, { description: true });
+   const tip = p ? `${p.text}: the level ${data.company?.name || 'the company'} posts in the pay, which comes before the title’s words${p.levels.length > 1 ? `; it is hired at either, so the Seniority filter finds it under ${p.levels.join(' and ')}` : ''}` : SEN_TIP[sen] || null;
+   return h('span', { class: `sen sen--${sen.toLowerCase().replace(/\W/g, '')}`, title: tip }, p ? `${senLabel(sen)} · ${p.text}` : senLabel(sen));
+ }
+@@ -5382,6 +5390,9 @@ function fillDescription(job, desc, wrap, onSections = () => {}) {
+   Promise.resolve(dataApi.getJobDetail(job)).then((detail) => {
+     const html = detail?.descriptionHtml || '';
+     job.descriptionHtml = html;
++    // BN-7: the posting's text names its own level ("IC5 - The typical base pay range …"): the chip says it now.
++    const chip = desc.isConnected ? desc.closest('#drawer')?.querySelector('.d-meta .sen') : null;
++    if (chip && html) chip.replaceWith(senChip(job));
+     let gotSections = false;
+     // fix3-data BP-14: sections.preferred (the posting's "Preferred qualifications") arrives with the others.
+     if (detail?.sections) for (const k of ['responsibilities', 'fit', 'preferred']) if (!job.sections[k]?.length && detail.sections[k]?.length) { job.sections[k] = detail.sections[k]; gotSections = true; }
+diff --git a/public/features/roles.js b/public/features/roles.js
+index e2ad694..dc252dc 100644
+--- a/public/features/roles.js
++++ b/public/features/roles.js
+@@ -413,12 +413,13 @@ const POSTED_NAME = { microsoft: 'Microsoft', nvidia: 'NVIDIA' };
+ const rungOf = (table, n) => (n >= 1 ? table[Math.min(n, table.length - 1)] || null : null);
+ /**
+  * BN-7: the levels a posting's pay names on the company's own ladder, when its level comes from there
+- * (`seniorityBasis` 'pay': Microsoft "IC4" / "M5", NVIDIA "Level 4"), read from `salary.levels` or the pay sentence.
++ * (`seniorityBasis` 'pay': Microsoft "IC4" / "M5", NVIDIA "Level 4"), read from `salary.levels` or the pay sentence (and, with
++ * `{ description: true }`, the posting's own text once it is loaded).
+  * -> { labels: ['M5', 'M6'], levels: ['Manager', 'Director+'] (ours, distinct, low to high), text: 'Microsoft M5–M6' }
+  * or null. A posting that names two rungs on two of our levels (Microsoft M5–M6: Manager and Director+) is hired at
+  * either, so the Seniority filter finds it under both; the level shown stays the lower one (keywords.js).
+  */
+-export function postedLevels(job) {
++export function postedLevels(job, { description = false } = {}) {
+   const slug = String(job?.company || String(job?.id || '').split(':')[0]).toLowerCase();
+   const ladder = POSTED_LADDERS[slug];
+   if (!ladder || job?.seniorityBasis !== 'pay') return null;
+@@ -431,7 +432,9 @@ export function postedLevels(job) {
+   };
+   for (const l of Array.isArray(s.levels) ? s.levels : []) read(String(l?.label || ''));
+   if (!rungs.length) {
+-    const t = String(s.text || '');
++    // The served lists keep the pay range only; with `description` (the drawer, once the posting's text is loaded) its pay
++    // sentence names the level. The filter never reads it, so it finds a posting the same way before and after.
++    const t = `${s.text || ''} ${description && job.descriptionHtml ? String(job.descriptionHtml).replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ') : ''}`;
+     if (slug === 'nvidia') for (const m of t.matchAll(/\bfor\s+Level\s+(\d{1,2})\b/gi)) add('Level', Number(m[1]));
+     else for (const m of t.matchAll(/\b(IC|M)(\d{1,2})\s+[-–—]\s+the typical base pay range\b/gi)) add(m[1].toUpperCase(), Number(m[2]));
+   }
+diff --git a/public/styles.css b/public/styles.css
+index e20b1a3..226270b 100644
+--- a/public/styles.css
++++ b/public/styles.css
+@@ -388,6 +388,9 @@ input.range-val { width: 100%; min-width: 0; padding: 0; border: 0; background:
+ .check-part { display: inline-block; max-width: 100%; vertical-align: top; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+ .check input:checked ~ .check-label .check-part, .check input:focus-visible ~ .check-label .check-part { white-space: normal; overflow-wrap: anywhere; }
+ .check-count { font-size: 12px; color: var(--ms-faint); font-variant-numeric: tabular-nums; }
++/* BN-1 (fix-app-6): a place's own count, then the postings listed only for its country or state ("3 +294"). */
++.check-nums { display: inline-flex; gap: 3px; flex: none; white-space: nowrap; }
++.check-wide { font-size: 12px; color: var(--ms-faint); font-variant-numeric: tabular-nums; }
+ .check.is-zero .check-label { color: var(--ms-faint); }
+ .more-btn { margin-top: 6px; }
+ 
+diff --git a/public/viz/map.js b/public/viz/map.js
+index c59fb4c..376ad43 100644
+--- a/public/viz/map.js
++++ b/public/viz/map.js
+@@ -78,8 +78,16 @@ export const MIN_PIN_SHARE = 0.25;
+ export function pinCountText(c) {
+   if (!c || c.median == null || c.few) return '';
+   const k = c.based ?? c.salaried; // the postings the median rests on
+-  if (k < c.n * MIN_PIN_SHARE) return `${shortCount(k)} of ${shortCount(c.n)}`;
+-  return c.n > 1 ? shortCount(c.n) : '';
++  if (k < c.n * MIN_PIN_SHARE) return `${shortCount(k)} of ${pinCount(c)}`;
++  return c.n > 1 ? pinCount(c) : '';
++}
++/**
++ * BN-1 (fix-app-6): a pin's postings under a Location filter, its own first: "83+294" when 294 of them are listed only
++ * for its country or state (aggregate `wide`), so a town's own count is not hidden in a country's.
++ */
++export function pinCount(c) {
++  const w = Math.min(c?.wide || 0, c?.n || 0);
++  return w ? `${shortCount(c.n - w)}+${shortCount(w)}` : shortCount(c?.n || 0);
+ }
+ /**
+  * V-45 (fix-viz-5): a place pinned where the gazetteer has no town of its own is approximate: a town it does not know
+@@ -230,7 +238,8 @@ export function aggregate(jobs, { places: filter = null, placeTest = null } = {}
+     for (const { job, l, hasPay, seen, rows } of wide) {
+       const c = up(l.country), r = up(l.region);
+       const hit = cities.filter((p) => p.country === c && (!r || p.region === r));
+-      if (hit.length) for (const p of hit) { at(job, l, hasPay, p.key, seen, rows).wide.add(job.id); }
++      // BN-1 (fix-app-6): `wide` holds the postings here only through their country or state (not also listed here).
++      if (hit.length) for (const p of hit) { const own = p.locNames.has(job.id); const q = at(job, l, hasPay, p.key, seen, rows); if (!own) q.wide.add(job.id); }
+       else if (l.lat != null && l.lng != null && isFinite(l.lat) && isFinite(l.lng)) at(job, l, hasPay, `${l.lat.toFixed(1)},${l.lng.toFixed(1)}`, seen, rows);
+     }
+   }
+@@ -771,7 +780,7 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
+       const ids = new Set();
+       const jobs = [];
+       const paid = new Set();
+-      const also = new Set(), wide = new Set();
++      const also = new Set(), wide = new Set(), ownHere = new Set();
+       // V-39 (fix-pay-at-place): each posting at the pay posted for its places in this pin (payAt).
+       let priceOf = c.members.length === 1 ? c.members[0].priceOf : null;
+       const locsAt = priceOf ? null : new Map();
+@@ -780,9 +789,11 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
+         for (const id of m.paid || []) paid.add(id);
+         for (const id of m.also || []) also.add(id);
+         for (const id of m.wide || []) wide.add(id);
++        for (const j of m.jobs) if (!m.wide?.has(j.id)) ownHere.add(j.id); // BN-1: listed at one of the cluster's places
+         if (locsAt) for (const [id, ls] of m.locsAt || []) { const all = locsAt.get(id); if (all) { for (const l of ls) if (!all.includes(l)) all.push(l); } else locsAt.set(id, ls.slice()); }
+       }
+       if (!priceOf) priceOf = pricer((j) => locsAt.get(j.id));
++      for (const id of ownHere) wide.delete(id);
+       const label = clusterLabel(c.members);
+       const res = {
+         lat: c.lead.lat, lng: c.lead.lng, pt: c.pt, members: c.members, jobs, ids, label, short: shortLabel(c.members), also: also.size, wide: wide.size,
+@@ -887,7 +898,7 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
+       if (count) pin.append(el('span', /\bof\b/.test(count) ? 'ms-pin__count ms-pin__count--of' : 'ms-pin__count', count));
+     } else {
+       pin.classList.add('ms-pin--nosalary');
+-      pin.append(el('span', 'ms-pin__price', jobsText(c.n))); // "1.1K jobs", like the "4.5K" counts
++      pin.append(el('span', 'ms-pin__price', c.wide ? `${pinCount(c)} jobs` : jobsText(c.n))); // "1.1K jobs", like the "4.5K" counts
+     }
+     pin.append(el('span', 'ms-pin__label', c.label));
+     return pin;
+@@ -903,7 +914,8 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
+     const pay = hasPrice(c)
+       ? `, median ${pinPrice(c)}${based < c.n ? ` from ${based.toLocaleString()} with pay for here` : ''}${based < c.n * MIN_PIN_SHARE ? ` (${Math.round((100 * based) / c.n)}% of them)` : ''}`
+       : c.few ? `, ${c.salaried.toLocaleString()} with pay for here, too few for a median` : c.elsewhere ? ', no pay posted for here' : ', no pay listed';
+-    return `${c.label}: ${plural(c.n, 'posting')}${pay}${approx}`;
++    const wide = c.wide ? `, ${c.wide.toLocaleString()} of them listed only for its country or state` : ''; // BN-1
++    return `${c.label}: ${plural(c.n, 'posting')}${wide}${pay}${approx}`;
+   }
+ 
+   function draw() {
+diff --git a/test/e2e/fix-app-6.e2e.js b/test/e2e/fix-app-6.e2e.js
+index 0917c51..3c66653 100644
+--- a/test/e2e/fix-app-6.e2e.js
++++ b/test/e2e/fix-app-6.e2e.js
+@@ -61,7 +61,7 @@ async function open(ctx, { device = null, viewport = null, locale = 'en-US' } =
+ }
+ const ready = (page) => page.waitForFunction(() => {
+   const t = document.querySelector('#resultsTitle');
+-  return t && !/Loading/.test(t.textContent) && /\d/.test(t.textContent) && (document.querySelector('#resultsList .card[data-id]') || document.querySelector('#resultsList .state-card'));
++  return t && !/Loading/.test(t.textContent) && /\d/.test(t.textContent) && document.querySelector('#resultsList .card[data-id], #resultsList .list-empty, #resultsList .state-card');
+ }, null, { timeout: 120000 });
+ /** Load the board (a full page load). */
+ async function board(page, st, hash) {
+@@ -98,9 +98,12 @@ async function locationOptions(page) {
+     if (!(await more.count()) || !(await more.first().isVisible()) || !/Show all/.test(await more.first().innerText())) break;
+     await more.first().click(); await sleep(300);
+   }
+-  return sec.locator('.checklist').first().evaluate((list) => [...list.querySelectorAll('label.check')].map((n) => ({
+-    key: n.querySelector('input').value, label: n.querySelector('.check-label').textContent.trim(), checked: n.querySelector('input').checked,
+-    count: Number(n.querySelector('.check-count').textContent.replace(/\D/g, '')) })));
++  // `count` is what a pick finds: the place's own postings and (BN-1) those listed only for its country or state.
++  return sec.locator('.checklist').first().evaluate((list) => [...list.querySelectorAll('label.check')].map((n) => {
++    const own = Number(n.querySelector('.check-count').textContent.replace(/\D/g, ''));
++    const wide = Number(n.querySelector('.check-wide')?.textContent.replace(/\D/g, '') || 0);
++    return { key: n.querySelector('input').value, label: n.querySelector('.check-label').textContent.trim(), checked: n.querySelector('input').checked, own, wide, count: own + wide };
++  }));
+ }
+ const searchShown = (page) => locSection(page).locator('.fsearch-wrap').first().evaluate((e) => !e.hidden && e.getBoundingClientRect().height > 0);
+ 
+@@ -158,6 +161,28 @@ export function registerFixApp6Tests(suite) {
+     });
+   }
+ 
++  suite.test('fix-app-6: [BN-1] Microsoft: a town lists its own postings, with those listed only for its country or state beside them ("Palmetto 3 +294"); a pick still finds both, and the map\'s pin says the same', async (ctx) => {
++    const { st, page, errors } = await open(ctx);
++    await board(page, st, 'c=microsoft');
++    const opts = await locationOptions(page);
++    const wide = opts.filter((o) => o.wide > 0);
++    if (!wide.length) skip('no Microsoft place gets postings listed only for its country or state in this build');
++    const names = await appJobs(page, st, 'microsoft', `(j) => ({ cities: (j.locations || []).filter((l) => l && l.city && !l.remote).map((l) => l.city) })`);
++    const own = (city) => names.filter((j) => j.cities.includes(city)).length;
++    const pick = wide.find((o) => /^Palmetto\b/.test(o.label)) || wide.sort((a, b) => a.own - b.own)[0];
++    const city = pick.label.split(',')[0];
++    assertEq(pick.own, own(city), `${pick.label}: its own count is the postings that name it`);
++    await go(page, `c=microsoft&l=${encodeURIComponent(pick.key)}`);
++    assertEq(await roleCount(page), pick.own + pick.wide, `${pick.label} ${pick.own} +${pick.wide}: a pick finds both (I-6)`);
++    await go(page, `c=microsoft&l=${encodeURIComponent(pick.key)}&m=map`);
++    await page.waitForSelector('.ms-pin', { timeout: 60000 });
++    await sleep(800);
++    const counts = await page.locator('.ms-pin__count, .ms-pin.ms-pin--nosalary .ms-pin__price').allTextContents();
++    assert(counts.some((t) => /\d\+\d/.test(t)), `the map's pins read ${counts.join(', ')}: a town's own postings are hidden in its country's`);
++    await shot(page, 'bn1-microsoft-wide-map');
++    noErrors(errors);
++  });
++
+   suite.test('fix-app-6: [BN-2] one foreign currency in view: the stats line, Insights\' tile, the map\'s pin and the chart caption give the median in that currency', async (ctx) => {
+     const { st, page, errors } = await open(ctx);
+     const bad = [];
+@@ -314,7 +339,7 @@ export function registerFixApp6Tests(suite) {
+       if (viewport.width > 860) assert(new RegExp(`^${hidden.toLocaleString('en-US')} roles? hidden by the pay filter`).test(note.trim()), `Salary note "${note}", ${hidden} hidden (${before} → ${after})`);
+       // The empty state names the pay filter too.
+       await go(page, 'c=amazon&l=Milan&smin=400000&q=engineer');
+-      const empty = await page.evaluate(() => document.querySelector('#resultsList .state-card')?.textContent.replace(/\s+/g, ' ') || '');
++      const empty = await page.evaluate(() => [...document.querySelectorAll('.state-card')].find((e) => e.getClientRects().length)?.textContent.replace(/\s+/g, ' ') || '');
+       if (empty) assert(/the pay filter/.test(empty), `empty state "${empty}"`);
+       await shot(page, `bn6-amazon-milan-${viewport.width}`);
+       noErrors(errors);
+diff --git a/test/fix-app-6.test.js b/test/fix-app-6.test.js
+index 8c772b8..06d5ff7 100644
+--- a/test/fix-app-6.test.js
++++ b/test/fix-app-6.test.js
+@@ -205,6 +205,27 @@ test('BN-1 the Location list\'s search box depends on the board\'s places, not o
+   assert.match(body, /showSearch = [^;]*boardOptions\(facet\)/, 'makeChecklist: the search box shows by the filtered items only, so it vanished under a pay floor');
+ });
+ 
++test('BN-1 a town counts its own postings; those listed only for its country or state stand beside them ("Palmetto 3 +294"), and its map pin too', () => {
++  const PAL = city('Palmetto', 'US', 'GA', 33.5, -84.7), US = nation('US', 'United States'), GA = { name: 'Georgia, US', city: null, region: 'GA', country: 'US', lat: 33, lng: -83, remote: false };
++  const m = machine();
++  const jobs = [...times(3, () => job({ company: 'microsoft', locs: [PAL] })), ...times(5, () => job({ company: 'microsoft', locs: [US] })), ...times(2, () => job({ company: 'microsoft', locs: [GA] })),
++    job({ company: 'microsoft', locs: [ATL] })];
++  m.load(jobs);
++  const { fc } = m.run({});
++  assert.equal(fc.l.get('Palmetto'), 10, 'a pick of Palmetto finds its 3 and the 7 listed only for the US or Georgia (I-6)');
++  assert.equal(fc.lWide?.get('Palmetto'), 7, 'fc.lWide: the country- and state-wide part, shown apart ("3 +7")');
++  assert.equal(m.run({ l: ['Palmetto'] }).filtered.length, 10);
++  checkPlaces(m, jobs, {}, 'no filter');
++  assert.match(APP.slice(APP.indexOf('function makeChecklist('), APP.indexOf('function makeDeptFilter(')), /check-wide/, 'the Location list shows one number of 10 for 3 Palmetto postings');
++  // The map under the same filter: the pin's own postings first.
++  const agg = mapViz.aggregate(jobs, { places: ['Palmetto'], placeTest: (j, l) => l.city === 'Palmetto' || (!l.city && l.country === 'US') });
++  const pin = agg.places.find((p) => p.city === 'Palmetto');
++  assert.equal(pin.wide.size, 7);
++  assert.equal(typeof mapViz.pinCount, 'function', 'map.js pinCount');
++  assert.equal(mapViz.pinCount({ n: pin.jobs.length, wide: pin.wide.size }), '3+7');
++  assert.equal(mapViz.pinCount({ n: 12 }), '12');
++});
++
+ /* ------------------------------------------------------------ BN-2 */
+ 
+ const usd = (v, c) => toUSD(v, c);
+-- 
+2.43.0
+

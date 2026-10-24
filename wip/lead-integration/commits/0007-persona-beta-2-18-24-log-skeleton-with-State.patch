@@ -1,0 +1,32 @@
+From d2eabff89c6f1021aa15abe7616e80c4c30a4ac3 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 23 Oct 2026 21:08:15 +0000
+Subject: [PATCH 07/18] persona-beta-2-18-24: log skeleton with State
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+(cherry picked from commit f51d29b3029fc78681bb4413cac18fed7d7c1cdc)
+---
+ docs/process/persona-beta-2-18-24.md | 10 ++++++++++
+ 1 file changed, 10 insertions(+)
+ create mode 100644 docs/process/persona-beta-2-18-24.md
+
+diff --git a/docs/process/persona-beta-2-18-24.md b/docs/process/persona-beta-2-18-24.md
+new file mode 100644
+index 0000000..fbbe3f8
+--- /dev/null
++++ b/docs/process/persona-beta-2-18-24.md
+@@ -0,0 +1,10 @@
++# Process log: persona review wave 2, beta site, ages 18–24
++
++## State
++
++- 2026-10-23 21:10 UTC: started. Brief saved (22cf58c). Serving the lead's build `cycle-beta7-dist` (e800c43) on 127.0.0.1:45603, pid file in the scratchpad.
++- Next: cold-arrival probes on desktop and phones, then the five journeys, then the wave-1 re-checks (BF-1 to BF-7, IM-1 to IM-10).
++
++## 1. Brief
++
++- Prompt (verbatim): [prompts/persona-beta-2-18-24.md](prompts/persona-beta-2-18-24.md).
+-- 
+2.43.0
+
