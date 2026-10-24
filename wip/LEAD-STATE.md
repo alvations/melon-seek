@@ -46,7 +46,7 @@ whenever a lane starts, reports, is integrated or is retired.
 | Lane | Agent id | Worktree | Items | Status |
 |---|---|---|---|---|
 | fix-ui-6 | add67b9453342f4ba | .claude/worktrees/agent-add67b9453342f4ba | B-1..B-12 (layout, phone sizes, map fit); phase 2: implement ux-density-6's density spec and size matrix | running |
-| fix-data-6 | a08f9659d62990db4 | .claude/worktrees/agent-a08f9659d62990db4 | G-1 (norm-14), G-2 bare country codes, G-3 Bayshore store and Monterrey N.L., T-19 P-2/D-11, C-1, K-1, P-1, P-2, P-3, R-1, R-2, R-3 | running |
+| fix-data-6 | a08f9659d62990db4 | .claude/worktrees/agent-a08f9659d62990db4 | G-1 (norm-14), G-2 bare country codes, G-3 Bayshore store and Monterrey N.L., T-19 P-2/D-11, C-1, K-1, P-1, P-2, P-3, R-1, R-2, R-3 | done (7fbb17e on f13ebd6; pick after the gate) |
 | fix-app-6 | af65001c61c5e8b4f | .claude/worktrees/agent-af65001c61c5e8b4f | BN-1..BN-8 | done (42b2a59, integrated f13ebd6) |
 | fix-salary-6 | a29d354058b1f01b7 | .claude/worktrees/agent-a29d354058b1f01b7 | S-1 multi-country pay (done 49e86ee, integrated); follow-up now: attachJuice reason regression, on 942db8a | done (b0795a2, integrated 94d65d0) |
 | fix-juice-6 | aab76ab3a12b3f957 | .claude/worktrees/agent-aab76ab3a12b3f957 | J-1..J-5 | done (c3fc219, picked into wt-int 942db8a) |
@@ -129,7 +129,9 @@ persona-beta-2-18-24, -25-34, -35-44, -45-54, -55-plus (logs on the branch, 5502
 - 08:1x qa-ci-6 done (1dde1eb; 9 commits on f13ebd6): (a) case fixes from the data (Badge swap biggest cluster, fix3-data Head of, D-41, MR-34, D-50 x21, BP-10+BN-5, UX-59, touch-tip tallest bars, V-43 any currency); (c) harness MELON_OFFLINE=1, e2e.yml pins Playwright 1.56.1 (Chromium 141); step 4 per-shard verdict, summary fails on stopped runs and over --max-skips. npm test 1,359/0 fail; 10-16 data 371/374 0 fail; newest 3 red awaiting fix-data-6 (fix-pay-data, D-32, BP-2/P-4). Picked clean -> 505a4df. Gate started 08:16 on 505a4df, SHARDS=2.
 - 08:4x fix-data-6 ready on f13ebd6: 217ff5c (20 commits; G-1..G-3, K-1, P-1..P-4, R-1..R-3, T-19, C-1; norm-14 golden 2/300 on top of fix-salary-6; P-4 payLocations follows rows (+112 postings gain places: Cohere 47, Google 34, MS 31; none lose), headlinePayLocations keeps the old rule for payCountry and compstimate; J-4 test race fixed; npm test 1,381/0 fail; related 315/316 then J-4 fixed; nothing dropped vs e77cd41). Pick held until the running gate finishes. Asked G-4: 'Bogota, D.C.' -> Bogotá, Colombia (15 Amazon). Pill wrap -> fix-ui-6 density.
 - 09:0x gate on 505a4df, mid-run: 516 pass, 2 fail: (1) Beta UX review [UX-17] p390 google edge chip '‹1' touches the with/without-pay line (-1 px) -> fix-ui-6 density; (2) Beta coverage [amazon] pay floor $160K: 8,461 shown vs 8,176 with top >= floor = 285 = Amazon's minimums -> the test predates BN-6 (minimums kept under a floor); update the test's reference to BN-6's rule.
+- 09:3x fix-data-6 G-4 7fbb17e (one commit on 217ff5c): 'Bogota, D.C.' -> Bogotá, Colombia, 15 Amazon postings (geodiff: 1 result, 15 postings, nothing else); they lose a wrong US-pay estimate; npm test 1,382/0 fail. fix-data-6 complete: pick f13ebd6..7fbb17e after the gate.
+- fix-data-6 final: G-1 359 towns at their place (2,206 postings, lat/lon only; Amazon centre places 8,263 -> 6,001); G-2 AL -> Albania; G-3 Monterrey N.L. Mexico, Bayshore -> Ottawa; G-4 Bogotá; K-1 0% targets not a bonus (Google 2,512 -> 2,462 mentions), 2,455 stated targets shown; P-1 532 cards name the pay places; P-2 16,414 headings exact; P-3 2,442 hourly cards lead with the posted rate; P-4 112 postings gain places; R-1/R-3 1,839 change family, Amazon no-family 2,332 -> 881, new family 'Warehouse, delivery & store operations' 1,768; R-2 126 Lead Associates Senior -> Mid; C-1 comparables spread (Entry, II, Senior, Principal x2); T-19 skips run. Nothing dropped vs e77cd41.
+- Follow-ups (backlog): 'Buenos Aires City', 'Ho Chi Minh', 'Cracow' at country centre; Yokohama-shi/Chiba-shi duplicates; Apple 'US-Lead' titles Senior; Japanese Amazon titles no family; Monroe/Hamilton Twp NJ at state centre.
 
-### Agents at 2026-10-24T09:28:48Z
-agent fix-ui-6 add67b9453342f4ba transcript-age=0min head=5e2c252
-agent fix-data-6 a08f9659d62990db4 transcript-age=0min head=7fbb17e
+### Agents at 2026-10-24T09:43:43Z
+agent fix-ui-6 add67b9453342f4ba transcript-age=11min head=5e2c252
