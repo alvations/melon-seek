@@ -89,6 +89,24 @@ ed32bf1 fix-salary-6: norm-14; golden re-baselined (0 of 300 hashes changed) and
  M docs/screenshots/fix-pay-at-place/e2e-card-352x355.png
  M docs/screenshots/fix-pay-at-place/e2e-card-375x812.png
  M docs/screenshots/fix-pay-at-place/e2e-card-720x1114.png
+ M docs/screenshots/fix-salary-6/dublin-card-1280x800.png
+ M docs/screenshots/fix-salary-6/dublin-card-352x355.png
+ M docs/screenshots/fix-salary-6/dublin-card-375x812.png
+ M docs/screenshots/fix-salary-6/dublin-drawer-1280x800.png
+ M docs/screenshots/fix-salary-6/dublin-drawer-352x355.png
+ M docs/screenshots/fix-salary-6/dublin-drawer-375x812.png
+ M docs/screenshots/fix-salary-6/milan-card-1280x800.png
+ M docs/screenshots/fix-salary-6/milan-card-352x355.png
+ M docs/screenshots/fix-salary-6/milan-card-375x812.png
+ M docs/screenshots/fix-salary-6/milan-drawer-1280x800.png
+ M docs/screenshots/fix-salary-6/milan-drawer-352x355.png
+ M docs/screenshots/fix-salary-6/milan-drawer-375x812.png
+ M docs/screenshots/fix-salary-6/paris-card-1280x800.png
+ M docs/screenshots/fix-salary-6/paris-card-352x355.png
+ M docs/screenshots/fix-salary-6/paris-card-375x812.png
+ M docs/screenshots/fix-salary-6/paris-drawer-1280x800.png
+ M docs/screenshots/fix-salary-6/paris-drawer-352x355.png
+ M docs/screenshots/fix-salary-6/paris-drawer-375x812.png
  M docs/screenshots/qa-mobile-beta-2/e2e-M-28-360x640-with-the-keyboard-up-300-px-.png
  M docs/screenshots/qa-mobile-beta-2/e2e-M-28-iPhone-SE-Safari-375x548.png
  M docs/screenshots/qa-mobile-beta-2/e2e-M-28-landscape-844x390-with-5-saved-searches.png
