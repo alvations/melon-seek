@@ -1,0 +1,39 @@
+From 40b56f73681a82d4acce8f070232434dd6b60174 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 24 Oct 2026 16:06:26 +0000
+Subject: [PATCH 4/4] PLAYBOOK: no lane is a bottleneck: a lane splits a long
+ list into sub-agents it briefs, reviews and merges, within the usage pacing
+ (the user, 2026-10-24)
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+---
+ docs/process/PLAYBOOK.md | 12 ++++++++++++
+ 1 file changed, 12 insertions(+)
+
+diff --git a/docs/process/PLAYBOOK.md b/docs/process/PLAYBOOK.md
+index 40d94dd..51375c4 100644
+--- a/docs/process/PLAYBOOK.md
++++ b/docs/process/PLAYBOOK.md
+@@ -87,6 +87,18 @@ Rules for every stage 1 agent:
+   - the full e2e suite has no new failures;
+   - screenshots taken before and after.
+ 
++### No lane is a bottleneck: lanes split work into sub-agents
++The user, 2026-10-24: "If one agent per role is insufficient have the agent train sub agents to do the jobs so that none is
++a bottleneck, eg the front end engineer or the uiux agent." So:
++- A lane with a long list (a front-end lane with a dozen layout items, a UX or QA lane covering 30 sizes) splits it. It gives
++  each sub-agent one independent slice: a size class, a component, a test group, a board. The brief names the slice, the
++  files the sub-agent may touch, the checks to run and the output to send back. This uses the Agent tool, where the lane has it.
++- The lane stays the one owner of its files. Sub-agents never edit the same function; the lane reviews and merges their commits,
++  runs its related groups once on the merged result, and sends the lead one tested SHA.
++- Sub-agents count against the usage pacing: every running agent and sub-agent counts toward the cap in the lead's state.
++  Splitting buys speed, not savings.
++- A lane's log `## State` lists its sub-agents and what each owns, so a resumed lane continues them rather than redoing them.
++
+ ## Stage 3. Integrate and ship (lead only)
+ 
+ These are the rules learned the hard way on 2026-10-10.
+-- 
+2.43.0
+

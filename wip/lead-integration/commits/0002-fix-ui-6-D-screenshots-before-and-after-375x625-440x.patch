@@ -1,7 +1,7 @@
 From 5f71b4af0e7bb95d7a30384f1322941076885224 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 24 Oct 2026 07:16:01 +0000
-Subject: [PATCH 2/3] fix-ui-6: D screenshots before and after (375x625,
+Subject: [PATCH 2/4] fix-ui-6: D screenshots before and after (375x625,
  440x757, 1114x616, 820x1070, Duo stacked)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

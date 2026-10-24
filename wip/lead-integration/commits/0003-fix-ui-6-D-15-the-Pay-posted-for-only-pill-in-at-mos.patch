@@ -1,7 +1,7 @@
 From 8db98e33a91b7b1f0e8fac01d2bc9f85146dfb91 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 24 Oct 2026 09:28:51 +0000
-Subject: [PATCH 3/3] =?UTF-8?q?fix-ui-6:=20D-15=20the=20"Pay=20posted=20fo?=
+Subject: [PATCH 3/4] =?UTF-8?q?fix-ui-6:=20D-15=20the=20"Pay=20posted=20fo?=
  =?UTF-8?q?r=20=E2=80=A6=20only"=20pill=20in=20at=20most=20two=20lines=20(?=
  =?UTF-8?q?fitPill:=2010.5em,=20then=2015.5em,=20then=20fix-data-6's=20sho?=
  =?UTF-8?q?rter=20forms);=20fix-viz-5=20V-46=20split=20for=20the=20iPads?=
