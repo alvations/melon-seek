@@ -4,17 +4,131 @@
 
 - **Done:** brief saved verbatim (f52d08c); e800c43's site built (no product file differs between e800c43 and the
   branch tip 0c6990e) and served; the user's two screenshots measured (375x625 page, Chrome on iOS); the size matrix
-  drafted (scratch `ux6/sizes.mjs`); the audit script written and checked against the user's screenshot.
-- **In progress:** the before audit (35 sizes x 4 boards x 4 states, scratch `ux6/before/`).
-- **Next:** the density spec table and the phone-sizes.mjs patch, sent to the lead; then the mockups.
+  (section 3.1) and its patch for test/e2e/phone-sizes.mjs (section 3.2); the audit script, checked against the
+  user's screenshot.
+- **In progress:** the before audit (35 sizes x 4 boards x 4 states, scratch `ux6/before/`), run through the shared
+  heavy-job queue.
+- **Next:** the density spec table (section 3.3) with its checks, sent to the lead; then the mockups (section 5).
 
 ## 1. Brief
 
 Prompt: [prompts/ux-density-6.md](prompts/ux-density-6.md) (verbatim).
 
-Goal: "the charts and view is way too noisy on an iPhone mini" (the user, 2026-10-24). Make the amount of
-information scale with the screen, from the iPhone mini to the largest iPhones, the folds and the Surface Duo, and the
-iPads. Density means fewer things on the first screen and more behind one tap, never less data. This lane designs and
-measures; fix-ui-6 implements.
+The user, 2026-10-24: "the charts and view is way too noisy on an iPhone mini". Make the amount of information
+scale with the screen, from the iPhone mini to the largest iPhones, the folds, the Surface Duo and the iPads.
+Density means fewer things on the first screen and more behind one tap, never less data: no posting or posted pay
+row is hidden, and pay is shown as posted. This lane designs and measures; fix-ui-6 implements.
 
 Files owned: this log, the prompt, docs/screenshots/ux-density-6/.
+
+## 2. Inputs and sources
+
+- The user's two screenshots (scratch `ux6/user-iphone-mini-*.png`, 1125x2436, an iPhone 13 mini at 3x). Measured
+  down the left edge with ImageMagick (`convert … -crop 1x2436+8+0 txt:-`): the page starts at device row 326 and
+  ends at row 2202, so the page is **375 x 625.3** CSS px. The browser is **Chrome on iOS**: its location bar
+  ends at 108.7 px (the status bar's 50 plus a 58.7 px location bar) and its bottom toolbar is 78 px (44 plus the
+  34 px home indicator). My emulation at 375x625 reproduces the Apple screenshot row for row
+  (`ux6/trial/shots/iphone-13-mini-chrome-bars-shown-apple-first.png`).
+- docs/process/PLAYBOOK.md (checkpoints, "Known traps": emulated phones have no toolbars; Safari on a 390x844 phone
+  shows about 664, an iPhone SE about 548); docs/QA.md's mobile QA (the Safari heights 390x664, 375x548, 430x740,
+  375x635; no source given there); TEMPLATE.md.
+- docs/strategy/ROADMAP.md §8 (the simplicity budget: no new control in the main view, except through an existing
+  popover or select).
+- The reviews: ux-review-beta-2 (density inventory, UX-35, UX-39, UX-43, UX-57), viz-review-beta-2 (V-39, V-46),
+  fix-density (the one-line rule and `viz/note.js`), fix-phone-text (the guard; one line from 360 px up, two lines
+  allowed below), fix-phone-sizes (the top bar's give-way ladder, the short-screen block at max-height 500, the Duo
+  layouts, decision 9: the Fold open and the Duo on one screen keep the phone layout, as the 768x1024 tablet does).
+- The persona wave-2 logs: 35–44 (#6: "show a role in the first screen"; a filtered chart leaves half the screen
+  blank), 55-plus (#4, 3 of 5: "the phone's first screen shows no job", on Google, the Pixel 8, the mini and the
+  razr cover screen, even after 15 s), 18–24 and 25–34 (the Duo's hinge, the razr cover screen).
+- fix-ui-6's log and its live worktree (`/home/user/melon-seek/.claude/worktrees/agent-add67b9453342f4ba`, read
+  as files; its last checkpoint on the branch is `wip/fix-ui-6/`, head 0e2a32a). This spec builds on its
+  B-12/B-10 (the peek rises to 156 px, 84 on the map, 104 on the razr cover; `fitSheetToChart` raises it further
+  into the room a short chart leaves) and B-11 (the beta tagline says what the site is for).
+- test/e2e/phone-sizes.mjs (21 sizes, all full screens) and its unit test (test/beta-coverage.test.js: at least 19
+  distinct sizes, each `isMobile`, a UA matching `/iPhone|Android/`).
+- Device sizes: Apple's published pixel resolutions divided by the scale factor (3 for iPhones, 2 for iPads), which
+  gives the CSS px every browser reports. Safe-area insets are the Xcode simulators' (status bar areas: SE 20,
+  13 mini 50, 13/14 47, 15/16 59, 16 Pro/17/Pro Max 62; home indicator 34), as tabulated by developer references
+  such as useyourloaf.com. The sandbox cannot reach those pages (proxy refusal), so they are quoted, not re-measured.
+- The browsers' bars: Chrome on iOS is measured (above). Safari's bottom tab bar (iOS 15–18) is 99 px plus the home
+  indicator: that model gives the three Safari heights already in docs/QA.md (390x664, 375x548, 430x740) exactly.
+  The collapsed heights and Chrome on Android are estimates, marked "est.".
+
+## 3. Decisions and rationale
+
+### 3.1 The size matrix
+
+**What the page gets.** On a phone the page itself never scrolls (`body { height: 100dvh }`, the sheet drags,
+the audit measures `scrollHeight == innerHeight` at every phone size). Safari and Chrome collapse their bars only
+when the document scrolls, so **on this site the bars stay shown**: the "bars shown" height is the one people see,
+and it is the one the tests must use. Collapsed heights are listed for completeness (a rotation, a browser that
+hides its bars by itself).
+
+iPhones (portrait, CSS px):
+
+| Phone | Screen | Status / home bar | Safari, bars shown | Safari, collapsed | Chrome iOS, bars shown | Chrome iOS, collapsed | Test size |
+|---|---|---|---|---|---|---|---|
+| iPhone SE (1st gen, iOS 15 at most) | 320x568 | 20 / 0 | 320x449 | ~320x498 est. | 320x445 | ~320x528 est. | **320x445** |
+| iPhone SE (2nd, 3rd gen) | 375x667 | 20 / 0 | 375x548 (docs/QA.md) | ~375x597 est. | 375x544 | ~375x627 est. | **375x544** |
+| iPhone 12/13 mini | 375x812 | 50 / 34 | 375x629 | ~375x712 est. | **375x625 (measured, the user's)** | ~375x742 est. | **375x625**, 375x629 |
+| iPhone 13 / 14 / 16e | 390x844 | 47 / 34 | 390x664 (docs/QA.md, PLAYBOOK) | ~390x747 est. | 390x660 | ~390x777 est. | **390x660** |
+| iPhone 15 / 16 | 393x852 | 59 / 34 | 393x660 | ~393x743 est. | 393x656 | ~393x773 est. | **393x656** |
+| iPhone 16 Pro / 17 / 17 Pro | 402x874 | 62 / 34 | 402x679 | ~402x762 est. | 402x675 | ~402x792 est. | **402x675** |
+| iPhone 15 Pro Max / 16 Plus | 430x932 | 59 / 34 | 430x740 (docs/QA.md) | ~430x823 est. | 430x736 | ~430x853 est. | **430x736** |
+| iPhone 16 / 17 Pro Max | 440x956 | 62 / 34 | 440x761 | ~440x844 est. | 440x757 | ~440x874 est. | **440x757**, 440x844 |
+| iPhone 18 Pro Max | assumed 440x956 | assumed 62 / 34 | as the 17 Pro Max | | | | as the 17 Pro Max |
+
+- Safari, bars shown: screen − status bar − 99 − home bar (iOS 15–18, the bottom tab bar, the default since
+  iOS 15). Collapsed: screen − status bar − ~50 (the minimised address bar), est.
+- Chrome on iOS, bars shown: screen − status bar − 58.7 − 44 − home bar (measured). Collapsed: screen − status
+  bar − ~20 (the slim address strip; the bottom toolbar slides away), est.
+- Chrome's bars are 4 px taller than Safari's, so **Chrome bars shown is the smallest page on every iPhone** and is
+  the test size; the mini also gets Safari's 375x629 (the other browser people use there).
+- iOS 26's Safari "Compact" layout floats its bar over the page; it takes no more height than iOS 18's bottom bar,
+  so iOS 18's numbers are the conservative ones. Not measured: no device here.
+- **The iPhone 18 Pro Max** is assumed the same as the 17 Pro Max (440x956, 62 / 34) until Apple publishes its
+  numbers; when it does, add a line here and to VISIBLE. The iPhone Air (420x912) sits between the 17 and the Pro Max
+  and needs no class of its own.
+
+Android, folds, Razr and the Surface Duo (Chrome on Android: a 56 px toolbar at the top; a 24 px status bar; a 24 px
+gesture bar, or 48 px of buttons on the S8). All estimates: there is no Android device here and no published table.
+
+| Device | Screen (phone-sizes.mjs) | Bars shown | Collapsed | Test size |
+|---|---|---|---|---|
+| Galaxy Fold (folded) | 280x653 | 280x549 est. | 280x605 est. | **280x549** |
+| Galaxy Z Fold 5 (cover) | 344x882 | 344x778 est. | 344x834 est. | **344x778** |
+| Motorola razr (cover screen) | 352x355 | 352x275 est. (status bar and toolbar only) | 352x331 est. | **352x275** |
+| Galaxy S8 / small Android | 360x740 | 360x612 est. (3 buttons) | 360x668 est. | **360x612** |
+| Galaxy Z Flip 5 | 360x880 | 360x776 est. | 360x832 est. | **360x776** |
+| Pixel 8 | 412x915 | 412x811 est. | 412x867 est. | **412x811** |
+| Motorola razr (inner, open) | 412x1005 | 412x901 est. | 412x957 est. | **412x901** |
+| Surface Duo (one screen) | 540x720 | 540x616 est. | 540x672 est. | **540x616** |
+| Galaxy Z Fold 5 (open) | 690x829 | 690x725 est. (taskbar as a gesture bar) | 690x781 est. | **690x725** |
+| Surface Duo (spanned, two screens) | 1114x720 | 1114x616 est. | 1114x672 est. | **1114x616** |
+| Surface Duo (stacked) | 720x1114 | 720x1010 est.: the top screen keeps 460 px under the bars, the hinge is at y 460–494, the bottom screen 516 px | 720x1066 est. | **720x1010** |
+
+iPads (Safari on iPadOS 18; its status bar 24 px, toolbar 50 px and, in the default "Separate" layout, a 36 px tab
+bar; nothing at the bottom. "Compact" tabs: 36 px more). Sizes from Apple's pixel resolutions at 2x. iPadOS Safari
+asks for the desktop site by default, so it sends a Mac user agent and has touch.
+
+| iPad | Screen | Portrait, bars shown | Landscape, bars shown | Layout today |
+|---|---|---|---|---|
+| iPad mini (6th gen, A17 Pro) | 744x1133 | **744x1023** (Compact tabs 744x1059) | **1133x634** (1133x670) | portrait: the phone layout (≤ 860 px); landscape: desktop |
+| iPad (10th gen, A16), iPad Air 11" (M2, M3) | 820x1180 | **820x1070** | **1180x710** | portrait: phone; landscape: desktop |
+| iPad Pro 11" (1st–4th gen; the M4 is 834x1210) | 834x1194 | **834x1084** | **1194x724** | portrait: phone; landscape: desktop |
+| iPad Pro 12.9", iPad Air 13" | 1024x1366 | **1024x1256** | **1366x914** | desktop |
+| iPad Pro 13" (M4) | 1032x1376 | **1032x1266** | **1376x922** | desktop |
+
+**Size classes** (the phone layout is everything ≤ 860 px wide, as today; the class is set by the *visible* height):
+
+| Class | Rule | Members (test sizes) |
+|---|---|---|
+| **Short** | phone layout, visible height ≤ 500 | razr cover 352x275, SE 1st gen 320x445, every phone in landscape (today's `max-height: 500px` blocks) |
+| **Compact** | phone layout, 501–699 | Fold folded 280x549, S8 360x612, SE 375x544, mini 375x625/629, 13/14 390x660, 15/16 393x656, 16 Pro/17 402x675, Duo one screen 540x616 |
+| **Tall** | phone layout, 700–959 | 15 Pro Max 430x736, 17 Pro Max 440x757 (and 440x844), Flip 5 360x776, Fold 5 cover 344x778, Pixel 8 412x811, razr inner 412x901, Fold 5 open 690x725 |
+| **Tablet portrait** | phone layout, ≥ 960 tall | iPad mini 744x1023, iPad / Air 11" 820x1070, iPad Pro 11" 834x1084, Duo stacked 720x1010 (two screens) |
+| **Wide** | over 860 px: the desktop layout, as today | Duo spanned 1114x616, every iPad in landscape, iPad Pro 12.9"/13" portrait, desktops |
+
+Width still decides what it decides today (the top bar's give-way ladder, the narrow chart rows under 520 px). The
+class adds only the vertical budget.
