@@ -117,10 +117,21 @@ const amounts = (r) => { const a = Math.round(Number(r.min)), b = Math.round(Num
 export function salaryRows(s) {
   if (!s) return '';
   const out = [];
-  const lv = Array.isArray(s.levels) ? s.levels.filter((l) => l && l.label && finite(l.min)) : [];
-  if (lv.length > 1) for (const l of lv) out.push(`${rowName(l)}: ${amounts(l)} ${cur(s, l)}`);
+  const levelsOf = (x) => (Array.isArray(x && x.levels) ? x.levels.filter((l) => l && l.label && finite(l.min)) : []);
   const rs = Array.isArray(s.ranges) ? s.ranges.filter((r) => r && finite(r.min)) : [];
-  if (rs.length > 1) for (const r of rs) out.push(`${rowName(r) || 'Unnamed'}: ${amounts(r)} ${cur(s, r)}`);
+  // S-1 (fix-salary-6): a row that carries its own levels (a country's degree lines, a Microsoft range by level) lists
+  // them under its name ("Germany · Bachelor's degree: 68500-68500 EUR"); the salary's levels are then its own row's.
+  const rowLevels = rs.length > 1 && rs.some((r) => levelsOf(r).length > 1);
+  const lv = levelsOf(s);
+  if (lv.length > 1 && !rowLevels) for (const l of lv) out.push(`${rowName(l)}: ${amounts(l)} ${cur(s, l)}`);
+  const line = (r, name) => {
+    const rl = levelsOf(r);
+    if (rl.length > 1) for (const l of rl) out.push(`${name} · ${rowName(l)}: ${amounts(l)} ${cur(s, r)}`);
+    else out.push(`${name}: ${amounts(r)} ${cur(s, r)}`);
+  };
+  if (rs.length > 1) for (const r of rs) line(r, rowName(r) || 'Unnamed');
+  // S-1: pay the posting gives for a place the job doesn't list (salary.unlisted), as posted and marked so.
+  for (const u of Array.isArray(s.unlisted) ? s.unlisted.filter((x) => x && finite(x.min)) : []) line(u, `${rowName(u) || 'Unnamed'} (not a listed place)`);
   return out.join(' | ');
 }
 

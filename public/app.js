@@ -4503,6 +4503,43 @@ function levelMoney(n, currency) {
   const sym = !currency || currency === 'USD' ? '$' : CUR_SYM[currency] ?? `${currency} `;
   return `${n < 0 ? '-' : ''}${sym}${(Math.round(a / 100) / 10).toFixed(1)}K`;
 }
+/**
+ * S-1 (fix-salary-6): the levels the pay block lists. Under a Location filter that picked one posted line, that
+ * line's own levels (Norway's IC6 in kroner, the SF Bay Area / NYC range's IC5 and IC6), never another place's; none
+ * when that line has none. Otherwise the salary's.
+ */
+function pickedLevels(sal, ph) {
+  const rows = ph?.picked?.rows;
+  if (!sal || !Array.isArray(rows) || !rows.length) return sal;
+  const own = rows.length === 1 && Array.isArray(rows[0].levels) && rows[0].levels.length > 1 ? rows[0].levels : null;
+  return { ...sal, levels: own, currency: own ? rowCurrency(rows[0], sal) : sal.currency };
+}
+/**
+ * S-1 (fix-salary-6): one Details line per pay line the posting gives for a place this role isn't listed in
+ * (salary.unlisted): "The posting also gives pay for Spain: €38K–59.7K; this role isn’t listed there." Shown as
+ * posted, in its own currency; no figure, filter or Juice uses it.
+ */
+function unlistedNotes(sal) {
+  const us = Array.isArray(sal?.unlisted) ? sal.unlisted.filter((u) => u && Number.isFinite(Number(u.min))) : [];
+  return us.map((u) => {
+    const cur = rowCurrency(u, sal);
+    const lv = Array.isArray(u.levels) && u.levels.length > 1 ? ` (${u.levels.map((l) => `${String(l.label).trim()} ${levelMoneyRange(l.min, l.max ?? l.min, cur)}`).join(', ')})` : '';
+    return `The posting also gives pay for ${unlistedName(u)}: ${levelMoneyRange(u.min, u.max ?? u.min, cur)}${lv}; this role isn’t listed there.`;
+  });
+}
+/** "the San Francisco Bay Area and the New York City area", "Spain", "the US": an unlisted line's place in a sentence. */
+function unlistedName(u) {
+  const areas = (as) => as.map((a) => (a === 'sf-bay' ? 'the San Francisco Bay Area' : a === 'nyc' ? 'the New York City area' : a)).join(' and ');
+  if (Array.isArray(u.areas) && u.areas.length) return areas(u.areas);
+  if (u.country && Array.isArray(u.outside) && u.outside.length) return `${countryInSentence(u.country)} outside ${areas(u.outside)}`;
+  if (u.country) return countryInSentence(u.country);
+  return String(u.label || 'another place');
+}
+/** "$188K–331.2K": a range whose ends keep the hundreds the posting states (levelMoney). */
+function levelMoneyRange(a, b, cur) {
+  const x = levelMoney(Number(a), cur), y = levelMoney(Number(b), cur);
+  return x === y ? x : `${x}–${y.replace(/^[^\d]+/, '')}`;
+}
 /** "Pay by level: Level 2: $184K–287.5K · Level 3: $224K–356.5K" under the range in the pay block. */
 function payLevelsLine(s, job = null) {
   const lv = payLevels(s);
@@ -4530,16 +4567,18 @@ function tierList(title, rows, note = '') {
 }
 /**
  * UX-22: salary.ranges, when a posting gives its own range for different places (Apple: "$165,800–292,400
- * (Waltham); …"): [{ label, min, max, locations }], yearly, in the salary's currency. Two or more, else null.
+ * (Waltham); …"): [{ label, min, max, locations }], yearly. Two or more, else null. S-1 (fix-salary-6): each row in
+ * its own currency (rowCurrency), since a posting can price each country on its own line ("Canada: $150000 -
+ * $153000 (CAD)", "US: $147000 - $210000 (USD)"); a span is only ever taken over rows in one currency.
  */
 function payRanges(s) {
-  const cur = String(s?.currency || '').toUpperCase();
-  const rs = Array.isArray(s?.ranges) ? s.ranges.filter((r) => r && Number.isFinite(Number(r.min)) && (r.label || (Array.isArray(r.locations) && r.locations.length))
-    && String(r.currency || cur).toUpperCase() === cur) : [];
+  const rs = Array.isArray(s?.ranges) ? s.ranges.filter((r) => r && Number.isFinite(Number(r.min)) && (r.label || (Array.isArray(r.locations) && r.locations.length))) : [];
   return rs.length > 1 ? rs : null;
 }
+/** A salary.ranges row's currency: its own, else the salary's. */
+const rowCurrency = (r, s) => String(r?.currency || s?.currency || 'USD').toUpperCase();
 const rangeLabel = (r) => String((r.label && !/…$/.test(r.label)) || !Array.isArray(r.locations) || !r.locations.length ? r.label || '' : [...new Set(r.locations.map((x) => (/^remote\b/i.test(x) ? 'Remote' : String(x).split(',')[0].trim())))].join(', ')).trim();
-const rangeText = (r, cur) => moneyRange(Number(r.min), Number(r.max ?? r.min), cur);
+const rangeText = (r, cur) => moneyRange(Number(r.min), Number(r.max ?? r.min), r?.currency || cur);
 /**
  * "Pay by place: Waltham $166K–292K · Los Angeles, San Diego $175K–309K" under the range in the pay block (UX-22). QA
  * round 3 (fix-pay-at-place): in the unit the pay was posted in (an internship's "$39.7K/year", "$18.50/hour").
@@ -4548,7 +4587,7 @@ function payPlacesLine(s, job = null) {
   const rs = payRanges(s);
   if (!rs) return null;
   const unit = job ? payUnit(job) : null;
-  const pay = (r) => (unit ? unit.fmt(Number(r.min), Number(r.max ?? r.min)) : rangeText(r, s.currency));
+  const pay = (r) => (unit ? unit.fmt(Number(r.min), Number(r.max ?? r.min), rowCurrency(r, s)) : rangeText(r, s.currency));
   // fix-pay-at-place: one line per range, with no place name cut off (rangeName); the pay block's Details list every place.
   // D-39: ranges posted for the same places (Amazon's two hourly rates for Boardman, Hermiston and Umatilla) share one
   // row that names the places once and gives each posted range, "or" between them.
@@ -4583,7 +4622,7 @@ function pickedRange(job, F = viewSpec) {
   if (!rs) return null;
   const at = placePay(job, F);
   if (!at || at.basis !== 'place') return null;
-  return { range: moneyRange(at.min, at.max, at.currency), label: at.label, n: rs.length, min: at.min, max: at.max, currency: at.currency };
+  return { range: moneyRange(at.min, at.max, at.currency), label: at.label, n: rs.length, min: at.min, max: at.max, currency: at.currency, rows: at.ranges };
 }
 
 /**
@@ -4615,15 +4654,16 @@ function placeCount(rs) {
  * "/year", any other pay as a yearly range. `note` says what the unit is, for tips.
  */
 function payUnit(job) {
-  const s = job.salary, cur = s.currency;
-  if (isPartTimeHourly(job)) return { fmt: (a, b) => `${postedPair(a / 2080, b / 2080, cur)}/hour`, note: 'Part-time, paid by the hour' };
+  const s = job.salary, cur0 = s.currency;
+  // S-1 (fix-salary-6): fmt(lo, hi, currency) writes a row in its own currency (another country's line).
+  if (isPartTimeHourly(job)) return { fmt: (a, b, cur = cur0) => `${postedPair(a / 2080, b / 2080, cur)}/hour`, note: 'Part-time, paid by the hour' };
   const term = postedTerm(s, job);
-  if (!term) return { fmt: (a, b) => moneyRange(a, b, cur), note: '' };
+  if (!term) return { fmt: (a, b, cur = cur0) => moneyRange(a, b, cur), note: '' };
   const prog = programText(job, term);
-  if (term.fixed && term.per === 'term') return { fmt: (a, b) => `${moneyRange(a / term.toTerm, b / term.toTerm, cur)} total`, note: `fixed-term pay for a ${prog}` };
-  if (term.per === 'year') return { fmt: (a, b) => `${moneyRange(a, b, cur)}/year`, note: prog };
+  if (term.fixed && term.per === 'term') return { fmt: (a, b, cur = cur0) => `${moneyRange(a / term.toTerm, b / term.toTerm, cur)} total`, note: `fixed-term pay for a ${prog}` };
+  if (term.per === 'year') return { fmt: (a, b, cur = cur0) => `${moneyRange(a, b, cur)}/year`, note: prog };
   const f = PER_YEAR[term.per] || 1;
-  return { fmt: (a, b) => `${postedPair(a / f, b / f, cur)}/${term.per}`, note: term.fixed ? (term.unstated ? 'fixed-term pay, length not stated' : `fixed-term pay for a ${prog}`) : prog };
+  return { fmt: (a, b, cur = cur0) => `${postedPair(a / f, b / f, cur)}/${term.per}`, note: term.fixed ? (term.unstated ? 'fixed-term pay, length not stated' : `fixed-term pay for a ${prog}`) : prog };
 }
 
 /**
@@ -4639,19 +4679,25 @@ function payHeadline(job, F = viewSpec) {
   const rs = s ? payRanges(s) : null;
   if (!rs) return null;
   const unit = payUnit(job);
-  const byPlace = `Pay by place: ${rs.map((r) => `${rangeLabel(r)} ${unit.fmt(Number(r.min), Number(r.max ?? r.min))}`).join(' · ')}`;
+  const byPlace = `Pay by place: ${rs.map((r) => `${rangeLabel(r)} ${unit.fmt(Number(r.min), Number(r.max ?? r.min), rowCurrency(r, s))}`).join(' · ')}`;
   const what = unit.note ? ` (${unit.note})` : '';
   const picked = pickedRange(job, F);
-  if (picked) { const text = unit.fmt(picked.min, picked.max); return { text, range: text, sub: '', tip: `The range posted for ${picked.label}${what}. ${byPlace}`, picked, rankPlace: picked.label, min: picked.min, max: picked.max, across: false }; }
-  const lo = Math.min(s.min, ...rs.map((r) => Number(r.min))), hi = Math.max(s.max, ...rs.map((r) => Number(r.max ?? r.min)));
+  if (picked) { const text = unit.fmt(picked.min, picked.max, picked.currency); return { text, range: text, sub: '', tip: `The range posted for ${picked.label}${what}. ${byPlace}`, picked, rankPlace: picked.label, min: picked.min, max: picked.max, across: false }; }
+  // S-1 (fix-salary-6): the span covers the rows in the salary's currency only; another country's line in its own
+  // currency is listed in the tip and the drawer's Pay by place, never mixed into the figure.
+  const same = rs.filter((r) => rowCurrency(r, s) === String(s.currency || 'USD').toUpperCase());
+  const lo = Math.min(s.min, ...same.map((r) => Number(r.min))), hi = Math.max(s.max, ...same.map((r) => Number(r.max ?? r.min)));
   const span = unit.fmt(lo, hi);
   const n = placeCount(rs);
   const head = payAt(job);
+  const spanned = same.length > 1;
+  const whose = head && head.basis === 'place' && !head.span ? (head.ranges.length === 1 && rangeName(head.ranges[0])) || head.label : '';
   return {
     text: `${span} · ${n ? `${n} places` : `${rs.length} ranges`}`, range: span, sub: n ? `${n} places` : `${rs.length} ranges`,
-    tip: `${span} runs from the lowest to the highest of ${rs.length} ranges posted for ${n ? `${n} places` : 'its places'}${what}. ${byPlace}`,
+    tip: spanned ? `${span} runs from the lowest to the highest of ${same.length} ranges posted for ${n && same.length === rs.length ? `${n} places` : 'its places'}${what}${same.length < rs.length ? '; other places are paid in another currency' : ''}. ${byPlace}`
+      : `${span} is the range posted for ${whose || 'one place'}${what}; the posting gives other places pay in another currency. ${byPlace}`,
     // The headline row's own name ("Bellevue", "Remote (CA)"), which a Location's name ("Remote (US)") would not say.
-    picked: null, rankPlace: head && head.basis === 'place' && !head.span ? (head.ranges.length === 1 && rangeName(head.ranges[0])) || head.label : '', min: lo, max: hi, across: true,
+    picked: null, rankPlace: head && head.basis === 'place' && !head.span ? (head.ranges.length === 1 && rangeName(head.ranges[0])) || head.label : '', min: lo, max: hi, across: spanned,
   };
 }
 
@@ -4933,7 +4979,8 @@ function drawerContent(job) {
   const ph = sal && !isOte(job) && !isMinimum(job) ? payHeadline(job) : null;
   // Shared decisions 3 and 4: the amount as it was stated. Fixed-term pay: "$3,850 a week · for about 17
   // weeks"; a rate for a programme: "€72,000 a year · 13-week internship"; part-time: "$22.00–28.88 an hour".
-  const cur = sal?.currency || 'USD';
+  // S-1 (fix-salary-6): under a Location filter, the currency of the line posted for the place picked.
+  const cur = ph?.picked?.currency || sal?.currency || 'USD';
   // UX-51 (fix-qa4): shift pay reads as on its card ("$18.05–19.70 an hour", "up to $19.70 an hour").
   const shiftR = sal && !ph ? shiftRange(sal) : null;
   const amountText = !sal ? null : ph ? ph.range : shiftR ? shiftText(job, shiftR, ' an hour') : partHourly ? `${postedPair(sal.min / 2080, sal.max / 2080, sal.currency)} an hour`
@@ -4950,7 +4997,7 @@ function drawerContent(job) {
         h('div', { class: 'muted' }, subText),
         (annualEl = annualNote(sal, job)),
         // QA round 3: "Pay by place" for fixed-term and part-time pay too, in the unit it was posted in.
-        ...(salaryNotes = [term || partHourly ? null : payLevelsLine(sal, job), payPlacesLine(sal, job)])))
+        ...(salaryNotes = [term || partHourly ? null : payLevelsLine(pickedLevels(sal, ph), job), payPlacesLine(sal, job)])))
       : job.salaryFlag ? payUnclearBlock(job)
         : h('div', { class: 'd-sal-none' }, h('strong', null, 'No pay listed'), compstimateBlock(job)),
     sal ? salaryDistribution(job) : null,
@@ -4966,6 +5013,8 @@ function drawerContent(job) {
       ...[...(salaryNotes || [])].filter(Boolean).map((e) => e.dataset.note || ''), // the level names; every place of a long Pay by place row
       sal && pctNote ? `${pctNote}${rankWhose ? ` This role is ranked at ${rankWhose}.` : ''}` : '',
       sal && job._usd ? `The strip shows ${coName}’s ${noun} that show pay, each posted range at its middle${rankWhose ? `; this role's is ${rankWhose}` : ''}.` : '',
+      // S-1 (fix-salary-6): pay the posting gives for places this role isn't listed in, as posted (salary.unlisted).
+      ...unlistedNotes(sal),
       // fix-touch-tips: each label's meaning (its hover title), so a tap or the keyboard can reach it.
       ...(labelsEl ? [...labelsEl.querySelectorAll('.pay-label')].filter((e) => e.title).map((e) => `${e.textContent}: ${e.title.replace(/\.$/, '')}.`) : []),
       h('span', { class: 'd-pay-doc' }, docLink(PAY_DOC, 'How pay is read')),

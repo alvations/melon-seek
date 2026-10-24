@@ -2,7 +2,7 @@
 import { geocodeMany } from './geo.js';
 import { extractSections, extractKeywords, jobSeniority, isSalesTitle } from './keywords.js';
 import * as keywordsModule from './keywords.js';
-import { parseSalary, toJobSalary, currenciesFor, payTerms, mayRelabelPay, payAreas, payAreaOf } from './salary.js';
+import { parseSalary, toJobSalary, currenciesFor, payTerms, mayRelabelPay, payAreas, payAreaOf, nationCode } from './salary.js';
 import { htmlToText, isoOrNull } from './sources/util.js';
 import { vetSalaries, salaryChecks } from './vet.js';
 import { postingRule } from './companies.js';
@@ -148,15 +148,18 @@ export function deriveSalary(raw, locations = []) {
   const hard = salary ? salaryChecks(who, salary).filter((c) => c.code !== 'junior_high' && c.code !== 'senior_low') : [];
   if (hard.length) {
     const fromText = toJobSalary(parsed, { source: 'text' });
-    if (fromText && !salaryChecks(who, fromText).length) return terms({ ...fromText, zones: zonesOf(fromText), structuredRejected: hard.map((c) => c.code) });
+    if (fromText && !salaryChecks(who, fromText).length) return terms(withPlaceRanges({ ...fromText, zones: zonesOf(fromText), structuredRejected: hard.map((c) => c.code) }, parsed, locations));
   }
   // DQ-33 / VT-15: each range keeps the places it was posted for (ranges[].locations, as Apple's).
   // SB-3 (salary audit): every posted range is kept. A cap at 12 dropped the rows after the twelfth,
   // and with them those places' pay (a snapshot crawled before norm-11 can still lack them).
   if (salary && ranges.length > 1) salary.ranges = ranges.map(({ min, max, currency, interval, label, locations }) => ({ min, max, currency, interval, ...(label ? { label } : {}), ...(Array.isArray(locations) && locations.length ? { locations: [...locations] } : {}) }));
+  // S-1 (fix-salary-6): structured rows named for places ("Canada", "USA - All Other States") are tied to them.
+  if (salary && salary.ranges) salary = tieRangePlaces(salary, locations, text);
   if (!salary) {
     salary = toJobSalary(parsed, { source: 'text' });
-    if (salary) salary = withAreaRanges(salary, parsed, locations);
+    // SB-5, S-1: each pay line for a country or pay area is kept, tied to the job's places there.
+    if (salary) salary = withPlaceRanges(salary, parsed, locations);
   }
   if (salary) salary.zones = zonesOf(salary);
   return salary ? terms(salary) : salary;
@@ -196,6 +199,162 @@ export function withAreaRanges(salary, parsed, locations = []) {
       { label: placeWords(inArea), min: city.min, max: city.max, currency: city.currency, interval: 'year', locations: inArea.map(placeKey) },
     ],
   };
+}
+
+/**
+ * S-1 (fix-salary-6, norm-14): a posting that states pay for two or more countries or pay areas (parseSalary's
+ * `byPlace`: Google's "Germany: €150000 - €153000 (EUR)" and "Italy: €124000 - €127000 (EUR)", Microsoft's "across
+ * Ireland" and "across Spain", or its U.S. range and its SF Bay Area / NYC range) keeps every line. The headline
+ * salary stays the line DQ-15 picks for the job's main country (or DQ-13's area range); every line is a row of
+ * salary.ranges with the job's places it applies to (`locations`: the places in its country, or in its pay area),
+ * its `country` and its levels (`levels`, by level or degree), in its own currency, yearly like the salary. So
+ * payAt, Juice, the card, the drawer's Pay by place and the CSV price each place on its own line. A line for a
+ * country or area none of the job's places is in prices no place: it is kept in `salary.unlisted`
+ * ([{ label, min, max, currency, interval: 'year', country?, areas?, levels? }]), which the drawer's Details and the
+ * CSV show, and which no figure, filter or Juice uses. With one priced line there are no rows, as before.
+ * Rows of a country that also has an area line are named for their places, as SB-5's ("Redmond, Boston"); other rows
+ * are named for the country as posted ("Germany", "US").
+ */
+export function withPlaceRanges(salary, parsed, locations = []) {
+  const lines = parsed && Array.isArray(parsed.byPlace) && parsed.byPlace.length > 1 ? parsed.byPlace : null;
+  if (!salary || !lines || (Array.isArray(salary.ranges) && salary.ranges.length)) return withAreaRanges(salary, parsed, locations);
+  const locs = (locations || []).filter((l) => l && placeKey(l));
+  const cc = (l) => String(l.country || '').toUpperCase();
+  const areaLine = new Map(lines.filter((e) => e.areas).map((e) => [e.country, e]));
+  const placesFor = (e) => (e.areas
+    ? locs.filter((l) => cc(l) === e.country && e.areas.includes(payAreaOf(l)))
+    : locs.filter((l) => cc(l) === e.country && !(areaLine.get(e.country)?.areas || []).includes(payAreaOf(l))));
+  const rows = [];
+  const unlisted = [];
+  for (const e of lines) {
+    const a = toJobSalary({ min: e.min, max: e.max, currency: e.currency, interval: e.interval, kind: e.kind, termWeeks: e.termWeeks, termFactor: e.termFactor, intervalCorrected: e.intervalCorrected, statedInterval: e.statedInterval, levels: e.levels, zones: 1 }, {});
+    if (!a) continue;
+    // The headline's own line keeps the headline's figures exactly.
+    const same = e.head && a.currency === salary.currency;
+    const body = { min: same ? salary.min : a.min, max: same ? salary.max : a.max, currency: a.currency, interval: 'year' };
+    const lv = same && salary.levels ? salary.levels : a.levels;
+    const ps = placesFor(e);
+    if (ps.length) {
+      const label = areaLine.has(e.country) ? placeWords(ps) : e.label;
+      rows.push({ label, ...body, ...(e.country ? { country: e.country } : {}), locations: ps.map(placeKey), ...(lv && lv.length > 1 ? { levels: lv } : {}) });
+    } else {
+      // A country's own range beside its area range ("across the U.S." on a San Francisco-only job) is the
+      // country's pay outside those areas (`outside`).
+      const outside = !e.areas && areaLine.has(e.country) ? { outside: [...areaLine.get(e.country).areas] } : {};
+      unlisted.push({ label: e.label, ...body, ...(e.country ? { country: e.country } : {}), ...(e.areas ? { areas: [...e.areas] } : {}), ...outside, ...(lv && lv.length > 1 ? { levels: lv } : {}) });
+    }
+  }
+  const out = { ...salary };
+  if (rows.length > 1) out.ranges = rows;
+  if (unlisted.length) out.unlisted = unlisted;
+  return out;
+}
+
+// S-1 (fix-salary-6): the place words of a structured row's label ("USA - California, New York and Washington",
+// "Canada - Toronto (GTA), Montreal", "Remote - US", "San Francisco, New York City, Seattle or Washington DC").
+const US_STATE = Object.freeze({
+  alabama: 'AL', alaska: 'AK', arizona: 'AZ', arkansas: 'AR', california: 'CA', colorado: 'CO', connecticut: 'CT', delaware: 'DE',
+  florida: 'FL', georgia: 'GA', hawaii: 'HI', idaho: 'ID', illinois: 'IL', indiana: 'IN', iowa: 'IA', kansas: 'KS', kentucky: 'KY',
+  louisiana: 'LA', maine: 'ME', maryland: 'MD', massachusetts: 'MA', michigan: 'MI', minnesota: 'MN', mississippi: 'MS', missouri: 'MO',
+  montana: 'MT', nebraska: 'NE', nevada: 'NV', 'new hampshire': 'NH', 'new jersey': 'NJ', 'new mexico': 'NM', 'new york': 'NY',
+  'north carolina': 'NC', 'north dakota': 'ND', ohio: 'OH', oklahoma: 'OK', oregon: 'OR', pennsylvania: 'PA', 'rhode island': 'RI',
+  'south carolina': 'SC', 'south dakota': 'SD', tennessee: 'TN', texas: 'TX', utah: 'UT', vermont: 'VT', virginia: 'VA',
+  washington: 'WA', 'west virginia': 'WV', wisconsin: 'WI', wyoming: 'WY',
+});
+// State names that are also a city's ("New York", "Washington"): a state only in a list of states.
+const STATE_OR_CITY = new Set(['new york', 'washington']);
+const DC_RE = /^washington,?\s*d\.?\s?c\.?$|^d\.?c\.?$|^district of columbia$/;
+const OTHER_RE = /^(?:all\s+)?other\s+(?:us\s+)?states?$|^(?:anywhere\s+)?elsewhere(?:\s+in\s+the\s+(?:us|u\.s\.|usa|united states))?$|^all\s+other\s+(?:locations|areas)$/;
+const cityWord = (s) => String(s || '').toLowerCase().replace(/\bst\.?\s/g, 'saint ').replace(/\bnew york city\b/, 'new york').replace(/[^a-z ]+/g, ' ').replace(/\s+/g, ' ').trim();
+
+/** A structured row's label read as places: { country, remote, states, cities, dc, other }, or null when it names none. */
+function labelPlaces(label) {
+  let t = String(label || '').replace(/\([^)]*\)/g, ' ').replace(/\s+/g, ' ').trim()
+    .replace(/^for\s+candidates\s+(?:based\s+)?(?:in\s+)?/i, '').replace(/^(?:based\s+)?in\s+/i, '');
+  if (!t) return null;
+  const out = { country: null, remote: false, states: [], cities: [], dc: false, other: false };
+  if (/^elsewhere\s+in\s+the\s+(?:us|u\.s\.|usa|united states)\b/i.test(t)) return { ...out, country: 'US', other: true };
+  const parts = t.split(/\s+[-–—]\s+/);
+  let rest = t;
+  if (parts.length > 1) {
+    const head = parts[0].trim();
+    if (/^remote$/i.test(head)) { out.remote = true; out.country = nationCode(parts.slice(1).join(' ')); return out.country || parts.length === 1 ? out : null; }
+    const c = nationCode(head);
+    if (!c) return null;
+    out.country = c;
+    rest = parts.slice(1).join(' - ');
+  } else if (nationCode(t)) return { ...out, country: nationCode(t) };
+  else if (/^remote$/i.test(t)) return { ...out, remote: true };
+  const toks = rest.split(/\s*(?:,|&|\/|\bor\b|\band\b)\s*/i).map((x) => x.trim().replace(/\s+states?$/i, '').replace(/^the\s+/i, '')).filter(Boolean);
+  if (!toks.length) return out.country ? out : null;
+  const low = toks.map((x) => x.toLowerCase());
+  // "New York" and "Washington" are states in a list of states ("USA - California, New York and Washington",
+  // "California, New York and Washington"), else cities ("San Francisco & New York").
+  const stateList = low.every((x) => US_STATE[x] || DC_RE.test(x) || OTHER_RE.test(x) || x === 'washington state')
+    && (!!out.country || low.some((x) => US_STATE[x] && !STATE_OR_CITY.has(x)));
+  for (const x of low) {
+    if (OTHER_RE.test(x)) out.other = true;
+    else if (DC_RE.test(x)) out.dc = true;
+    else if (x === 'washington state') out.states.push('WA');
+    else if (US_STATE[x] && (!STATE_OR_CITY.has(x) || stateList)) out.states.push(US_STATE[x]);
+    else if (x === 'remote') out.remote = true;
+    else if (/^[a-z][a-z .'-]{1,40}$/.test(x)) out.cities.push(cityWord(x));
+    else return null;
+  }
+  if ((out.states.length || out.dc) && !out.country) out.country = 'US';
+  return out;
+}
+
+/**
+ * S-1 (fix-salary-6): structured pay rows named for places but stored with none (Ashby's "Canada", "USA - All Other
+ * States", "San Francisco, New York, Seattle", "Remote - US"; Greenhouse rows Scale AI names in the text, "the base
+ * salary range for this full-time position in the locations of San Francisco, New York, Seattle is: $180,000 —
+ * $259,000 USD") are tied to the job's places they name (`ranges[].locations`), so payAt and Juice price those
+ * places on their own row. A state list takes the job's places in those states; "All Other States" or "elsewhere in
+ * the US" the country's places no other row names; a country alone its places no more specific row names; a
+ * place that is a whole country ("United States", "Canada") is in every row of its country. A row that names no
+ * place the job lists, or a label that is not a place ("Zone A"), stays as it was. Rows that already have places
+ * (Amazon, Apple, Microsoft) are left alone. Pure; returns the salary unchanged when nothing is tied.
+ */
+export function tieRangePlaces(salary, locations = [], text = '') {
+  const rs = salary && Array.isArray(salary.ranges) ? salary.ranges : null;
+  if (!rs || rs.length < 2 || rs.some((r) => r && Array.isArray(r.locations) && r.locations.length)) return salary;
+  let rows = rs.map((r) => ({ ...r }));
+  // Scale AI: unnamed rows that the text names, by their figures.
+  if (rows.some((r) => !r.label) && text) {
+    const re = /\bin\s+the\s+locations?\s+of\s+([^:\n]{2,160}?)\s+is:?\s*\$?\s?([\d,]{4,})(?:\.\d{2})?\s*[-–—]+\s*\$?\s?([\d,]{4,})/gi;
+    for (const m of String(text).slice(0, 40000).matchAll(re)) {
+      const lo = Number(m[2].replace(/,/g, '')), hi = Number(m[3].replace(/,/g, ''));
+      const r = rows.find((x) => !x.label && Number(x.min) === lo && Number(x.max) === hi);
+      if (r) r.label = m[1].trim();
+    }
+  }
+  const locs = (locations || []).filter((l) => l && placeKey(l));
+  const read = rows.map((r) => (r.label ? labelPlaces(r.label) : null));
+  const cc = (l) => String(l.country || '').toUpperCase();
+  const whole = (l) => !l.remote && !l.city && !l.region; // "United States", "Canada"
+  const named = (p, l) => (p.remote ? !!l.remote && (!p.country || cc(l) === p.country)
+    : false) || (!l.remote && ((p.dc && cc(l) === 'US' && String(l.region || '').toUpperCase() === 'DC')
+      || (p.states.length && cc(l) === 'US' && p.states.includes(String(l.region || '').toUpperCase()))
+      || (p.cities.length && (!p.country || cc(l) === p.country) && p.cities.includes(cityWord(l.city || String(placeKey(l)).split(',')[0])))));
+  const specific = (p) => p && (p.remote || p.dc || p.states.length || p.cities.length);
+  const tied = rows.map(() => []);
+  for (const l of locs) {
+    read.forEach((p, i) => {
+      if (!p) return;
+      if (specific(p) && named(p, l)) tied[i].push(l);
+    });
+    const hit = tied.some((t) => t.includes(l));
+    read.forEach((p, i) => {
+      if (!p || !p.country || cc(l) !== p.country || l.remote) return;
+      // A whole-country place is in every row of its country; another place in its country's general row
+      // ("Canada", "All Other States") when no more specific row names it.
+      if (whole(l) ? !tied[i].includes(l) : (!hit && !specific(p)) || (!hit && p.other)) tied[i].push(l);
+    });
+  }
+  if (!tied.some((t) => t.length)) return rows.some((r, i) => r.label !== rs[i].label) ? { ...salary, ranges: rows } : salary;
+  rows = rows.map((r, i) => (tied[i].length ? { ...r, locations: tied[i].map(placeKey) } : r));
+  return { ...salary, ranges: rows };
 }
 
 /**
@@ -298,6 +457,8 @@ export function relabelJobs(jobs) {
     } else if (j.salary || j.salaryRaw) {
       const ctx = { text, title, employmentType: j.employmentType || '', countries: [...new Set((j.locations || []).map((l) => l && l.country).filter(Boolean))] };
       if (j.salary) next.salary = safe(() => relabelSalary(j.salary, ctx), j.salary);
+      // S-1 (fix-salary-6): stored structured rows named for places are tied to them, as fresh ones are.
+      if (next.salary) next.salary = safe(() => tieRangePlaces(next.salary, next.locations || [], text), next.salary);
       if (j.salaryRaw) next.salaryRaw = safe(() => relabelSalary(j.salaryRaw, ctx), j.salaryRaw);
     }
     changed = true;

@@ -1522,7 +1522,17 @@ export function attachJuice(job, cities, opts = {}) {
   // The pay's own country: the one its pay line names (salary.country, "Ireland: €72000"),
   // else any country that uses its currency.
   const payCountry = typeof s.country === 'string' && /^[A-Z]{2}$/.test(s.country) ? s.country : null;
-  const use = matches.filter((m) => m.city.currency === cur && (!payCountry || m.city.country === payCountry));
+  // DQ-28: a place with its own posted range (salary.ranges[].locations) is scored on that range. S-1 (fix-salary-6):
+  // that range may be another country's line, in its own currency ("Italy: €124000 - €127000" for Milan on a
+  // posting headed by Germany's line; "Canada: $150000 - $153000 (CAD)" beside a US line), so the place is matched
+  // to the row's currency and country, not the headline's.
+  const rowOf = (m) => {
+    const key = m.location.rawName || m.location.name;
+    return Array.isArray(s.ranges) ? s.ranges.find((x) => x && Array.isArray(x.locations) && x.locations.includes(key) && Number.isFinite(Number(x.min)) && Number.isFinite(Number(x.max))) || null : null;
+  };
+  const rowCur = (r) => String((r && r.currency) || cur).toUpperCase();
+  const rowCountry = (r) => (r && typeof r.country === 'string' && /^[A-Z]{2}$/.test(r.country) ? r.country : payCountry);
+  const use = matches.filter((m) => { const r = rowOf(m); return m.city.currency === rowCur(r) && (!rowCountry(r) || m.city.country === rowCountry(r)); });
   if (!use.length) {
     const places = matches.map((m) => m.location.name || m.city.name);
     job.juiceMissing = noJuiceReason('pay-other-country', { currency: cur, country: matches.some((m) => m.city.currency === cur) ? payCountry : null, places });
@@ -1537,11 +1547,10 @@ export function attachJuice(job, cities, opts = {}) {
   // DQ-28: a place with its own posted range (salary.ranges[].locations) is scored on that range's
   // midpoint, not the span's.
   const placeUSD = (m) => {
-    const key = m.location.rawName || m.location.name;
-    const r = Array.isArray(s.ranges) ? s.ranges.find((x) => x && Array.isArray(x.locations) && x.locations.includes(key) && Number.isFinite(Number(x.min)) && Number.isFinite(Number(x.max))) : null;
-    if (!r || String(r.currency || cur).toUpperCase() !== cur) return salaryUSD;
+    const r = rowOf(m);
+    if (!r) return salaryUSD;
     const mid = (Number(r.min) + Number(r.max)) / 2;
-    const v = toUSD(partTime ? (mid / 2080) * hours * 52 : mid, cur, cities);
+    const v = toUSD(partTime ? (mid / 2080) * hours * 52 : mid, rowCur(r), cities);
     return v != null && v > 0 ? v : salaryUSD;
   };
   for (const m of use) {
