@@ -376,6 +376,7 @@ export function registerFixPayAtPlaceTests(suite) {
       if (chip) { seen = id; break; }
     }
     assert(chip, `none of ${Math.min(5, ids.length)} Microsoft postings with several stated ranges and one stated on its pay line (${ids.slice(0, 5).join(', ')}) shows the "Several pay ranges" chip`);
+    ctx.notes.push(`fix-pay-at-place MR-34: checked on ${seen}, one of ${ids.length} such Microsoft postings`);
     assert(!/span of all of them|lowest to the highest/.test(chip.title), `${seen}: chip: "${chip.title}"`);
     assert(/one of them/.test(chip.title), `${seen}: chip: "${chip.title}"`);
   });

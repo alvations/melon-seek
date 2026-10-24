@@ -151,6 +151,8 @@ async function cappedCase(ctx) {
     }
   }
   ctx.data.fixQa4D50 = found;
+  ctx.notes.push(found ? `fix-qa4 D-50: the phone sizes check ${found.id} (${found.site} site; it states up to $${found.max.toLocaleString('en-US')}), of ${cands.length} "Pay unclear" candidates`
+    : `fix-qa4 D-50: none of ${cands.length} "Pay unclear" candidates has its estimate capped at its maximum`);
   return found;
 }
 
