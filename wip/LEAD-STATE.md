@@ -135,5 +135,5 @@ persona-beta-2-18-24, -25-34, -35-44, -45-54, -55-plus (logs on the branch, 5502
 - 10:0x gate 1 on 505a4df done: npm 1,359/0 fail; build ok; e2e 1,193 pass, 3 fail (UX-17 p390 google chip -1 px -> fix-ui-6 standalone fix; Beta coverage predates BN-6 -> 5de0efc, 32/32; J-4 test race -> fixed in fix-data-6's commits). Picked fix-data-6 f13ebd6..7fbb17e (21) clean -> a2b224e. Waiting on fix-ui-6's UX-17 SHA, then gate 2.
 - 10:03 gate 2 started on 5de0efc (SHARDS=2, machine quiet, load 1.7). UX-17 fix from fix-ui-6 will be added with a targeted run + npm test.
 
-### Agents at 2026-10-24T10:13:46Z
-agent fix-ui-6 add67b9453342f4ba transcript-age=2min head=5e2c252
+### Agents at 2026-10-24T10:28:49Z
+agent fix-ui-6 add67b9453342f4ba transcript-age=0min head=5e2c252
