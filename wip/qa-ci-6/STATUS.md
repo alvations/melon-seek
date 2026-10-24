@@ -91,6 +91,11 @@ ed32bf1 fix-salary-6: norm-14; golden re-baselined (0 of 300 hashes changed) and
  M docs/screenshots/dark.png
  M docs/screenshots/drawer-juice.png
  M docs/screenshots/drawer.png
+ M docs/screenshots/fix-pay-at-place/e2e-card-1114x720.png
+ M docs/screenshots/fix-pay-at-place/e2e-card-280x653.png
+ M docs/screenshots/fix-pay-at-place/e2e-card-352x355.png
+ M docs/screenshots/fix-pay-at-place/e2e-card-375x812.png
+ M docs/screenshots/fix-pay-at-place/e2e-card-720x1114.png
  M docs/screenshots/insights.png
  M docs/screenshots/map-juice.png
  M docs/screenshots/map.png
