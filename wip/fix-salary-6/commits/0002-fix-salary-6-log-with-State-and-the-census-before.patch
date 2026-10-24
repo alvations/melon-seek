@@ -1,7 +1,7 @@
 From 20287a1fef09bcd5ddd02b8c19309a746881931e Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 24 Oct 2026 00:30:22 +0000
-Subject: [PATCH 2/2] fix-salary-6: log with State and the census before
+Subject: [PATCH 2/3] fix-salary-6: log with State and the census before
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc

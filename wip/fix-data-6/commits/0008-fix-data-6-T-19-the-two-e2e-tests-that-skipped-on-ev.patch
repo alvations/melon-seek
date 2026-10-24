@@ -1,8 +1,8 @@
 From 5e29ff4759dd9c0c6903a7536240b4722244ec3d Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 24 Oct 2026 00:30:31 +0000
-Subject: [PATCH 8/9] fix-data-6: T-19 the two e2e tests that skipped on every
- run now run
+Subject: [PATCH 08/11] fix-data-6: T-19 the two e2e tests that skipped on
+ every run now run
 
 Fix app [P-2] picks, with the page's own compstimateForJob, the first Anthropic
 role without pay that gets an estimate (it opened only the first of 12, which

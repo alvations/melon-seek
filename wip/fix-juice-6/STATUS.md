@@ -13,6 +13,9 @@ e2a1ab2 fix-juice-6: prompt verbatim
 
 ## Uncommitted and new files
 ```
+?? public/features/juice-drawer.js
+?? test/e2e/fix-juice-6.e2e.js
+?? test/fix-juice-6.test.js
 ```
 
 ## Left out (not in untracked.tgz)

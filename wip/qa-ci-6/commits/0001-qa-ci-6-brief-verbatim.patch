@@ -1,7 +1,7 @@
 From 5e20d9effb23cefd60a3ea3234073b34b71cbc20 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 23 Oct 2026 22:04:41 +0000
-Subject: [PATCH] qa-ci-6: brief verbatim
+Subject: [PATCH 1/2] qa-ci-6: brief verbatim
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc

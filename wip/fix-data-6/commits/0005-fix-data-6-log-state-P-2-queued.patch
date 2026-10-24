@@ -1,7 +1,7 @@
 From d21771633221fa7471fe3703b6406520bde9a336 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 23 Oct 2026 21:39:28 +0000
-Subject: [PATCH 5/9] fix-data-6: log state (P-2 queued)
+Subject: [PATCH 05/11] fix-data-6: log state (P-2 queued)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
