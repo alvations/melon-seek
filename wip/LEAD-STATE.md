@@ -33,11 +33,12 @@ whenever a lane starts, reports, is integrated or is retired.
 ## Lanes (fix wave 6; prompts in $S/prompts6/ and in each lane's docs/process/prompts/)
 | Lane | Agent id | Worktree | Items | Status |
 |---|---|---|---|---|
-| fix-ui-6 | add67b9453342f4ba | .claude/worktrees/agent-add67b9453342f4ba | B-1..B-12 (layout, phone sizes, map fit) | running |
-| fix-data-6 | a08f9659d62990db4 | .claude/worktrees/agent-a08f9659d62990db4 | G-1 (norm-14), T-19 P-2/D-11, C-1, K-1, P-1, P-2, P-3, R-1, R-2, R-3 | running |
+| fix-ui-6 | add67b9453342f4ba | .claude/worktrees/agent-add67b9453342f4ba | B-1..B-12 (layout, phone sizes, map fit); phase 2: implement ux-density-6's density spec and size matrix | running |
+| fix-data-6 | a08f9659d62990db4 | .claude/worktrees/agent-a08f9659d62990db4 | G-1 (norm-14), G-2 bare country codes, G-3 Bayshore store and Monterrey N.L., T-19 P-2/D-11, C-1, K-1, P-1, P-2, P-3, R-1, R-2, R-3 | running |
 | fix-app-6 | af65001c61c5e8b4f | .claude/worktrees/agent-af65001c61c5e8b4f | BN-1..BN-8 | running |
 | fix-salary-6 | a29d354058b1f01b7 | .claude/worktrees/agent-a29d354058b1f01b7 | S-1 multi-country pay (norm-14 shared with fix-data-6; salary.unlisted shown in the drawer) | running |
 | fix-juice-6 | aab76ab3a12b3f957 | .claude/worktrees/agent-aab76ab3a12b3f957 | J-1..J-5 | running |
+| ux-density-6 | a8d30680c4dcc21d7 | .claude/worktrees/agent-a8d30680c4dcc21d7 | the user's 2026-10-24 iPhone mini request: size matrix (visible viewports, Pro Max, iPads, Duo) and a per-size density spec for fix-ui-6; no product code | running |
 | qa-ci-6 | a6d5736b954b39411 | .claude/worktrees/agent-a6d5736b954b39411 | the 12 CI e2e failures and 25 skips (run 40024210372) | running |
 
 Done and retired (do not relaunch): fix-phone-sizes, fix-qa4, fix-mr-3, qa-suite-beta, fix-viz-5 (batch 3, e800c43);
@@ -90,11 +91,14 @@ persona-beta-2-18-24, -25-34, -35-44, -45-54, -55-plus (logs on the branch, 5502
 - 00:3x container restart (~00:23 UTC) after all six agents stopped on the session limit (reset 23:00). Checkpoint 7c96219 saved them; persona logs pushed 5502155 (npm test 1,308/1,298/0 fail on 6097ebf); cron recreated (4dc7b5e5); six agents resumed by message. Persona worktrees 18-24, 45-54, 55-plus (checkpoint 7c96219) and 25-34 (stale lock from the dead pid 133, unlocked) removed after safe-to-delete.
 - fix-salary-6 census (10-16 crawl): Google 35 postings 2+ countries, 63 lines not stored; Microsoft 35 national multi-country (62 lines) + 976 US postings whose other area's range isn't stored; main-site Cohere/OpenAI/Scale rows stored but tied to no place; Nordic weak 'kr' read as the first country's (DKK as SEK). Lead decision: unlisted lines go in salary.unlisted (CSV, not card/payAt/Juice) AND the drawer shows them as posted ('also posted for ...'). WebKit run 12 on e800c43: success.
 - 00:4x resume safety: lead state file $S/lead-state.md published to wip/LEAD-STATE.md by $S/tick.sh at every tick; durable hourly resume task trig_01V9kyxPXVY6unE6Y6eE3D4Q (:32); in-session cron d821b313 runs tick.sh; PLAYBOOK Checkpoints step 7 added.
+- qa-ci-6 b-1 (CI failure 3): bare ISO codes from Eightfold boards filed as US states (microsoft:1970393557021098 AL=Albania -> Alabama; also ME, MD, MT, PA, GA, MA, MN, SC, VA, NE; LA -> Los Angeles) -> fix-data-6 as G-2. Test stays red, no expected-red entry.
+- 00:4x the user (iPhone mini screenshots): 'charts and view way too noisy ... information scales per phone/iPad size from iPhone mini to iPhone 18 Pro Max or Duo'. Launched ux-density-6 (size matrix with visible viewports + iPads + Pro Max; per-size density spec with checks; mockups); fix-ui-6 phase 2 implements it. User's mini: 375x812, page gets ~375x625 with browser bars; first screen shows no job. qa-ci-6 b-2 (Bayshore Shopping Centre store as a place) and Monterrey N.L. -> fix-data-6 G-3.
 
-### Agents at 2026-10-24T00:36:25Z
-agent fix-ui-6 add67b9453342f4ba transcript-age=0min head=0e2a32a
-agent fix-data-6 a08f9659d62990db4 transcript-age=0min head=0f007cc
-agent fix-app-6 af65001c61c5e8b4f transcript-age=0min head=f4c1a72
-agent fix-salary-6 a29d354058b1f01b7 transcript-age=0min head=20287a1
+### Agents at 2026-10-24T00:45:31Z
+agent fix-ui-6 add67b9453342f4ba transcript-age=1min head=0596d1f
+agent fix-data-6 a08f9659d62990db4 transcript-age=0min head=b2a684e
+agent fix-app-6 af65001c61c5e8b4f transcript-age=0min head=ed53ac0
+agent fix-salary-6 a29d354058b1f01b7 transcript-age=0min head=015d801
 agent fix-juice-6 aab76ab3a12b3f957 transcript-age=0min head=72998c6
-agent qa-ci-6 a6d5736b954b39411 transcript-age=0min head=5e20d9e
+agent ux-density-6 a8d30680c4dcc21d7 transcript-age=0min head=f52d08c
+agent qa-ci-6 a6d5736b954b39411 transcript-age=0min head=d04035a
