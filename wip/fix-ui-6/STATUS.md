@@ -2,11 +2,12 @@
 
 - Worktree: `/home/user/melon-seek/.claude/worktrees/agent-add67b9453342f4ba`
 - Base (on claude/stoic-ride-54ddxp): `00bd52cc29ee94513234f39beed686d7cd111d33`
-- Head: `9d188a1af84de466e98a6872c92ea4eae3afad34`
+- Head: `2f245aa3d4db88d9a67da653a267617f98990023`
 - Restore: `bash scripts/cycle/restore-wip.sh fix-ui-6 <new worktree dir>`
 
 ## Commits since the base
 ```
+2f245aa fix-ui-6: fix-qa4's UX-50 source test reads cardMetaItems (B-1)
 9d188a1 WIP fix-ui-6: tests: B-4 thresholds, B-9 seeds by seen ids, the iPhone mini as Safari leaves it (375x625)
 0596d1f WIP fix-ui-6: the map keeps its peek; the Duo's left screen drops the wordmark; CONTRACT; log decisions
 4d3fe31 WIP fix-ui-6: B-9 to B-12 (cover menu and toast, few roles, arrival line, a card on the first screen) and their tests
@@ -17,6 +18,9 @@
 
 ## Uncommitted and new files
 ```
+ M public/app.js
+ M public/styles.css
+ M public/viz/map.js
 ```
 
 ## Left out (not in untracked.tgz)

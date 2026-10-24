@@ -2,11 +2,12 @@
 
 - Worktree: `/home/user/melon-seek/.claude/worktrees/agent-a29d354058b1f01b7`
 - Base (on claude/stoic-ride-54ddxp): `37f54e49e888793a2d0e44ea9836aa043ced79aa`
-- Head: `3931eb40cb3ed44354c7463336fa5b7ef39a4208`
+- Head: `e23dddff9d0204ecd258a19ee59365171ed56c88`
 - Restore: `bash scripts/cycle/restore-wip.sh fix-salary-6 <new worktree dir>`
 
 ## Commits since the base
 ```
+e23dddf fix-salary-6: e2e Spain case reads the card's rounding
 3931eb4 fix-salary-6: log (decisions, census, nothing-dropped proof, backtest)
 da401d7 fix-salary-6: DATA_SOURCES §7a and CONTRACT for S-1; the CSV README names place levels and unlisted lines
 2b92966 fix-salary-6 S-1: Amazon's stored rows are left to upgradeAmazonJobs (no label tie); a guard test

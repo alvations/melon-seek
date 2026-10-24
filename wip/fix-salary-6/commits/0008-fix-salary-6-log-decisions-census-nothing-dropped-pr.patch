@@ -1,7 +1,7 @@
 From 3931eb40cb3ed44354c7463336fa5b7ef39a4208 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 24 Oct 2026 01:07:07 +0000
-Subject: [PATCH 8/8] fix-salary-6: log (decisions, census, nothing-dropped
+Subject: [PATCH 8/9] fix-salary-6: log (decisions, census, nothing-dropped
  proof, backtest)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

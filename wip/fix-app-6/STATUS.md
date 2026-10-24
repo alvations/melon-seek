@@ -2,11 +2,12 @@
 
 - Worktree: `/home/user/melon-seek/.claude/worktrees/agent-af65001c61c5e8b4f`
 - Base (on claude/stoic-ride-54ddxp): `db38a3042a057155ac8f7ef45a65d54552046662`
-- Head: `559e6e59afe1307cd0747efb82820adb95cc10f3`
+- Head: `e856d8d84b92ea2837c15fc704871f2f61bd7f41`
 - Restore: `bash scripts/cycle/restore-wip.sh fix-app-6 <new worktree dir>`
 
 ## Commits since the base
 ```
+e856d8d fix-app-6: two e2e checks read a place's count as its own plus its country- or state-wide postings (BN-1)
 559e6e5 fix-app-6: log State and change log
 41ffc42 fix-app-6: BN-6 the Salary note's line fits one line with a big count; screenshots (shrunk)
 7ee0894 fix-app-6: BN-4 the stats line and the chart caption take short words where a long median would wrap or be cut; BN-8 e2e types in the phone's filter sheet
@@ -27,6 +28,11 @@ d9d050e fix-app-6: log State
 
 ## Uncommitted and new files
 ```
+ M docs/screenshots/fix-pay-at-place/e2e-card-1114x720.png
+ M docs/screenshots/fix-pay-at-place/e2e-card-280x653.png
+ M docs/screenshots/fix-pay-at-place/e2e-card-352x355.png
+ M docs/screenshots/fix-pay-at-place/e2e-card-375x812.png
+ M docs/screenshots/qa-mobile-beta/e2e-M-24-keyboard-location-search.png
 ```
 
 ## Left out (not in untracked.tgz)
