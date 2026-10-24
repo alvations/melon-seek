@@ -1,7 +1,7 @@
 From 98b946fd2cee759f8e3e0eb1e763024de273fbb6 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 24 Oct 2026 01:17:28 +0000
-Subject: [PATCH 21/71] fix-ui-6: fix-qa4's UX-50 source test reads
+Subject: [PATCH 21/72] fix-ui-6: fix-qa4's UX-50 source test reads
  cardMetaItems (B-1)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

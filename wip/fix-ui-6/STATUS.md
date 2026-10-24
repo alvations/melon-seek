@@ -2,11 +2,12 @@
 
 - Worktree: `/home/user/melon-seek/.claude/worktrees/agent-add67b9453342f4ba`
 - Base (on claude/stoic-ride-54ddxp): `a0763eceb553a3da77408fd81acf018174302bbc`
-- Head: `bba9bc1cd6b258771579350a3eb4a65fbc8992a8`
+- Head: `6d82ea420e0ce4820838285fe45240bd9061f179`
 - Restore: `bash scripts/cycle/restore-wip.sh fix-ui-6 <new worktree dir>`
 
 ## Commits since the base
 ```
+6d82ea4 WIP fix-ui-6: phase 2: the rows' medians in their pay's currency (fix-app-6's BN-2 rule: PLN for Warsaw, CA$ for Vancouver); its test; UX-40's row form accepts the currencies
 bba9bc1 WIP fix-ui-6: phase 2: Map view keeps its 84 px peek where a card would leave the map under 300 px (map.js back as B left it); B-4 keeps to its three screens; D-1 follows the map rule
 ae130b7 WIP fix-ui-6: phase 2: the stats line's hidden parts are .sr-only (detectors skip them, a screen reader keeps them); an untouched map refits when its box changes; tests: B-3 skips the docked filters (iPads in landscape), fix-density and UX-57 read the folded chart
 cda8823 WIP fix-ui-6: D tests: the Razr cover under its bars (a three-line title past its room, a chart under the sheet), the shortest search placeholder
@@ -82,14 +83,16 @@ ed32bf1 fix-salary-6: norm-14; golden re-baselined (0 of 300 hashes changed) and
 
 ## Uncommitted and new files
 ```
- M public/viz/chart.js
- M test/e2e/fix-ui-6.e2e.js
- M test/e2e/fix-viz-5.e2e.js
-?? docs/screenshots/fix-ui-6/after-D-12-duo-stacked-720x1010.png
-?? docs/screenshots/fix-ui-6/after-D-rows-1114x616.png
-?? docs/screenshots/fix-ui-6/after-D-rows-375x625.png
-?? docs/screenshots/fix-ui-6/after-D-rows-440x757.png
-?? docs/screenshots/fix-ui-6/after-D-rows-820x1070.png
+ M docs/screenshots/fix-ui-6/after-B-1-cards-level-apple.png
+ M docs/screenshots/fix-ui-6/after-B-1-cards-location-amazon.png
+ M docs/screenshots/fix-ui-6/after-B-2-meta-desktop-1440x900.png
+ M docs/screenshots/fix-ui-6/after-B-2-meta-galaxy-fold-folded-280x653.png
+ M docs/screenshots/fix-ui-6/after-B-2-meta-iphone-13-14-390x844.png
+ M docs/screenshots/fix-ui-6/after-B-5-chart-1005x412-touch.png
+ M docs/screenshots/fix-ui-6/after-B-5-chart-932x430-touch.png
+ M docs/screenshots/fix-ui-6/after-B-6-topbar-861-mouse.png
+ M docs/screenshots/fix-ui-6/after-B-6-topbar-861-touch.png
+ M docs/screenshots/fix-ui-6/after-B-7-map-razr-cover-apple.png
 ?? docs/screenshots/fix-ui-6/before-D-12-duo-stacked-720x1010.png
 ?? docs/screenshots/fix-ui-6/before-D-rows-1114x616.png
 ?? docs/screenshots/fix-ui-6/before-D-rows-375x625.png
@@ -98,11 +101,6 @@ ed32bf1 fix-salary-6: norm-14; golden re-baselined (0 of 300 hashes changed) and
 ```
 
 ## Left out (not in untracked.tgz)
-- docs/screenshots/fix-ui-6/after-D-12-duo-stacked-720x1010.png (screenshot; the lane's tests regenerate it)
-- docs/screenshots/fix-ui-6/after-D-rows-1114x616.png (screenshot; the lane's tests regenerate it)
-- docs/screenshots/fix-ui-6/after-D-rows-375x625.png (screenshot; the lane's tests regenerate it)
-- docs/screenshots/fix-ui-6/after-D-rows-440x757.png (screenshot; the lane's tests regenerate it)
-- docs/screenshots/fix-ui-6/after-D-rows-820x1070.png (screenshot; the lane's tests regenerate it)
 - docs/screenshots/fix-ui-6/before-D-12-duo-stacked-720x1010.png (screenshot; the lane's tests regenerate it)
 - docs/screenshots/fix-ui-6/before-D-rows-1114x616.png (screenshot; the lane's tests regenerate it)
 - docs/screenshots/fix-ui-6/before-D-rows-375x625.png (screenshot; the lane's tests regenerate it)

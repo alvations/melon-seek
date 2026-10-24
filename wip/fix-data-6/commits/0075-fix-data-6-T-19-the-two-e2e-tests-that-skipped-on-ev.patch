@@ -1,7 +1,7 @@
-From d2125a15733aa7fbac26d207b1dd46eee6fe8468 Mon Sep 17 00:00:00 2001
+From dd6f20c03eb949a635c70cdf7beb2087525b00a3 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 24 Oct 2026 00:30:31 +0000
-Subject: [PATCH 45/54] fix-data-6: T-19 the two e2e tests that skipped on
+Subject: [PATCH 75/84] fix-data-6: T-19 the two e2e tests that skipped on
  every run now run
 
 Fix app [P-2] picks, with the page's own compstimateForJob, the first Anthropic
@@ -68,7 +68,7 @@ index fbd4905..983ed4b 100644
  
    suite.test('Desktop QA: [D-12] an unknown sort= in the URL falls back to a visible sort option', async (ctx) => {
 diff --git a/test/e2e/fix-app.e2e.js b/test/e2e/fix-app.e2e.js
-index 397b081..114bcc4 100644
+index e7d4ecc..21c96cd 100644
 --- a/test/e2e/fix-app.e2e.js
 +++ b/test/e2e/fix-app.e2e.js
 @@ -140,14 +140,24 @@ export function registerFixAppTests(suite) {

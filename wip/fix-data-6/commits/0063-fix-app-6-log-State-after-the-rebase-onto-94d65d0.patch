@@ -1,0 +1,41 @@
+From 1a58b74920e5ba14303c6e793e78207627bc12d5 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 24 Oct 2026 05:22:25 +0000
+Subject: [PATCH 63/84] fix-app-6: log State after the rebase onto 94d65d0
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+(cherry picked from commit b8171bd23befbb67da89b6d5b5f43f4ca71ed862)
+---
+ docs/process/fix-app-6.md | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/docs/process/fix-app-6.md b/docs/process/fix-app-6.md
+index 50400a6..2185000 100644
+--- a/docs/process/fix-app-6.md
++++ b/docs/process/fix-app-6.md
+@@ -1,7 +1,7 @@
+ # Process log: fix-app-6 (front-end engineer, fix wave 6)
+ 
+ ## State
+-- 2026-10-24 02:20 UTC: **rebased onto the lead's e77cd41 (fix-salary-6 integrated); rebuilding and re-testing there.** Resumed after the container
++- 2026-10-24 05:30 UTC: **rebased onto the lead's 94d65d0 (fix-salary-6, fix-ui-6 B-1..B-12, fix-juice-6); rebuilding and re-testing.** Resumed after the container
+   restart at about 00:23 UTC (every background process was lost; the worktree and commits were intact). Base: db38a30 (detached; later
+   than e800c43).
+ - Findings (persona reviews, wave 2, on e800c43's build; BN-3 to BN-8 and BN-1's country-wide counts from the lead by message):
+@@ -18,9 +18,9 @@
+   pass, 0 fail, 10 skipped. test/e2e/fix-app-6.e2e.js 45 tests: on the base build 15 fail, 9 pass (the phone tests and the 375 px locale
+   tests are guards: a phone shows the median only), 2 skip (fixed since to fail there); on the rebuilt dist 45 of 45 pass (42 in one run,
+   the 3 failures fixed and re-run: 10/10).
+-- Rebase: 7ea8be8..118fd28 (on db38a30, kept as branch fix-app-6-pre-rebase) -> e77cd41..d928b03; conflicts only in scripts/e2e.js (both registrations kept) and CONTRACT.md (both sections). d928b03: BN-6 reads a row's own kind where fix-salary-6's rows carry one (they don't yet), and a unit test of BN-1/BN-2 on rows per country.
+-- In progress: the build of d928b03 (build4.log) and npm test there (npm5.log), both through heavy.sh. Before the rebase, on db38a30: npm test 0 fail at 33bdc74; e2e fix-app-6 45/45; the related groups 147/149 (UI: location filter's own test read the old count, fixed in 118fd28 and 2/2 since), 1 skipped; the strengthened checks 7/7 red on the base build.
+-- Next: my e2e group, fix-salary-6's and the related groups on the new build, then send the SHA to the lead.
++- Rebases: 7ea8be8..118fd28 on db38a30 (branch fix-app-6-pre-rebase) -> e77cd41..55a53be (branch fix-app-6-pre-rebase2) -> 94d65d0..HEAD; conflicts only in the imports of public/app.js (both kept), scripts/e2e.js (all registrations kept) and CONTRACT.md (all sections). On e77cd41: d928b03's build, e2e (mine, fix-salary-6's and the related groups) 226/227 passed, 0 failed, 1 skipped. 29df67d: V-44's line is short on a short map (fix-ui-6's Razr cover item).
++- In progress: the build at 29df67d (build5.log) and npm test there (npm6.log), both through heavy.sh.
++- Next: my e2e group, fix-ui-6's, fix-juice-6's, fix-salary-6's and the related groups on the new build, then send the SHA to the lead.
+ - Not committed: the data links data/snapshots and data/beta/snapshots, and the node_modules link.
+ 
+ ## 1. Brief
+-- 
+2.43.0
+

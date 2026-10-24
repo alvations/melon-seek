@@ -1,7 +1,7 @@
-From 3a7886b87bccf565c1fe008297a1eeb4695bf83d Mon Sep 17 00:00:00 2001
+From 955bf71e6cda29f772a6b882eb14522f9d66e810 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 24 Oct 2026 01:08:22 +0000
-Subject: [PATCH 50/54] fix-data-6: CONTRACT and DATA_SOURCES for G-2 and G-3;
+Subject: [PATCH 80/84] fix-data-6: CONTRACT and DATA_SOURCES for G-2 and G-3;
  log with the counts, the red and green runs
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
@@ -13,10 +13,10 @@ Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
  3 files changed, 217 insertions(+), 13 deletions(-)
 
 diff --git a/docs/CONTRACT.md b/docs/CONTRACT.md
-index 8c355bf..39b4f2c 100644
+index 626fd4a..fc568f1 100644
 --- a/docs/CONTRACT.md
 +++ b/docs/CONTRACT.md
-@@ -1155,7 +1155,16 @@ or country's centre within about 80 km (85 km at most) of a city with 200+ big-t
+@@ -1221,7 +1221,16 @@ or country's centre within about 80 km (85 km at most) of a city with 200+ big-t
  GeoNames cities1000, CC BY 4.0, or the town's usual coordinates; a county at its seat). A `?` entry with no region ("Thane",
  "Sagamihara-shi") is read with its own country named, and only as its own place's first part (never a later token, never to split
  a list). A `?` entry never decides what a two-letter code means in `finalCountry` ("Ontario, CA" stays Ontario, Canada).

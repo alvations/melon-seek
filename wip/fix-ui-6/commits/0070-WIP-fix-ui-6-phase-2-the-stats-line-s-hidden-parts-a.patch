@@ -1,7 +1,7 @@
 From ae130b7d49002a318ad3f485921c102caa996909 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 24 Oct 2026 05:52:00 +0000
-Subject: [PATCH 70/71] WIP fix-ui-6: phase 2: the stats line's hidden parts
+Subject: [PATCH 70/72] WIP fix-ui-6: phase 2: the stats line's hidden parts
  are .sr-only (detectors skip them, a screen reader keeps them); an untouched
  map refits when its box changes; tests: B-3 skips the docked filters (iPads
  in landscape), fix-density and UX-57 read the folded chart

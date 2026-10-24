@@ -1,7 +1,7 @@
 From 6d1770506f55f6eb3ab0308dfb7600f6c536d47b Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 24 Oct 2026 01:04:34 +0000
-Subject: [PATCH 33/71] WIP fix-juice-6: narrow forms for 280 px, two test
+Subject: [PATCH 33/72] WIP fix-juice-6: narrow forms for 280 px, two test
  fixes, BP-2 accepts any pay place first, before screenshots
 
 The tax rows' shortest names fit 128 px with the largest yearly amounts (measured in the app's

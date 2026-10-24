@@ -1,7 +1,7 @@
 From 1558aaeddc9606ffcf7c6a5b79e553fbc3789a0e Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 24 Oct 2026 01:59:58 +0000
-Subject: [PATCH 59/71] fix-app-6: the own-plus-wide count belongs to UI:
+Subject: [PATCH 59/72] fix-app-6: the own-plus-wide count belongs to UI:
  location filter, not the department test
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

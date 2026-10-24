@@ -1,0 +1,419 @@
+From cd85e03f5f4c9165c176097b295dcc6a8e278f6d Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 23 Oct 2026 21:52:35 +0000
+Subject: [PATCH 42/84] fix-app-6: red unit tests for BN-1 to BN-7 (16 of 18
+ fail on 4ebe24f)
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+(cherry picked from commit 8fcebf6d1f2f72cfe22ef177738dc0014a756e3a)
+---
+ test/fix-app-6.test.js | 396 +++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 396 insertions(+)
+ create mode 100644 test/fix-app-6.test.js
+
+diff --git a/test/fix-app-6.test.js b/test/fix-app-6.test.js
+new file mode 100644
+index 0000000..8c772b8
+--- /dev/null
++++ b/test/fix-app-6.test.js
+@@ -0,0 +1,396 @@
++// fix-app-6 (fix wave 6, 2026-10-23; docs/process/fix-app-6.md): the persona reviews' wave-2 findings in the app's filters,
++// facet counts and headline medians, BN-1 to BN-7. public/app.js is a browser module, so its pure parts are cut out of
++// its source and run here with synthetic postings shaped like the real ones (ids in the comments), as
++// test/fix-pay-at-place.test.js does. The browser checks on the 2026-10-16 crawl are test/e2e/fix-app-6.e2e.js.
++import { test } from 'node:test';
++import assert from 'node:assert/strict';
++import fs from 'node:fs';
++import * as shared from '../public/features/shared.js';
++import * as roles from '../public/features/roles.js';
++import * as insights from '../public/features/insights.js';
++import * as mapViz from '../public/viz/map.js';
++import { toUSD, FX_PER_USD, formatMoney } from '../public/viz/palette.js';
++import { seniorityFromPay } from '../server/keywords.js';
++
++const APP = fs.readFileSync(new URL('../public/app.js', import.meta.url), 'utf8');
++/** The source of `function name(` or `const name = ` in public/app.js (one line, or to its closing brace), or null. */
++function fnSource(name) {
++  const m = new RegExp(`^(?:function ${name}\\(|const ${name} = |let ${name} = )`, 'm').exec(APP);
++  if (!m) return null;
++  const line = APP.slice(m.index, APP.indexOf('\n', m.index));
++  if (!/^function /.test(line) && !/(?:=>|=)\s*\{\s*$/.test(line)) return line;
++  let depth = 0;
++  for (let i = APP.indexOf('{', m.index); i < APP.length; i++) {
++    if (APP[i] === '{') depth++;
++    else if (APP[i] === '}' && --depth === 0) return APP.slice(m.index, APP.indexOf('\n', i) > 0 ? APP.indexOf('\n', i) : i + 1);
++  }
++  return null;
++}
++
++/* ------------------------------------------------------------ the app's filter machine, lifted */
++
++const MACHINE = ['salActive', 'salWhy', 'jgFails', 'AT_PLACE', 'failures', 'derive', 'judgeAtPlace', 'countPlaces', 'coverIndexes', 'coverIndex',
++  'placeIndexes', 'placeIndex', 'placeCover', 'coveredBy', 'coverLoc', 'locMatches', 'filterSpec', 'placePayCache', 'placePay', 'payHere', 'usdHere',
++  'gradeOf', 'shownJuice', 'empKey', 'isMinimum', 'shiftRange', 'senKey', 'senKeys', 'locKey', 'stats', 'quantile', 'isOte', 'isPartTime',
++  'isPartTimeHourly', 'FACET_OFF', 'activeFacets', 'andList', 'dropFacet', 'emptyState', 'plural', 'money', 'CUR_SYM',
++  'held', 'facetSnap', 'dropHeld', 'heldLabels', 'heldLabel', 'heldToast', 'HELD_OF', 'settleKeep', 'clearFilters', 'clearPopoverFacet'];
++const BODY = MACHINE.map(fnSource).filter(Boolean).join('\n');
++function machine() {
++  // eslint-disable-next-line no-new-func
++  return new Function('shared', 'roles', 'palette', `
++    const { payAt, payLocations, notBasePay, headlineMedian, medianText, currencyWords, mainPayCurrency, isTermUnstated } = shared;
++    const { displayLevel, levelLabel, postedLevels } = roles;
++    const { toUSD, formatMoney } = palette;
++    let data = { status: 'ready', jobs: [] }, S = null, area = null, viewSpec = null, pendingKeep = null, derived = { fc: null };
++    const toasts = [];
++    const toast = (t) => toasts.push(t);
++    const commit = () => {}, clearArea = () => {}, set = (patch) => { Object.assign(S, patch); };
++    const $ = () => ({ value: '' });
++    const h = (tag, props, ...kids) => ({ tag, props, kids });
++    const fitOneLine = (el, variants) => ({ variants });
++    const queryMatchers = (q) => (q ? q.split(/\\s+/).filter(Boolean).map((w) => new RegExp(w, 'i')) : []);
++    const deptKey = (j) => j.department || 'No department';
++    const brandKey = (j) => j.brand || 'Google';
++    const famOf = () => null;
++    const senLabel = (k) => levelLabel(k), empLabel = (k) => k;
++    const gradeKey = (j) => (j.juice && j.juice.best ? j.juice.best.grade : null);
++    const keyOnBoard = (p, jobs) => (jobs.some((j) => j._locKeys.includes(p)) ? p : null);
++    const locOnBoard = (x, jobs) => jobs.some((j) => j._locKeys.includes(x));
++    const quickLabel = () => 'pay', hasListingDates = () => true;
++    const KW_CATS = [{ key: 'kr', cat: 'responsibilities' }, { key: 'kf', cat: 'fit' }, { key: 'ks', cat: 'skills' }];
++    const FAMILY_LABEL = {};
++    const FILTER_KEYS = ['q', 'smin', 'smax', 'so', 'd', 'b', 'l', 's', 'e', 'r', 'p', 'ho', 'rf', 'kr', 'kf', 'ks', 'jg'];
++    const DEFAULTS = { q: '', smin: null, smax: null, so: false, d: [], b: [], l: [], s: [], e: [], r: 'any', p: 0, ho: false, rf: '', kr: [], kf: [], ks: [], jg: [] };
++    ${BODY}
++    return {
++      toasts,
++      load(jobs) { data = { status: 'ready', jobs, company: { name: 'Board' } }; },
++      run(st) { S = { ...structuredClone(DEFAULTS), ...st }; const r = derive(); derived = r; return r; },
++      stats: (list) => stats(list, viewSpec),
++      empty(st, fc) { S = { ...structuredClone(DEFAULTS), ...st }; derived = { fc }; return emptyState(); },
++      keep: { get S() { return S; }, set S(v) { S = v; }, get held() { return held; }, switchTo(name, from, jobs) {
++        pendingKeep = { name, from, places: new Map(S.l.map((x) => [x, x])) }; data = { status: 'ready', jobs, company: { name } }; settleKeep(); },
++        clear: () => clearFilters(), reset: (id) => clearPopoverFacet(id) },
++    };`)(shared, roles, { toUSD, formatMoney });
++}
++
++/* ------------------------------------------------------------ fixtures */
++
++let seq = 0;
++const city = (c, country, region = null, lat = 50, lng = 10) => ({ name: region ? `${c}, ${region}` : `${c}, ${country}`, city: c, region, country, lat, lng, remote: false });
++const nation = (country, name) => ({ name, city: null, region: null, country, lat: 52, lng: 19, remote: false });
++const WAW = city('Warsaw', 'PL'), KRK = city('Krakow', 'PL'), WRO = city('Wrocław', 'PL'), DUB = city('Dublin', 'IE'), LON = city('London', 'GB');
++const TOR = city('Toronto', 'CA', 'ON'), VAN = city('Vancouver', 'CA', 'BC'), SEA = city('Seattle', 'US', 'WA'), MIL = city('Milan', 'IT');
++const ATL = city('Atlanta', 'US', 'GA'), POLAND = nation('PL', 'Poland');
++const sal = (min, max, currency = 'USD', extra = {}) => ({ min, max, mid: (min + max) / 2, currency, interval: 'year', text: `${min}-${max} ${currency}`, ...extra });
++/** A posting as app.js prepare() leaves it (the fields the filters read). */
++function job({ locs, salary = null, dept = 'Software', seniority = 'Senior', basis = 'title', type = 'Full-time', remote = false, age = 3, juice = null, title = 'Engineer', company = 'google' }) {
++  const j = { id: `${company}:${++seq}`, company, title, department: dept, seniority, seniorityBasis: basis, employmentType: type, remote, locations: locs, salary,
++    keywords: { responsibilities: [], fit: [], skills: [] }, ageDays: age };
++  j._usd = salary ? { min: toUSD(salary.min, salary.currency), max: toUSD(salary.max, salary.currency), mid: toUSD(salary.mid, salary.currency) } : null;
++  j._mid = j._usd?.mid ?? null;
++  j._payLocs = shared.payLocations(j);
++  j._locKeys = locs.map((l) => (l.remote ? l.name || 'Remote' : l.city || l.name || 'Unknown'));
++  j._age = age;
++  j._hay = `${title} ${dept}`.toLowerCase();
++  j.juice = juice;
++  return j;
++}
++const times = (n, f) => Array.from({ length: n }, (_, i) => f(i));
++
++// Google's Warsaw and Dublin roles (BN-1): a PLN line covers the Polish places only, a euro line the Irish ones.
++function googleBoard() {
++  return [
++    ...times(6, () => job({ locs: [WAW], salary: sal(180000, 260000, 'PLN') })), // about $48K–69K: passes a $40K floor
++    ...times(2, () => job({ locs: [WAW], salary: sal(90000, 120000, 'PLN') })), // about $24K–32K: under it
++    ...times(3, () => job({ locs: [WAW, DUB], salary: sal(200000, 280000, 'PLN') })), // Warsaw's pay; none posted for Dublin
++    ...times(2, () => job({ locs: [WAW, LON], salary: sal(200000, 280000, 'PLN') })), // none for London
++    ...times(4, () => job({ locs: [DUB], salary: sal(90000, 130000, 'EUR') })),
++    ...times(2, () => job({ locs: [DUB, KRK], salary: sal(95000, 120000, 'EUR') })), // Dublin's pay; none for Krakow
++    ...times(3, () => job({ locs: [KRK], salary: sal(170000, 230000, 'PLN') })),
++    ...times(1, () => job({ locs: [WAW, KRK], salary: sal(100000, 140000, 'PLN') })), // under the floor at both
++    ...times(2, () => job({ locs: [WRO, WAW], salary: sal(160000, 220000, 'PLN'), dept: 'Sales', seniority: 'Mid', basis: 'title', remote: true, age: 40 })),
++    ...times(2, () => job({ locs: [POLAND], salary: sal(160000, 240000, 'PLN'), dept: 'Sales' })), // only a country: counts for its cities
++    ...times(2, () => job({ locs: [LON], salary: null })),
++  ];
++}
++// Amazon's rows per place (BN-1): Seattle and Vancouver priced on rows of their own.
++function amazonBoard() {
++  const rows = (a, b) => [{ min: a[0], max: a[1], currency: 'USD', interval: 'year', locations: [SEA.name] }, { min: b[0], max: b[1], currency: 'CAD', interval: 'year', locations: [VAN.name] }];
++  const two = (us, ca) => job({ company: 'amazon', locs: [SEA, VAN], salary: { ...sal(us[0], us[1]), ranges: rows(us, ca) } });
++  return [
++    ...times(4, () => two([150000, 200000], [60000, 70000])), // Vancouver about $43K–50K: under a $55K floor, Seattle over it
++    ...times(3, () => two([150000, 200000], [90000, 120000])), // over it at both
++    ...times(5, () => job({ company: 'amazon', locs: [TOR], salary: sal(80000, 110000, 'CAD') })),
++    ...times(2, () => job({ company: 'amazon', locs: [TOR], salary: sal(50000, 60000, 'CAD') })),
++    ...times(3, () => job({ company: 'amazon', locs: [SEA], salary: sal(120000, 160000) })),
++  ];
++}
++
++/** Every key of the board's places, as the Location list could list them. */
++const allKeys = (jobs) => [...new Set(jobs.flatMap((j) => j._locKeys))];
++/** BN-1's rule: the count each place shows is the roles shown after picking that place alone. */
++function checkPlaces(m, jobs, st, what) {
++  const { fc } = m.run(st);
++  const bad = [];
++  for (const k of allKeys(jobs)) {
++    const listed = fc.l.get(k) || 0;
++    const alone = m.run({ ...st, l: [k] }).filtered.length;
++    if (listed !== alone && (listed || alone)) bad.push(`${k}: listed ${listed}, alone ${alone}`);
++  }
++  assert.deepEqual(bad, [], `${what}: ${bad.join('; ')}`);
++}
++
++/* ------------------------------------------------------------ BN-1 */
++
++test('BN-1 Google + Warsaw + a $40K floor (PLN 150,000): each place counts what picking it alone shows', () => {
++  const m = machine();
++  const jobs = googleBoard();
++  m.load(jobs);
++  const { fc } = m.run({ l: ['Warsaw'], smin: 40000 });
++  // The reviewer's case: Dublin read 2 (Warsaw's pay of the Warsaw-and-Dublin roles), really 4 + 2.
++  assert.equal(fc.l.get('Dublin') || 0, m.run({ l: ['Dublin'], smin: 40000 }).filtered.length, 'Dublin');
++  assert.equal(m.run({ l: ['Dublin'], smin: 40000 }).filtered.length, 6);
++  assert.equal(fc.l.get('London') || 0, 0, 'London: no pay posted there, so nothing passes a pay floor');
++  checkPlaces(m, jobs, { l: ['Warsaw'], smin: 40000 }, 'Warsaw picked');
++  checkPlaces(m, jobs, { l: ['Warsaw', 'Dublin'], smin: 40000 }, 'Warsaw and Dublin picked');
++  checkPlaces(m, jobs, { smin: 40000 }, 'no place picked');
++  checkPlaces(m, jobs, { l: ['Krakow'], smin: 40000, smax: 60000 }, 'a floor and a ceiling');
++});
++
++test('BN-1 Amazon + Toronto + a floor: Vancouver and Seattle count at their own rows (amazon:10371179-like rows per place)', () => {
++  const m = machine();
++  const jobs = amazonBoard();
++  m.load(jobs);
++  const { fc } = m.run({ l: ['Toronto'], smin: 55000 });
++  assert.equal(fc.l.get('Seattle') || 0, 10, 'Seattle: every Seattle row is over the floor');
++  assert.equal(fc.l.get('Vancouver') || 0, 3, 'Vancouver: only the rows over the floor there');
++  checkPlaces(m, jobs, { l: ['Toronto'], smin: 55000 }, 'Toronto picked');
++  checkPlaces(m, jobs, { l: ['Vancouver'], smin: 55000 }, 'Vancouver picked');
++});
++
++test('BN-1 the Juice grade is judged at each counted place too', () => {
++  const m = machine();
++  const e = (l, grade, score) => ({ locationName: l.name, city: l.city, grade, score, net: score * 1000 });
++  const jj = (a, b) => ({ best: a, byLocation: [a, b] });
++  const jobs = [
++    ...times(3, () => { const a = e(WAW, 'Juicy', 80), b = e(DUB, 'Dry', 20); return job({ locs: [WAW, DUB], salary: sal(200000, 280000, 'PLN'), juice: jj(a, b) }); }),
++    ...times(2, () => { const a = e(DUB, 'Juicy', 70); return job({ locs: [DUB], salary: sal(90000, 130000, 'EUR'), juice: { best: a, byLocation: [a] } }); }),
++  ];
++  m.load(jobs);
++  checkPlaces(m, jobs, { l: ['Warsaw'], jg: ['Juicy'] }, 'Juicy at Warsaw');
++  assert.equal(m.run({ l: ['Warsaw'], jg: ['Juicy'] }).fc.l.get('Dublin') || 0, 2, 'Dublin: the two Juicy there, not the three Dry there');
++});
++
++test('BN-1 every other facet\'s counts are what picking that value alone shows, under a place and a pay floor', () => {
++  const m = machine();
++  const jobs = googleBoard();
++  m.load(jobs);
++  const st = { l: ['Warsaw'], smin: 40000 };
++  const { fc } = m.run(st);
++  const bad = [];
++  for (const [facet, values] of [['d', ['Software', 'Sales']], ['s', ['Senior', 'Mid']], ['e', ['Full-time']], ['b', ['Google']]]) {
++    for (const v of values) {
++      const listed = fc[facet].get(v) || 0, alone = m.run({ ...st, [facet]: [v] }).filtered.length;
++      if (listed !== alone) bad.push(`${facet}=${v}: listed ${listed}, alone ${alone}`);
++    }
++  }
++  for (const r of ['remote', 'onsite']) { const listed = fc.r[r], alone = m.run({ ...st, r }).filtered.length; if (listed !== alone) bad.push(`r=${r}: listed ${listed}, alone ${alone}`); }
++  for (const p of [7, 30, 90]) { const listed = fc.p[p], alone = m.run({ ...st, p }).filtered.length; if (listed !== alone) bad.push(`p=${p}: listed ${listed}, alone ${alone}`); }
++  assert.deepEqual(bad, []);
++});
++
++test('BN-1 the Location list\'s search box depends on the board\'s places, not on how many the filters leave', () => {
++  const body = APP.slice(APP.indexOf('function makeChecklist('), APP.indexOf('function makeDeptFilter('));
++  assert.match(body, /showSearch = [^;]*boardOptions\(facet\)/, 'makeChecklist: the search box shows by the filtered items only, so it vanished under a pay floor');
++});
++
++/* ------------------------------------------------------------ BN-2 */
++
++const usd = (v, c) => toUSD(v, c);
++test('BN-2 a headline median over pay in one foreign currency is in that currency (CA$101K), never a bare "$"', () => {
++  assert.equal(typeof shared.headlineMedian, 'function', 'shared.js headlineMedian');
++  const cad = [161000, 101000, 92000].map((v) => ({ usd: usd(v, 'CAD'), cur: 'CAD' }));
++  const h = shared.headlineMedian(cad);
++  assert.equal(h.cur, 'CAD');
++  assert.equal(h.basis, null);
++  assert.equal(Math.round(h.local.median), 101000);
++  assert.equal(shared.medianText(h), 'CA$101K');
++  assert.equal(shared.medianText(shared.headlineMedian([{ usd: usd(280000, 'PLN'), cur: 'PLN' }])), 'PLN 280K');
++  // Mixed: MR-39's main currency, in that currency.
++  const mixed = shared.headlineMedian([...cad, { usd: 150000, cur: 'USD' }, { usd: 170000, cur: 'USD' }, { usd: 190000, cur: 'USD' }, { usd: 160000, cur: 'USD' }]);
++  assert.equal(mixed.basis, 'USD');
++  assert.equal(shared.medianText(mixed), '$165K');
++  const eur = shared.headlineMedian([...[81000, 75000, 90000].map((v) => ({ usd: usd(v, 'EUR'), cur: 'EUR' })), { usd: 100000, cur: 'GBP' }]);
++  assert.equal(eur.basis, 'EUR');
++  assert.equal(shared.medianText(eur), '€81K');
++});
++
++test('BN-2 the stats line\'s figures: Amazon interns in Vancouver (CA$161K, CA$101K, CA$92K) read CA$101K', () => {
++  const m = machine();
++  const jobs = [161000, 101000, 92000].map((v) => job({ company: 'amazon', locs: [VAN], salary: sal(v - 10000, v + 10000, 'CAD'), seniority: 'Intern' }));
++  m.load(jobs);
++  const { filtered } = m.run({ l: ['Vancouver'] });
++  const st = m.stats(filtered);
++  assert.equal(st.cur, 'CAD', 'stats().cur');
++  assert.equal(shared.medianText(st.hm), 'CA$101K');
++  assert.doesNotMatch(APP.slice(APP.indexOf('function renderKpis('), APP.indexOf('let statsNotes')), /item\(money\(st\.median\)/, 'renderKpis still writes the median with money() in US dollars');
++});
++
++test('BN-2 Insights\' tiles and the map\'s pins write the median in the pay\'s own currency', () => {
++  const jobs = [161000, 101000, 92000, 120000, 98000].map((v) => job({ company: 'amazon', locs: [TOR], salary: sal(v, v, 'CAD') }));
++  const s = insights.summaryStats(jobs);
++  assert.equal(s.cur, 'CAD', 'summaryStats().cur');
++  assert.equal(shared.medianText(s.hm), 'CA$101K');
++  const pin = mapViz.summarize(jobs);
++  assert.equal(pin.price, 'CA$101K', 'summarize().price: the pin reads "$72K" for Canadian pay');
++  const us = mapViz.summarize([150000, 160000, 170000, 180000, 190000].map((v) => job({ locs: [SEA], salary: sal(v, v) })));
++  assert.equal(us.price, formatMoney(170000));
++});
++
++/* ------------------------------------------------------------ BN-3 */
++
++test('BN-3 no count is cut out of a localized number with a digits-and-commas pattern ("3.821 3.821 roles" in de-DE)', () => {
++  const bad = [];
++  for (const f of ['public/app.js', 'public/features/insights.js', 'public/features/shared.js', 'public/viz/chart.js', 'public/viz/map.js', 'public/viz/note.js', 'public/features/compstimate.js', 'public/features/comps.js']) {
++    const src = fs.readFileSync(new URL(`../${f}`, import.meta.url), 'utf8');
++    for (const [i, line] of src.split('\n').entries()) {
++      if (/(?:plural|toLocaleString|fmtCount)\([^\n]*\)\.replace\(\/\^\[\\d,/.test(line) || /\.replace\(\/\^\[\\d,\]\+ \//.test(line)) bad.push(`${f}:${i + 1}`);
++    }
++  }
++  assert.deepEqual(bad, []);
++});
++
++/* ------------------------------------------------------------ BN-4 */
++
++test('BN-4 part-time hourly pay only: the median is per hour as posted ("$28.41/hour"); mixed with yearly figures it says "if full-time"', () => {
++  const hourly = (lo, hi) => sal(lo * 2080, hi * 2080, 'USD', { partTime: true, originalInterval: 'hour' });
++  const m = machine();
++  const pt = times(5, (i) => job({ company: 'apple', locs: [ATL], salary: hourly(23 + i, 34 + i), type: 'Part-time' }));
++  m.load(pt);
++  const st = m.stats(m.run({}).filtered);
++  assert.equal(st.perHour, true, 'stats().perHour');
++  assert.equal(shared.medianText(st.hm), '$30.50/hour');
++  const mix = [...pt, job({ company: 'apple', locs: [ATL], salary: sal(50000, 60000, 'USD', { kind: 'minimum' }) })];
++  m.load(mix);
++  const st2 = m.stats(m.run({}).filtered);
++  assert.equal(st2.perHour, false);
++  assert.equal(st2.fullTime, true, 'stats().fullTime: part of the median is a full-time year of part-time pay');
++  const k = APP.slice(APP.indexOf('function medianItem('), APP.indexOf('function medianItem(') + 900);
++  assert.match(k, /a year if full-time/, 'the stats line never says the annualised figure is "posted pay"');
++});
++
++/* ------------------------------------------------------------ BN-5 */
++
++test('BN-5 a place set aside at a company switch comes back after another tick; Clear all drops it, with a toast', () => {
++  const m = machine();
++  const google = [job({ locs: [KRK], salary: null }), job({ locs: [WAW], salary: null })];
++  const nvidia = [job({ company: 'nvidia', locs: [WAW], salary: null })];
++  m.load(google);
++  m.run({ l: ['Krakow'] });
++  m.keep.switchTo('NVIDIA', 'Google', nvidia);
++  assert.deepEqual(m.keep.S.l, [], 'Krakow is set aside at NVIDIA');
++  m.keep.S.l = ['Warsaw']; // ticks Warsaw at NVIDIA
++  m.keep.switchTo('Google', 'NVIDIA', google);
++  assert.deepEqual([...m.keep.S.l].sort(), ['Krakow', 'Warsaw'], 'Krakow came back at Google');
++  // Set aside again, then Clear all: dropped, and the toast says so.
++  m.keep.switchTo('NVIDIA', 'Google', nvidia);
++  m.toasts.length = 0;
++  m.keep.clear();
++  assert.ok(m.toasts.some((t) => /Krakow/.test(t)), `Clear all dropped Krakow without a word: ${JSON.stringify(m.toasts)}`);
++  m.keep.switchTo('Google', 'NVIDIA', google);
++  assert.deepEqual(m.keep.S.l, [], 'nothing comes back after Clear all');
++});
++
++test('BN-5 the same for a level: Director+ set aside at a board without it comes back after ticking Senior', () => {
++  const m = machine();
++  const a = [job({ locs: [WAW], seniority: 'Director+' }), job({ locs: [WAW], seniority: 'Senior' })];
++  const b = [job({ company: 'x', locs: [WAW], seniority: 'Senior' })];
++  m.load(a);
++  m.run({ s: ['Director+'] });
++  m.keep.switchTo('B', 'A', b);
++  assert.deepEqual(m.keep.S.s, []);
++  m.keep.S.s = ['Senior'];
++  m.keep.switchTo('A', 'B', a);
++  assert.deepEqual([...m.keep.S.s].sort(), ['Director+', 'Senior']);
++});
++
++/* ------------------------------------------------------------ BN-6 */
++
++test('BN-6 a posted minimum ("from €31,100") is never hidden by a pay floor; "up to" pay is never hidden by a ceiling', () => {
++  const m = machine();
++  const minimum = (v) => job({ company: 'amazon', locs: [MIL], salary: sal(v, v, 'EUR', { kind: 'minimum' }) });
++  const jobs = [minimum(31100), minimum(28000), job({ company: 'amazon', locs: [MIL], salary: sal(20000, 26000, 'EUR') }), job({ company: 'amazon', locs: [MIL], salary: null }),
++    job({ company: 'amazon', locs: [SEA], salary: sal(43784, 43784, 'USD', { includesShiftDifferential: true }) })];
++  m.load(jobs);
++  const r = m.run({ l: ['Milan'], smin: 40000 });
++  assert.equal(r.filtered.length, 2, 'the two posted minimums stay in');
++  assert.deepEqual({ ...r.fc.salWhy }, { none: 1, elsewhere: 0, under: 1, over: 0 }, 'fc.salWhy: every role the floor hides, and why');
++  const c = m.run({ smax: 40000 });
++  assert.ok(c.filtered.some((j) => j.salary?.includesShiftDifferential), 'up to $21.05/hour (no stated base) stays in under a $40K ceiling');
++});
++
++test('BN-6 the empty state names every filter that empties the list, the pay filter included', () => {
++  const m = machine();
++  const e = m.empty({ q: 'IT Support Eng', l: ['Milan'], smin: 40000 }, { only: { q: 54, sal: 3 }, salWhy: { none: 0, elsewhere: 0, under: 3, over: 0 }, noPayHidden: 0, elsewhereHidden: 0 });
++  const body = JSON.stringify(e.body) + JSON.stringify(e.details || []);
++  assert.match(body, /the search/);
++  assert.match(body, /the pay filter/, `the empty state never mentions the pay filter: ${body}`);
++});
++
++/* ------------------------------------------------------------ BN-7 */
++
++test('BN-7 a posting whose pay names Microsoft M5 and M6 is hired at Manager or Director+: the filter finds it under both', () => {
++  assert.equal(typeof roles.postedLevels, 'function', 'roles.js postedLevels');
++  const rmd = job({ company: 'microsoft', title: 'Regional Managing Director, Data Center Community, Atlanta Metro', locs: [ATL], seniority: 'Manager', basis: 'pay',
++    salary: sal(132200, 284400, 'USD', { text: 'Corporate Social Responsibility M5: USD $132,200 - $258,000 per year; Corporate Social Responsibility M6: USD $160,700 - $284,400 per year',
++      levels: [{ label: 'M5', min: 132200, max: 258000 }, { label: 'M6', min: 160700, max: 284400 }] }) });
++  const p = roles.postedLevels(rmd);
++  assert.deepEqual(p.levels, ['Manager', 'Director+']);
++  assert.equal(p.text, 'Microsoft M5–M6');
++  const gov = job({ company: 'microsoft', title: 'Government Affairs Director', locs: [city('Brussels', 'BE')], seniority: 'Staff+', basis: 'pay',
++    salary: sal(131000, 221000, 'EUR', { text: 'Government Affairs IC5 - The typical base pay range for this role across Belgium is EUR €131,000 - €221,000 per year.' }) });
++  assert.deepEqual(roles.postedLevels(gov).levels, ['Staff+'], 'one posted level stays one level (VT-8)');
++  assert.equal(roles.postedLevels(job({ locs: [ATL], seniority: 'Director+' })), null, 'a level from the title has no posted ladder');
++  const m = machine();
++  m.load([rmd, gov, job({ company: 'microsoft', locs: [ATL], seniority: 'Director+' })]);
++  const r = m.run({ s: ['Director+'] });
++  assert.ok(r.filtered.includes(rmd), 'Director+ hides the M5–M6 posting');
++  assert.ok(!r.filtered.includes(gov), 'a Staff+ IC5 "Director" stays out of Director+ (VT-8)');
++  const { fc } = m.run({});
++  assert.equal(fc.s.get('Manager'), 1);
++  assert.equal(fc.s.get('Director+'), 2, 'the M5–M6 posting counts under Director+ too');
++});
++
++test('BN-7 roles.js POSTED_LADDERS equals server/keywords.js\'s ladders, rung by rung', () => {
++  const L = roles.POSTED_LADDERS;
++  for (const kind of ['IC', 'M']) for (let n = 1; n <= 10; n++) {
++    const want = seniorityFromPay(`Software Engineering ${kind}${n} - The typical base pay range for this role across the U.S. is USD $100,000 - $200,000 per year.`, { company: 'microsoft' })?.level ?? null;
++    const got = roles.postedLevels({ company: 'microsoft', seniorityBasis: 'pay', salary: { levels: [{ label: `${kind}${n}` }] } })?.levels[0] ?? null;
++    assert.equal(got, want, `Microsoft ${kind}${n}`);
++  }
++  for (let n = 1; n <= 10; n++) {
++    const want = seniorityFromPay(`100,000 USD - 200,000 USD for Level ${n}.`, { company: 'nvidia' })?.level ?? null;
++    const got = roles.postedLevels({ company: 'nvidia', seniorityBasis: 'pay', salary: { levels: [{ label: `Level ${n}` }] } })?.levels[0] ?? null;
++    assert.equal(got, want, `NVIDIA Level ${n}`);
++  }
++  assert.ok(L.microsoft && L.nvidia);
++});
++
++test('BN-7 the Seniority filter\'s words say the company\'s own level comes first, and the drawer\'s chip names it', () => {
++  const note = APP.slice(APP.indexOf('const SEN_NOTE'), APP.indexOf('const SEN_OPTS'));
++  assert.match(note, /Microsoft, Amazon and NVIDIA postings use the company’s own level/);
++  assert.match(note, /counts under both/);
++  assert.match(fnSource('senChip') || '', /p\.text/, 'drawer chip: "Manager · Microsoft M5–M6"');
++});
++
++test('fix-app-6: nothing is dropped: every posting stays on the board, whatever the filters (the machine filters, never removes)', () => {
++  const m = machine();
++  const jobs = googleBoard();
++  m.load(jobs);
++  const n = jobs.length;
++  m.run({ l: ['Warsaw'], smin: 40000 });
++  assert.equal(jobs.length, n);
++  assert.equal(m.run({}).filtered.length, n);
++  assert.equal(FX_PER_USD.USD, 1);
++});
+-- 
+2.43.0
+

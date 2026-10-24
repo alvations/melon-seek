@@ -2,28 +2,58 @@
 
 - Worktree: `/home/user/melon-seek/.claude/worktrees/agent-a08f9659d62990db4`
 - Base (on claude/stoic-ride-54ddxp): `a0763eceb553a3da77408fd81acf018174302bbc`
-- Head: `6c0f2f1092473d5ca76b88a31d5e7f56ddcd9b26`
+- Head: `6c8f4ca5a91394add9fa3786b1eb9ea8082404e5`
 - Restore: `bash scripts/cycle/restore-wip.sh fix-data-6 <new worktree dir>`
 
 ## Commits since the base
 ```
-6c0f2f1 fix-data-6: fix-salary-6's e2e reads the job page's exact posted figures (P-2: €124,000–127,000; the card keeps €124K–127K)
-e4f85cc fix-data-6: log state after the rebase onto e77cd41 and the restart
-d68bb81 fix-data-6: on top of fix-salary-6, one line at 280 and 320 px: the hourly heading ($27.98–48.99/hour, then whole dollars), the yearly line (hours in Details), P-1's line (shorter forms); fix-salary-6's harness stubs isFullTimeHourly
-57d6b83 fix-data-6: related e2e after P-2 and T-19: exact headings in fix-pay-at-place, a programme's per-place rates exact, Fix app [P-2] picks what the drawer shows; phone lines one line at every size
-3a7886b fix-data-6: CONTRACT and DATA_SOURCES for G-2 and G-3; log with the counts, the red and green runs
-99553f1 fix-data-6: G-2 bare ISO codes that are US state codes are countries; G-3 dotted state abbreviations, Monterrey and Apple Bayshore
-a9fed1d fix-data-6: CONTRACT, DATA_SOURCES and the methodology guide for G-1, K-1, P-1 to P-3, R-1 to R-3 and C-1
-3875840 fix-data-6: P-3 full-time hourly pay at its posted rate; C-1 equally similar comparables spread across the estimate's pay
-771fd0d fix-data-6: log state after the restart
-d2125a1 fix-data-6: T-19 the two e2e tests that skipped on every run now run
-9885303 fix-data-6: R-1/R-3 operations and data-center families, R-2 lead associates are Mid, K-1 stated bonus targets as posted, P-1 pay places named, P-2 exact posted pay on the job page
-698c1e2 fix-data-6: the freshness inventory regenerated (registry.js --docs --write) for the gazetteer size
-8164b08 fix-data-6: log state (P-2 queued)
-afb92b0 fix-data-6: G-1 359 towns near the big-tech hubs at their own place (Bay Area first), K-1 '+ 0% bonus target' is no bonus; norm-14
-45137cb fix-data-6: log state (G-1, K-1 in progress; P-1, R-1 queued)
-6947cb6 fix-data-6: process log started
-b9aec1e fix-data-6: the brief, verbatim
+6c8f4ca fix-data-6: fix-salary-6's e2e reads the job page's exact posted figures (P-2: €124,000–127,000; the card keeps €124K–127K)
+4befaa9 fix-data-6: log state after the rebase onto e77cd41 and the restart
+d483337 fix-data-6: on top of fix-salary-6, one line at 280 and 320 px: the hourly heading ($27.98–48.99/hour, then whole dollars), the yearly line (hours in Details), P-1's line (shorter forms); fix-salary-6's harness stubs isFullTimeHourly
+d3ce360 fix-data-6: related e2e after P-2 and T-19: exact headings in fix-pay-at-place, a programme's per-place rates exact, Fix app [P-2] picks what the drawer shows; phone lines one line at every size
+955bf71 fix-data-6: CONTRACT and DATA_SOURCES for G-2 and G-3; log with the counts, the red and green runs
+be109aa fix-data-6: G-2 bare ISO codes that are US state codes are countries; G-3 dotted state abbreviations, Monterrey and Apple Bayshore
+c1834c8 fix-data-6: CONTRACT, DATA_SOURCES and the methodology guide for G-1, K-1, P-1 to P-3, R-1 to R-3 and C-1
+b789df7 fix-data-6: P-3 full-time hourly pay at its posted rate; C-1 equally similar comparables spread across the estimate's pay
+fe4ab6d fix-data-6: log state after the restart
+dd6f20c fix-data-6: T-19 the two e2e tests that skipped on every run now run
+9d12833 fix-data-6: R-1/R-3 operations and data-center families, R-2 lead associates are Mid, K-1 stated bonus targets as posted, P-1 pay places named, P-2 exact posted pay on the job page
+d7c49e5 fix-data-6: the freshness inventory regenerated (registry.js --docs --write) for the gazetteer size
+2304f42 fix-data-6: log state (P-2 queued)
+7a71dd0 fix-data-6: G-1 359 towns near the big-tech hubs at their own place (Bay Area first), K-1 '+ 0% bonus target' is no bonus; norm-14
+4750e17 fix-data-6: log state (G-1, K-1 in progress; P-1, R-1 queued)
+2006368 fix-data-6: process log started
+0c47959 fix-data-6: the brief, verbatim
+f13ebd6 fix-app-6: log State: done on 94d65d0
+6dfbbd4 fix-app-6: log State on 94d65d0
+f753bb7 fix-app-6: V-44 on a short map: the short line hangs under the Pay | Juice switch, off the pins (the Razr cover's Menlo Park pin)
+d5f2daa fix-app-6: BN-7 the chip is replaced only when the loaded posting names another level, and keeps B-2's spacing (fitMetaLine)
+1a58b74 fix-app-6: log State after the rebase onto 94d65d0
+b0feb05 fix-app-6: V-44 at the Razr cover (from fix-ui-6): a short map's 'N postings list no place' line is short, the sentence in its title
+fce46c7 fix-app-6: log State after the rebase onto e77cd41
+ef51747 fix-app-6: on fix-salary-6's rows per country: BN-6 reads a row's own kind where rows carry one; a unit test of BN-1 and BN-2 at each country's row
+1558aae fix-app-6: the own-plus-wide count belongs to UI: location filter, not the department test
+3818808 fix-app-6: CONTRACT (medianWording, the fits) and log decisions
+5d2d515 fix-app-6: one wording function (chart.js medianWording) for the stats line's median and the chart caption
+a8df758 fix-app-6: two e2e checks read a place's count as its own plus its country- or state-wide postings (BN-1)
+6ab1aa1 fix-app-6: log State and change log
+d66a97d fix-app-6: BN-6 the Salary note's line fits one line with a big count; screenshots (shrunk)
+69f8ed8 fix-app-6: BN-4 the stats line and the chart caption take short words where a long median would wrap or be cut; BN-8 e2e types in the phone's filter sheet
+1adeb58 fix-app-6: BN-7 the main site's Seniority note names no beta company; log gaps
+91249d9 fix-app-6: e2e: BN-1 country-wide, BN-5 and BN-6 checks fail on the base build too; log before and after
+24ccfc7 fix-app-6: BN-2 the chart caption's median in the plotted pay's currency (a place's own row); log steps
+120b18c fix-app-6: log State after the restart
+ae010d1 fix-app-6: BN-8 the pay box keeps the typed currency (chip, link, saved name), reads zł and grouped thousands, a bare number takes the view's currency; CONTRACT and guide for BN-1's wide counts and BN-8
+5ae6a7c fix-app-6: e2e fixes (empty results, locale counts, Location row counts at every phone size); log decisions
+68875fb fix-app-6: BN-1 a town's own count beside its country- or state-wide postings (list and map pins); BN-7 the chip reads the level from the loaded posting
+55f86f2 fix-app-6: log State
+8eee01d fix-app-6: e2e group (42 tests), BP-10/MR-39/shared-decision tests on the new rules, CONTRACT and methodology guide
+3ca131d fix-app-6: BN-1 place counts judged per place, BN-2/BN-4 medians in the pay's currency and per hour, BN-3 count once, BN-5 held values kept, BN-6 minimums under a floor, BN-7 posted levels
+cd85e03 fix-app-6: red unit tests for BN-1 to BN-7 (16 of 18 fail on 4ebe24f)
+efe9e9e fix-app-6: log with State
+93cd8ea fix-app-6: prompt verbatim
+94d65d0 fix-salary-6: CONTRACT and log for the Juice follow-up
+aec5de1 fix-salary-6 S-1 follow-up: Juice says 'pay-other-country' again when every place with a city record is in a country no row prices (Cohere's London)
 942db8a fix-juice-6: log, the related groups and State
 4de206c fix-juice-6: log, verification so far and State
 38e122e fix-juice-6: after screenshots (Toronto, Milan, London, Munich, New York at 280, 375, 352 and 1280; J-5 cards), shrunk
@@ -65,6 +95,7 @@ ed32bf1 fix-salary-6: norm-14; golden re-baselined (0 of 300 hashes changed) and
 
 ## Uncommitted and new files
 ```
+ M docs/screenshots/fix-pay-at-place/e2e-card-280x653.png
 ```
 
 ## Left out (not in untracked.tgz)

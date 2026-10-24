@@ -1,7 +1,7 @@
 From cda88239c8fefd2d327508f9ed0c9e1fd56e1795 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 24 Oct 2026 05:17:51 +0000
-Subject: [PATCH 69/71] WIP fix-ui-6: D tests: the Razr cover under its bars (a
+Subject: [PATCH 69/72] WIP fix-ui-6: D tests: the Razr cover under its bars (a
  three-line title past its room, a chart under the sheet), the shortest search
  placeholder
 

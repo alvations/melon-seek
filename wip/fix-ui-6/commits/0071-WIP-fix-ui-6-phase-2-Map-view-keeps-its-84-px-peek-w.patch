@@ -1,7 +1,7 @@
 From bba9bc1cd6b258771579350a3eb4a65fbc8992a8 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 24 Oct 2026 06:31:43 +0000
-Subject: [PATCH 71/71] WIP fix-ui-6: phase 2: Map view keeps its 84 px peek
+Subject: [PATCH 71/72] WIP fix-ui-6: phase 2: Map view keeps its 84 px peek
  where a card would leave the map under 300 px (map.js back as B left it); B-4
  keeps to its three screens; D-1 follows the map rule
 

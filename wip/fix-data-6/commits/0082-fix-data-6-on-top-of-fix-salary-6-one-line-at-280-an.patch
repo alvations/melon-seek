@@ -1,7 +1,7 @@
-From d68bb81835fb0538319d546331116d1dab26f36f Mon Sep 17 00:00:00 2001
+From d483337c0d928be498983ce7fd1fe67eda6e4334 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 24 Oct 2026 04:39:02 +0000
-Subject: [PATCH 52/54] =?UTF-8?q?fix-data-6:=20on=20top=20of=20fix-salary-?=
+Subject: [PATCH 82/84] =?UTF-8?q?fix-data-6:=20on=20top=20of=20fix-salary-?=
  =?UTF-8?q?6,=20one=20line=20at=20280=20and=20320=20px:=20the=20hourly=20h?=
  =?UTF-8?q?eading=20($27.98=E2=80=9348.99/hour,=20then=20whole=20dollars),?=
  =?UTF-8?q?=20the=20yearly=20line=20(hours=20in=20Details),=20P-1's=20line?=
@@ -20,10 +20,10 @@ Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
  3 files changed, 25 insertions(+), 8 deletions(-)
 
 diff --git a/public/app.js b/public/app.js
-index 7d7e378..39292a7 100644
+index 8223689..6b94aaa 100644
 --- a/public/app.js
 +++ b/public/app.js
-@@ -5042,7 +5042,9 @@ function annualNote(sal, job = null) {
+@@ -5351,7 +5351,9 @@ function annualNote(sal, job = null) {
    if (!orig) return null;
    // P-3 (fix-data-6): full-time hourly pay is headed by its posted rate; this line gives the yearly figure, converted.
    if (orig === 'hour' && job && isFullTimeHourly(job)) {
@@ -34,7 +34,7 @@ index 7d7e378..39292a7 100644
    }
    // CONTRACT v4 (fix-pay-data P-8): 'term' is pay for the whole programme; termWeeks is its length.
    const what = orig === 'term' && sal.termWeeks ? `pay for a ${sal.termWeeks}-week programme` : `${INTERVAL_ADJ[orig] || orig} pay`;
-@@ -5170,7 +5172,7 @@ function drawerContent(job) {
+@@ -5489,7 +5491,7 @@ function drawerContent(job) {
    // P-1 (fix-data-6): one line at every size; where the places don't fit, "only" stands for the places picked, then one
    // place is named ("Seattle and 3 more"). The whole sentence is in Details (caption).
    const captionLine = !sal ? null : elsewhere ? fitOneLine(h('span'), [`Posted for ${payPlaceText(job)}, not ${placesPicked()}`,
@@ -43,7 +43,7 @@ index 7d7e378..39292a7 100644
      : isOte(job) ? 'On-target earnings' : isMinimum(job) ? 'Posted minimum base pay' : sal.includesShiftDifferential ? 'Posted pay, including shift pay'
        : partHourly ? 'Posted hourly pay, part-time' : term?.fixed ? 'Fixed-term pay as posted' : 'Posted base pay';
    // UX-22: under a Location filter, the range posted for the place picked.
-@@ -5186,6 +5188,7 @@ function drawerContent(job) {
+@@ -5505,6 +5507,7 @@ function drawerContent(job) {
    // UX-51 (fix-qa4): shift pay reads as on its card ("$18.05–19.70 an hour", "up to $19.70 an hour").
    const shiftR = sal && !ph ? shiftRange(sal) : null;
    const fullHourly = sal && isFullTimeHourly(job); // P-3
@@ -51,7 +51,7 @@ index 7d7e378..39292a7 100644
    const amountText = !sal ? null : ph ? ph.range : shiftR ? shiftText(job, shiftR, ' an hour') : partHourly || (fullHourly && !isMinimum(job)) ? `${postedPair(sal.min / 2080, sal.max / 2080, sal.currency)} an hour`
      : fullHourly ? `from ${postedMoney(sal.min / 2080, sal.currency)} an hour`
      : term ? `${term.amount}${perText(term.per)}` : isMinimum(job) ? `from ${money(sal.min, sal.currency)}` : salaryRange(sal);
-@@ -5202,7 +5205,10 @@ function drawerContent(job) {
+@@ -5521,7 +5524,10 @@ function drawerContent(job) {
    const salaryBlock = h('section', { class: 'd-salary' },
      sal ? h('div', { class: 'd-sal-top' },
        h('div', null,
@@ -116,10 +116,10 @@ index 8ab52be..7f90401 100644
    noErrors(errors);
    return bad;
 diff --git a/test/fix-salary-6.test.js b/test/fix-salary-6.test.js
-index 6673b3c..da4356b 100644
+index 9e0ee42..df720ba 100644
 --- a/test/fix-salary-6.test.js
 +++ b/test/fix-salary-6.test.js
-@@ -292,6 +292,7 @@ const card = (place) => new Function('formatMoney', 'payAt', 'countryInSentence'
+@@ -307,6 +307,7 @@ const card = (place) => new Function('formatMoney', 'payAt', 'countryInSentence'
    const PER_YEAR = { hour: 2080, day: 260, week: 52, month: 12, year: 1 };
    let viewSpec = place ? { l: new Set([place]) } : null;
    const isPartTimeHourly = () => false, postedTerm = () => null, programText = () => '';

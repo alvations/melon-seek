@@ -1,0 +1,212 @@
+From 6d82ea420e0ce4820838285fe45240bd9061f179 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 24 Oct 2026 06:43:41 +0000
+Subject: [PATCH 72/72] WIP fix-ui-6: phase 2: the rows' medians in their pay's
+ currency (fix-app-6's BN-2 rule: PLN for Warsaw, CA$ for Vancouver); its
+ test; UX-40's row form accepts the currencies
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+---
+ docs/CONTRACT.md          |  4 +++-
+ docs/process/fix-ui-6.md  |  8 +++++++-
+ public/viz/chart.js       | 35 ++++++++++++++++++++++++-----------
+ test/e2e/fix-ui-6.e2e.js  | 33 +++++++++++++++++++++++++++++++--
+ test/e2e/fix-viz-5.e2e.js |  4 +++-
+ 5 files changed, 68 insertions(+), 16 deletions(-)
+
+diff --git a/docs/CONTRACT.md b/docs/CONTRACT.md
+index 42c63d5..57e9886 100644
+--- a/docs/CONTRACT.md
++++ b/docs/CONTRACT.md
+@@ -1161,7 +1161,9 @@ posting stays in the list, and what folds is one tap away.
+   `.ms-crow__range`, a line from the row's lowest to its highest posted pay (each posting's own range ends, in approx US
+   dollars, clamped to the axis; `data-lo` / `data-hi`), with no circles; the "‹N" / "›N" chips stay. The line, band and median
+   are one option (`.ms-crow__span`: its count, posted range and middle half in its name and tip; a tap lists its roles), between
+-  the row's name and its chips. The row's accessible name adds "pay posted from $X to $Y".
++  the row's name and its chips. The row's accessible name adds "pay posted from $X to $Y". Every row (folded or not) writes its
++  median, middle half and range in the currency of the pay its median is of (BN-2: "CA$101K", "PLN 368K", per hour for
++  part-time hourly pay; US dollars where the median mixes currencies).
+ - **The median once:** in Chart view at every size the chart's caption says the median; the stats line's median there, and on
+   the phone layout short of a tablet the whole stats line, carry `.sr-only` (`syncStatsFold`): off the screen, still read by a
+   screen reader (the sheet has the count and the caption's Details the share; tablets and wider show "4,851 roles · 57% show
+diff --git a/docs/process/fix-ui-6.md b/docs/process/fix-ui-6.md
+index f89afa2..a52d18e 100644
+--- a/docs/process/fix-ui-6.md
++++ b/docs/process/fix-ui-6.md
+@@ -153,7 +153,13 @@ fix-app-6's (only where each line shows changed).
+     the stylesheet's 84 stands, as the spec's gap allows ("if fix-ui-6 finds pins crowded, keep its 84 px on the map").
+     At 280x653 Netflix's five-line first title left the map 190 px and two pins ran under the sheet (B-7). Refitting the
+     map when its box changed fixed that one and broke 932x430 (a pin under the attribution), so map.js stays as B left it.
+-20. **Tests**: each D check is a test over VISIBLE and TABLETS (by class), measured once per size and visit (`survey`), on
++20. **The rows' medians in the pay's currency** (the lead, 2026-10-24, fix-app-6's BN-2 rule): a Clusters row writes its
++    median, middle half and (folded) posted range in the currency of the pool its median is of ("1 role · CA$101K" for
++    Amazon's Vancouver intern, "39 roles · PLN 368K" for Google's Warsaw engineers), per hour when all of it is part-time
++    hourly pay (shared.js medianText), and the axis's US dollars only for a median that mixes currencies ("several
++    countries' pay"). The tick stands at the same median: the words are that median at the same fixed rate. The country
++    label goes where the currency says it.
++21. **Tests**: each D check is a test over VISIBLE and TABLETS (by class), measured once per size and visit (`survey`), on
+     Apple as the spec's audit; D-5 also checks each folded line against `chartPay`'s own `lo`/`hi` of the board's list
+     (Apple, Meta, Netflix); D-12 emulates the stacked Duo's hinge (CDP displayFeature) at 720x1010; D-13 compares the
+     folded rows' counts, medians and chips with the unfolded rows of the same build (412x901) and the board's count. D-14 is
+diff --git a/public/viz/chart.js b/public/viz/chart.js
+index 987f142..aece2a2 100644
+--- a/public/viz/chart.js
++++ b/public/viz/chart.js
+@@ -43,7 +43,7 @@
+ import {
+   colorFor, assignColors, otherColor, slotColor, inkOn, OTHER_KEY, SLOT_COUNT, formatMoney,
+   formatCurrency, toUSD, isForeign, hasFx, niceTicks, median, onThemeChange, prefersReducedMotion, isDark, FX_AS_OF,
+-  FX_SOURCE, COUNTRY_CURRENCY,
++  FX_SOURCE, COUNTRY_CURRENCY, FX_PER_USD,
+ } from './palette.js';
+ import { levelLabel, displayLevel, DISPLAY_LEVEL_ORDER } from '../features/roles.js';
+ import { OTE_LABEL, payAt, payMissAt, payCovers, placeRowCount, notBasePay, headlineMedian, medianText } from '../features/shared.js';
+@@ -1340,14 +1340,25 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } =
+       const none = r.offPay || (stats.elsewhere && r.all.some((j) => stats.elsewhereIds.has(j.id))) ? 'no pay posted for here' : 'no pay listed'; // UX-61 (fix-phone-text): the cards' words
+       r.noneText = r.items.length ? '' : none;
+       // V-42 (fix-viz-5): the band's values, written where a screen reader and a hover reach them.
+-      r.mid50 = r.items.length && r.p25 != null && r.p75 != null && formatMoney(r.p25) !== formatMoney(r.p75) ? `middle half ${formatMoney(r.p25)} to ${formatMoney(r.p75)}` : '';
++      // BN-2 (fix-app-6's rule for the stats line, the caption, Insights and the map's pins; the lead, 2026-10-24): a row's
++      // figures are in the currency of the pay its median is of ("PLN 283K" for Warsaw, "CA$101K" for Vancouver's interns),
++      // and per hour when that is all part-time hourly pay; the axis's US dollars only where the median mixes currencies
++      // ("several countries' pay"). The tick stands at the same median (converted back at the same fixed rate).
++      const curs = new Set(ps.pool.map((p) => String(p.cur || basisOf(p) || 'USD').toUpperCase()));
++      r.cur = curs.size === 1 ? [...curs][0] : null;
++      const per = r.cur && r.cur !== 'USD' ? FX_PER_USD[r.cur] : null;
++      const perHour = ps.pool.length > 0 && ps.pool.every((p) => isPartTimeHourly(p.job));
++      r.money = (v) => (v == null || !Number.isFinite(v) ? '—' : r.cur ? medianText({ cur: r.cur, perHour }, per == null ? v : v * per) : formatMoney(v));
++      const local = !!r.cur && r.cur !== 'USD';
++      r.mid50 = r.items.length && r.p25 != null && r.p75 != null && r.money(r.p25) !== r.money(r.p75) ? `middle half ${r.money(r.p25)} to ${r.money(r.p75)}` : '';
+       // UX-40 (fix-viz-5): one visible form for every row and width ("1,215 roles · $178K"); the pay's country only when
+-      // the row's median is another country's pay than the other rows' (each row's basis is in the notes' Details).
+-      const other = r.basis && r.basis !== main ? basisWords(r) : '';
+-      r.sub = r.items.length ? `${plural(r.all.length, 'role')} · ${kind}${formatMoney(r.median)}${other}` : `${plural(r.all.length, 'role')} · ${none}`;
+-      r.subTight = r.items.length && other ? `${plural(r.all.length, 'role')} · ${kind}${formatMoney(r.median)}${basisWordsShort(r)}` : r.sub;
++      // the row's median is another country's pay than the other rows' and its currency does not say so (each row's basis
++      // is in the notes' Details).
++      const other = r.basis && r.basis !== main && !local ? basisWords(r) : '';
++      r.sub = r.items.length ? `${plural(r.all.length, 'role')} · ${kind}${r.money(r.median)}${other}` : `${plural(r.all.length, 'role')} · ${none}`;
++      r.subTight = r.items.length && other ? `${plural(r.all.length, 'role')} · ${kind}${r.money(r.median)}${basisWordsShort(r)}` : r.sub;
+       // The long words, for the accessible names and titles.
+-      r.subFull = r.items.length ? `${plural(r.all.length, 'role')} · ${kind || ''}median ${formatMoney(r.median)}${basisWords(r)}${r.mid50 ? `, ${r.mid50}` : ''}` : `${plural(r.all.length, 'role')} · ${none}`;
++      r.subFull = r.items.length ? `${plural(r.all.length, 'role')} · ${kind || ''}median ${r.money(r.median)}${local ? '' : basisWords(r)}${r.mid50 ? `, ${r.mid50}` : ''}` : `${plural(r.all.length, 'role')} · ${none}`;
+       const why = [];
+       const leftNb = ps.notBaseLeftOut, nbN = leftNb.minimum + leftNb.shiftPay + leftNb.partTime;
+       if (nbN) why.push(`${notBaseWords(leftNb)} ${nbN === 1 ? 'is' : 'are'} in the circles, not in the median.`);
+@@ -1500,7 +1511,8 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } =
+       if (ri === cRows.length - 1) row.classList.add('ms-crow--last');
+       row.setAttribute('role', 'group');
+       const sub = r.sub;
+-      const rangeWords = bare && r.range ? `pay posted from ${formatEnd(r.range.lo)} to ${formatEnd(r.range.hi)}` : '';
++      const end = (v) => (r.cur && r.cur !== 'USD' ? r.money(v) : formatEnd(v));
++      const rangeWords = bare && r.range ? (end(r.range.lo) === end(r.range.hi) ? `pay posted ${end(r.range.lo)}` : `pay posted from ${end(r.range.lo)} to ${end(r.range.hi)}`) : '';
+       row.setAttribute('aria-label', `${r.name}, ${r.subFull.replace(' · ', ', ')}${rangeWords ? `, ${rangeWords}` : ''}`);
+       row.style.height = rowH + 'px';
+       row.style.setProperty('--c', r.color);
+@@ -1588,7 +1600,7 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } =
+           sp.setAttribute('role', 'option');
+           sp.setAttribute('aria-selected', 'false');
+           const approx = b.items.some(p => isForeign(p.cur) && hasFx(p.cur));
+-          sp.setAttribute('aria-label', `${plural(n, 'role')} on the chart, pay posted from ${formatEnd(b.lo)} to ${formatEnd(b.hi)}${r.mid50 ? `, ${r.mid50}` : ''}${approx ? ' in US dollars, converted' : ''}, ${r.name}`);
++          sp.setAttribute('aria-label', `${plural(n, 'role')} on the chart, ${end(b.lo) === end(b.hi) ? `pay posted ${end(b.lo)}` : `pay posted from ${end(b.lo)} to ${end(b.hi)}`}${r.mid50 ? `, ${r.mid50}` : ''}${approx && !(r.cur && r.cur !== 'USD') ? ' in US dollars, converted' : ''}, ${r.name}`);
+           sp.id = `${uid}-${ri}-${bi}`;
+           sp.dataset.r = ri; sp.dataset.i = bi; sp.dataset.n = n;
+           sp.style.left = left + 'px';
+@@ -1707,7 +1719,7 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } =
+     if (i < 0) return row.name;
+     const b = row.bins[i];
+     if (b.overflow) return `${row.name} · ${b.overflow === 'hi' ? 'above' : 'below'} ${formatMoney(b.end)}`;
+-    if (b.span) return `${row.name} · ${formatRange(b.lo, b.hi)}`;
++    if (b.span) return `${row.name} · ${row.cur && row.cur !== 'USD' ? `${row.money(b.lo)}–${row.money(b.hi)}` : formatRange(b.lo, b.hi)}`;
+     return `${row.name} · ${binRange(b)}`;
+   }
+ 
+@@ -1745,7 +1757,8 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } =
+       return;
+     }
+     // ux-density-6 D-5: a folded row's pay says its posted range and its middle half.
+-    const sub = b.span ? `pay posted ${formatRange(b.lo, b.hi)}${b.row.mid50 ? ` · ${b.row.mid50}` : ''}` : midsText(b);
++    const own = b.row.cur && b.row.cur !== 'USD';
++    const sub = b.span ? `pay posted ${own ? `${b.row.money(b.lo)}–${b.row.money(b.hi)}` : formatRange(b.lo, b.hi)}${b.row.mid50 ? ` · ${b.row.mid50}` : ''}` : midsText(b);
+     tip.append(el('div', 'ms-tip__sub', `${sub}${approx ? ' · converted to US$' : ''}`));
+     tip.append(el('div', 'ms-tip__title', b.row.name));
+     const counts = new Map();
+diff --git a/test/e2e/fix-ui-6.e2e.js b/test/e2e/fix-ui-6.e2e.js
+index fb3e4ea..b0694e8 100644
+--- a/test/e2e/fix-ui-6.e2e.js
++++ b/test/e2e/fix-ui-6.e2e.js
+@@ -422,6 +422,7 @@ const classOf = (d) => (d.width > 860 ? (d.width >= 1104 && d.width <= 1124 && d
+ const folds = (d) => ['short', 'compact', 'duo'].includes(classOf(d));
+ const DENSITY = [...VISIBLE, ...TABLETS];
+ const PHONE_LAYOUT = DENSITY.filter((d) => d.width <= 860);
++const DESKTOP_1280 = { name: 'Desktop', width: 1280, height: 800 };
+ const atAny = (w, h) => { const d = [...DENSITY, ...ALL_SIZES].find((s) => s.width === w && s.height === h); assert(d, `test/e2e/phone-sizes.mjs lists ${w}x${h}`); return d; };
+ /** A return visit: each site's "visited" flag (app.js VISITED_KEY) is there before the page loads. */
+ const VISITED = { fn: () => { try { localStorage.setItem('melon-seek.visited.beta.v1', '"2026-10-23"'); localStorage.setItem('melon-seek.visited.v1', '"2026-10-23"'); } catch { /* none */ } }, arg: null };
+@@ -1158,7 +1159,7 @@ export function registerFixUi6Tests(suite) {
+         const w = want[r.name];
+         if (!w) { bad.push(`${board}: ${r.name}: not a department of the list`); continue; }
+         if (Math.abs(r.lo - w.lo) > 1 || Math.abs(r.hi - w.hi) > 1) bad.push(`${board}: ${r.name}: the line runs ${Math.round(r.lo)}–${Math.round(r.hi)}, the posted pay ${Math.round(w.lo)}–${Math.round(w.hi)}`);
+-        if (!/pay posted from \$[\d.,]+[KM]? to \$[\d.,]+[KM]?/.test(r.aria)) bad.push(`${board}: ${r.name}: its name does not say the range ("${r.aria.slice(0, 90)}")`);
++        if (!/pay posted (from \S+ to \S+|\S+)/.test(r.aria)) bad.push(`${board}: ${r.name}: its name does not say the range ("${r.aria.slice(0, 90)}")`);
+       }
+       bad.push(...errors);
+       await context.close();
+@@ -1258,9 +1259,37 @@ export function registerFixUi6Tests(suite) {
+     assert(!bad.length, bad.slice(0, 10).join('; '));
+   });
+ 
++  // The lead, 2026-10-24: the rows' medians follow fix-app-6's BN-2 rule, the currency of the pay they cover, as the stats
++  // line and the caption do (chart.js medianWording): Google in Warsaw (złoty) and Amazon's Vancouver interns (Canadian
++  // dollars), folded (375x625) and not (1280x800).
++  for (const [hash, cur] of [['c=google&l=Warsaw', 'PLN '], ['c=amazon&l=Vancouver&s=Intern', 'CA$']]) {
++    for (const size of [atAny(375, 625), DESKTOP_1280]) {
++      suite.test(`fix-ui-6: [D-5, BN-2] [${label(size)}] ${hash}: each Clusters row's median, middle half and posted range are in the currency of its pay (${cur.trim()}), as the stats line's and the caption's`, async (ctx) => {
++        const { page, errors } = await open(ctx, size, { hash, init: VISITED });
++        await sleep(800);
++        const r = await page.evaluate(() => ({
++          stats: document.querySelector('#statsLine .stat--median')?.textContent.trim() || '',
++          caption: (document.querySelector('#chartHost .ms-chart__caprow:not([hidden]) .ms-chart__capmed') || document.querySelector('#chartHost .ms-hist__cap'))?.textContent.trim() || '',
++          rows: [...document.querySelectorAll('#chartHost .ms-crow')].map((x) => ({ name: x.querySelector('.ms-crow__name')?.textContent.trim(), sub: x.querySelector('.ms-crow__sub')?.textContent.trim() || '', aria: x.getAttribute('aria-label') || '' })),
++        }));
++        const bad = [];
++        if (!r.stats.includes(cur)) bad.push(`the stats line's median "${r.stats}" is not in ${cur.trim()}`);
++        if (!r.caption.includes(cur)) bad.push(`the caption "${r.caption}" is not in ${cur.trim()}`);
++        if (!r.rows.length) bad.push('no rows');
++        for (const x of r.rows) {
++          if (/no pay/.test(x.sub)) continue;
++          const money = x.aria.match(/(?:[A-Z]{1,3}\$|\$|£|€|¥|₹|₩|₪|[A-Z]{3} )[\d.,]+[KM]?/g) || [];
++          if (!x.sub.includes(cur)) bad.push(`${x.name}: "${x.sub}"`);
++          else if (money.some((m) => !m.startsWith(cur))) bad.push(`${x.name}: its name mixes currencies: "${x.aria}"`);
++        }
++        assert(!bad.length && !errors.length, [...bad, ...errors].slice(0, 8).join('; '));
++      });
++    }
++  }
++
+   /** The rows' counts and medians, and the edge chips' counts, as a row's accessible name and chips give them. */
+   const rowFacts = (rows) => Object.fromEntries(rows.filter((r) => r.seen).map((r) => {
+-    const m = /^(.*?), ([\d,]+) roles?, (?:on-target |median |from |posted )*(\$[\d.,]+[KM]?|no pay[^,]*)/.exec(r.aria) || [];
++    const m = /^(.*?), ([\d,]+) roles?, (?:on-target |median |from |posted )*((?:[A-Z]{1,3}\$|\$|£|€|¥|₹|₩|₪|[A-Z]{3} )[\d.,]+(?:[KM]|\/hour)?|no pay[^,]*)/.exec(r.aria) || [];
+     return [r.name, `${m[2] || '?'} roles, ${m[3] || '?'}; chips ${r.chips.join(' ') || 'none'}`];
+   }));
+   // The controls today's top bar, quick bar and chart toolbar have (by accessible name); folding adds none there.
+diff --git a/test/e2e/fix-viz-5.e2e.js b/test/e2e/fix-viz-5.e2e.js
+index 8db80d3..0bfc337 100644
+--- a/test/e2e/fix-viz-5.e2e.js
++++ b/test/e2e/fix-viz-5.e2e.js
+@@ -191,7 +191,9 @@ export function registerFixViz5Tests(suite) {
+       await page.waitForSelector('#chartHost .ms-crow', { timeout: 60000 });
+       const subs = await page.$$eval('#chartHost .ms-crow__sub', (es) => es.map((e) => e.textContent.trim()));
+       await context.close();
+-      const off = subs.filter((t) => !/^[\d,]+ roles? · ((on-target |from |posted )?\$[\d.]+[KM]?( in [\w ]+|, several countries’ pay)?|no pay (listed|posted for here))$/.test(t));
++      // BN-2 (fix-app-6's rule, fix-ui-6 phase 2): a row's median is in the currency of the pay it is of ("PLN 283K",
++      // "CA$101K", "$28.41/hour" for part-time hourly pay).
++      const off = subs.filter((t) => !/^[\d,]+ roles? · ((on-target |from |posted )?(?:[A-Z]{1,3}\$|\$|£|€|¥|₹|₩|₪|[A-Z]{3} )[\d.,]+(?:[KM]|\/hour)?( in [\w ]+|, several countries’ pay)?|no pay (listed|posted for here))$/.test(t));
+       if (off.length) bad.push(`${hash} ${phone ? 390 : 1440}: ${off.slice(0, 3).map((t) => `"${t}"`).join(', ')}`);
+     }
+     assert(!bad.length, `sub-lines in another form: ${bad.join('; ')}`);
+-- 
+2.43.0
+
