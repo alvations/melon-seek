@@ -128,6 +128,6 @@ persona-beta-2-18-24, -25-34, -35-44, -45-54, -55-plus (logs on the branch, 5502
 - 07:5x fix-ui-6: the iPad Pro 11" portrait touch-tips strip failure is the 2 px bar case (half-pixel offset after the one-row top bar moved the strip up 86 px; the touch lands on the axis); qa-ci-6's a5bdbc9 tallest-bar pick fixes it. Not a D-4 regression.
 - 08:1x qa-ci-6 done (1dde1eb; 9 commits on f13ebd6): (a) case fixes from the data (Badge swap biggest cluster, fix3-data Head of, D-41, MR-34, D-50 x21, BP-10+BN-5, UX-59, touch-tip tallest bars, V-43 any currency); (c) harness MELON_OFFLINE=1, e2e.yml pins Playwright 1.56.1 (Chromium 141); step 4 per-shard verdict, summary fails on stopped runs and over --max-skips. npm test 1,359/0 fail; 10-16 data 371/374 0 fail; newest 3 red awaiting fix-data-6 (fix-pay-data, D-32, BP-2/P-4). Picked clean -> 505a4df. Gate started 08:16 on 505a4df, SHARDS=2.
 
-### Agents at 2026-10-24T08:28:48Z
-agent fix-ui-6 add67b9453342f4ba transcript-age=39min head=5e2c252 STALE
-agent fix-data-6 a08f9659d62990db4 transcript-age=4min head=6963435
+### Agents at 2026-10-24T08:43:53Z
+agent fix-ui-6 add67b9453342f4ba transcript-age=54min head=5e2c252 STALE
+agent fix-data-6 a08f9659d62990db4 transcript-age=9min head=6963435
