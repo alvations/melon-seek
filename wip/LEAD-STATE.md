@@ -126,7 +126,7 @@ persona-beta-2-18-24, -25-34, -35-44, -45-54, -55-plus (logs on the branch, 5502
 - fix-app-6 final report: known gaps: chart row medians still US$ with a country label (sent to fix-ui-6 for D-5); one-level Microsoft chips name the posted level only after the posting text loads. Pre-rebase states kept as branches fix-app-6-pre-rebase(2).
 - 07:2x qa-ci-6 on f13ebd6: BP-2 fails (google:108135834237969094 under Zurich: card 'Pay posted for San Jose, Munich and 2 more only' is right with rows per country; features/shared.js payLocations still returns only US places). Decision: payLocations follows the rows -> fix-data-6 P-4 (updates BP-2's expectation). qa-ci-6 a5bdbc9: D-41 counts state-wide roles (BN-1), V-43 reads pins in any currency.
 
-### Agents at 2026-10-24T07:28:49Z
-agent fix-ui-6 add67b9453342f4ba transcript-age=9min head=5e2c252
-agent fix-data-6 a08f9659d62990db4 transcript-age=0min head=6c8f4ca
-agent qa-ci-6 a6d5736b954b39411 transcript-age=0min head=a5bdbc9
+### Agents at 2026-10-24T07:43:55Z
+agent fix-ui-6 add67b9453342f4ba transcript-age=24min head=5e2c252 STALE
+agent fix-data-6 a08f9659d62990db4 transcript-age=0min head=6963435
+agent qa-ci-6 a6d5736b954b39411 transcript-age=4min head=a5bdbc9
