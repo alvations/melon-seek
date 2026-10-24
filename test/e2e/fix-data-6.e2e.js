@@ -118,10 +118,10 @@ const km = (a, b) => {
   return 2 * 6371 * Math.asin(Math.sqrt(h));
 };
 /** Lines, words and cuts of the elements `sel` matches, with fix-phone-text's scanner; [] when they pass. */
-async function lineProblems(page, sel, where) {
+async function lineProblems(page, sel, where, maxLines = null) {
   if (!(await page.locator(sel).count())) return [`${where}: nothing matches ${sel}`];
   const width = await page.evaluate(() => innerWidth);
-  const res = await page.evaluate(scanText, { roots: [sel], captionSel: `${CAPTION_SEL}, ${sel}`, allow: [], words: 12, maxLines: linesAt(width) });
+  const res = await page.evaluate(scanText, { roots: [sel], captionSel: `${CAPTION_SEL}, ${sel}`, allow: [], words: 12, maxLines: maxLines ?? linesAt(width) });
   return [...res.lines.map((m) => `${where} ${m.sel}: ${m.lines} lines, ${m.words} words: "${m.text}"`), ...res.cut.map((m) => `${where} ${m.sel}: cut by ${m.over} px: "${m.text}"`)];
 }
 
@@ -168,9 +168,16 @@ async function checkP1(ctx, device) {
     if (pill !== `Pay posted for ${c.where} only`) bad.push(`${c.id} pill "${pill}"`);
     if (!aria.includes(`is the pay posted for ${c.where}, not for ${c.l}`)) bad.push(`${c.id} aria "${aria.slice(0, 160)}"`);
     if (/posted for the US/.test(`${pill} ${aria}`)) bad.push(`${c.id} still names the country`);
+    // The "Pay posted for … only" pill wraps by design (styles.css .sal-pill--elsewhere, max-width 10.5em, fix3-app BP-2;
+    // "Pay posted for the US only" took two lines, a per-place posting's "Seattle and Bellevue" three): never cut, and
+    // no longer than a per-place posting's pill.
+    bad.push(...await lineProblems(page, `#resultsList .card[data-id="${c.id}"] .sal-pill`, `${c.id} ${device?.name || 'desktop'} pill`, 3));
     await job(page, `c=${c.slug}&l=${encodeURIComponent(c.l)}&q=${encodeURIComponent(title)}&job=${encodeURIComponent(c.id)}`, title);
     const line = await text(page, '#drawer .d-pay-note .ms-note__line');
-    if (![`Posted for ${c.where}, not ${c.l}`, `Posted for ${c.where} only`].includes(line) && !line?.startsWith(`Posted for ${c.where.split(' and ')[0]}`)) bad.push(`${c.id} drawer line "${line}"`);
+    // The line's shorter forms, each one line (fitOneLine); the narrowest phones may need the last two.
+    const first = c.where.split(' and ')[0];
+    const narrowOk = (device?.width || DESKTOP.width) < 360 && (line?.startsWith(`For ${first}`) || line === 'Posted for other places');
+    if (![`Posted for ${c.where}, not ${c.l}`, `Posted for ${c.where} only`].includes(line) && !line?.startsWith(`Posted for ${first}`) && !narrowOk) bad.push(`${c.id} drawer line "${line}"`);
     const cap = await page.locator('#drawer .d-pay-caption').first().textContent().catch(() => '');
     if (!cap.includes(`This pay is posted for ${c.where}, not for ${c.l}.`)) bad.push(`${c.id} caption "${cap}"`);
     bad.push(...await lineProblems(page, '#drawer .d-pay-note', `${c.id} ${device?.name || 'desktop'}`));
@@ -258,11 +265,14 @@ async function checkP3(ctx, device) {
   bad.push(...await lineProblems(page, `#resultsList .card[data-id="${c.id}"] .sal-pill, #resultsList .card[data-preview-id="${c.id}"] .sal-pill`, `${c.id} pill`)); // the pill one line
   await job(page, `${where}&job=${encodeURIComponent(c.id)}`, c.title);
   const amt = await text(page, '#drawer .d-sal-amt');
-  if (amt !== `${money2(lo)}–${money2(hi).slice(1)} an hour`) bad.push(`${c.id} heading "${amt}"`);
+  // One line at every size: the posted rate, then "/hour", then whole dollars as on the card (280 and 320 px).
+  const heads = [`${money2(lo)}–${money2(hi).slice(1)} an hour`, `${money2(lo)}–${money2(hi).slice(1)}/hour`, `$${Math.round(lo)}–${Math.round(hi)} an hour`];
+  if (!((device?.width || DESKTOP.width) < 360 ? heads : heads.slice(0, 1)).includes(amt)) bad.push(`${c.id} heading "${amt}"`);
   const sub = await text(page, '#drawer .d-sal-top .muted');
   if (!/paid by the hour/.test(sub || '')) bad.push(`${c.id} sub line "${sub}"`);
   const annual = await text(page, '#drawer .d-annual');
-  if (annual !== `About ${kRange(c.min, c.max)} a year (2,080 hours)`) bad.push(`${c.id} yearly line "${annual}"`);
+  const annuals = [`About ${kRange(c.min, c.max)} a year (2,080 hours)`, `About ${kRange(c.min, c.max)} a year`]; // the hours in Details at 280 px
+  if (!((device?.width || DESKTOP.width) < 360 ? annuals : annuals.slice(0, 1)).includes(annual)) bad.push(`${c.id} yearly line "${annual}"`);
   bad.push(...await lineProblems(page, '#drawer .d-annual', `${c.id} ${device?.name || 'desktop'}`), ...await lineProblems(page, '#drawer .d-sal-amt', `${c.id} ${device?.name || 'desktop'}`));
   noErrors(errors);
   return bad;

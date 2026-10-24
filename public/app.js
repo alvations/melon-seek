@@ -5351,7 +5351,9 @@ function annualNote(sal, job = null) {
   if (!orig) return null;
   // P-3 (fix-data-6): full-time hourly pay is headed by its posted rate; this line gives the yearly figure, converted.
   if (orig === 'hour' && job && isFullTimeHourly(job)) {
-    return annualLine(`About ${salaryRange(sal)} a year (2,080 hours)`, `About ${postedPair(Math.round(sal.min), Math.round(sal.max), sal.currency)} a year at 2,080 hours: converted from the hourly rate, which is what the posting states.${sal.text ? ` As posted: ${sal.text}.` : ''}`);
+    const el = annualLine(`About ${salaryRange(sal)} a year (2,080 hours)`, `About ${postedPair(Math.round(sal.min), Math.round(sal.max), sal.currency)} a year at 2,080 hours: converted from the hourly rate, which is what the posting states.${sal.text ? ` As posted: ${sal.text}.` : ''}`);
+    // One line at every phone size: at 280 px the hours are left to Details.
+    return fitOneLine(el, [`About ${salaryRange(sal)} a year (2,080 hours)`, `About ${salaryRange(sal)} a year`]);
   }
   // CONTRACT v4 (fix-pay-data P-8): 'term' is pay for the whole programme; termWeeks is its length.
   const what = orig === 'term' && sal.termWeeks ? `pay for a ${sal.termWeeks}-week programme` : `${INTERVAL_ADJ[orig] || orig} pay`;
@@ -5489,7 +5491,7 @@ function drawerContent(job) {
   // P-1 (fix-data-6): one line at every size; where the places don't fit, "only" stands for the places picked, then one
   // place is named ("Seattle and 3 more"). The whole sentence is in Details (caption).
   const captionLine = !sal ? null : elsewhere ? fitOneLine(h('span'), [`Posted for ${payPlaceText(job)}, not ${placesPicked()}`,
-    `Posted for ${payPlaceText(job)} only`, `Posted for ${payPlaceText(job, 1)} only`])
+    `Posted for ${payPlaceText(job)} only`, `Posted for ${payPlaceText(job, 1)} only`, `For ${payPlaceText(job, 1)} only`, 'Posted for other places'])
     : isOte(job) ? 'On-target earnings' : isMinimum(job) ? 'Posted minimum base pay' : sal.includesShiftDifferential ? 'Posted pay, including shift pay'
       : partHourly ? 'Posted hourly pay, part-time' : term?.fixed ? 'Fixed-term pay as posted' : 'Posted base pay';
   // UX-22: under a Location filter, the range posted for the place picked.
@@ -5505,6 +5507,7 @@ function drawerContent(job) {
   // UX-51 (fix-qa4): shift pay reads as on its card ("$18.05–19.70 an hour", "up to $19.70 an hour").
   const shiftR = sal && !ph ? shiftRange(sal) : null;
   const fullHourly = sal && isFullTimeHourly(job); // P-3
+  const hourlyShort = !fullHourly ? null : isMinimum(job) ? `from ${postedMoney(Math.round(sal.min / 2080), sal.currency)} an hour` : `${wholeHourly(sal.min / 2080, sal.max / 2080, sal.currency)} an hour`;
   const amountText = !sal ? null : ph ? ph.range : shiftR ? shiftText(job, shiftR, ' an hour') : partHourly || (fullHourly && !isMinimum(job)) ? `${postedPair(sal.min / 2080, sal.max / 2080, sal.currency)} an hour`
     : fullHourly ? `from ${postedMoney(sal.min / 2080, sal.currency)} an hour`
     : term ? `${term.amount}${perText(term.per)}` : isMinimum(job) ? `from ${money(sal.min, sal.currency)}` : salaryRange(sal);
@@ -5521,7 +5524,10 @@ function drawerContent(job) {
   const salaryBlock = h('section', { class: 'd-salary' },
     sal ? h('div', { class: 'd-sal-top' },
       h('div', null,
-        exactText && exactText !== amountText ? fitOneLine(h('div', { class: 'd-sal-amt' }), [exactText, amountText]) : h('div', { class: 'd-sal-amt' }, amountText),
+        exactText && exactText !== amountText ? fitOneLine(h('div', { class: 'd-sal-amt' }), [exactText, amountText])
+          // P-3: one line at 280 and 320 px: "$27.98–48.99/hour", then whole dollars as on the card ("$28–49 an hour").
+          : fullHourly && !ph ? fitOneLine(h('div', { class: 'd-sal-amt' }), [amountText, amountText.replace(/ an hour$/, '/hour'), hourlyShort])
+          : h('div', { class: 'd-sal-amt' }, amountText),
         h('div', { class: 'muted' }, subText),
         (annualEl = annualNote(sal, job)),
         // QA round 3: "Pay by place" for fixed-term and part-time pay too, in the unit it was posted in.

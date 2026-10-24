@@ -307,6 +307,7 @@ const card = (place) => new Function('formatMoney', 'payAt', 'countryInSentence'
   const PER_YEAR = { hour: 2080, day: 260, week: 52, month: 12, year: 1 };
   let viewSpec = place ? { l: new Set([place]) } : null;
   const isPartTimeHourly = () => false, postedTerm = () => null, programText = () => '';
+  const isFullTimeHourly = () => false; // fix-data-6 P-3: payUnit's full-time hourly branch (none of these is hourly)
   const placePay = (j) => payAt(j, place);
   ${HELPERS.map(fnSource).join('\n')}
   return { payHeadline, unlistedNotes: typeof unlistedNotes === 'function' ? unlistedNotes : null, pickedLevels: typeof pickedLevels === 'function' ? pickedLevels : null };`)(formatMoney, payAt, (c) => ({ US: 'the US', ES: 'Spain' }[c] || c), place);
