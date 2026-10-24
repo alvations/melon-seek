@@ -1,0 +1,107 @@
+From d5b4d9a9e981940f7e01b6eac303cb4ebad22321 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 24 Oct 2026 01:05:35 +0000
+Subject: [PATCH 07/74] =?UTF-8?q?fix-salary-6:=20DATA=5FSOURCES=20=C2=A77a?=
+ =?UTF-8?q?=20and=20CONTRACT=20for=20S-1;=20the=20CSV=20README=20names=20p?=
+ =?UTF-8?q?lace=20levels=20and=20unlisted=20lines?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+(cherry picked from commit da401d797b3721ca7b9360146d5ebc3d3dda2b22)
+---
+ docs/CONTRACT.md     | 47 ++++++++++++++++++++++++++++++++++++++++++++
+ docs/DATA_SOURCES.md |  4 +++-
+ server/export.js     |  2 ++
+ 3 files changed, 52 insertions(+), 1 deletion(-)
+
+diff --git a/docs/CONTRACT.md b/docs/CONTRACT.md
+index d319614..722b92d 100644
+--- a/docs/CONTRACT.md
++++ b/docs/CONTRACT.md
+@@ -1053,3 +1053,50 @@ methodology's sources table (`methodology-figures.js loadFigureInputs`) and `api
+ 
+ **Market doc (`scripts/build-market.js`, MR-22):** `fx.source` is `palette.js FX_SOURCE` (the rates' own source), not a code path.
+ **Registry tool (`scripts/refresh/registry.js`, MR-21):** the usage header lists `--docs [--write]`.
++
++## fix-salary-6 additions (2026-10-24): pay posted for several countries or places (fix-salary-6 lane)
++
++Finding S-1 (persona review, persona-beta-2-45-54): pay posted for two or more countries kept one country's line, so under a
++Location filter the site said the pay wasn't posted for a place the posting prices. Log: [docs/process/fix-salary-6.md](process/fix-salary-6.md).
++Every addition is optional for readers; no export changed its signature. `NORMALIZER_VERSION` is `norm-14`: stored older snapshots
++are re-derived once. Nothing is dropped: every posting, pay figure, quarantine flag and stored row is kept; the headline salary
++(`min`, `max`, `mid`, `currency`, `country`) is unchanged for every posting of the 2026-10-16 crawl.
++
++**Job `salary`:**
++
++| Field | Meaning |
++|---|---|
++| `ranges[]` | Also set from a posting's pay lines for two or more countries or pay areas (Google "Germany: €150000 - €153000 (EUR)" and "Italy: €124000 - €127000 (EUR)", Microsoft "across Ireland" and "across Spain", NVIDIA "Italy: The base salary range is …"): one row per line with the job's places in its country or area (`locations`), yearly, in the line's own currency, named for the country as posted (`label`: "Germany", "US"), or for its places when the country also has an SF Bay Area / NYC line (SB-5). Rows are set only when two or more lines price places the job lists |
++| `ranges[].country` | ISO code of the country the row's line names (new) |
++| `ranges[].levels` | `[{ label, min, max }]`, yearly: the row's own levels or degrees (Microsoft's IC5 and IC6 of its SF Bay Area / NYC range, Google's "[Bachelor's degree]" lines for one country) (new) |
++| `ranges[].currency` | May differ from `salary.currency` ("Canada: $150000 - $153000 (CAD)" beside the US line). A span is only taken over rows in one currency |
++| `unlisted` | `[{ label, min, max, currency, interval: 'year', country?, areas?, outside?, levels? }]`: lines the posting states for a country or pay area none of the job's places is in (Microsoft's SF Bay Area / NYC range on a Redmond-only job, `areas: ['sf-bay', 'nyc']`; its U.S. range on a San Francisco-only job, `outside: ['sf-bay', 'nyc']`; "across Spain" on a Dublin-only job). Kept as posted and shown in the drawer's pay Details and the CSV; no figure, filter, comparison, payAt or Juice uses them (new) |
++| `levels` | Also set when a "[Degree]" line of its own (or above bulleted country lines) heads the headline country's lines |
++| `currency` | A "kr" or "$" with no code beside it is read by its own line's country ("across Denmark is kr …" is DKK), not the job's first such country |
++
++Structured rows named for places but stored with none (Ashby's "Canada", "USA - All Other States", "Remote - US"; Scale AI's
++Greenhouse rows, named from its text "in the locations of San Francisco, New York, Seattle is: …") get `locations` (the places
++they name; DATA_SOURCES §7a). Amazon's rows are its adapter's (DQ-33) and are never tied by label.
++
++**`server/salary.js`:** `parseSalary` adds `byPlace` when the text prices two or more places: `[{ country, label, areas?, min,
++max, currency, interval, kind, text, levels?, head?, termWeeks?, termFactor?, intervalCorrected?, statedInterval? }]` in the posted
++interval, in posted order; `head` marks the headline's line. New export `nationCode(name)`.
++
++**`server/normalize.js`:** new exports `withPlaceRanges(salary, parsed, locations)` (the rows and `unlisted`; it also does SB-5's
++split, which `withAreaRanges` still exports) and `tieRangePlaces(salary, locations, text)` (structured rows named for places).
++
++**Juice (`server/juice.js#attachJuice`):** a place with its own row is matched to the row's currency and country (`ranges[].country`,
++else `salary.country`) and scored on that row's midpoint in its currency: Milan on Italy's line, Toronto on the CAD line.
++
++**App (`public/app.js`):**
++- `payRanges(s)` returns rows in any currency. `payHeadline` spans only the rows in `salary.currency`; with one such row the
++  figure is that row and the tip says other places are paid in another currency. Pay by place writes each row in its currency.
++- Under a Location filter `pickedRange` adds `rows` (the rows the figure is); the drawer's line under the figure names the picked
++  row's currency ("Posted for Toronto · CAD · per year"), and Pay by level lists the picked row's own levels, none when it has none.
++- The pay block's Details add one line per `salary.unlisted` entry: "The posting also gives pay for Spain: €38K–59.7K; this role
++  isn’t listed there." (`unlistedNotes`).
++
++**Open data CSV (`server/export.js#salaryRows`):** a row with its own levels lists them under its name ("Germany · Bachelor's
++degree: 68500-68500 EUR"), and the salary's levels are then not listed again; `salary.unlisted` lines follow, marked "(not a
++listed place)": "Spain (not a listed place): 38000-59700 EUR". `salary_min` / `salary_max` still span only rows in the salary's
++currency.
+diff --git a/docs/DATA_SOURCES.md b/docs/DATA_SOURCES.md
+index 5437e5a..7bb5510 100644
+--- a/docs/DATA_SOURCES.md
++++ b/docs/DATA_SOURCES.md
+@@ -261,9 +261,11 @@ pay table). Every result then passes the vetting gate (`server/vet.js`); see
+ | **On-target earnings** (norm-6) | A range the posting calls OTE / on-target earnings / on target compensation / base + commission at target keeps its numbers and gets `salary.kind: "ote"` (base plus commission at target), never shown or pooled as base pay. "For sales roles, the range provided is the role's On Target Earnings ("OTE") range" (Anthropic boilerplate) applies to sales titles only. See [VETTING.md](VETTING.md) §2. NVIDIA's sales "cash compensation range" (85% base, 15% variable) is `"ote"` since fix wave 5 (VT-7, the lead's decision: shown, not hidden). Netflix's sales "market range" for an area is still `salary: null` under the rule below |
+ | **Base pay only** | "+ bonus + equity + benefits" after a range marks it as base pay, and the extras are never added. A **total** compensation range (Google DeepMind "Total Compensation Range: $550,000 – $1,100,000 (includes … sign-on bonus …)") is not base pay, so the posting gets `salary: null`. NVIDIA's sales **cash** compensation range ("85% paid through base salary and 15% variable compensation. The cash compensation range is …") is base plus variable pay at target: on-target earnings, `kind: "ote"` (fix wave 5, VT-7) |
+ | **Several ranges by location** | The first or national range. Microsoft states the U.S. range first and the SF Bay Area / NYC range second: the U.S. one is used, except for a job whose US locations are **all** in the SF Bay Area (75 km around the bay) or the New York City metro (60 km around Manhattan), which uses the SF Bay Area / NYC range (norm-7, decided by the lead for DQ-13: 31 postings, median 18% higher). The distance is the town's own: since norm-13 ([fix-mr-3](process/fix-mr-3.md), MR-40) the gazetteer has the 43 New York, New Jersey and Connecticut towns within about 80 km of Manhattan that the boards list (Garden City NY, Fort Lee and Paramus NJ, Bridgewater NJ, the Bronx, Staten Island, Long Island, Westchester and North and Central Jersey towns); before, they were placed at their state's centre (New York State's is 200 km from the city), so Microsoft's Garden City (3 postings), Fort Lee (1), Paramus (1) and Bridgewater (4) places were priced at the U.S. range. They are now on the posting's NYC-metro row; one Philadelphia and Bridgewater posting keeps both its posted ranges (1,821 → 1,822 Microsoft pay rows). A town elsewhere with the same name ("Oceanside, CA") is not moved: these entries are read only with their state named. Amazon has no national figure, only a per-location table, so the row for the posting's own primary city is used (city and state compared whole, so "York, PA" is not "New York, NY"), else the first row for one of the posting's own places, else the first row in the posting's country, else the first row. Every row is kept in `salary.ranges`, each with the posting's places it names (`ranges[].locations`, fix wave 5, DQ-33), so Juice and the Location filter use each place's own range; identical rows are one range and one zone; a "Virtual Location" row for a state the posting lists no place in is dropped (DQ-41) |
++| **Rows named for places are tied to them** (norm-14, [fix-salary-6](process/fix-salary-6.md), S-1, main site) | Ashby and Greenhouse rows stored with a name and no places ("Canada", "USA - California, New York and Washington", "USA - All Other States", "Canada - Toronto (GTA), Montreal", "San Francisco, New York, Seattle", "Remote - US", "London"; Scale AI's unnamed rows, named by its own text: "the base salary range for this full-time position in the locations of San Francisco, New York, Seattle is: $180,000 — $259,000 USD") are tied to the job's places they name (`ranges[].locations`): a state list takes the job's places in those states, "All Other States" or "elsewhere in the US" the country's places no other row names, a country alone its places no more specific row names, a whole-country place ("United States", "Canada") every row of its country, "Remote - US" the remote US place. A row that names no place the job lists, or a name that is no place ("Zone A"), stays as it was. Before, no row of these postings was tied, so a Location filter found no posted pay at any of their places. On the 2026-10-16 crawl: Cohere 122 of 183 rows tied (55 postings), OpenAI 11 of 18 (8), Scale AI 38 of 42 (16); Compstimate's backtest: Cohere ±9.9% on 59 → ±5.8% on 76 (more comparables priced at the city asked), Scale AI ±11.9% on 123 → ±9.7% on 124, OpenAI ±10.1% and every big-tech board unchanged except Google within 10% 44.6% → 43.8% (±12.4% unchanged). Amazon's, Apple's and Microsoft's rows already have their places |
+ | **Every posted row is kept** (norm-11, [salary-audit-backend](process/salary-audit-backend.md)) | No cap on rows: Amazon's table and `salary.ranges` keep every posted row (SB-3; it was 12). A stored row that a trimmed description no longer shows is put back from `salary.ranges` (SB-1), and trimming keeps every pay-table row and the sentence above it (SB-2, VT-22). Amazon row names are matched to the posting's places, including "New York City", "N.Reading", "Westboro", "Hazle Township" and "San Franscisco" (SB-4). A posting that lists a Remote place keeps its "Virtual Location - <state>" rows, which are its remote pay (SB-6; DQ-41 still drops them when no place is remote). Microsoft's SF Bay Area / NYC range is kept as a second `salary.ranges` entry with its own places, and the headline stays the U.S. range (SB-5). **Lead decision (2026-10-16), applied since norm-12 ([fix-data-3](process/fix-data-3.md)):** a place the posting lists but prices with no row of its own gets no posted pay there: no Juice for that place, and it is never scored on another place's row. The card still shows the posting's range, and every row is kept. A row tied to no listed place (Amazon "San Francisco" on a posting that lists Austin, Seattle, Columbus and Herndon) prices nothing; it used to make every place score on the headline row. On the 2026-10-16 crawl this was 7 postings: Amazon 10434407 and 10572516 (Austin), 10543760 (Sunnyvale), 10579032 (East Palo Alto), 10580055 and 10580057 (Arlington, VA), and Apple 200679317-3337 (San Francisco Bay Area, whose second footer names no place). Applied by `server/juice.js` `postedPlaceSet` (Juice) and, in every other view (the chart, the map, the stats line, Compstimate, Insights and the drawer), by one helper, `payAt` in public/features/shared.js ([fix-pay-at-place](process/fix-pay-at-place.md); `postedPlaces` for `payLocations`). Virtual-location rows keep their state in their labels ("Remote (CA)") |
+ | **Several ranges by level** | Lowest listed min to highest listed max, with the levels named in `salary.text`: NVIDIA "168,000 USD - 264,500 USD for Level 4, and 196,000 USD - 310,500 USD for Level 5"; Microsoft "IC4: USD $119,800 - $234,700 per year; IC5: USD $142,800 - $274,800 per year". Each level's own range is kept in `salary.levels` (`[{ label: "Level 4", min, max }, …]`, annual, norm-7). The span is capped at 4× (the gate's ratio bound). Microsoft also prices one level per **country** ("across Ireland is €…", "across Germany is €…"). Those are not levels: the job's own country is used, and countries are never mixed |
+-| **One line per country** (Google) | "US: $171000 - $247000 (USD) + 20% bonus target + equity + benefits", "Ireland: €142000 - €145000 (EUR) …": the line for the job's country, the US one when the job has a US location, else the line for its first location's country. Lines for different countries are never spanned; one country's degree lines are ("[Bachelor's degree] Poland: zł156000 (PLN)", "[Master's degree] …"), and since norm-11 each degree line is also kept as a level (`salary.levels`, SA-4: "Pay by level: Bachelor's degree CA$99K · Master's degree CA$102K"). The code in parentheses is the currency, so a Canadian line is CAD (norm-7, DQ-15, D-22) |
++| **One line per country** (Google) | "US: $171000 - $247000 (USD) + 20% bonus target + equity + benefits", "Ireland: €142000 - €145000 (EUR) …": the headline is the line for the job's country, the US one when the job has a US location, else the line for its first location's country. Lines for different countries are never spanned; one country's degree lines are ("[Bachelor's degree] Poland: zł156000 (PLN)", "[Master's degree] …"), and since norm-11 each degree line is also kept as a level (`salary.levels`, SA-4: "Pay by level: Bachelor's degree CA$99K · Master's degree CA$102K"). Since norm-14 a "[PhD degree]" line of its own, or one above bulleted lines with blank lines between, names the country lines under it too (3 Google postings gain their degree levels). The code in parentheses is the currency, so a Canadian line is CAD (norm-7, DQ-15, D-22). Every other country's line is kept too: the next row |
++| **Pay for several countries or areas: every line is kept** (norm-14, [fix-salary-6](process/fix-salary-6.md), S-1) | A posting that states pay for two or more countries or pay areas (Google's country lines, Microsoft's "across Ireland is …" and "across Spain is …", or its U.S. range beside its SF Bay Area / NYC range, NVIDIA's "Italy: The base salary range is …") keeps every line. The headline is unchanged (the row above, DQ-13). Each line is a row of `salary.ranges` with its `country`, its levels (`levels`, by level or degree) and the job's places in that country or area (`locations`), in its own currency ("Canada: $150000 - $153000 (CAD)" beside "US: $147000 - $210000 (USD)"), so the card, the drawer's Pay by place, a Location filter, the chart, the map, Compstimate, the CSV and Juice price each place on its own line: Milan on Italy's €124,000–127,000, not Germany's (it said "Pay posted for Germany only"). A row is named for its country as posted ("Germany", "US"); a country that also has an area line keeps SB-5's place names ("Redmond, Boston"). A place in a country with no line (London on that posting) has no posted pay, as before. **A line for a place the job doesn't list** (Microsoft's SF Bay Area / NYC range on a Redmond-only job, "across Spain" on a Dublin-only one, Google's Denmark line on a Zürich, Munich and Paris job) is kept in `salary.unlisted` and shown as posted in the drawer's pay Details ("The posting also gives pay for Spain: €38K–59.7K; this role isn’t listed there.") and in the CSV's `salary_ranges` ("Spain (not a listed place): 38000-59700 EUR"). It is in no figure, filter, comparison or Juice, and the card is unchanged (the lead, 2026-10-24: a posted line is never visible only in the CSV). A "kr" or "$" with no currency code is read by its own line's country: Microsoft's "across Denmark is kr 880,000.00" is DKK, not the krone of the job's first Nordic place (15 Microsoft rows; Google's lines carry their codes). On the 2026-10-16 crawl: Google 35 postings with lines for 2+ countries (97 lines; before, 62 lines for a listed country were dropped in 34 postings; now 34 postings carry 81 rows and 1 an unlisted line), Microsoft 35 with national ranges for 2+ countries (58 listed lines were dropped; now 31 more postings carry rows, 601 rows in 287 postings, was 512 in 256) and 978 postings with an unlisted line (the other area's range, or another country's), NVIDIA, Meta and Netflix none. Nothing is dropped: every posting, pay figure, quarantine flag and stored row is unchanged (28,176 paid postings, 6,673 rows kept, now 6,843). Two Microsoft postings listed only in Brazil and India post only U.S. lines and keep `salary: null` (VT-1, below) |
+ | **Fixed-term pay** (norm-8) | The programme's length is `salary.termWeeks` (information only). How the pay was stated decides what it is: a yearly rate on an internship (Google "Ireland: €72000 (EUR)" with "a minimum 13 week full-time internship", Microsoft "CAD $43,800 - CAD $50,000 per year" for a 6-month one; 27 postings on 2026-10-11) gets `originalInterval: "year"`; week, month or whole-term pay keeps its own interval. **No stated length** ([fix-mr-3](process/fix-mr-3.md), MR-38): an internship (level Intern: internships, fellowships, co-ops, residencies, apprenticeships, students) paid by the hour, day, week or month whose posting gives no length is fixed-term pay of unstated length (`public/features/shared.js` `isTermUnstated`, part of `isFixedTerm`): shown as posted ("$6,688–10,800 a month", "$27.00–29.00 an hour"), never as a yearly salary, with Juice per month only, and converted figures at the posted interval ("≈ $6,025 a month"). The salary itself is unchanged (still annualized, so the Intern comparisons are unchanged). On the 2026-10-16 crawl: Amazon 91 (58 monthly, 33 hourly), Meta 35, NVIDIA 34, Microsoft 14, Anduril 5 and Apple 1 (180, 111 of them with Juice; Amazon's other 2 of the review's 182 are part-time hourly pay, already shown at the hourly rate), and on the stable boards Palantir 35, Shield AI 6 and xAI 4. Every one is kept, with its pay |
+ | **Part-time hourly pay** (norm-8) | Apple's part-time retail roles ("$22.00 and $28.88/hr", 52 postings) get `salary.partTime: true`; the yearly figure is the 2,080-hour equivalent, and Juice needs the posting's stated weekly hours ("work 16 hours per week", 1 posting) |
+ | **Not base pay in comparisons** (MR-28, [fix-data-3](process/fix-data-3.md)) | Three posted figures are shown as posted but are not a posted base-pay range, so the market comparisons (`api/market.json`: Same role elsewhere, Compare companies) leave them out of every cell and count them on the company's entry instead: a stated minimum (`salary.kind: 'minimum'`, `minimum`), an hourly figure that includes the highest shift differential (`includesShiftDifferential`, `shiftPay`), and part-time hourly pay at 2,080 hours (`partTime`). `scripts/build-market.js` `notBasePay`. Juice still starts from the posted figure, and the drawer's Juice block says so in one line: "Gross pay is the posted minimum." or "Gross pay includes top shift pay." |
+diff --git a/server/export.js b/server/export.js
+index a2e68b4..213ca71 100644
+--- a/server/export.js
++++ b/server/export.js
+@@ -231,6 +231,8 @@ export function csvReadme({ generatedAt = new Date().toISOString(), companies =
+     '                   two that both hold are joined with "+" (shift+part-time)',
+     '  salary_ranges    every range the posting states for a level or a place, yearly,',
+     '                   "<level or place>: <min>-<max> <currency>", separated by " | ";',
++    '                   a place\'s levels as "<place> · <level>: ..."; pay it gives for a',
++    '                   place the job does not list is marked "(not a listed place)";',
+     '                   empty when it states one range',
+     '  data_mode        live | cache | snapshot | demo ("demo" rows are synthetic)',
+     '',
+-- 
+2.43.0
+

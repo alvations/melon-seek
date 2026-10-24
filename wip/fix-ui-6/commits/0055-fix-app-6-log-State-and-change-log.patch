@@ -1,0 +1,66 @@
+From 6ab1aa10f4a7e252e6ccc86c0c9635d97216b19c Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 24 Oct 2026 01:07:17 +0000
+Subject: [PATCH 55/71] fix-app-6: log State and change log
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+(cherry picked from commit ea5f1fda47f00fe9d269b132acd64d83d3370eb5)
+---
+ docs/process/fix-app-6.md | 31 +++++++++++++++++++------------
+ 1 file changed, 19 insertions(+), 12 deletions(-)
+
+diff --git a/docs/process/fix-app-6.md b/docs/process/fix-app-6.md
+index 22ad748..ded2382 100644
+--- a/docs/process/fix-app-6.md
++++ b/docs/process/fix-app-6.md
+@@ -1,23 +1,26 @@
+ # Process log: fix-app-6 (front-end engineer, fix wave 6)
+ 
+ ## State
+-- 2026-10-24 00:45 UTC: **all eight IDs fixed and unit-tested; e2e running.** Resumed after the container restart at about 00:23 UTC
+-  (every background process was lost; the worktree and commits were intact). Base: db38a30 (detached; later than e800c43).
++- 2026-10-24 01:10 UTC: **all eight IDs fixed, unit-tested and e2e-green; the related groups are running.** Resumed after the container
++  restart at about 00:23 UTC (every background process was lost; the worktree and commits were intact). Base: db38a30 (detached; later
++  than e800c43).
+ - Findings (persona reviews, wave 2, on e800c43's build; BN-3 to BN-8 and BN-1's country-wide counts from the lead by message):
+   - BN-1 (High) false Location counts under a pay minimum (27bb06c), and a town's own count hidden in its country's (80a676b).
+-  - BN-2 (Medium) a bare "$" median over pay in one foreign currency (27bb06c).
++  - BN-2 (Medium) a bare "$" median over pay in one foreign currency (27bb06c; the chart caption at a place's own row, 21e80e1).
+   - BN-3 (Medium) the count twice in de-DE, de-CH, fr-FR, pl-PL (27bb06c).
+-  - BN-4 (Medium) part-time hourly pay led with a full-time year called "posted pay" (27bb06c).
++  - BN-4 (Medium) part-time hourly pay led with a full-time year called "posted pay" (27bb06c; short words where it would wrap, 7ee0894).
+   - BN-5 (Medium) a place set aside "for now" lost once another tick changed (27bb06c).
+-  - BN-6 (High) posted minimums hidden by a pay floor; the Salary note and the empty state didn't count them (27bb06c).
+-  - BN-7 (Medium) Seniority words, the level chip, two-level postings (27bb06c; the chip from the loaded posting, 80a676b).
++  - BN-6 (High) posted minimums hidden by a pay floor; the Salary note and the empty state didn't count them (27bb06c; the note's line
++    fitted, 41ffc42).
++  - BN-7 (Medium) Seniority words, the level chip, two-level postings (27bb06c, 80a676b, 0c06bb2).
+   - BN-8 (Medium) the typed currency kept in the chip, the link and the saved name; zł and grouped thousands (5ceb621).
+-- Tests: test/fix-app-6.test.js 20 tests, 18 fail on 4ebe24f (2 guards pass), 20 pass at 5ceb621. npm test CI-like at 30fc159:
+-  1,326 tests, 1,316 pass, 0 fail, 10 skipped. The e2e of 27bb06c's build: 18 of 21 BN tests passed; the 3 failures were the test's
+-  own (an empty list's ready state, a narrow no-break space), fixed in 4a0265d.
+-- In progress: the rebuilt dist at 5ceb621 (build3.log); my e2e on the base build (`scratchpad/fa6/dist-base`, e2e-red.log).
+-- Next: my e2e on the rebuilt dist, the related groups (fix-mr-3, fix-pay-at-place, Fix3 app, Fix app, fix-viz-5, Beta mobile QA 4, Beta
+-  desktop QA 4, the Location filter's tests), CI-like npm test at the last SHA, screenshots, send the SHA to the lead.
++- Tests: test/fix-app-6.test.js 20 tests, 18 fail on 4ebe24f (2 guards pass), 20 pass. npm test CI-like at ed53ac0: 1,328 tests, 1,318
++  pass, 0 fail, 10 skipped. test/e2e/fix-app-6.e2e.js 45 tests: on the base build 15 fail, 9 pass (the phone tests and the 375 px locale
++  tests are guards: a phone shows the median only), 2 skip (fixed since to fail there); on the rebuilt dist 45 of 45 pass (42 in one run,
++  the 3 failures fixed and re-run: 10/10).
++- dist: the build of 5ceb621, with 21e80e1's to 41ffc42's app.js and chart.js copied in (the build copies them verbatim).
++- In progress: the related groups (e2e-related.log) and the strengthened base checks (e2e-red2.log), both through heavy.sh.
++- Next: CI-like npm test at the last SHA through heavy.sh, send the SHA to the lead.
+ - Not committed: the data links data/snapshots and data/beta/snapshots, and the node_modules link.
+ 
+ ## 1. Brief
+@@ -161,3 +164,7 @@ bash scripts/cycle/shrink-screenshots.sh docs/screenshots/fix-app-6
+ ## 7. Change log
+ - 2026-10-23 21:28: checked out db38a30, saved the brief, linked the 2026-10-16 crawl, built the base (7 min at load 10-13).
+ - 21:40: BN-1 reproduced on the base build.
++- 21:50–22:00: BN-3 to BN-7 arrived from the lead; red unit tests (16 of 18 fail on 4ebe24f), the fixes (27bb06c), the e2e group, the docs.
++- 22:00–22:10: BN-1's country-wide counts (80a676b); npm test 0 fail at 30fc159; the first e2e run (18/21; the test's own 3 bugs fixed).
++- 00:23: the container restarted; resumed at 00:30. BN-8 (5ceb621), the caption's currency at a place (21e80e1), the red e2e on the base
++  build (15 fail), the green run (42/45), the stats line and caption fits (7ee0894), the Salary note's fit (41ffc42), 10/10 re-run.
+-- 
+2.43.0
+

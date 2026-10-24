@@ -1,0 +1,78 @@
+From abccc1623d37ec5cbea1ce536b95688ccb791445 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 23 Oct 2026 21:12:07 +0000
+Subject: [PATCH 15/74] fix-ui-6: prompt, verbatim
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+(cherry picked from commit e4cf9d147797945acfc8ca1af4c1305feda783be)
+---
+ docs/process/prompts/fix-ui-6.md | 56 ++++++++++++++++++++++++++++++++
+ 1 file changed, 56 insertions(+)
+ create mode 100644 docs/process/prompts/fix-ui-6.md
+
+diff --git a/docs/process/prompts/fix-ui-6.md b/docs/process/prompts/fix-ui-6.md
+new file mode 100644
+index 0000000..5fb8e90
+--- /dev/null
++++ b/docs/process/prompts/fix-ui-6.md
+@@ -0,0 +1,56 @@
++You are the front-end engineer `fix-ui-6` for melon-seek (repo /home/user/melon-seek, branch claude/stoic-ride-54ddxp), a zero-build vanilla ES-module app, "the Zillow of job postings". You are in your own git worktree. First run `git fetch origin claude/stoic-ride-54ddxp && git checkout --detach origin/claude/stoic-ride-54ddxp` (e800c43, the deployed batch 3, or later). Read:
++- docs/CONTRACT.md;
++- docs/process/PLAYBOOK.md ("Checkpoints", step 6 included, and "Known traps") and docs/process/TEMPLATE.md;
++- docs/process/fix-phone-sizes.md (all of it; §6 lists most of your items) and docs/process/fix-qa4.md §6;
++- docs/process/lead.md from "Fix wave 5" on.
++
++**Standing rules from the user** (never break them):
++- "we must present them as they are and not cut anything". Never drop or hide a posting or a posted pay row.
++- Present pay as posted. Big-tech figures are base pay only, and say so.
++- "Whatever was done with the ui/UX it needs to go through the mobile and desktop QC QA again", and "Make sure we check for all phone sizes from iPhone mini to razr to duo or something": every size in test/e2e/phone-sizes.mjs (14 portrait phones and 7 postures), for anything you touch.
++
++**Your findings** (the round-4 backlog; each is open on e800c43):
++1. **B-1 (Low), UX-50's pattern under Group by Location and by Level.** fix-qa4 fixed the card's dot under company colouring (the company sits beside its dot). Under Group by Location and by Level the dot still takes the place's or the level's colour beside the department's name, so the colour reads as the department's. Same fix: name the coloured key first. Check every grouping and colouring the chart offers.
++2. **B-2 (Low), the level pill's gap.** M-51's fix clips the "·" that starts a card meta line, and the price is an 18 px gap before the level pill, where it was 10 px. Get the 10 px back without bringing back a "·" at a line's start (fix-phone-sizes' M-51 test and matrix check must still pass).
++3. **B-3 (Medium), "Show N roles" under the keyboard above 860 px.** On touch screens over 860 px (iPhone 15 Pro Max landscape 932x430, Razr inner landscape 1005x412, the Duo spanned 1114x720), the filter sheet's "Show N roles" footer stays at the bottom with the keyboard up, so it waits under the keyboard until the field loses focus. On phones `kb-open` hides it. Make the footer reachable (or hidden as on phones) while the keyboard is up; use visualViewport, as the phone path does.
++4. **B-4 (Low), the filter sheet's start on wide touch screens.** After a tap on Filters on a touch screen over 860 px, the sheet can take up to about 300 ms to start sliding in. Measure it at a quiet moment (note `uptime`), against the phone path, find what delays it (a layout read, a style flush, a font, a transition on a property that is not transform or opacity) and fix it if it is ours. Say before and after numbers.
++5. **B-5 (Low), the Razr inner landscape chart.** At 1005x412 the chart is about 16 px shorter than before M-52 (5560635). Give it the height back without a page scroll the layout didn't have.
++6. **B-6 (Low), the search box at 861 px.** With a board that has a Refresh button, the search box is about 100 px wide and reads only "Search". It should keep a usable width and its placeholder from 861 px up.
++7. **B-7 (Low), the Razr cover screen's map.** On the 352x355 cover screen the third pin sits under the map's attribution. The map's fit (public/features/map.js or wherever the fit lives) should leave room for the corners' controls and attribution at every size.
++
++**Your job:**
++1. A red test per item first, in test/e2e/fix-ui-6.e2e.js, registered in scripts/e2e.js, over every size in test/e2e/phone-sizes.mjs where the item is about size; it fails on e800c43's build and passes after.
++2. Fix. Keep every posting and pay row.
++3. Run `node test/e2e/webkit/phone-smoke.mjs --dist dist --sizes all --engines chromium` and `node test/e2e/phone-matrix.e2e.js` (read their headers for flags) before and after, and the related e2e groups: fix-phone-sizes, the phone matrix, fix-qa4, fix-phone-text's density guard, fix-viz-5, Beta mobile QA 4 and Beta desktop QA 4.
++4. Screenshots before and after at the sizes that show each fix, in docs/screenshots/fix-ui-6/.
++
++**Data and build:**
++- The 2026-10-16 crawl is at /tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92f3-f582ebca24d9/scratchpad/wt-data2/data/snapshots and .../wt-data2/data/beta/snapshots. Symlink them as data/snapshots and data/beta/snapshots in your worktree. Never commit them, and **never move them**: a session hung twice on moving a data link.
++- For the CI-like `npm test`, use a clean checkout with no links:
++  - `git worktree add --detach /tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92f3-f582ebca24d9/scratchpad/fui6/clean HEAD`;
++  - `ln -s /home/user/melon-seek/node_modules <clean>/node_modules`;
++  - `cd <clean> && MELON_BETA_SNAPSHOT_DIR= timeout 1500 npm test > /tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92f3-f582ebca24d9/scratchpad/fui6/npm.log 2>&1`, with run_in_background;
++  - for later SHAs, `git -C <clean> checkout --detach <sha>`.
++- Symlink node_modules from /home/user/melon-seek. Build with `node scripts/build-static.js` (about 7 minutes; run it in the background); your worktree's dist/ is yours. Serve with `node scripts/cycle/serve.mjs --dist dist --pid <scratch pidfile>`.
++- e2e: `NODE_PATH=/tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92f3-f582ebca24d9/scratchpad/pw/node_modules node scripts/e2e.js --grep=<group>`; `--list` lists the groups. Chromium is at /opt/pw-browsers/chromium-1194/chrome-linux/chrome. Never `playwright install`; no `pkill -f` / `pgrep -f`.
++- Give every command a timeout. Run anything longer than a few minutes in the background (run_in_background) and poll its log; never sit in a foreground wait. Run one e2e suite at a time: five persona reviewers and another fix lane share this 4-CPU machine, so note `uptime` with any timing. No crawling: work from the stored snapshots and fixtures.
++
++**Ownership:**
++- Yours: the card's dot and meta line (B-1, B-2), the filter sheet's footer and opening (B-3, B-4), the layout rules for the over-860 px touch layout (B-5, B-6), and the map's fit (B-7).
++- Not yours: pay parsing and Compstimate (fix-data-6, running beside you), and data files.
++- Also yours:
++  - test/e2e/fix-ui-6.e2e.js (and test/fix-ui-6.test.js if any logic is pure);
++  - docs/process/fix-ui-6.md, your log in TEMPLATE.md structure with a `## State` section at the top;
++  - docs/process/prompts/fix-ui-6.md, this prompt verbatim.
++
++**Rules:**
++- Keep the UI simple: no new visible control. Use plain words.
++- Commit small and often with explicit paths; never `git add -A data`. Shrink screenshots with `bash scripts/cycle/shrink-screenshots.sh docs/screenshots/fix-ui-6` before committing them.
++- Send the lead each finished, tested piece by SendMessage to "main": the SHA, what it fixes, and its tests. The lead checkpoints your worktree every 15 minutes and integrates. Never push.
++- The lead may send you more findings (from the persona reviews running now); add them to your list.
++- Before you send any SHA:
++  - npm test in the clean checkout, 0 fail;
++  - your e2e plus the related groups with data linked. S-3, S-6, PERF-1, V15 and T21 are load-sensitive; re-run them alone.
++- Skip the full e2e: the lead's batch gate runs it.
++
++Report: per ID, before → after with measurements and sizes, the tests that fail before and pass after, and SHAs.
+-- 
+2.43.0
+

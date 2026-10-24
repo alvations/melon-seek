@@ -1,7 +1,7 @@
 From e77cd41b8a07f79400ac65115ba505a4f4a55161 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 24 Oct 2026 02:08:58 +0000
-Subject: [PATCH 13/65] fix-salary-6: CONTRACT names the drawer rank's country
+Subject: [PATCH 13/67] fix-salary-6: CONTRACT names the drawer rank's country
  rule
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

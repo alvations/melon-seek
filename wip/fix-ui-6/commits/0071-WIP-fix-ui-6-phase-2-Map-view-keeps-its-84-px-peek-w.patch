@@ -1,0 +1,159 @@
+From bba9bc1cd6b258771579350a3eb4a65fbc8992a8 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 24 Oct 2026 06:31:43 +0000
+Subject: [PATCH 71/71] WIP fix-ui-6: phase 2: Map view keeps its 84 px peek
+ where a card would leave the map under 300 px (map.js back as B left it); B-4
+ keeps to its three screens; D-1 follows the map rule
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+---
+ docs/CONTRACT.md         | 10 ++++++----
+ docs/process/fix-ui-6.md | 14 ++++++++++----
+ public/app.js            |  4 ++++
+ public/viz/map.js        |  4 +---
+ test/e2e/fix-ui-6.e2e.js | 10 +++++++---
+ 5 files changed, 28 insertions(+), 14 deletions(-)
+
+diff --git a/docs/CONTRACT.md b/docs/CONTRACT.md
+index c43d828..42c63d5 100644
+--- a/docs/CONTRACT.md
++++ b/docs/CONTRACT.md
+@@ -1162,15 +1162,17 @@ posting stays in the list, and what folds is one tap away.
+   dollars, clamped to the axis; `data-lo` / `data-hi`), with no circles; the "‹N" / "›N" chips stay. The line, band and median
+   are one option (`.ms-crow__span`: its count, posted range and middle half in its name and tip; a tap lists its roles), between
+   the row's name and its chips. The row's accessible name adds "pay posted from $X to $Y".
+-- **The median once:** in Chart view at every size the chart's caption says the median; the stats line drops its median there
+-  (the phone layout hides the stats line in Chart view, the sheet has the count and the caption's Details the share; tablets and
+-  wider show "4,851 roles · 57% show pay"). Map view and Insights keep the stats line's median.
++- **The median once:** in Chart view at every size the chart's caption says the median; the stats line's median there, and on
++  the phone layout short of a tablet the whole stats line, carry `.sr-only` (`syncStatsFold`): off the screen, still read by a
++  screen reader (the sheet has the count and the caption's Details the share; tablets and wider show "4,851 roles · 57% show
++  pay"). Map view and Insights keep the stats line's median on screen.
++- **Map view:** the card peek applies only where the map keeps at least 300 px (`MAP_ROOM`); elsewhere the stylesheet's 84 px.
+ - **The arrival line on a first visit only:** `localStorage` `melon-seek.visited.v1` (main) / `melon-seek.visited.beta.v1`
+   (beta) holds the date of the first full load (`markVisited`); with it, `<html data-returning>` hides `#tagline` on the phone
+   layout and the Duo's chart screen. Storage that throws makes every visit a first one. The desktop keeps the line.
+ - **The sheet's peek (`fitSheet`, replaces B-12's):** a 20 px grip and a 48 px count row; the first card down to its whole
+   title and its pay, plus 8 px (4 on short screens), never more than the room under the bars; the Juice line shows from half up
+-  on the phone layout. The map's sheet peeks at its first card too from 600 px tall (below: the stylesheet's 84 px). The phone
++  on the phone layout. The map's sheet peeks at its first card too from 600 px tall where the map keeps 300 px (else the stylesheet's 84 px). The phone
+   layout 960 px tall and up (portrait iPads) rests on three whole cards, at most half the screen.
+ - **One-row top bar from 640 px wide on the phone layout** (the Fold open, the Duo stacked, portrait iPads), as in landscape.
+ - **Tests:** `test/e2e/phone-sizes.mjs` `VISIBLE` (21 sizes under the browsers' bars) and `TABLETS` (10 iPads); `ALL_SIZES` is
+diff --git a/docs/process/fix-ui-6.md b/docs/process/fix-ui-6.md
+index b36ae85..f89afa2 100644
+--- a/docs/process/fix-ui-6.md
++++ b/docs/process/fix-ui-6.md
+@@ -135,9 +135,11 @@ fix-app-6's (only where each line shows changed).
+     the rows (a sticky header taller than a phone's chart would hide every row). Its first item is the notes line, then a
+     line on what a folded row draws (a new mark needs its key), then the stats line's facts and the chart's caveats.
+ 15. **The median once, without taking anything away from a screen reader.** In Chart view the stats line's median (and on
+-    the phone layout the whole stats line) is visually hidden, the way the "Group:" label is, not `display: none`: the
+-    stats line stays the page's summary in the accessibility tree and for the suites that read it, and the caption is the
+-    one median on the screen. The tablet keeps "4,851 roles · 57% show pay" beside the chart controls.
++    the phone layout the whole stats line) gets `.sr-only` (app.js `syncStatsFold`, after each render of the line and on a
++    size-class change), not `display: none`: the stats line stays the page's summary in the accessibility tree and for the
++    suites that read its words, the text checks skip `.sr-only` as they always have, and the caption is the one median on
++    the screen. (A first try clipped it from CSS; the cut-text guards then counted the clipped words as cut.) The tablet
++    keeps "4,851 roles · 57% show pay" beside the chart controls.
+ 16. **The tagline's visited flag** is its own key per site (`melon-seek.visited.v1`, `melon-seek.visited.beta.v1`), set after
+     the first full board load (`markVisited`), read once at boot: a first visit keeps the line for the whole visit.
+ 17. **The peek** now reaches every line of the first card's title (B-12 measured the first line), plus 8 px, and is capped
+@@ -147,7 +149,11 @@ fix-app-6's (only where each line shows changed).
+ 18. **The one-row top bar from 640 px** keeps the company name whole: the company menu does not shrink, the search box
+     takes what is left, and under 760 px the beta site's logo goes (as in landscape) and the tabs are tighter (Microsoft at
+     690 px: "Mic…" before).
+-19. **Tests**: each D check is a test over VISIBLE and TABLETS (by class), measured once per size and visit (`survey`), on
++19. **The map keeps 300 px in Map view** (`MAP_ROOM`): the card peeks there only when the map keeps at least 300 px, else
++    the stylesheet's 84 stands, as the spec's gap allows ("if fix-ui-6 finds pins crowded, keep its 84 px on the map").
++    At 280x653 Netflix's five-line first title left the map 190 px and two pins ran under the sheet (B-7). Refitting the
++    map when its box changed fixed that one and broke 932x430 (a pin under the attribution), so map.js stays as B left it.
++20. **Tests**: each D check is a test over VISIBLE and TABLETS (by class), measured once per size and visit (`survey`), on
+     Apple as the spec's audit; D-5 also checks each folded line against `chartPay`'s own `lo`/`hi` of the board's list
+     (Apple, Meta, Netflix); D-12 emulates the stacked Duo's hinge (CDP displayFeature) at 720x1010; D-13 compares the
+     folded rows' counts, medians and chips with the unfolded rows of the same build (412x901) and the board's count. D-14 is
+diff --git a/public/app.js b/public/app.js
+index 33520ea..04d5f57 100644
+--- a/public/app.js
++++ b/public/app.js
+@@ -3580,6 +3580,7 @@ function onInsightFilter({ type, value } = {}) {
+  * a tablet's (the phone layout 960 px tall and up) rests on three whole cards, at most half the screen.
+  */
+ let sheetPeekSet = null;
++const MAP_ROOM = 300; // px of map a card peek must leave in Map view
+ function fitSheet() {
+   // Measured at the peek only: a raised sheet can show more above the first card (the Juice line).
+   if (sheetPeekSet != null && /^(half|full)$/.test(document.body.dataset.sheet || '')) return;
+@@ -3600,6 +3601,9 @@ function fitSheet() {
+       // Never more than the room under the bars (the Razr cover screen under its bars: 118 px), or the page scrolls.
+       const room = Math.floor(innerHeight - ($('.layout')?.getBoundingClientRect().top || 0));
+       if (room > 64) peek = Math.min(peek, room);
++      // The map keeps at least 300 px for its pins and controls (ux-density-6's gap: "if fix-ui-6 finds pins crowded, keep
++      // its 84 px on the map"): at 280x653 a five-line title left it 190 px and Netflix's pins ran under the sheet.
++      if (S.m === 'map' && room - peek < MAP_ROOM) peek = null;
+       const host = $('#chartHost');
+       const scroll = host?.querySelector('.ms-chart__scroll'), sticky = host?.querySelector('.ms-chart__sticky'), body = host?.querySelector('.ms-chart__body');
+       const h = body ? parseFloat(body.style.height) : NaN;
+diff --git a/public/viz/map.js b/public/viz/map.js
+index 2609775..7b50a34 100644
+--- a/public/viz/map.js
++++ b/public/viz/map.js
+@@ -1238,8 +1238,6 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
+   map.on('zoomend', draw);
+ 
+   // fix-viz-5: until the user moves the map, a resize after the fit (the phone's sheet settling) re-checks the controls.
+-  // fix-ui-6 phase 2: and fits the pins to the new box first (the sheet's measured peek can take 70 px from a 280 px wide
+-  // map after its first fit, and the fit's minimum zoom kept the zoom-out from reaching the pins it put out of the map).
+   let fitFresh = false;
+   for (const ev of ['pointerdown', 'wheel', 'keydown']) container.addEventListener(ev, () => { fitFresh = false; mergeCovered = false; }, { passive: true });
+   const ro = new ResizeObserver(() => {
+@@ -1247,7 +1245,7 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
+     if (pendingFit && map.getSize().x && map.getSize().y) { fitToData(); draw(); clearOfControls(); }
+     else {
+       if (placeLabels().length) draw(); // the map's edges moved; a name with no room merges its pin
+-      if (fitFresh && map.getSize().x && map.getSize().y) { fitToData(); draw(); clearOfControls(); }
++      if (fitFresh && map.getSize().x && map.getSize().y) clearOfControls();
+     }
+   });
+   ro.observe(container);
+diff --git a/test/e2e/fix-ui-6.e2e.js b/test/e2e/fix-ui-6.e2e.js
+index 1054feb..fb3e4ea 100644
+--- a/test/e2e/fix-ui-6.e2e.js
++++ b/test/e2e/fix-ui-6.e2e.js
+@@ -751,7 +751,9 @@ export function registerFixUi6Tests(suite) {
+ 
+   /* ----------------------------------------------------------------------------------------------------------- B-4 */
+   suite.test('fix-ui-6: [B-4] a tap on Filters starts the sheet\'s slide within 80 ms on touch screens over 860 px (932x430, 1005x412, 1114x720), and no later than two frames after a phone\'s (390x844) (Apple and Amazon, medians of 3; load-sensitive)', async (ctx) => {
+-    const wide = ALL_SIZES.filter((s) => s.width > 860 && s.height < s.width);
++    // The three touch screens over 860 px that the item is about (ALL_SIZES has the iPads too since 2026-10-24; from 1200 px
++    // their filters are a docked column, with no slide).
++    const wide = [at(932, 430), at(1005, 412), at(1114, 720)];
+     const phone = at(390, 844);
+     const bad = [];
+     const rows = [];
+@@ -1033,9 +1035,11 @@ export function registerFixUi6Tests(suite) {
+     suite.test(`fix-ui-6: [D-1] [${label(size)}, ${c}] the first card's title (every line) and pay are on the first screen and uncovered, on a first and a return visit, in Chart view${c === 'short' ? '' : size.height >= 600 ? ' and Map view' : ''} and with few roles${c === 'tablet' ? ', and the third card is whole' : ''} (Apple)`, async (ctx) => {
+       const back = await survey(ctx, size), firstVisit = await survey(ctx, size, { visited: false });
+       const bad = [];
+-      const need = (m, what) => {
++      const need = (m, what, map = false) => {
+         if (!m) { bad.push(`${what}: not measured`); return; }
+         if (m.first.ok) return;
++        // Map view: the card peeks only where the map keeps 300 px (app.js MAP_ROOM; ux-density-6's gap on crowded pins).
++        if (map && m.first.room - m.first.need < 300) { notes.push(`${what}: the card would leave the map ${m.first.room - m.first.need} px, so the map keeps its 84 px peek`); return; }
+         // A short screen with less room under its bars than the card needs (a three-line title on the Razr cover under its
+         // bars: 132 px in 118): the sheet stops under the quick bar, so its pay and its title's first line must show.
+         if (c === 'short' && m.first.need > m.first.room && m.first.payOk && m.first.firstLine) { notes.push(`${what}: ${m.first.lines}-line title needs ${m.first.need} px, ${m.first.room} under the bars: its pay and first line show`); return; }
+@@ -1045,7 +1049,7 @@ export function registerFixUi6Tests(suite) {
+       need(firstVisit.load, 'first visit, Chart view');
+       need(back.load, 'return visit, Chart view');
+       need(back.few, `few roles (${back.few?.count}), Chart view`);
+-      if (c !== 'short' && size.height >= 600) { need(back.map, 'Map view'); need(back.fewMap, `few roles (${back.fewMap?.count}), Map view`); }
++      if (c !== 'short' && size.height >= 600) { need(back.map, 'Map view', true); need(back.fewMap, `few roles (${back.fewMap?.count}), Map view`, true); }
+       if (c === 'tablet') for (const [m, what] of [[firstVisit.load, 'first visit'], [back.load, 'return visit']]) if (m && m.cardsWhole < 3) bad.push(`${what}: ${m.cardsWhole} whole card(s) on the first screen, not 3`);
+       bad.push(...back.errors, ...firstVisit.errors);
+       for (const n of notes) ctx.notes?.push?.(`${label(size)}: ${n}`);
+-- 
+2.43.0
+

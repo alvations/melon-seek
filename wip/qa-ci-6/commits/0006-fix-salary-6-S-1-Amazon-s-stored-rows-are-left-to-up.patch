@@ -1,0 +1,85 @@
+From e4de986aecc68ba3d5a959a2ac510fac4cf4420c Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 24 Oct 2026 01:03:26 +0000
+Subject: [PATCH 06/74] fix-salary-6 S-1: Amazon's stored rows are left to
+ upgradeAmazonJobs (no label tie); a guard test
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+(cherry picked from commit 2b9296691b47d9d5a0eab04bfaa0ba1dc1ad3c3b)
+---
+ docs/process/fix-salary-6.md | 12 +++++++-----
+ server/normalize.js          |  7 +++++--
+ test/fix-salary-6.test.js    |  8 ++++++++
+ 3 files changed, 20 insertions(+), 7 deletions(-)
+
+diff --git a/docs/process/fix-salary-6.md b/docs/process/fix-salary-6.md
+index ce17f20..d418858 100644
+--- a/docs/process/fix-salary-6.md
++++ b/docs/process/fix-salary-6.md
+@@ -7,11 +7,13 @@
+   - Base copy of the code in `<scratch>/fs6/base` (git archive 37f54e4); served salaries of every stored posting at the
+     base in `<scratch>/fs6/served-before.json` (`tools/served.mjs`, the build's readSnapshot path).
+   - Census before (`tools/census.mjs`, `tools/breakdown.mjs`, `<scratch>/fs6/census-before.json`), see §5.
+-- **In progress:** the parser change (server/salary.js `byPlace` lines, weak "kr"/"$" read by the line's own country,
+-  "[Degree]" header lines), then normalize.js (rows per country tied to the places, `salary.unlisted` for lines of
+-  places the posting does not list, labelled structured rows tied to places).
+-- **Next step:** red tests in test/fix-salary-6.test.js, then the fix, then the client (rows in another currency) and
+-  Juice (a row's own currency and country), CSV, docs, golden and fixtures, build, e2e.
++  - The lead approved the plan (00:3x): rows per country line, kr by line country, main-site rows tied, and
++    `salary.unlisted` shown in the drawer's pay Details, not only the CSV.
++  - Fix committed: 015d801 (parser, normalize, Juice, app, CSV, 18 red tests), 93b8979 (norm-14, golden 0/300 changed,
++    refresh fixtures), 6926984 (bulleted degree lines, e2e file registered).
++- **In progress:** census after, backtest before/after, docs (DATA_SOURCES §7a, CONTRACT), build, e2e.
++- **Next step:** build (`node scripts/build-static.js`), `--grep=fix-salary-6` and the related e2e groups, clean-checkout
++  npm test, then send the SHA to the lead.
+ 
+ ## 1. Brief
+ - Prompt: [prompts/fix-salary-6.md](prompts/fix-salary-6.md). S-1 (persona-beta-2-45-54): pay posted for two or more
+diff --git a/server/normalize.js b/server/normalize.js
+index 3ddb506..6adfa9d 100644
+--- a/server/normalize.js
++++ b/server/normalize.js
+@@ -323,6 +323,8 @@ function labelPlaces(label) {
+ export function tieRangePlaces(salary, locations = [], text = '') {
+   const rs = salary && Array.isArray(salary.ranges) ? salary.ranges : null;
+   if (!rs || rs.length < 2 || rs.some((r) => r && Array.isArray(r.locations) && r.locations.length)) return salary;
++  // Amazon's pay-table rows ("USA, TX, Wink", "CAN, ON, Toronto") are tied by its own adapter (DQ-33), never here.
++  if (rs.some((r) => r && /^[A-Z]{3},\s/.test(String(r.label || '')))) return salary;
+   let rows = rs.map((r) => ({ ...r }));
+   // Scale AI: unnamed rows that the text names, by their figures.
+   if (rows.some((r) => !r.label) && text) {
+@@ -461,8 +463,9 @@ export function relabelJobs(jobs) {
+     } else if (j.salary || j.salaryRaw) {
+       const ctx = { text, title, employmentType: j.employmentType || '', countries: [...new Set((j.locations || []).map((l) => l && l.country).filter(Boolean))] };
+       if (j.salary) next.salary = safe(() => relabelSalary(j.salary, ctx), j.salary);
+-      // S-1 (fix-salary-6): stored structured rows named for places are tied to them, as fresh ones are.
+-      if (next.salary) next.salary = safe(() => tieRangePlaces(next.salary, next.locations || [], text), next.salary);
++      // S-1 (fix-salary-6): stored structured rows named for places are tied to them, as fresh ones are. Amazon's stored
++      // rows are its pay table's, which server/sources/upgrade.js#upgradeAmazonJobs re-reads and ties itself (DQ-33).
++      if (next.salary && !String(j.id || '').startsWith('amazon:')) next.salary = safe(() => tieRangePlaces(next.salary, next.locations || [], text), next.salary);
+       if (j.salaryRaw) next.salaryRaw = safe(() => relabelSalary(j.salaryRaw, ctx), j.salaryRaw);
+     }
+     changed = true;
+diff --git a/test/fix-salary-6.test.js b/test/fix-salary-6.test.js
+index 7ff78e4..6673b3c 100644
+--- a/test/fix-salary-6.test.js
++++ b/test/fix-salary-6.test.js
+@@ -260,6 +260,14 @@ test('S-1 main site: Scale AI\'s unnamed Greenhouse rows are named and tied by t
+   assert.equal(payAt(j, at(j, 'St. Louis')).min, 135200);
+ });
+ 
++test('S-1 Amazon\'s stored pay-table rows are left to its own upgrade (DQ-33): never tied by their labels here', () => {
++  const locations = locsOf(['Canton, Mississippi, USA', 'Wink, Texas, USA']);
++  const sal = { min: 62400, max: 112320, mid: 87360, currency: 'USD', interval: 'year', text: 'USA, TX, Wink - 30.00 - 54.00 USD hourly', kind: 'hourly', zones: 2, source: 'structured', originalInterval: 'hour',
++    ranges: [{ min: 27, max: 48, currency: 'USD', interval: 'hour', label: 'USA, MS, Canton' }, { min: 30, max: 54, currency: 'USD', interval: 'hour', label: 'USA, TX, Wink' }] };
++  const [j] = relabelJobs([{ id: 'amazon:10386388', company: 'amazon', title: 'Data Center Technician', locations, descriptionHtml: '<p>x</p>', salary: sal }]);
++  assert.deepEqual(j.salary.ranges.map((r) => r.locations), [undefined, undefined], 'server/sources/upgrade.js#upgradeAmazonJobs ties and annualizes them from the stored table');
++});
++
+ /* ------------------------------------------------------------------ the card and the drawer (public/app.js) */
+ // public/app.js is a browser module, so the card's pay helpers are cut out of its source and run on their own, as
+ // test/salary-audit.test.js does (fnSource). Under a Location filter, placePay is the shared payAt over the places
+-- 
+2.43.0
+

@@ -1,0 +1,1010 @@
+From 3ca131d3e4964983ca1d635f41d035572569d197 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 23 Oct 2026 21:52:35 +0000
+Subject: [PATCH 43/71] fix-app-6: BN-1 place counts judged per place,
+ BN-2/BN-4 medians in the pay's currency and per hour, BN-3 count once, BN-5
+ held values kept, BN-6 minimums under a floor, BN-7 posted levels
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+(cherry picked from commit c29b9877d8a4754a01b00e2e1106fda8e8899724)
+---
+ public/app.js               | 295 ++++++++++++++++++++++++++++++------
+ public/features/insights.js |  31 ++--
+ public/features/roles.js    |  48 ++++++
+ public/features/shared.js   |  54 +++++++
+ public/viz/chart.js         |  38 +++--
+ public/viz/map.js           |  54 +++++--
+ 6 files changed, 429 insertions(+), 91 deletions(-)
+
+diff --git a/public/app.js b/public/app.js
+index 72e3668..4c9d2fc 100644
+--- a/public/app.js
++++ b/public/app.js
+@@ -12,8 +12,8 @@ import { createCompstimateWidget, compstimateForJob, estimateView } from './feat
+ import { compsForJob, compsNote, createCompsCard } from './features/comps.js';
+ import { loadFreshness, freshnessDoc, juiceAsOfText, juiceSpanText, marketAsOfText, compstimateAsOfText, asOf, formatAsOf } from './features/freshness.js';
+ import { createCompsChart } from './viz/comps.js';
+-import { roleFamily, FAMILY_LABELS, readableTitle, levelLabel, displayLevel, NOT_STATED, DISPLAY_LEVEL_ORDER, levelKey, levelFromKey } from './features/roles.js';
+-import { payLocations, payRank, rankText, samePayCountry, countryInSentence, payAt, pricedPlaces, placeLabel, notBasePay, isTermUnstated, mainPayCurrency } from './features/shared.js';
++import { roleFamily, FAMILY_LABELS, readableTitle, levelLabel, displayLevel, NOT_STATED, DISPLAY_LEVEL_ORDER, levelKey, levelFromKey, postedLevels } from './features/roles.js';
++import { payLocations, payRank, rankText, samePayCountry, countryInSentence, payAt, pricedPlaces, placeLabel, notBasePay, isTermUnstated, mainPayCurrency, headlineMedian, medianText, currencyWords } from './features/shared.js';
+ import { taxRows, jurisdictionOf, householdTaxLine, PERIOD_KEY, periodOf, shownPeriod, gradeMeaning, gradeShort } from './features/juice-drawer.js';
+ // ./features/insights.js is imported on first use (Insights mode), see renderInsights.
+ // api.js: getCompanies, getJobs, getJobDetail (namespace import: tolerate a missing optional export)
+@@ -80,6 +80,18 @@ const SENIORITY_ORDER = ['Intern', 'Entry', 'Mid', 'Senior', 'Staff+', 'Manager'
+ const SENIORITY_SHOWN = DISPLAY_LEVEL_ORDER;
+ const senKey = (j) => displayLevel(j);
+ const senLabel = (k) => levelLabel(k);
++/**
++ * BN-7 (fix-app-6): the levels the Seniority filter finds a posting under: its level, and the other of ours its pay names
++ * on the company's own ladder (roles.js postedLevels: Microsoft M5–M6 is Manager and Director+). Cached on the job.
++ */
++const senKeys = (j) => {
++  if (j._senKeys && j._senKeysOf === j.seniority) return j._senKeys;
++  const own = senKey(j);
++  const p = postedLevels(j);
++  const keys = p && p.levels.length > 1 ? [own, ...p.levels.filter((l) => l !== own)] : [own];
++  j._senKeysOf = j.seniority; j._senKeys = keys;
++  return keys;
++};
+ /**
+  * MR-41 (fix-mr-3): a mid level each board names, read on its own ladder (server/keywords.js): Amazon's "III" is
+  * Senior and Google's "II" is Entry, so no one numeral holds on every board. Microsoft and NVIDIA name the level in
+@@ -97,7 +109,12 @@ const SEN_TIP = {
+ /* The Seniority filter in the link (s=, roles.js levelKey): "Level not stated" keeps its old value 'Mid', so
+    earlier links and saved searches still mean what they said; a stated mid level is 'Mid-level'. */
+ // M-36 / UX-60 (fix-phone-text): a filter note is one line; its facts are behind its Details (viz/note.js).
+-const SEN_NOTE = { line: 'What the levels mean', key: 'fnote-sen', details: ['Staff+ means staff, principal and above.', 'Director+ means director, head of, vice president and above.', '“Level not stated”: the title names no level.'] };
++// BN-7 (fix-app-6): the company's own level comes first (VT-8), so the words say so, and a posting whose pay names two
++// of these levels counts under both.
++const SEN_NOTE = { line: 'What the levels mean', key: 'fnote-sen', details: ['Staff+ means staff, principal and above.', 'Director+ means director, head of, vice president and above.',
++  'Microsoft, Amazon and NVIDIA postings use the company’s own level, so some “Director” titles are Staff+ or Manager.',
++  'A posting whose pay names two of these levels (Microsoft M5–M6) counts under both.',
++  '“Level not stated”: the title names no level.'] };
+ const SEN_OPTS = { labelOf: senLabel, tipOf: (k) => SEN_TIP[k] || null, note: SEN_NOTE };
+ /** I-6: what a city pick finds. */
+ const LOC_NOTE = { line: 'Also finds roles listed for its country', key: 'fnote-loc', details: ['A city also finds roles that list only its country or region, and remote-only roles in its country.'] };
+@@ -508,9 +525,11 @@ function clearFilters() {
+   const patch = {};
+   for (const k of FILTER_KEYS) patch[k] = structuredClone(DEFAULTS[k]);
+   clearArea();
++  const aside = heldLabels();
+   dropHeld(); // BP-10: nothing set aside comes back after Clear all
+   $('#search').value = '';
+   set(patch);
++  heldToast(aside); // BN-5
+ }
+ 
+ function activeFilterCount(st = S) {
+@@ -962,23 +981,43 @@ function filterSpec(st = S, jobs = data.jobs) {
+   };
+ }
+ 
++const salActive = (F) => !!(F.so || F.smin != null || F.smax != null);
++/**
++ * Why the pay filter hides a posting (null: it passes): 'none' (no pay), 'elsewhere' (shared decision 1: under a Location
++ * filter, pay posted only for another country or other places), 'under' (its posted pay is all under the floor), 'over'
++ * (all over the ceiling). BN-6 (fix-app-6): a posted minimum ("from €31,100") states no top, so a floor never hides it;
++ * pay stated "up to" one figure (top shift pay with no base) states no bottom, so a ceiling never hides it.
++ */
++function salWhy(j, F) {
++  if (!salActive(F)) return null;
++  if (!j._usd) return 'none';
++  if (!payHere(j, F)) return 'elsewhere';
++  const u = usdHere(j, F);
++  if (F.smin != null && u.max < F.smin && !isMinimum(j)) return 'under';
++  if (F.smax != null && u.min > F.smax && !shiftRange(j.salary)?.upTo) return 'over';
++  return null;
++}
++/** The Juice-grade filter fails (P-7: under a Location filter, the posting's best Juice among the places picked). */
++const jgFails = (j, F) => { if (!F.jg.size) return false; const g = gradeOf(shownJuice(j, F)); return !(g && F.jg.has(g)); };
++/** The filters judged at the places the Location filter picks (payHere, shownJuice), so BN-1 judges them per place. */
++const AT_PLACE = new Set(['l', 'sal', 'jg']);
++
+ /** Returns the list of facet names this job fails (empty = passes all). */
+ function failures(j, F, now) {
+   const out = [];
+   if (F.q.length && !F.q.every((re) => re.test(j._hay))) out.push('q');
+-  const salActive = F.so || F.smin != null || F.smax != null;
+   // Shared decision 1: under a Location filter, pay posted for another country doesn't pass a pay filter.
+-  if (salActive && (!payHere(j, F) || (F.smin != null && usdHere(j, F).max < F.smin) || (F.smax != null && usdHere(j, F).min > F.smax))) out.push('sal');
++  if (salWhy(j, F)) out.push('sal');
+   if (F.d.size && !F.d.has(deptKey(j))) out.push('d');
+   if (F.b.size && !F.b.has(brandKey(j))) out.push('b');
+   if (F.l.size && !locMatches(j, F)) out.push('l');
+-  if (F.s.size && !F.s.has(senKey(j))) out.push('s');
++  if (F.s.size && !senKeys(j).some((k) => F.s.has(k))) out.push('s'); // BN-7: either level a posting is hired at
+   if (F.e.size && !F.e.has(empKey(j))) out.push('e');
+   if (F.r === 'remote' && !j.remote) out.push('r');
+   if (F.r === 'onsite' && j.remote) out.push('r'); // BP-17: On-site is a role that isn't open to remote work
+   if ((F.p && !(j._age != null && j._age <= F.p)) || (F.ho && j._age != null && j._age >= 180)) out.push('p');
+   if (F.rf && famOf(j) !== F.rf) out.push('rf');
+-  if (F.jg.size) { const g = gradeOf(shownJuice(j, F)); if (!(g && F.jg.has(g))) out.push('jg'); }
++  if (jgFails(j, F)) out.push('jg');
+   for (const cat of ['responsibilities', 'fit', 'skills']) {
+     const sel = F.kw[cat];
+     if (sel.length && !sel.every((k) => j.keywords[cat].includes(k))) { out.push('kw'); break; }
+@@ -1018,21 +1057,35 @@ function derive() {
+   });
+   const covers = coverIndex(jobs);
+   const covered = new Map(); // city key -> postings that list only its country or region
++  // BN-1 (fix-app-6): the pay filter and the Juice grade are judged at the places the Location filter picks, so for the
++  // Location counts they are judged at each counted place: a place's count is what picking it alone shows, whatever
++  // else is picked (a facet's counts ignore its own selection). Without them every place counts the same posting.
++  const placeJudge = salActive(F) || F.jg.size ? judgeAtPlace(F, jobs) : null;
++  fc.salWhy = { none: 0, elsewhere: 0, under: 0, over: 0 };
+   for (const j of jobs) {
+     const fails = failures(j, F, now);
+-    if (fails.length > 1) continue;
+-    const only = fails[0];
+-    if (!only) filtered.push(j); // the chart/map draw the whole filtered set; a cluster/map area narrows the list in render()
+-    else fc.only[only] = (fc.only[only] || 0) + 1; // P-16: what an empty result is blocked by
+-    if (only === 'sal' && !j._usd) fc.noPayHidden++; // P-5: postings with no pay that the pay filter hides
+-    else if (only === 'sal' && !payHere(j, F)) fc.elsewhereHidden++; // shared decision 1: pay posted for another country
++    const byPlace = !!placeJudge && fails.every((f) => AT_PLACE.has(f));
++    if (fails.length > 1 && !byPlace) continue;
++    const only = fails.length === 1 ? fails[0] : undefined;
++    if (fails.length < 2) {
++      if (!only) filtered.push(j); // the chart/map draw the whole filtered set; a cluster/map area narrows the list in render()
++      else fc.only[only] = (fc.only[only] || 0) + 1; // P-16: what an empty result is blocked by
++      if (only === 'sal') {
++        const why = salWhy(j, F);
++        fc.salWhy[why]++; // BN-6: every role the pay filter hides, and why
++        if (why === 'none') fc.noPayHidden++; // P-5: postings with no pay that the pay filter hides
++        else if (why === 'elsewhere') fc.elsewhereHidden++; // shared decision 1: pay posted for another country
++      }
++    }
+     // D-2: with a cluster or map area active, the facet counts describe the roles in that area (the list).
+     if (area && !area.ids.has(j.id)) continue;
++    if (byPlace) countPlaces(j, placeJudge, covers, covered, fc, bump);
++    if (fails.length > 1) continue;
+     const counts = (facet) => !only || only === facet;
+     if (!only) kwJobs.push(j);
+     if (counts('d')) bump(fc.d, deptKey(j));
+     if (counts('b')) bump(fc.b, brandKey(j));
+-    if (counts('l')) {
++    if (counts('l') && !placeJudge) {
+       const seen = new Set();
+       for (let i = 0; i < j.locations.length; i++) {
+         const k = j._locKeys[i];
+@@ -1049,7 +1102,7 @@ function derive() {
+         for (const k of covers(l)) if (!seen.has(k)) { seen.add(k); bump(covered, k); }
+       }
+     }
+-    if (counts('s')) bump(fc.s, senKey(j));
++    if (counts('s')) for (const k of senKeys(j)) bump(fc.s, k); // BN-7: under both of its levels
+     if (counts('e')) bump(fc.e, empKey(j));
+     if (counts('r')) {
+       fc.r.any++;
+@@ -1063,10 +1116,57 @@ function derive() {
+     if (counts('sal') && payHere(j, F)) fc.salMids.push(usdHere(j, F).mid);
+     if (counts('jg')) { const g = gradeOf(shownJuice(j, F)); if (g) bump(fc.jg, g); }
+   }
+-  for (const [k, n] of covered) if (fc.l.has(k)) fc.l.set(k, fc.l.get(k) + n);
++  // I-6: postings that list only a country or region add to the places other roles list (and to a place picked).
++  for (const [k, n] of covered) if (fc.l.has(k) || (placeJudge && F.l.has(k))) fc.l.set(k, (fc.l.get(k) || 0) + n);
+   return { filtered, fc };
+ }
+ 
++/**
++ * BN-1: `(j, key) -> true` when the posting passes the pay filter and the Juice grade with the Location filter set to
++ * that one place (the same salWhy and jgFails, with a spec whose `l` is { key }), so its count is what picking the place
++ * alone shows. Specs are made once per place; a posting's answer is shared between places that take in the same of its
++ * locations (a country-only posting covers many cities the same way).
++ */
++function judgeAtPlace(F, jobs) {
++  const specs = new Map();
++  const specOf = (k) => {
++    let s = specs.get(k);
++    if (!s) { const l = new Set([k]); s = { ...F, l, lCover: placeCover(l, jobs) }; specs.set(k, s); }
++    return s;
++  };
++  let memoJob = null, memo = null;
++  return (j, k) => {
++    const Fk = specOf(k);
++    if (memoJob !== j) { memoJob = j; memo = new Map(); }
++    // Which of its locations the place takes in: its own key (or an old link's), or a country or region that covers it.
++    let sig = '';
++    for (let i = 0; i < j.locations.length; i++) {
++      const l = j.locations[i];
++      if (j._locKeys[i] === k || j._locAlt?.[i] === k) sig += `o${i}`;
++      else if (coverLoc(j, l) && coveredBy(l, Fk.lCover)) sig += `c${i}`;
++    }
++    let ok = memo.get(sig);
++    if (ok === undefined) { ok = !salWhy(j, Fk) && !jgFails(j, Fk); memo.set(sig, ok); }
++    return ok;
++  };
++}
++/** BN-1: one posting's Location counts, each place judged by `judge` (judgeAtPlace); the same keys as the plain count. */
++function countPlaces(j, judge, covers, covered, fc, bump) {
++  const seen = new Set();
++  for (let i = 0; i < j.locations.length; i++) {
++    const k = j._locKeys[i];
++    if (seen.has(k)) continue;
++    seen.add(k);
++    const l = j.locations[i];
++    if (!fc.lGroup.has(k)) fc.lGroup.set(k, l.remote ? '~remote' : l.country || 'ZZ');
++    if (judge(j, k)) bump(fc.l, k);
++  }
++  for (const l of j.locations) {
++    if (!coverLoc(j, l)) continue;
++    for (const k of covers(l)) if (!seen.has(k)) { seen.add(k); if (judge(j, k)) bump(covered, k); }
++  }
++}
++
+ /** I-6: (country-or-region location) -> the board's city keys it covers, cached per board. */
+ const coverIndexes = new WeakMap();
+ function coverIndex(jobs) {
+@@ -1164,22 +1264,23 @@ function stats(list, F = viewSpec) {
+     // part-time figure is shown and counted as pay, and left out of the median unless nothing else is left.
+     // MR-39: the currency of the pay that counts (under a Location filter, the places' own range).
+     const cur = (F?.l.size ? placePay(j, F)?.currency : j.salary.currency) || 'USD';
+-    (notBasePay(j) ? nb : isOte(j) ? ote : base).push({ mid: usdHere(j, F).mid, cur });
++    (notBasePay(j) ? nb : isOte(j) ? ote : base).push({ usd: usdHere(j, F).mid, cur, hourly: isPartTimeHourly(j) });
+   }
+   // MR-39 (fix-mr-3): with pay in two or more currencies in view, the median is the main currency's (the chart rows'
+-  // rule, V-21: "median $222K in the US"), not every country's pay converted and pooled.
++  // rule, V-21: "median $222K in the US"), not every country's pay converted and pooled. BN-2, BN-4 (fix-app-6): it is
++  // given in that currency (shared.js headlineMedian: CA$101K over Canadian pay), and per hour when it is all part-time
++  // hourly pay; the chart's caption, the map's pins and Insights' tiles use the same helper.
+   const use = base.length ? base : ote.length ? ote : nb;
+-  const basis = mainPayCurrency(use.map((x) => x.cur));
+-  const mids = (basis ? use.filter((x) => String(x.cur).toUpperCase() === basis) : use).map((x) => x.mid).sort((a, b) => a - b);
++  const hm = headlineMedian(use);
+   const depts = new Map();
+   for (const j of list) depts.set(deptKey(j), (depts.get(deptKey(j)) || 0) + 1);
+   const top = [...depts].sort((a, b) => b[1] - a[1])[0] || null;
+   return {
+     n: list.length, withSalary: base.length + ote.length + nb.length,
+-    median: quantile(mids, 0.5), p25: quantile(mids, 0.25), p75: quantile(mids, 0.75), top,
++    median: hm.median, p25: hm.p25, p75: hm.p75, top,
+     oteOnly: !base.length && ote.length > 0, oteLeftOut: base.length ? ote.length : 0,
+     notBaseOnly: !base.length && !ote.length && nb.length > 0, notBaseLeftOut: base.length || ote.length ? nb.length : 0,
+-    basis, basisN: mids.length, basisLeft: use.length - mids.length,
++    basis: hm.basis, basisN: hm.n, basisLeft: hm.left, cur: hm.cur, local: hm.local, perHour: hm.perHour, fullTime: hm.fullTime, hm,
+   };
+ }
+ 
+@@ -1702,19 +1803,45 @@ function switchCompany(c) {
+   if (!c || c.slug === S.c) return;
+   // BP-10: the places picked here, by what they are (placeOf), so the next board can find its own label for them.
+   pendingKeep = activeFilterCount() || Object.keys(held).length
+-    ? { name: c.name, places: new Map(S.l.map((x) => [x, data.status === 'ready' ? placeOf(x, data.jobs) : null])) } : null;
++    ? { name: c.name, from: data.company?.name || '', places: new Map(S.l.map((x) => [x, data.status === 'ready' ? placeOf(x, data.jobs) : null])) } : null;
+   set({ c: c.slug, cn: c.custom ? c.name : '', job: null });
+ }
+ let pendingKeep = null;
+ /**
+  * BP-10: filter values a board didn't have, set aside until a board that has them: facet key ->
+- * { items: [{ value, place }], after } (`after`: the facet's value when they were set aside; once the
+- * person changes that filter, what they set aside is dropped). Clearing filters or opening a saved search
+- * clears it (dropHeld).
++ * { items: [{ value, place, from }], after } (`after`: the facet's value when they were set aside; `from`: the board
++ * where they were in force). BN-5 (fix-app-6): a list facet (places, departments, levels, …) keeps what it set aside
++ * while the person ticks or unticks other values, as the toast's "for now" promised; a one-value filter (role family,
++ * Remote, listing date) drops it once another value replaces it. Clear all, the facet's Reset and opening a saved
++ * search clear it (dropHeld), with a toast that names what was set aside (heldToast).
+  */
+ let held = {};
+ const facetSnap = (key) => JSON.stringify(key === 'p' ? [S.p, S.ho] : S[key]);
+ function dropHeld(keys = null) { if (!keys) held = {}; else for (const k of keys) delete held[k]; }
++/** BN-5: the values set aside for `keys` (all facets by default), as the toasts name them. */
++function heldLabels(keys = null) {
++  const out = [];
++  for (const [key, hf] of Object.entries(held)) {
++    if (keys && !keys.includes(key)) continue;
++    for (const it of hf.items) out.push(heldLabel(key, it.value));
++  }
++  return out;
++}
++function heldLabel(key, v) {
++  if (key === 's') return senLabel(v);
++  if (key === 'e') return empLabel(v);
++  if (key === 'jg') return `Juice: ${v}`;
++  if (key === 'rf') return FAMILY_LABEL[v] || v;
++  if (key === 'r') return v === 'remote' ? 'Remote' : 'On-site';
++  if (key === 'p') return 'listing date';
++  return String(v);
++}
++/** BN-5: say what Clear all or a Reset dropped of the values set aside at an earlier board. */
++function heldToast(labels) {
++  if (!labels.length) return;
++  const list = labels.length > 3 ? `${labels.slice(0, 3).join(', ')} +${labels.length - 3}` : labels.join(', ');
++  toast(`Also dropped ${list}, set aside from an earlier company`, 4500);
++}
+ /** Popover "Reset" keys -> the facets it clears. */
+ const HELD_OF = { salary: [], dept: ['d', 'b'], loc: ['l'], sen: ['s'], remote: ['r'], more: ['e', 'p', 'kr', 'kf', 'ks', 'jg'] };
+ /**
+@@ -1728,7 +1855,8 @@ function settleKeep() {
+   if (!k || data.status !== 'ready') return;
+   const jobs = data.jobs;
+   const kept = [], dropped = [], back = [];
+-  for (const key of Object.keys(held)) if (facetSnap(key) !== held[key].after) delete held[key];
++  // BN-5: a one-value filter drops what it set aside once another value replaced it; a list facet keeps it.
++  for (const key of Object.keys(held)) if (!Array.isArray(S[key]) && facetSnap(key) !== held[key].after) delete held[key];
+   if (S.q) kept.push(`“${S.q}”`);
+   if (S.smin != null || S.smax != null || S.so) kept.push(quickLabel('salary'));
+   /* `here(x, place)`: the value to use on this board, or null when it has none. Values in force are kept
+@@ -1755,7 +1883,7 @@ function settleKeep() {
+   // A known place keeps to that place ("Cambridge" in Massachusetts never becomes Cambridge, England); a label
+   // with no place behind it (an old link) is kept where it still matches.
+   keepArr('l', (x, p) => (p ? keyOnBoard(p, jobs) : locOnBoard(x, jobs) ? x : null), (x) => x, (x) => k.places?.get(x) || null);
+-  keepArr('s', has((j, x) => senKey(j) === x), senLabel);
++  keepArr('s', has((j, x) => senKeys(j).includes(x)), senLabel);
+   keepArr('e', has((j, x) => empKey(j) === x), empLabel);
+   for (const { key, cat } of KW_CATS) keepArr(key, has((j, x) => j.keywords[cat].includes(x)));
+   keepArr('jg', has((j, x) => gradeKey(j) === x), (x) => `Juice: ${x}`);
+@@ -2397,14 +2525,18 @@ function makeSalary({ compact = false } = {}) {
+     for (const n of [hist, track, vals, note]) n.hidden = !has;
+     empty.hidden = has;
+     toggle.checked = S.so;
+-    // P-5: say when the pay filter hides postings that list no pay.
+-    const hidden = derived.fc?.noPayHidden || 0;
+-    const elsewhere = derived.fc?.elsewhereHidden || 0; // shared decision 1
+-    // M-36 (fix-phone-text): one line, the two reasons behind its Details.
+-    renderNote(noPay, { key: 'fnote-nopay', line: hidden || elsewhere ? `${plural(hidden + elsewhere, 'role')} hidden by the pay filter` : '', details: [
+-      hidden ? `${plural(hidden, 'role')} that ${hidden === 1 ? 'lists' : 'list'} no pay ${hidden === 1 ? 'is' : 'are'} hidden while a pay filter is on.` : '',
+-      elsewhere ? `${plural(elsewhere, 'role')} whose pay is posted for another country ${elsewhere === 1 ? 'is' : 'are'} hidden${hidden ? ' too' : ' while a pay filter is on'}: that pay isn’t for ${placesPicked()}.` : ''] });
+-    noPay.hidden = !hidden && !elsewhere;
++    // P-5: say when the pay filter hides postings that list no pay. BN-6 (fix-app-6): every role it hides, and why.
++    const why = derived.fc?.salWhy || { none: derived.fc?.noPayHidden || 0, elsewhere: derived.fc?.elsewhereHidden || 0, under: 0, over: 0 };
++    const hidden = why.none, elsewhere = why.elsewhere; // shared decision 1
++    const all = hidden + elsewhere + why.under + why.over;
++    const is = (n) => (n === 1 ? 'is' : 'are');
++    // M-36 (fix-phone-text): one line, the reasons behind its Details.
++    renderNote(noPay, { key: 'fnote-nopay', line: all ? `${plural(all, 'role')} hidden by the pay filter` : '', details: [
++      why.under ? `${plural(why.under, 'role')} whose posted pay is all under ${money(S.smin)} a year ${is(why.under)} hidden. Posted minimums (“from …”) are kept: their top isn’t stated.` : '',
++      why.over ? `${plural(why.over, 'role')} whose posted pay is all over ${money(S.smax)} a year ${is(why.over)} hidden.` : '',
++      hidden ? `${plural(hidden, 'role')} that ${hidden === 1 ? 'lists' : 'list'} no pay ${is(hidden)} hidden while a pay filter is on.` : '',
++      elsewhere ? `${plural(elsewhere, 'role')} whose pay is posted for another country ${is(elsewhere)} hidden${hidden ? ' too' : ' while a pay filter is on'}: that pay isn’t for ${placesPicked()}.` : ''] });
++    noPay.hidden = !all;
+     if (!has) { understood.hidden = true; return; }
+     for (const r of [lo, hi]) { r.min = dom.lo; r.max = dom.hi; }
+     if (document.activeElement !== lo) lo.value = S.smin ?? dom.lo;
+@@ -2496,6 +2628,21 @@ function fitCheckLabels(root) {
+   }
+ }
+ 
++/** How many options a facet has on the whole board (distinct keys), cached per board. */
++const boardOptionCounts = new WeakMap();
++function boardOptions(facet) {
++  const jobs = data.jobs;
++  let m = boardOptionCounts.get(jobs);
++  if (!m) { m = new Map(); boardOptionCounts.set(jobs, m); }
++  if (!m.has(facet)) {
++    const keyOf1 = { d: deptKey, b: brandKey, s: senKey, e: empKey }[facet];
++    const keys = new Set();
++    for (const j of jobs) { if (facet === 'l') for (const k of j._locKeys || []) keys.add(k); else if (keyOf1) keys.add(keyOf1(j)); }
++    m.set(facet, keys.size);
++  }
++  return m.get(facet);
++}
++
+ function makeChecklist(facet, { searchable = 'auto', grouped = false, limit = 8, order = null, colorDim = null, labelOf = (k) => k, tipOf = null, note = null, label = null, labelledBy = null } = {}) {
+   let query = '';
+   let expanded = false;
+@@ -2520,7 +2667,8 @@ function makeChecklist(facet, { searchable = 'auto', grouped = false, limit = 8,
+       .filter((it) => it.count > 0 || selected.has(it.key));
+     if (order) items.sort((a, b) => order.indexOf(a.key) - order.indexOf(b.key));
+     else items.sort((a, b) => b.count - a.count || a.key.localeCompare(b.key));
+-    const showSearch = searchable === true || (searchable === 'auto' && items.length > 8);
++    // BN-1 (fix-app-6): by the board's own options too, so the box doesn't vanish while filters narrow the list.
++    const showSearch = searchable === true || (searchable === 'auto' && (items.length > 8 || boardOptions(facet) > 8));
+     searchWrap.hidden = !showSearch;
+     if (query && grouped) {
+       // BP-6: a country ("Ireland", "Deutschland") lists its places; a local name ("München", "Zürich") its city.
+@@ -2853,8 +3001,10 @@ function clearPopoverFacet(id) {
+     salary: { smin: null, smax: null, so: false }, dept: { d: [], b: [] }, loc: { l: [] }, sen: { s: [] }, remote: { r: 'any' },
+     more: { so: false, e: [], p: 0, ho: false, kr: [], kf: [], ks: [], jg: [] },
+   };
++  const aside = heldLabels(HELD_OF[id] || []);
+   dropHeld(HELD_OF[id] || []);
+   set(patches[id] || {});
++  heldToast(aside); // BN-5
+ }
+ 
+ function syncPopover() {
+@@ -2992,23 +3142,29 @@ function renderKpis() {
+   const basisTip = st.basis ? `; of the ${st.basisN.toLocaleString()} roles paid ${payBasisPlace(st.basis).replace(/^paid /, '')}, as the chart rows compare one country's pay; ${plural(st.basisLeft, 'role')} paid in other currencies left out` : '';
+   // fix-density: one line (roles · share with pay · median); the rest in the list behind "Details" (viz/note.js).
+   const line = [
+-    item(st.n.toLocaleString(), st.n === total ? plural(st.n, 'role').replace(/^[\d,]+ /, '') : `of ${total.toLocaleString()} roles`, null, 'stat--count'),
++    // BN-3 (fix-app-6): the word alone, never a localized number cut off ("3.821 3.821 roles" in de-DE).
++    item(st.n.toLocaleString(), st.n === total ? (st.n === 1 ? 'role' : 'roles') : `of ${total.toLocaleString()} roles`, null, 'stat--count'),
+     // P-6: with a Location filter, the share counts pay that applies there ("22% show pay for London").
+     st.n ? item(capWhole ? `${capWhole.whole}%` : `${pct}%`, capWhole ? `of all ${capWhole.total.toLocaleString()} show pay`
+       : capNote?.salariedFirst ? `of the ${capNote.kept.toLocaleString()} kept show pay` : onePlace ? `show pay for ${onePlace}` : 'show pay',
+       `${st.withSalary.toLocaleString()} of ${st.n.toLocaleString()} postings include a pay range${here}${here ? ' (pay posted only for other places or another country is not counted)' : ''}${capNote ? `. ${capNote.tip}` : ''}`, 'stat--share') : null,
+     // BP-13: it says which pay the median is of; the chart's median uses the same set.
+     // MR-39: with pay in several currencies, the median is the main one's and says where ("base pay median (US)").
+-    st.median != null ? item(money(st.median), `${st.oteOnly ? 'median on-target earnings' : st.notBaseOnly ? 'posted pay median' : 'base pay median'}${basisShort}`,
+-      `Half of these roles pay more than this and half less (the middle of each posted range, ${ote || 'base pay, '}in US dollars${here}${left}${basisTip})`, 'stat--median') : null,
++    // BN-2 (fix-app-6): in the currency of the pay it is of (CA$101K over Canadian pay; MR-39's main currency when the
++    // view mixes them), as the cards show it. BN-4: part-time hourly pay only is per hour, as posted; a median that is
++    // partly a full-time year of part-time pay says so, and an annualised figure is never "posted pay".
++    st.median != null ? medianItem(st, basisShort,
++      `Half of these roles pay more than this and half less (the middle of each posted range, ${ote || (st.notBaseOnly ? '' : 'base pay, ')}${medianUnitTip(st)}${here}${left}${basisTip})`) : null,
+   ].filter(Boolean);
+   // M-46 (fix-phone-text): a phone shows only the median, so with no pay in view its line said nothing but "Details".
+   const noPay = st.n && st.median == null ? h('span', { class: 'stat stat--nopay' }, st.withSalary ? 'Too few with pay for a median' : 'No pay listed') : null;
+   const details = [
+     // Phones show the median only (the chart's notes line has the with/without counts), so the share is here too.
+     st.n ? `${st.withSalary.toLocaleString()} of ${st.n.toLocaleString()} roles show pay${onePlace ? ` for ${onePlace}` : ''} (${pct}%)` : '',
+-    st.p25 != null && st.p75 != null && money(st.p25) !== money(st.p75) ? `Half of these roles pay between ${money(st.p25)} and ${money(st.p75)} (the middle of each posted range)` : '',
+-    st.median != null ? `The median is ${st.oteOnly ? 'on-target earnings' : 'base pay'}${basisWhere}, in approx US dollars${here}: half of these roles pay more, half less` : '',
++    st.p25 != null && st.p75 != null && medianText(st.hm, st.local.p25) !== medianText(st.hm, st.local.p75) ? `Half of these roles pay between ${medianText(st.hm, st.local.p25)} and ${medianText(st.hm, st.local.p75)} (the middle of each posted range)` : '',
++    // BN-4: "base pay" only when it is (MR-28's stated minimums, shift pay and part-time pay are not).
++    st.median != null ? `The median is ${st.oteOnly ? 'on-target earnings' : st.notBaseOnly ? (st.perHour ? 'of part-time pay' : 'of posted pay') : 'base pay'}${basisWhere}, ${medianUnitTip(st)}${here}: half of these roles pay more, half less` : '',
++    st.median != null && st.fullTime ? 'Part-time pay posted by the hour counts as a year if full-time (2,080 hours)' : '',
+     // MR-39: the median compares one country's pay, as the chart rows do; the rest is counted, not pooled.
+     st.median != null && st.basis ? `It is the median of the ${st.basisN.toLocaleString()} roles paid ${payBasisPlace(st.basis).replace(/^paid /, '')}; ${plural(st.basisLeft, 'role')} paid in other currencies ${st.basisLeft === 1 ? 'is' : 'are'} left out, so countries' pay is never pooled` : '',
+     st.oteLeftOut ? `${plural(st.oteLeftOut, 'posting')} with on-target earnings (base plus commission) left out of the median` : '',
+@@ -3032,6 +3188,24 @@ function renderKpis() {
+ }
+ let statsNotes = []; // UX-57: the stats line's facts, for the chart notes
+ 
++/** BN-2, BN-4: "in Canadian dollars, as posted", "per hour, as posted", "in US dollars": what the stats line's median is in. */
++function medianUnitTip(st) {
++  if (st.perHour) return `per hour in ${currencyWords(st.cur)}, as posted`;
++  return `in ${currencyWords(st.cur)}${st.cur === 'USD' ? '' : ', as posted'}${st.fullTime ? ', with part-time hourly pay as a year if full-time' : ''}`;
++}
++/**
++ * BN-2, BN-4 (fix-app-6): the stats line's median: "CA$101K base pay median", "$28.41/hour posted pay median", or, when
++ * part of it is a full-time year of part-time hourly pay, "$56K median, a year if full-time" (shorter where that would
++ * wrap: fitOneLine). MR-39's "(US)" when the view mixes currencies.
++ */
++function medianItem(st, basisShort, title) {
++  const v = medianText(st.hm);
++  const words = st.oteOnly ? ['median on-target earnings'] : st.fullTime ? ['median, a year if full-time', 'median if full-time']
++    : st.notBaseOnly ? ['posted pay median'] : ['base pay median'];
++  const rest = words.map((w) => `${w}${basisShort}`);
++  return h('span', { class: 'stat stat--median', title }, h('strong', null, v), ' ', rest.length > 1 ? fitOneLine(h('span'), rest) : rest[0]);
++}
++
+ /** I-2: one line on what the site is ("Pay, and what's left after tax and rent, for 8 tech companies' open roles"). */
+ function renderTagline() {
+   const el = $('#tagline');
+@@ -3448,13 +3622,18 @@ function activeFacets(st = S) {
+   if (st.kr.length || st.kf.length || st.ks.length) on.push('kw');
+   return on;
+ }
++/** "a, b and c". */
++const andList = (a) => (a.length > 1 ? `${a.slice(0, -1).join(', ')} and ${a[a.length - 1]}` : a[0] || '');
+ const dropFacet = (f) => () => { const [, patch] = FACET_OFF[f](); if ('q' in patch) $('#search').value = ''; set(patch); };
+ /** { title, body, action } for an empty result: the one filter to blame, or the one whose removal helps most. */
+ function emptyState() {
+   const on = activeFacets();
+   const only = derived.fc?.only || {};
+-  const noPay = derived.fc?.noPayHidden || 0, elsewhere = derived.fc?.elsewhereHidden || 0;
+-  const payNote = [noPay ? `${plural(noPay, 'role')} that ${noPay === 1 ? 'lists' : 'list'} no pay ${noPay === 1 ? 'is' : 'are'} hidden by the pay filter.` : '',
++  const why = derived.fc?.salWhy || { none: derived.fc?.noPayHidden || 0, elsewhere: derived.fc?.elsewhereHidden || 0, under: 0, over: 0 };
++  const noPay = why.none, elsewhere = why.elsewhere;
++  const payNote = [why.under ? `${plural(why.under, 'role')} whose posted pay is all under ${money(S.smin)} a year ${why.under === 1 ? 'is' : 'are'} hidden by the pay filter.` : '',
++    why.over ? `${plural(why.over, 'role')} whose posted pay is all over ${money(S.smax)} a year ${why.over === 1 ? 'is' : 'are'} hidden by the pay filter.` : '',
++    noPay ? `${plural(noPay, 'role')} that ${noPay === 1 ? 'lists' : 'list'} no pay ${noPay === 1 ? 'is' : 'are'} hidden by the pay filter.` : '',
+     elsewhere ? `${plural(elsewhere, 'role')} whose pay is posted for another country ${elsewhere === 1 ? 'is' : 'are'} hidden by the pay filter.` : ''].filter(Boolean);
+   if (on.length === 1) {
+     const f = on[0];
+@@ -3463,10 +3642,22 @@ function emptyState() {
+     if (f === 'sal') return { title: 'No roles in this pay range', body: 'Try a wider range.', details: payNote, action: ['Remove the pay filter', dropFacet('sal')] };
+     return { title: 'No roles match', body: `Nothing here fits ${label}.`, action: [`Remove ${label}`, dropFacet(f)] };
+   }
+-  const best = on.filter((f) => only[f] > 0).sort((a, b) => only[b] - only[a])[0];
++  // BN-6 (fix-app-6): every filter that alone empties the list is named (the pay filter included), the one whose
++  // removal brings back the most first; the line is fitted to one line, with every count behind Details.
++  const blockers = on.filter((f) => only[f] > 0).sort((a, b) => only[b] - only[a]);
++  const best = blockers[0];
+   if (best) {
+     const [label] = FACET_OFF[best]();
+-    return { title: 'No roles match every filter', body: `Without ${label}: ${plural(only[best], 'role')}.`, details: best === 'sal' ? payNote : null, action: [`Remove ${label}`, dropFacet(best)] };
++    const labels = blockers.map((f) => FACET_OFF[f]()[0]);
++    const without = blockers.map((f, i) => `without ${labels[i]}: ${plural(only[f], 'role')}`);
++    const first = `Without ${label}: ${plural(only[best], 'role')}.`;
++    const body = blockers.length === 1 ? first : fitOneLine(h('span'), [
++      `${without.join('; ').replace(/^w/, 'W')}.`,
++      `Without ${label}: ${plural(only[best], 'role')}; or remove ${andList(labels.slice(1))}.`,
++      `Blocked by ${andList(labels)}.`,
++      `Blocked by ${andList(labels.map((x) => x.replace(/^the | filter$| “.*”$/g, '')))}.`]);
++    const details = [...(blockers.length > 1 ? without.map((x) => `${x[0].toUpperCase()}${x.slice(1)}.`) : []), ...(blockers.includes('sal') ? payNote : [])];
++    return { title: 'No roles match every filter', body, details: details.length ? details : null, action: [`Remove ${label}`, dropFacet(best)] };
+   }
+   return { title: 'No roles match', body: 'Nothing fits every filter you’ve set.', action: ['Clear filters', clearFilters] };
+ }
+@@ -5027,6 +5218,16 @@ function metaParts(job) {
+   return out;
+ }
+ 
++/**
++ * BN-7 (fix-app-6): the drawer's level chip. A level read from the company's own ladder names it ("Manager · Microsoft
++ * M5–M6"), so a "Director" title filed as Manager or Staff+ says why (VT-8).
++ */
++function senChip(job, sen = senKey(job)) {
++  const p = postedLevels(job);
++  const tip = p ? `${p.text}: the level ${data.company?.name || 'the company'} posts in the pay, which comes before the title’s words${p.levels.length > 1 ? `; it is hired at either, so the Seniority filter finds it under ${p.levels.join(' and ')}` : ''}` : SEN_TIP[sen] || null;
++  return h('span', { class: `sen sen--${sen.toLowerCase().replace(/\W/g, '')}`, title: tip }, p ? `${senLabel(sen)} · ${p.text}` : senLabel(sen));
++}
++
+ /** The drawer's top row: previous / position / next, and close ("‹ Back" on a phone). */
+ function drawerHead() {
+   return h('div', { class: 'drawer-head' },
+@@ -5207,7 +5408,7 @@ function drawerContent(job) {
+     // M-37 (fix-phone-text): one line; what a general application is, behind its Details.
+     isPool(job) ? noteLine({ cls: 'd-pool', key: 'drawer-pool', line: h('strong', null, POOL_LABEL), details: [`${POOL_TIP}.`] }) : null,
+     h('div', { class: 'd-meta' }, ...metaParts(job).map(metaPart),
+-      h('span', { class: `sen sen--${sen.toLowerCase().replace(/\W/g, '')}`, title: SEN_TIP[sen] || null }, senLabel(sen)),
++      senChip(job, sen),
+       job._titleTag ? h('span', { class: 'tag', title: `The posting's title starts with “[${job._titleTag}]”, a tag the company adds (often a team or office code)` }, `Tag: ${job._titleTag}`) : null),
+     job._ts ? h('div', { class: 'd-updated muted' }, updatedText(job)) : null,
+     // Fixed order (ROADMAP §8): pay block → Same role elsewhere → (Juice headline) → Listing → Locations → Keywords → Bullets → Description.
+diff --git a/public/features/insights.js b/public/features/insights.js
+index 1def204..fe1f5ae 100644
+--- a/public/features/insights.js
++++ b/public/features/insights.js
+@@ -11,7 +11,7 @@
+ 
+ import {
+   salaryUSD, percentile, median, formatMoney, formatDelta, formatPct, plural, fmtCount, niceTicks,
+-  jobLocationKeys, countryName, isOTE, notBasePay, h, createTooltip, preserveFocus, uid, payAt, pricedPlaces, toUSD, mainPayCurrency,
++  jobLocationKeys, countryName, isOTE, notBasePay, h, createTooltip, preserveFocus, uid, payAt, pricedPlaces, toUSD, mainPayCurrency, headlineMedian, medianText,
+ } from './shared.js';
+ import { payBasisPlace } from '../viz/chart.js';
+ import { formatAsOf, asOf as registryAsOf } from './freshness.js';
+@@ -89,22 +89,26 @@ function kw(job, facet) {
+  * pay share (`salaried`) still counts every country's pay. `basis` is null with one currency.
+  */
+ export function summaryStats(jobs = []) {
+-  const paid = jobs.map((j) => ({ mid: midOf(j), cur: String(j?.salary?.currency || 'USD').toUpperCase() })).filter((x) => x.mid != null);
++  const paid = jobs.map((j) => ({ usd: midOf(j), cur: String(j?.salary?.currency || 'USD').toUpperCase() })).filter((x) => x.usd != null);
+   // MR-28: pay posted as a stated minimum, shift-inclusive or part-time is published pay, but not in the median.
+   const posted = paid.length + jobs.filter((j) => !isOTE(j) && notBasePay(j) && salaryUSD(j)).length;
+-  const basis = mainPayCurrency(paid.map((x) => x.cur));
+-  const mids = (basis ? paid.filter((x) => x.cur === basis) : paid).map((x) => x.mid);
++  // BN-2 (fix-app-6): shared.js headlineMedian, as the stats line, the chart's caption and the map's pins: MR-39's main
++  // currency, and the figures in that currency (`cur`, `local`): CA$101K over Canadian pay, never a bare "$".
++  const hm = headlineMedian(paid);
+   return {
+     total: jobs.length,
+     salaried: paid.length,
+     posted,
+     payShare: jobs.length ? posted / jobs.length : 0,
+     remoteShare: jobs.length ? jobs.filter((j) => j.remote).length / jobs.length : 0,
+-    median: median(mids),
+-    p25: percentile(mids, 0.25),
+-    p75: percentile(mids, 0.75),
+-    basis,
+-    basisN: mids.length,
++    median: hm.median,
++    p25: hm.p25,
++    p75: hm.p75,
++    basis: hm.basis,
++    basisN: hm.n,
++    cur: hm.cur,
++    local: hm.local,
++    hm,
+   };
+ }
+ 
+@@ -271,8 +275,8 @@ function card(title, subtitle, body, { id = uid('ins'), headTag = 'h3', extra =
+ 
+ function emptyNote(text) { return h('p', { class: 'msi-empty' }, text); }
+ /** UX-55: "$188K–252K", the cards' range (one currency sign, never "$188K–$252K"). */
+-function moneySpan(lo, hi) {
+-  const a = formatMoney(lo), b = formatMoney(hi);
++function moneySpan(lo, hi, fmt = formatMoney) {
++  const a = fmt(lo), b = fmt(hi);
+   const sign = a.match(/^[^\d]*/)[0];
+   return `${a}–${sign && b.startsWith(sign) ? b.slice(sign.length) : b}`;
+ }
+@@ -445,8 +449,9 @@ export function createInsights(container, { onFilter, headingLevel = 2 } = {}) {
+       // UX-53 / UX-61 (fix-phone-text): "of 2,781 with pay" (it read "of 2,781 salaried ro…" at 360). UX-55: a range is
+       // written like the cards ("$188K–252K"), so the tile no longer cuts its number at 1440.
+       // MR-39 (fix-mr-3): "of 12,529 in the US" when the median is the main currency's (pay in several currencies in view).
+-      [tile('Median base pay', enough ? formatMoney(s.median) : '—', !s.salaried ? (s.posted ? 'no base pay posted' : 'no pay published') : enough ? `of ${fmtCount(s.basisN)} ${where || (s.posted > s.salaried ? 'ranges' : 'with pay')}` : `too few with pay (${s.basisN})`),
+-        tile('Middle half', enough && s.p25 != null ? moneySpan(s.p25, s.p75) : '—', where ? `of roles ${where}` : 'of roles with pay'),
++      // BN-2 (fix-app-6): in the currency of the pay they are of (CA$101K, €81K), as the cards show it.
++      [tile('Median base pay', enough ? medianText(s.hm) : '—', !s.salaried ? (s.posted ? 'no base pay posted' : 'no pay published') : enough ? `of ${fmtCount(s.basisN)} ${where || (s.posted > s.salaried ? 'ranges' : 'with pay')}` : `too few with pay (${s.basisN})`),
++        tile('Middle half', enough && s.p25 != null ? moneySpan(s.local.p25, s.local.p75, (v) => medianText(s.hm, v)) : '—', where ? `of roles ${where}` : 'of roles with pay'),
+         tile('Pay published', formatPct(s.payShare), `${fmtCount(s.posted)} of ${fmtCount(s.total)}`),
+         tile('Remote-eligible', formatPct(s.remoteShare), plural(jobs.filter((j) => j.remote).length, 'role'))]
+         .map((t) => { t.setAttribute('role', 'listitem'); return t; }));
+diff --git a/public/features/roles.js b/public/features/roles.js
+index fc0e08f..e2ad694 100644
+--- a/public/features/roles.js
++++ b/public/features/roles.js
+@@ -400,6 +400,54 @@ export function displayLevel(job) {
+   if (level === LEVEL_NOT_STATED && (!job.seniorityBasis || job.seniorityBasis === 'default')) return NOT_STATED;
+   return level;
+ }
++/*
++ * BN-7 (fix-app-6): the company's own ladders a posting's pay names (VT-8: that level beats the title's words). Copies of
++ * server/keywords.js MICROSOFT_IC, MICROSOFT_M and NVIDIA_LEVEL (rung n -> level), which the browser does not load;
++ * test/fix-app-6.test.js checks every rung against keywords.js seniorityFromPay.
++ */
++export const POSTED_LADDERS = Object.freeze({
++  microsoft: { IC: [null, 'Entry', 'Entry', 'Mid', 'Senior', 'Staff+', 'Staff+', 'Staff+', 'Staff+'], M: [null, 'Manager', 'Manager', 'Manager', 'Manager', 'Manager', 'Director+', 'Director+', 'Director+'] },
++  nvidia: { Level: [null, 'Entry', 'Mid', 'Senior', 'Senior', 'Senior', 'Staff+', 'Staff+', 'Staff+'] },
++});
++const POSTED_NAME = { microsoft: 'Microsoft', nvidia: 'NVIDIA' };
++const rungOf = (table, n) => (n >= 1 ? table[Math.min(n, table.length - 1)] || null : null);
++/**
++ * BN-7: the levels a posting's pay names on the company's own ladder, when its level comes from there
++ * (`seniorityBasis` 'pay': Microsoft "IC4" / "M5", NVIDIA "Level 4"), read from `salary.levels` or the pay sentence.
++ * -> { labels: ['M5', 'M6'], levels: ['Manager', 'Director+'] (ours, distinct, low to high), text: 'Microsoft M5–M6' }
++ * or null. A posting that names two rungs on two of our levels (Microsoft M5–M6: Manager and Director+) is hired at
++ * either, so the Seniority filter finds it under both; the level shown stays the lower one (keywords.js).
++ */
++export function postedLevels(job) {
++  const slug = String(job?.company || String(job?.id || '').split(':')[0]).toLowerCase();
++  const ladder = POSTED_LADDERS[slug];
++  if (!ladder || job?.seniorityBasis !== 'pay') return null;
++  const s = job.salary || {};
++  const rungs = [];
++  const add = (kind, n) => { const level = ladder[kind] ? rungOf(ladder[kind], n) : null; if (level) rungs.push({ kind, n, level }); };
++  const read = (t) => {
++    const m = slug === 'nvidia' ? /^\s*Level\s+(\d{1,2})\s*$/i.exec(t) : /^\s*(IC|M)(\d{1,2})\s*$/i.exec(t);
++    if (m) slug === 'nvidia' ? add('Level', Number(m[1])) : add(m[1].toUpperCase(), Number(m[2]));
++  };
++  for (const l of Array.isArray(s.levels) ? s.levels : []) read(String(l?.label || ''));
++  if (!rungs.length) {
++    const t = String(s.text || '');
++    if (slug === 'nvidia') for (const m of t.matchAll(/\bfor\s+Level\s+(\d{1,2})\b/gi)) add('Level', Number(m[1]));
++    else for (const m of t.matchAll(/\b(IC|M)(\d{1,2})\s+[-–—]\s+the typical base pay range\b/gi)) add(m[1].toUpperCase(), Number(m[2]));
++  }
++  if (!rungs.length) return null;
++  const order = (r) => (r.kind === 'M' ? 100 : 0) + r.n;
++  rungs.sort((a, b) => order(a) - order(b));
++  const uniq = rungs.filter((r, i) => i === 0 || order(r) !== order(rungs[i - 1]));
++  const labels = uniq.map((r) => (r.kind === 'Level' ? `Level ${r.n}` : `${r.kind}${r.n}`));
++  const levels = [...new Set(uniq.map((r) => r.level))];
++  const name = POSTED_NAME[slug];
++  const first = labels[0], last = labels[labels.length - 1];
++  const span = labels.length === 1 ? first : uniq.every((r) => r.kind === uniq[0].kind) && labels.length === 2
++    ? `${first}–${uniq[1].kind === 'Level' ? uniq[1].n : last}` : labels.join(', ');
++  return { labels, levels, text: `${name} ${span}` };
++}
++
+ /** Words for a displayLevel() value: NOT_STATED (or nothing) reads "Level not stated"; a level reads as itself ("Mid"). */
+ export function levelLabel(level) {
+   return !level || level === NOT_STATED ? 'Level not stated' : level;
+diff --git a/public/features/shared.js b/public/features/shared.js
+index bcd375f..a6009cd 100644
+--- a/public/features/shared.js
++++ b/public/features/shared.js
+@@ -177,6 +177,60 @@ export function mainPayCurrency(currencies) {
+   return [...n].sort((a, b) => b[1] - a[1] || (a[0] === 'USD' ? -1 : b[0] === 'USD' ? 1 : 0))[0][0];
+ }
+ 
++/**
++ * BN-2, BN-4 (fix-app-6): the figure a headline median is (the stats line, Insights' tiles, the chart's caption and the
++ * map's pins use it, so they agree). `pool`: one entry per posting whose pay counts, `{ usd, cur, hourly }`: its
++ * approx-USD yearly midpoint, its pay currency, and `hourly` for part-time pay posted by the hour (its yearly figure is a
++ * year if full-time, 2,080 hours).
++ * - The median is MR-39's: with two or more currencies, of the main one's postings (`basis`, mainPayCurrency), and
++ *   `left` counts the others.
++ * - It is given in the currency of the postings it is of (`cur`), as the cards show their pay: a view paid in Canadian
++ *   dollars reads CA$101K, never a bare "$" for converted pay. `local` holds the median and quartiles in `cur` (a year).
++ * - `perHour` when every figure is part-time hourly pay: the median is written per hour, as posted ("$28.41/hour").
++ *   `fullTime` when only some are: the yearly figure is then partly "a year if full-time".
++ * -> { basis, cur, n, left, median, p25, p75 (approx USD a year, for positions and colours), local, perHour, fullTime }
++ */
++export function headlineMedian(pool) {
++  const all = (pool || []).filter((x) => x && x.usd != null && Number.isFinite(x.usd));
++  const cur0 = (x) => String(x.cur || 'USD').toUpperCase();
++  const basis = mainPayCurrency(all.map(cur0));
++  const use = basis ? all.filter((x) => cur0(x) === basis) : all;
++  const cur = basis || (use.length ? cur0(use[0]) : 'USD');
++  const v = use.map((x) => x.usd).sort((a, b) => a - b);
++  const q = (p) => (v.length ? percentile(v, p) : null);
++  const median = q(0.5), p25 = q(0.25), p75 = q(0.75);
++  const per = palette.FX_PER_USD?.[cur];
++  const back = (x) => (x == null ? null : per == null ? x : x * per); // toUSD's inverse (a currency with no rate was never converted)
++  const hourly = use.filter((x) => x.hourly).length;
++  return { basis, cur, n: v.length, left: all.length - use.length, median, p25, p75, local: { median: back(median), p25: back(p25), p75: back(p75) },
++    perHour: use.length > 0 && hourly === use.length, fullTime: hourly > 0 && hourly < use.length };
++}
++
++/**
++ * BN-2, BN-4: a headlineMedian figure as the cards write pay: "CA$101K", "€81K", "PLN 280K", "$149K"; per hour as posted
++ * when `h.perHour` ("$28.41/hour"). `v` is in `h.cur`, a year (default: the median).
++ */
++export function medianText(h, v = h?.local?.median) {
++  if (v == null || !Number.isFinite(v)) return '—';
++  const cur = h?.cur || 'USD';
++  const yearly = typeof palette.formatCurrency === 'function' ? palette.formatCurrency(v, cur) : formatMoney(v);
++  if (!h?.perHour) return yearly;
++  const sym = yearly.replace(/[-\d.,]+[KM]?$/, '');
++  return `${sym}${(v / 2080).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}/hour`;
++}
++
++const CURRENCY_WORDS = {
++  USD: 'US dollars', CAD: 'Canadian dollars', EUR: 'euros', GBP: 'pounds', PLN: 'złoty', CHF: 'Swiss francs', INR: 'rupees',
++  JPY: 'yen', AUD: 'Australian dollars', SGD: 'Singapore dollars', MXN: 'Mexican pesos', BRL: 'reais', ILS: 'shekels',
++  SEK: 'Swedish kronor', DKK: 'Danish kroner', NOK: 'Norwegian kroner', CZK: 'Czech koruna', RON: 'lei', KRW: 'won',
++  HKD: 'Hong Kong dollars', TWD: 'Taiwan dollars', NZD: 'New Zealand dollars', AED: 'dirhams',
++};
++/** "Canadian dollars", "euros", "US dollars": a currency in a sentence (its code when it has no name here). */
++export function currencyWords(cur) {
++  const c = String(cur || 'USD').toUpperCase();
++  return CURRENCY_WORDS[c] || c;
++}
++
+ /**
+  * Weighted percentile over [value, weight] pairs. Each value sits at the centre
+  * of its weight mass ((cum - w/2) / W) and we interpolate between neighbours;
+diff --git a/public/viz/chart.js b/public/viz/chart.js
+index e02c3fa..5aacf2a 100644
+--- a/public/viz/chart.js
++++ b/public/viz/chart.js
+@@ -46,7 +46,7 @@ import {
+   FX_SOURCE, COUNTRY_CURRENCY,
+ } from './palette.js';
+ import { levelLabel, displayLevel, DISPLAY_LEVEL_ORDER } from '../features/roles.js';
+-import { OTE_LABEL, payAt, payMissAt, payCovers, placeRowCount, notBasePay } from '../features/shared.js';
++import { OTE_LABEL, payAt, payMissAt, payCovers, placeRowCount, notBasePay, headlineMedian, medianText } from '../features/shared.js';
+ import { renderNote } from './note.js';
+ import { isTouchInput, tipCloser, inView, placeNearTap } from '../features/shared.js';
+ 
+@@ -307,12 +307,17 @@ function mainBasis(items) {
+  */
+ function headPay(items) {
+   const all = basePayStats(items);
+-  const b = basisStats(items, mainBasis(items));
+-  if (!b.basis || b.basis === 'mixed' || !b.left) return all;
+-  return { ...all, median: b.stats.median, p25: b.stats.p25, p75: b.stats.p75, n: b.stats.n, basis: b.basis, basisLeft: b.left };
++  // BN-2, BN-4 (fix-app-6): shared.js headlineMedian over the median's own pool (base pay, else on-target earnings, else
++  // the rest), as the stats line, the map's pins and Insights' tiles: MR-39's main currency, written in that currency
++  // (CA$101K over Canadian pay), and per hour for part-time hourly pay only.
++  const hm = headlineMedian(all.pool.map((p) => ({ usd: p.mid, cur: basisOf(p), hourly: isPartTimeHourly(p.job) })));
++  const out = { ...all, median: hm.median, p25: hm.p25, p75: hm.p75, n: hm.n, hm };
++  return hm.basis && hm.left ? { ...out, basis: hm.basis, basisLeft: hm.left } : out;
+ }
+ /** MR-39: " US" after the caption's median when it is one currency's pay of several ("Median base pay $152K US"). */
+ const medianBasis = (pay) => (pay?.basis && pay.basis !== 'mixed' && pay.basisLeft ? ` ${basisShort(pay.basis)}` : '');
++/** BN-2: the caption's median as the stats line writes it ("CA$101K", "$28.41/hour", "$152K US"). */
++const capMedian = (pay, med) => `${pay?.hm && pay.hm.median != null ? medianText(pay.hm) : formatMoney(med)}${medianBasis(pay)}`;
+ /** " in the US" after a median, "" when the row has no basis; "mixed" names its currencies. */
+ const basisWords = (r) => (r.basis === 'mixed' ? ', several countries’ pay' : r.basis ? ` ${payBasisPlace(r.basis)}` : '');
+ const basisWordsShort = (r) => (r.basis === 'mixed' ? ' mixed' : r.basis ? ` ${basisShort(r.basis)}` : '');
+@@ -418,12 +423,13 @@ export function basePayStats(items) {
+   for (const p of items || []) {
+     if (!p || p.mid == null || !isFinite(p.mid)) continue;
+     const k = p.nb === undefined ? notBasePay(p.job) : p.nb;
+-    if (k) { nb.push(p.mid); left[k]++; } else (p.ote ? ote : base).push(p.mid);
++    if (k) { nb.push(p); left[k]++; } else (p.ote ? ote : base).push(p);
+   }
+-  const use = (base.length ? base : ote.length ? ote : nb).sort((a, b) => a - b);
++  const pool = base.length ? base : ote.length ? ote : nb;
++  const use = pool.map((p) => p.mid).sort((a, b) => a - b);
+   const kept = base.length + ote.length > 0;
+   return {
+-    median: quantile(use, 0.5), p25: quantile(use, 0.25), p75: quantile(use, 0.75), n: use.length,
++    median: quantile(use, 0.5), p25: quantile(use, 0.25), p75: quantile(use, 0.75), n: use.length, pool,
+     oteOnly: !base.length && ote.length > 0, oteLeftOut: base.length ? ote.length : 0,
+     notBaseOnly: !kept && nb.length > 0, notBaseLeftOut: kept ? left : { minimum: 0, shiftPay: 0, partTime: 0 },
+     notBaseKinds: left,
+@@ -1097,13 +1103,15 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } =
+ 
+   /** BP-13: what the median caption says ("Median base pay", or on-target earnings when that is all). */
+   function medianCaption(pay) {
+-    return pay?.oteOnly ? 'Median on-target earnings ' : pay?.notBaseOnly ? 'Median posted pay ' : 'Median base pay ';
++    // BN-4 (fix-app-6): a median partly of part-time hourly pay as a full-time year is never "posted pay".
++    return pay?.oteOnly ? 'Median on-target earnings ' : pay?.hm?.fullTime ? 'Median if full-time ' : pay?.notBaseOnly ? 'Median posted pay ' : 'Median base pay ';
+   }
+   function medianTitle(pay) {
+     const where = placesPhrase(opts.places);
+     const here = where ? ` posted for ${where}` : '';
+     if (pay?.oteOnly) return `The middle of the on-target earnings (base plus commission at target) ranges${here}: half are above and half below`;
+-    if (pay?.notBaseOnly) return `The middle of the posted pay${here}, none of which is a posted base pay range (${notBaseWords(pay.notBaseKinds)}): half are above and half below`;
++    const pt = pay?.hm?.perHour ? ', per hour as posted' : pay?.hm?.fullTime ? '; part-time hourly pay counts as a year if full-time (2,080 hours)' : '';
++    if (pay?.notBaseOnly) return `The middle of the posted pay${here}, none of which is a posted base pay range (${notBaseWords(pay.notBaseKinds)})${pt}: half are above and half below`;
+     const nb = notBaseWords(pay?.notBaseLeftOut);
+     const basis = medianBasis(pay) ? `. Pay ${payBasisPlace(pay.basis)} only: ${plural(pay.basisLeft, 'posting')} with pay for other countries ${pay.basisLeft === 1 ? 'is' : 'are'} on the chart, not in the median` : '';
+     return `The middle of the base pay ranges${here}: half are above and half below${pay?.oteLeftOut ? `. ${plural(pay.oteLeftOut, 'posting')} with on-target earnings (base plus commission) left out` : ''}${nb ? `. ${nb} left out` : ''}${basis}`;
+@@ -1111,7 +1119,7 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } =
+   /** V-46: the label column a landscape phone's axis caption needs, "US dollars a year · median $214K", in px. */
+   function capNeed(pay) {
+     const f = `12px ${curFam}`, med = pay?.median ?? median(plotted.map((p) => p.mid));
+-    return Math.ceil(textWidth('US dollars a year · ', f) + textWidth(`median ${formatMoney(med)}${medianBasis(pay)}`, `600 ${f}`)) + 16 + 6;
++    return Math.ceil(textWidth('US dollars a year · ', f) + textWidth(`median ${capMedian(pay, med)}`, `600 ${f}`)) + 16 + 6;
+   }
+   /**
+    * V-46, UX-61 (fix-viz-5): what the axis is, in one currency name ("US dollars a year"), as long as fits `w` px:
+@@ -1137,7 +1145,7 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } =
+     if (labelW > 0) {
+       const cap = el('div', 'ms-hist__cap');
+       cap.style.width = labelW + 'px';
+-      cap.append(el('span', 'ms-hist__title', medianCaption(pay)), el('span', 'ms-hist__sub', `${formatMoney(med)}${medianBasis(pay)}`));
++      cap.append(el('span', 'ms-hist__title', medianCaption(pay)), el('span', 'ms-hist__sub', capMedian(pay, med)));
+       cap.title = medianTitle(pay);
+       hist.append(cap);
+     }
+@@ -1170,7 +1178,7 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } =
+       if (!histShown) {
+         // V-46: a landscape phone hides the strip and its median caption, so the axis caption carries the median too.
+         const med = pay?.median ?? median(plotted.map((p) => p.mid));
+-        const m = `median ${formatMoney(med)}${medianBasis(pay)}`;
++        const m = `median ${capMedian(pay, med)}`;
+         const units = approx ? ['US dollars a year, converted', 'US dollars a year'] : ['US dollars a year'];
+         const unit = units.find((u) => textWidth(`${u} · `, f) + textWidth(m, `600 ${f}`) <= w) || units[units.length - 1];
+         const mEl = el('span', 'ms-chart__capmed', m);
+@@ -1186,7 +1194,7 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } =
+       // strip: "US dollars a year · Median base pay $141K", shorter forms when that does not fit.
+       const med = pay?.median ?? median(plotted.map((p) => p.mid));
+       const room = Math.max(0, width - 24);
+-      const medFull = `${medianCaption(pay).trim()} ${formatMoney(med)}${medianBasis(pay)}`, medShort = `median ${formatMoney(med)}${medianBasis(pay)}`;
++      const medFull = `${medianCaption(pay).trim()} ${capMedian(pay, med)}`, medShort = `median ${capMedian(pay, med)}`;
+       const cands = [];
+       for (const unit of approx ? ['US dollars a year, converted', 'US dollars a year'] : ['US dollars a year']) cands.push([unit, medFull], [unit, medShort]);
+       const f = `12px ${fam}`, fb = `600 12px ${fam}`;
+@@ -1304,7 +1312,7 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } =
+         need = Math.max(need, textWidth(r.sub, SUB_FONT), nameW > 150 ? Math.min(nameW, nameW / 2 + 24) : nameW);
+       }
+       // BP-13: the median caption ("Median base pay $347K") shows in full too.
+-      need = Math.max(need, textWidth(`${medianCaption(stats.pay)}${formatMoney(stats.pay?.median)}${medianBasis(stats.pay)}`, `600 ${SUB_FONT}`) - 8);
++      need = Math.max(need, textWidth(`${medianCaption(stats.pay)}${capMedian(stats.pay, stats.pay?.median)}`, `600 ${SUB_FONT}`) - 8);
+       labelW = Math.round(Math.max(150, Math.min(maxW, need + LABEL_PAD)));
+       // V-46: with the strip hidden (landscape phones) the axis caption carries the median too, on one line.
+       if (!histShown) labelW = Math.max(labelW, Math.min(Math.round(width * 0.4), capNeed(stats.pay)));
+@@ -1809,7 +1817,7 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } =
+     let labelW = narrow ? 0 : Math.round(Math.max(140, Math.min(300, width * 0.3)));
+     if (!narrow && !histShown) labelW = Math.max(labelW, Math.min(Math.round(width * 0.4), capNeed(stats.pay))); // V-46
+     // MR-39 (fix-mr-3): the strip's median caption ("Median base pay $239K US") shows in full, as in Clusters.
+-    if (!narrow && histShown) labelW = Math.max(labelW, Math.min(Math.round(width * 0.4), Math.ceil(textWidth(`${medianCaption(stats.pay)}${formatMoney(stats.pay?.median)}${medianBasis(stats.pay)}`, `600 12px ${curFam}`)) + 16 + 6));
++    if (!narrow && histShown) labelW = Math.max(labelW, Math.min(Math.round(width * 0.4), Math.ceil(textWidth(`${medianCaption(stats.pay)}${capMedian(stats.pay, stats.pay?.median)}`, `600 12px ${curFam}`)) + 16 + 6));
+     const valFont = `600 12px ${curFam}`;
+     const padR = narrow ? 16 : 28;
+     const plotL = narrow ? 12 : labelW + 12;
+diff --git a/public/viz/map.js b/public/viz/map.js
+index 8337059..82d67ef 100644
+--- a/public/viz/map.js
++++ b/public/viz/map.js
+@@ -40,7 +40,7 @@ import {
+   formatMoney, toUSD, median, payColor, paySteps, inkOn, onThemeChange, isDark, prefersReducedMotion,
+   juiceColor, juiceGrade, juiceNetForScore, JUICE_BREAKS, isForeign, hasFx, FX_AS_OF,
+ } from './palette.js';
+-import { payAt, payCovers, placeRowCount, notBasePay } from '../features/shared.js';
++import { payAt, payCovers, placeRowCount, notBasePay, headlineMedian, medianText } from '../features/shared.js';
+ // M-23: pin counts as "4.5K", like the chart's circles; the exact count is in pinName().
+ import { shortCount, placeMatcher, FX_DOC, FX_SOURCE_SHORT } from './chart.js';
+ import { renderNote } from './note.js';
+@@ -188,7 +188,7 @@ export function aggregate(jobs, { places: filter = null, placeTest = null } = {}
+     if (!p) {
+       const locsAt = new Map(); // job id -> its Locations here that have posted pay
+       p = { key, lat: +l.lat, lng: +l.lng, label: locLabel(l), city: l.city || null, country: up(l.country), region: up(l.region), loc: l,
+-        jobs: [], locNames: new Map(), paid: new Set(), also: new Set(), wide: new Set(), locsAt, priceOf: (j) => priceAtUSD(j, locsAt.get(j.id)) };
++        jobs: [], locNames: new Map(), paid: new Set(), also: new Set(), wide: new Set(), locsAt, priceOf: pricer((j) => locsAt.get(j.id)) };
+       places.set(key, p);
+     }
+     if (!p.locNames.has(job.id)) { p.jobs.push(job); p.locNames.set(job.id, new Set()); }
+@@ -239,7 +239,7 @@ export function aggregate(jobs, { places: filter = null, placeTest = null } = {}
+     }
+   }
+   for (const id of others) for (const key of homes.get(id) || []) places.get(key).also.add(id);
+-  return { places: [...places.values()], remote, remotePaid, remotePriceOf: (j) => priceAtUSD(j, remoteAt.get(j.id)), unplaced };
++  return { places: [...places.values()], remote, remotePaid, remotePriceOf: pricer((j) => remoteAt.get(j.id)), unplaced };
+ }
+ const up = (s) => (s ? String(s).toUpperCase() : '');
+ 
+@@ -251,6 +251,17 @@ function priceAtUSD(job, locs) {
+   const r = locs && locs.length ? payAt(job, locs.length === 1 ? locs[0] : locs) : null;
+   return r?.usd ? r.usd.mid : midUSD(job);
+ }
++/** BN-2 (fix-app-6): the currency of that pay (a place's own row can be in its own currency). */
++function curAt(job, locs) {
++  const r = locs && locs.length ? payAt(job, locs.length === 1 ? locs[0] : locs) : null;
++  return String((r?.usd ? r.currency : job.salary?.currency) || 'USD').toUpperCase();
++}
++/** A pin's priceOf(job): its pay here (priceAtUSD); priceOf.cur(job) is that pay's currency (BN-2). */
++function pricer(locsOf) {
++  const f = (j) => priceAtUSD(j, locsOf(j));
++  f.cur = (j) => curAt(j, locsOf(j));
++  return f;
++}
+ 
+ /**
+  * { n, salaried, elsewhere, median } for jobs at a place: the median (approx USD) is over the jobs
+@@ -266,19 +277,29 @@ export function summarize(jobs, paid = null, priceOf = null) {
+     if (head == null) continue;
+     if (paid && !paid.has(j.id)) { elsewhere++; continue; }
+     const v = (priceOf && priceOf(j)) ?? head;
++    const cur = priceOf?.cur ? priceOf.cur(j) : String(j.salary.currency || 'USD').toUpperCase();
+     // BP-13: base pay, as the stats line and the chart; MR-28 (fix-viz-5): nor a stated minimum, shift-inclusive or
+     // part-time pay (shared.js notBasePay), which are counted at the pin and used only when nothing else is left.
+-    (notBasePay(j) ? nb : j.salary.kind === 'ote' ? ote : base).push(v);
++    (notBasePay(j) ? nb : j.salary.kind === 'ote' ? ote : base).push({ usd: v, cur, hourly: j.salary.partTime === true && j.salary.originalInterval === 'hour' });
+     if (isForeign(j.salary.currency) && hasFx(j.salary.currency)) fx++;
+   }
+-  const mids = base.length ? base : ote.length ? ote : nb;
++  const pool = base.length ? base : ote.length ? ote : nb;
+   const salaried = base.length + ote.length + nb.length;
++  // BN-2 (fix-app-6): shared.js headlineMedian, as the stats line, the chart's caption and Insights' tiles: MR-39's main
++  // currency, written in that currency (`price`: "CA$101K" for a Toronto pin, never a bare "$" for converted pay).
++  const hm = headlineMedian(pool);
+   // V-17: `few` when too few postings post pay here for the pin to show a price (pinPrice).
+-  const few = mids.length > 0 && mids.length < MIN_PIN_PAY;
+-  return { n: jobs.length, salaried, elsewhere, fx, few, only: few ? mids.slice().sort((x, y) => x - y) : null, median: median(mids),
+-    based: mids.length, notBaseLeft: base.length || ote.length ? nb.length : 0, notBaseOnly: !base.length && !ote.length && nb.length > 0 };
++  const few = hm.n > 0 && hm.n < MIN_PIN_PAY;
++  const one = (x) => medianText(headlineMedian([x]));
++  const only = few ? pool.slice().sort((x, y) => x.usd - y.usd) : null;
++  return { n: jobs.length, salaried, elsewhere, fx, few, only: only && only.map((x) => x.usd), onlyText: only && only.map(one), median: hm.median,
++    price: hm.median != null ? medianText(hm) : null, cur: hm.cur, basis: hm.basis,
++    based: hm.n, notBaseLeft: base.length || ote.length ? nb.length : 0, notBaseOnly: !base.length && !ote.length && nb.length > 0 };
+ }
+ 
++/** BN-2: a pin's median as the stats line writes it (summarize's `price`), else in US dollars. */
++const pinPrice = (c) => c.price || formatMoney(c.median);
++
+ const shortPlace = (p) => p.city || String(p.label || '').split(',')[0].trim() || 'Unknown';
+ 
+ /**
+@@ -635,6 +656,7 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
+       line: [el('span', 'ms-modes__long', 'Median base pay a year'), el('span', 'ms-modes__short', 'Median pay')],
+       details: [
+         'Colour: the median posted base pay a year, in approx US dollars',
++        'Figure: that median in the currency its postings are paid in (CA$, €, £), as the cards show pay', // BN-2
+         ['Other currencies converted at ', a],
+         'Small number: postings; "5 of 434" when the median rests on under a quarter of them (the rest post no pay, or pay for other places)',
+         `A pin shows a median only when ${MIN_PIN_PAY} or more of its postings post pay for its places`,
+@@ -764,7 +786,7 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
+         for (const id of m.wide || []) wide.add(id);
+         if (locsAt) for (const [id, ls] of m.locsAt || []) { const all = locsAt.get(id); if (all) { for (const l of ls) if (!all.includes(l)) all.push(l); } else locsAt.set(id, ls.slice()); }
+       }
+-      if (!priceOf) priceOf = (j) => priceAtUSD(j, locsAt.get(j.id));
++      if (!priceOf) priceOf = pricer((j) => locsAt.get(j.id));
+       const label = clusterLabel(c.members);
+       const res = {
+         lat: c.lead.lat, lng: c.lead.lng, pt: c.pt, members: c.members, jobs, ids, label, short: shortLabel(c.members), also: also.size, wide: wide.size,
+@@ -796,16 +818,16 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
+         ? `median ${formatMoney(J.net)}/yr left after rent, tax and living costs`
+         : 'Juice needs a published salary and a known city'));
+       root.append(el('div', 'ms-tip__title', c.label));
+-      root.append(el('div', 'ms-tip__meta', `${plural(c.n, 'posting')} · ${(J?.n || 0).toLocaleString()} with Juice${c.median != null ? ` · pay median ${formatMoney(c.median)}` : ''}`));
++      root.append(el('div', 'ms-tip__meta', `${plural(c.n, 'posting')} · ${(J?.n || 0).toLocaleString()} with Juice${c.median != null ? ` · pay median ${pinPrice(c)}` : ''}`));
+       for (const t of filterLines(c)) root.append(el('div', 'ms-tip__meta', t));
+     } else {
+       const priced = hasPrice(c);
+-      root.append(el('div', 'ms-tip__value', priced ? `${formatMoney(c.median)} median` : jobsText(c.n)));
++      root.append(el('div', 'ms-tip__value', priced ? `${pinPrice(c)} median` : jobsText(c.n)));
+       root.append(el('div', 'ms-tip__title', c.label));
+       root.append(el('div', 'ms-tip__meta', priced
+         ? `${plural(c.n, 'posting')} · ${c.salaried.toLocaleString()} with salary for here`
+         : c.few
+-          ? `${plural(c.n, 'posting')} · ${c.salaried.toLocaleString()} with salary for here (${c.only.map((v) => formatMoney(v)).join(', ')}), too few for a median`
++          ? `${plural(c.n, 'posting')} · ${c.salaried.toLocaleString()} with salary for here (${(c.onlyText || c.only.map((v) => formatMoney(v))).join(', ')}), too few for a median`
+           : `${plural(c.n, 'posting')} · ${c.elsewhere ? 'no pay posted for here' : 'no pay listed'}`)); // UX-61: the cards' words
+       const based = c.based ?? c.salaried;
+       if (priced && based < c.n) root.append(el('div', 'ms-tip__meta', `The median is of ${based.toLocaleString()} (${Math.max(1, Math.round((100 * based) / c.n))}%), not of all ${c.n.toLocaleString()}`));
+@@ -863,7 +885,7 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
+       const bg = payColor(c.median); // V-16: one fixed dollar scale (palette.js PAY_BREAKS), not the pins on screen
+       pin.style.setProperty('--pin-bg', bg);
+       pin.style.setProperty('--pin-fg', inkOn(bg));
+-      pin.append(el('span', 'ms-pin__price', formatMoney(c.median)));
++      pin.append(el('span', 'ms-pin__price', pinPrice(c)));
+       // V-43 (fix-viz-5): "5 of 434" when the median rests on few of the pin's postings.
+       const count = pinCountText(c);
+       if (count) pin.append(el('span', /\bof\b/.test(count) ? 'ms-pin__count ms-pin__count--of' : 'ms-pin__count', count));
+@@ -883,7 +905,7 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
+     const approx = c.approx?.length ? (c.members.length === 1 ? ', approximate place' : `, ${c.approx.length} approximate ${c.approx.length === 1 ? 'place' : 'places'}`) : '';
+     const based = c.based ?? c.salaried;
+     const pay = hasPrice(c)
+-      ? `, median ${formatMoney(c.median)}${based < c.n ? ` from ${based.toLocaleString()} with pay for here` : ''}${based < c.n * MIN_PIN_SHARE ? ` (${Math.round((100 * based) / c.n)}% of them)` : ''}`
++      ? `, median ${pinPrice(c)}${based < c.n ? ` from ${based.toLocaleString()} with pay for here` : ''}${based < c.n * MIN_PIN_SHARE ? ` (${Math.round((100 * based) / c.n)}% of them)` : ''}`
+       : c.few ? `, ${c.salaried.toLocaleString()} with pay for here, too few for a median` : c.elsewhere ? ', no pay posted for here' : ', no pay listed';
+     return `${c.label}: ${plural(c.n, 'posting')}${pay}${approx}`;
+   }
+@@ -1077,8 +1099,8 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
+     const s = summarize(remoteJobs, remotePaid, remotePriceOf);
+     remoteBtn.append(el('span', 'ms-remote__icon', '🌐'), el('span', 'ms-remote__label', 'Remote'),
+       el('span', 'ms-remote__n', s.n.toLocaleString()));
+-    if (s.median != null) remoteBtn.append(el('span', 'ms-remote__price', formatMoney(s.median)));
+-    remoteBtn.title = `${plural(s.n, 'remote posting')}${s.median != null ? ` · median ${formatMoney(s.median)}` : ''} — show list`;
++    if (s.median != null) remoteBtn.append(el('span', 'ms-remote__price', pinPrice(s)));
++    remoteBtn.title = `${plural(s.n, 'remote posting')}${s.median != null ? ` · median ${pinPrice(s)}` : ''} — show list`;
+     remoteBtn.setAttribute('aria-label', remoteBtn.title);
+   }
+ 
+-- 
+2.43.0
+

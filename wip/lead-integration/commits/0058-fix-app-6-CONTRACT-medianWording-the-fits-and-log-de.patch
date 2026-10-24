@@ -1,0 +1,61 @@
+From 38188081caedb3c2c558dce01615da18d1e00b0f Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 24 Oct 2026 01:43:06 +0000
+Subject: [PATCH 58/67] fix-app-6: CONTRACT (medianWording, the fits) and log
+ decisions
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+(cherry picked from commit 89520b0f312a8889736874fa2e811ef8602c348a)
+---
+ docs/CONTRACT.md          |  9 ++++++++-
+ docs/process/fix-app-6.md | 13 ++++++++++++-
+ 2 files changed, 20 insertions(+), 2 deletions(-)
+
+diff --git a/docs/CONTRACT.md b/docs/CONTRACT.md
+index e7a9e07..5b4c838 100644
+--- a/docs/CONTRACT.md
++++ b/docs/CONTRACT.md
+@@ -1178,7 +1178,14 @@ chart's caption (`headPay`, `capMedian`) and the map's pins (`summarize()` adds
+ ("CA$101K" over Canadian pay, "€81K (euro area)" when euros are the main currency of several), never a bare "$" for converted pay; the
+ approx-USD figure stays for positions and colours. When every figure is part-time hourly pay (a year if full-time), the median is per hour as
+ posted ("$28.41/hour posted pay median"); when only some are, the line says "median, a year if full-time" (shorter where it would wrap), and
+-its Details never call it base pay. `basePayStats` adds `pool` (the items its median is of).
++its Details never call it base pay. `basePayStats` adds `pool` (the items its median is of). The words come from one function,
++`public/viz/chart.js medianWording(pay, 'line' | 'caption')` -> `{ value, words: [long, short], where }`, which the stats line (app.js
++`medianItem`) and the chart's caption both use, so they can't disagree; MR-39's basis reads " (US)" on the line and " US" in the caption
++(a euro basis "euro area", a Canadian one "Canada"). Where the long words don't fit, the stats line takes the short ones
++(`fitStatsLine`: the median's first, "$26.80/hour median", then the pay share's, "100% show pay"), and the caption "Median $26.80/hour".
++The chart caption prices a posting at the pay plotted (a place's own row under a Location filter). The map legend's Details say a pin's
++figure is in its postings' currency and its colour compares in US dollars. The Salary note's line is fitted to one line ("1,855 roles
++hidden by the pay filter", then "1,855 hidden by the pay filter").
+ 
+ **Typed currency (BN-8):** URL state `sc` (the currency the pay bounds were typed in) with `smin`/`smax` as typed ("smin=150000&sc=PLN");
+ `S.smin`/`S.smax` stay approx US dollars (`usdOf`, rounded to $1K, as before), so the filter is unchanged, and a link without `sc` is in
+diff --git a/docs/process/fix-app-6.md b/docs/process/fix-app-6.md
+index ded2382..87b7b53 100644
+--- a/docs/process/fix-app-6.md
++++ b/docs/process/fix-app-6.md
+@@ -91,7 +91,18 @@
+    against `seniorityFromPay`) reads the levels a posting's pay names; a posting at two of our levels is found and counted under both.
+    The chip shows the posted level ("Manager · Microsoft M5–M6"); the served lists keep only the pay range for one-level postings, so for
+    those the chip reads the level once the posting's text loads ("Staff+ · Microsoft IC5"); the filter never reads the text, so it finds a
+-   posting the same way before and after.
++   posting the same way before and after. On the main site, which lists none of these boards, the note keeps a general line.
++10. **BN-8.** The filter keeps comparing in dollars (`smin`/`smax`, rounded to $1K as the box always did), so nothing about which roles
++    match changes; what changes is what is kept for display: the typed currency and amounts (`sc`, `smn`, `smx`). The link holds the
++    amounts as typed with `sc` ("smin=150000&sc=PLN"), so it reads as typed and an old dollar link (no `sc`) opens the same filter. A bound
++    set since in dollars (the slider) is moved in the typed currency's round thousands; a reset falls back to dollars (`payNative`
++    checks that the typed amounts still give the dollar bounds). A bare number takes the view's one currency (BN-2's rule, over the roles
++    every other filter leaves); with several, dollars, and the chip's "$" says so.
++11. **One wording for the two median lines** (the lead, for fix-ui-6's density spec): `medianWording` in chart.js (it already had
++    `payBasisPlace`; app.js imports it, so shared.js needs no copy of the country words). fix-ui-6 decides which line shows where.
++12. **Fitting the longer lines.** "$26.80/hour posted pay median" and "PLN 283K" are longer than "$56K", and every role a floor hides is a
++    bigger count: the stats line's words, the caption's title and the Salary note take shorter forms where they would wrap or be cut
++    (the text itself changes, as note.js fitLine does, so tests and screen readers read what shows).
+ 
+ ## 4. Replayable steps
+ ```sh
+-- 
+2.43.0
+

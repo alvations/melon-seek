@@ -1,0 +1,175 @@
+From ae130b7d49002a318ad3f485921c102caa996909 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 24 Oct 2026 05:52:00 +0000
+Subject: [PATCH 70/71] WIP fix-ui-6: phase 2: the stats line's hidden parts
+ are .sr-only (detectors skip them, a screen reader keeps them); an untouched
+ map refits when its box changes; tests: B-3 skips the docked filters (iPads
+ in landscape), fix-density and UX-57 read the folded chart
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+---
+ public/app.js                      | 28 ++++++++++++++++++++++++++--
+ public/styles.css                  | 14 ++++----------
+ public/viz/map.js                  |  4 +++-
+ test/e2e/fix-density.e2e.js        |  6 ++++--
+ test/e2e/fix-phone-controls.e2e.js |  3 ++-
+ test/e2e/fix-ui-6.e2e.js           |  3 +++
+ 6 files changed, 42 insertions(+), 16 deletions(-)
+
+diff --git a/public/app.js b/public/app.js
+index 0490b81..33520ea 100644
+--- a/public/app.js
++++ b/public/app.js
+@@ -3129,6 +3129,7 @@ function setFit() {
+   root.dataset.fit = fit;
+   const twoScreens = matchMedia('(horizontal-viewport-segments: 2)').matches || matchMedia(DUO_SPANNED).matches;
+   root.toggleAttribute('data-chart-fold', fit === 'short' || fit === 'compact' || (fit === 'wide' && twoScreens && h < 700));
++  syncStatsFold();
+ }
+ 
+ /**
+@@ -3306,6 +3307,24 @@ function renderKpis() {
+   chart?.setNotes?.(fold ? details : []);
+   renderNote(el, { line: [...line.flatMap((p, i) => (i ? [h('span', { class: 'stat-sep', 'aria-hidden': 'true' }, '·'), p] : [p])), noPay], details: fold ? [] : details, key: 'stats-line' });
+   requestAnimationFrame(fitStatsLine);
++  syncStatsFold();
++}
++/**
++ * ux-density-6 D-2 (fix-ui-6 phase 2): in Chart view the chart's caption says the median, so the stats line's median leaves
++ * the screen, and on the phone layout short of a tablet the whole line (the sheet's count row has the count, the caption's
++ * Details the share). Both stay for a screen reader (.sr-only): the stats line is the page's summary. Map view and
++ * Insights keep it. Run after each render of the line and when the size class changes.
++ */
++function syncStatsFold() {
++  const el = $('#statsLine');
++  if (!el) return;
++  const chart = S.m === 'chart';
++  el.classList.toggle('sr-only', chart && isMobile() && document.documentElement.dataset.fit !== 'tablet');
++  for (const m of el.querySelectorAll('.stat--median')) {
++    m.classList.toggle('sr-only', chart);
++    const sep = m.previousElementSibling;
++    if (sep?.classList.contains('stat-sep')) sep.classList.toggle('sr-only', chart);
++  }
+ }
+ let statsNotes = []; // UX-57: the stats line's facts, for the chart notes
+ 
+@@ -3348,8 +3367,13 @@ function fitStatsLine() {
+     const mids = [];
+     for (const x of line.getClientRects()) { if (x.width < 0.5) continue; const m = Math.round(x.top + x.height / 2); if (!mids.some((t) => Math.abs(t - m) < 6)) mids.push(m); }
+     const r = document.createRange();
+-    r.selectNodeContents(line);
+-    for (const x of r.getClientRects()) { if (x.width < 0.5) continue; const m = Math.round(x.top + x.height / 2); if (!mids.some((t) => Math.abs(t - m) < 6)) mids.push(m); }
++    // fix-ui-6 (ux-density-6 D-2): the parts moved off the screen (.sr-only, syncStatsFold) take no line.
++    const walk = document.createTreeWalker(line, NodeFilter.SHOW_TEXT);
++    for (let n = walk.nextNode(); n; n = walk.nextNode()) {
++      if (n.parentElement?.closest('.sr-only')) continue;
++      r.selectNodeContents(n);
++      for (const x of r.getClientRects()) { if (x.width < 0.5) continue; const m = Math.round(x.top + x.height / 2); if (!mids.some((t) => Math.abs(t - m) < 6)) mids.push(m); }
++    }
+     return mids.length;
+   };
+   // The text itself changes (as note.js fitLine does), so what the line says is what it shows.
+diff --git a/public/styles.css b/public/styles.css
+index 242d772..2cb6988 100644
+--- a/public/styles.css
++++ b/public/styles.css
+@@ -1825,17 +1825,11 @@ html[data-mode="map"] .tagline, html[data-mode="insights"] .tagline { display: n
+    phone layout, the Duo's chart screen). Its words stay in the page title, the logo's and the Beta tag's titles. */
+ @media (max-width: 860px) { :root[data-returning] .tagline { display: none; } }
+ :root[data-returning][data-chart-fold] .tagline { display: none; }
+-/* D-2: the median once on the screen, in the chart's own caption, in Chart view at every size. Phones: no stats line in
+-   Chart view (the sheet's count row has the count, the caption's Details the share); tablets and wider: the count and the
+-   share. What leaves the screen stays in the page for a screen reader (the stats line is the page's summary), as the
+-   visually hidden "Group:" label does. Map view and Insights keep the stats line's median (the map has no caption). */
+-:root[data-mode="chart"] .stats-line :is(.stat--median, .stat-sep:has(+ .stat--median)) {
+-  position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+-}
++/* D-2: the median once on the screen, in the chart's own caption, in Chart view at every size (app.js syncStatsFold
++   moves the stats line's median, and on the phone layout short of a tablet the whole line, to .sr-only: the sheet's count
++   row has the count, the caption's Details the share, and a screen reader keeps the summary). Tablets and wider show the
++   count and the share; Map view and Insights keep the stats line's median (the map has no caption). */
+ @media (max-width: 860px) {
+-  :root[data-mode="chart"]:not([data-fit="tablet"]) .stats-line {
+-    position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+-  }
+   :root[data-mode="chart"][data-fit="tablet"] .stats-line { flex: 1 1 auto; }
+   :root[data-mode="chart"][data-fit="tablet"] .stats-line :is(.stat--count, .stat--share, .stat-sep:not(:has(+ .stat--median))) { display: inline; }
+   :root[data-mode="chart"][data-fit="tablet"] .viz-controls { width: auto; }
+diff --git a/public/viz/map.js b/public/viz/map.js
+index 7b50a34..2609775 100644
+--- a/public/viz/map.js
++++ b/public/viz/map.js
+@@ -1238,6 +1238,8 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
+   map.on('zoomend', draw);
+ 
+   // fix-viz-5: until the user moves the map, a resize after the fit (the phone's sheet settling) re-checks the controls.
++  // fix-ui-6 phase 2: and fits the pins to the new box first (the sheet's measured peek can take 70 px from a 280 px wide
++  // map after its first fit, and the fit's minimum zoom kept the zoom-out from reaching the pins it put out of the map).
+   let fitFresh = false;
+   for (const ev of ['pointerdown', 'wheel', 'keydown']) container.addEventListener(ev, () => { fitFresh = false; mergeCovered = false; }, { passive: true });
+   const ro = new ResizeObserver(() => {
+@@ -1245,7 +1247,7 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
+     if (pendingFit && map.getSize().x && map.getSize().y) { fitToData(); draw(); clearOfControls(); }
+     else {
+       if (placeLabels().length) draw(); // the map's edges moved; a name with no room merges its pin
+-      if (fitFresh && map.getSize().x && map.getSize().y) clearOfControls();
++      if (fitFresh && map.getSize().x && map.getSize().y) { fitToData(); draw(); clearOfControls(); }
+     }
+   });
+   ro.observe(container);
+diff --git a/test/e2e/fix-density.e2e.js b/test/e2e/fix-density.e2e.js
+index e9b2b36..a316b22 100644
+--- a/test/e2e/fix-density.e2e.js
++++ b/test/e2e/fix-density.e2e.js
+@@ -76,7 +76,7 @@ async function go(page, url, settle = 700) {
+ function measure(page, sel) {
+   return page.evaluate((sel) => [...document.querySelectorAll(sel)].filter((e) => {
+     const b = e.getBoundingClientRect();
+-    return b.width > 0 && b.height > 0 && getComputedStyle(e).visibility !== 'hidden' && !e.closest('[hidden]');
++    return b.width > 0 && b.height > 0 && getComputedStyle(e).visibility !== 'hidden' && !e.closest('[hidden], .sr-only');
+   }).map((e) => {
+     const lineEl = e.classList.contains('ms-note') ? e.querySelector(':scope > .ms-note__line') : e;
+     const text = (lineEl?.innerText || '').replace(/\s+/g, ' ').trim();
+@@ -140,7 +140,9 @@ export function registerFixDensityTests(suite) {
+         await go(p, `${base}#c=${slug}`);
+         const stats = await measure(p, '#statsLine');
+         const notes = await measure(p, '#chartHost .ms-chart__foot');
+-        assert(stats.length === 1 && notes.length === 1, `the stats line (${stats.length}) and the chart's notes (${notes.length}) are on screen`);
++        // fix-ui-6 phase 2 (ux-density-6 D-2): on a phone the Chart view's stats line leaves the screen (the caption says the
++        // median, the sheet the count); a screen reader keeps it (.sr-only).
++        assert(stats.length === (phone ? 0 : 1) && notes.length === 1, `the stats line (${stats.length}) and the chart's notes (${notes.length}) are on screen`);
+         check(stats, bad, 'chart');
+         check(notes, bad, 'chart');
+         if (phone) check(await measure(p, '#tagline'), bad, 'chart');
+diff --git a/test/e2e/fix-phone-controls.e2e.js b/test/e2e/fix-phone-controls.e2e.js
+index 6332648..53d3269 100644
+--- a/test/e2e/fix-phone-controls.e2e.js
++++ b/test/e2e/fix-phone-controls.e2e.js
+@@ -620,7 +620,8 @@ export function registerFixPhoneControlsTests(suite) {
+       assert(t.controls.length <= 3, `the chart view's toolbar has ${t.controls.length} controls: ${t.controls.join(', ')}`);
+       // The facts stay one tap away wherever the stats line shows: in the chart notes' Details. A short landscape
+       // layout shows neither line (styles.css: rows matter more there), and then there is nothing to fold.
+-      const shown = await page.evaluate(() => ({ stats: document.querySelector('#statsLine').getClientRects().length > 0, notes: (document.querySelector('#chartHost .ms-chart__foot')?.getClientRects().length || 0) > 0 }));
++      // fix-ui-6 phase 2 (ux-density-6 D-7): a folded chart (compact and short screens) has its notes in the caption's Details.
++      const shown = await page.evaluate(() => ({ stats: document.querySelector('#statsLine').getClientRects().length > 0, notes: (document.querySelector('#chartHost .ms-chart__foot')?.getClientRects().length || 0) > 0 || (document.querySelector('#chartHost .ms-chart__capnote .ms-note__more')?.getClientRects().length || 0) > 0 }));
+       if (!shown.stats && !shown.notes) { console.log('      note: this layout shows neither the stats line nor the chart notes'); return; }
+       assert(shown.notes, `the stats line shows but the chart notes, which hold its facts, do not: ${JSON.stringify(shown)}`);
+       const notes = await chartNotes(page);
+diff --git a/test/e2e/fix-ui-6.e2e.js b/test/e2e/fix-ui-6.e2e.js
+index ed0a230..1054feb 100644
+--- a/test/e2e/fix-ui-6.e2e.js
++++ b/test/e2e/fix-ui-6.e2e.js
+@@ -720,6 +720,9 @@ export function registerFixUi6Tests(suite) {
+   /* ----------------------------------------------------------------------------------------------------------- B-3 */
+   for (const size of ALL_SIZES) {
+     suite.test(`fix-ui-6: [B-3] [${label(size)}] with the keyboard up in the filter sheet, "Show N roles" is out of the way (hidden, or above the keyboard), and back on screen when it closes`, async (ctx) => {
++      // From 1200 px wide the filters are a column beside the chart (UX-56), with no sheet and no "Show N roles" (the iPads
++      // in landscape that phone-sizes.mjs added, 2026-10-24).
++      if (size.width >= 1200) skip('the filters are a docked column here: no sheet, no "Show N roles"');
+       const k = Math.round(size.height * 0.5);
+       const { page, errors } = await open(ctx, size, { hash: 'c=apple', init: { fn: KEYBOARD, arg: k } });
+       const bad = [];
+-- 
+2.43.0
+

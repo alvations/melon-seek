@@ -1,0 +1,30 @@
+From d5f2daa2b8aaccc4285320344e9daad20c860270 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 24 Oct 2026 06:09:46 +0000
+Subject: [PATCH 64/74] fix-app-6: BN-7 the chip is replaced only when the
+ loaded posting names another level, and keeps B-2's spacing (fitMetaLine)
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+(cherry picked from commit 26ad524db64e1fa66942e6ec1568e27c6e005797)
+---
+ public/app.js | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/public/app.js b/public/app.js
+index 1a0e17a..ad1a079 100644
+--- a/public/app.js
++++ b/public/app.js
+@@ -5708,7 +5708,8 @@ function fillDescription(job, desc, wrap, onSections = () => {}) {
+     job.descriptionHtml = html;
+     // BN-7: the posting's text names its own level ("IC5 - The typical base pay range …"): the chip says it now.
+     const chip = desc.isConnected ? desc.closest('#drawer')?.querySelector('.d-meta .sen') : null;
+-    if (chip && html) chip.replaceWith(senChip(job));
++    const next = chip && html ? senChip(job) : null;
++    if (next && next.textContent !== chip.textContent) { chip.replaceWith(next); fitMetaLine(); } // B-2's spacing for the new chip
+     let gotSections = false;
+     // fix3-data BP-14: sections.preferred (the posting's "Preferred qualifications") arrives with the others.
+     if (detail?.sections) for (const k of ['responsibilities', 'fit', 'preferred']) if (!job.sections[k]?.length && detail.sections[k]?.length) { job.sections[k] = detail.sections[k]; gotSections = true; }
+-- 
+2.43.0
+

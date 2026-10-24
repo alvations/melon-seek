@@ -1,7 +1,7 @@
 From b68f2375f89bf94bbace85dcdc97f0051c8aeae6 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 24 Oct 2026 04:50:52 +0000
-Subject: [PATCH 27/65] fix-ui-6: log: the rebase, the related groups, the
+Subject: [PATCH 27/67] fix-ui-6: log: the rebase, the related groups, the
  three follow-ups, B-12's timing
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

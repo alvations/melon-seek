@@ -1,39 +1,31 @@
 diff --git a/docs/process/qa-ci-6.md b/docs/process/qa-ci-6.md
-index f0795e2..af8cee0 100644
+index af8cee0..f7ea1a6 100644
 --- a/docs/process/qa-ci-6.md
 +++ b/docs/process/qa-ci-6.md
-@@ -150,10 +150,32 @@ cd $Q/clean && bash $S/heavy.sh env MELON_BETA_SNAPSHOT_DIR= timeout 1500 npm te
- ```
+@@ -1,8 +1,13 @@
+ # Process log: qa-ci-6 (test-suite engineer: the first sharded CI run of the e2e suite, 2026-10-24)
  
- ## 5. Verification
--(to come)
-+| Run | Tree, data | Load | Result |
-+|---|---|---|---|
-+| runs/new-repro1.log | 5e20d9e (= e800c43's code), newest | 9 | the 36 failing and skipping tests: 7 pass, 5 fail (D-32, Duo strip, D-41, MR-34, UX-59), 24 skip; UI, Badge swap, razr landscape, 280 guard and [cuts] pass |
-+| runs/ci-repro1.log | 5e20d9e, the CI run's exact data | 8-24 | 17 tests: 8 fail (Badge swap, fix-pay-data, fix3-data, D-32, Duo strip, D-41, MR-34, UX-59), 3 skip; UI, razr landscape, 280 guard and [cuts] pass |
-+| runs/ci-badge-orig.log | 5e20d9e's badge test, CI data | 3.8 | the swap test fails (32 s): data, not load |
-+| runs/ci-badge.log | 78a6117, CI data | 4.6 | Badge 9/9 and UI's first test pass |
-+| runs/new-touched.log | 78a6117, newest | 6-9 | the 8 groups whose tests changed (fix3-data, fix-data-3, fix-pay-at-place, fix-viz-5, Fix touch tips, fix-qa4, Fix3 app, Badge): **192/192 pass, 0 skipped**, 29 min |
-+| runs/npm-test-1.log | 78a6117, clean checkout, no data | 6-9 | 1,308 tests: 1,298 pass, **0 fail**, 10 skipped; 95 s |
-+| e2e-summary on the 4 CI logs | 2c5eecd's script | - | 953 tests, 916 passed, 12 failed, 25 skipped; exit 1; shard 4 over --max-skips; the error excerpt carries the problems under "2 problem(s):" |
-+| runs/w16-touched.log | 8d6dcc3, 2026-10-16 crawl | | the changed groups and every server-mode group (harness.js): 364 tests (to come) |
-+| runs/new-server.log | 8d6dcc3, newest | | every server-mode group, D-50 and MR-34: 195 tests (to come) |
-+
-+Timings taken at a load over 8 are noise (the lead, 01:00).
+ ## State
+-- **Paused by the lead (2026-10-24 ~01:05, usage limit).** Worktree on fd9da2f (same code as e800c43, the CI run's
+-  commit: `git diff e800c43 fd9da2f` touches only docs/ and wip/), plus this lane's commits.
++- **Resumed 06:30 after the container restart; rebased onto the lead's f13ebd6** (fix-salary-6, fix-ui-6, fix-juice-6,
++  fix-app-6). One conflict, BP-10: kept fix-app-6's BN-5 rule (a place picked in between joins what was set aside,
++  and Munich still comes back) with this lane's boards chosen by property. Rebuilding both data sets on the new code
++  and re-running the touched groups on both; npm test queued.
++- Before the rebase (8d6dcc3): newest 192/192 and 10-16 361/364 (3 known skips), npm test 0 fail.
++- (Earlier: paused by the lead, 2026-10-24 ~01:05, usage limit. The reproduction ran on fd9da2f, the same code as
++  e800c43, the CI run's commit: `git diff e800c43 fd9da2f` touches only docs/ and wip/.)
+ - **Done:**
+   - brief saved verbatim (5e20d9e);
+   - the CI run's four shard logs read (GitHub job logs; the artifacts cannot be downloaded here, a 403 at the proxy);
+@@ -159,8 +164,8 @@ cd $Q/clean && bash $S/heavy.sh env MELON_BETA_SNAPSHOT_DIR= timeout 1500 npm te
+ | runs/new-touched.log | 78a6117, newest | 6-9 | the 8 groups whose tests changed (fix3-data, fix-data-3, fix-pay-at-place, fix-viz-5, Fix touch tips, fix-qa4, Fix3 app, Badge): **192/192 pass, 0 skipped**, 29 min |
+ | runs/npm-test-1.log | 78a6117, clean checkout, no data | 6-9 | 1,308 tests: 1,298 pass, **0 fail**, 10 skipped; 95 s |
+ | e2e-summary on the 4 CI logs | 2c5eecd's script | - | 953 tests, 916 passed, 12 failed, 25 skipped; exit 1; shard 4 over --max-skips; the error excerpt carries the problems under "2 problem(s):" |
+-| runs/w16-touched.log | 8d6dcc3, 2026-10-16 crawl | | the changed groups and every server-mode group (harness.js): 364 tests (to come) |
+-| runs/new-server.log | 8d6dcc3, newest | | every server-mode group, D-50 and MR-34: 195 tests (to come) |
++| runs/w16-touched.log | 8d6dcc3, 2026-10-16 crawl | 5-6 | the changed groups and every server-mode group (harness.js): **361/364 pass, 0 fail, 3 skipped** (D-11, screenshots, P-2), 42 min. The new selections pick the old cases on the old crawl: MR-34 microsoft:1970393556619327 (of 918 candidates), D-50 netflix:790298021069 (of 6) |
++| (after the rebase onto f13ebd6: product code changed, so both builds and the runs are repeated) | | | |
  
- ## 6. Known gaps and follow-ups
--(to come)
-+- No Chromium 153 here (never `playwright install`), so the CI-only failures 7, 9 and 12 are attributed to the
-+  browser by elimination: the same code and the same data pass with Chromium 141. The next CI run on the pin is the
-+  test of that. If one still fails there, the 2-CPU runner's timing is next (the guard measures after fixed waits).
-+- Moving CI to a newer Chromium needs its own pass over the phone and layout groups (Fix phone text, fix-viz-5
-+  [cuts], Fix touch tips), with the sandbox's browser moved too, so CI and the local gate stay one browser.
-+- The (b) tests stay red until fix-data-6's G-2 and G-3 land: fix-pay-data [static beta] and Beta desktop QA 2
-+  [D-32]. CI's e2e summary is red until then.
-+- Seen while probing, not in any failing test: a 2-px strip bar cannot be tapped (a touch at its middle lands on
-+  `.ms-chart__axis`). A bar of 5 postings on Google is that short; a hit area taller than the bar would fix it
-+  (layout lane, if wanted).
-+- D-11 and P-2 still skip on every run (qa-suite-beta T-19).
+ Timings taken at a load over 8 are noise (the lead, 01:00).
  
- ## 7. Change log
- - 00:30 Resumed after the container restart (no local-data run had started, so nothing to clean up).

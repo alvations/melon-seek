@@ -1,0 +1,59 @@
+From ef51747d1a2fd333a47317f5fcf9dc63e6275834 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 24 Oct 2026 02:16:08 +0000
+Subject: [PATCH 60/71] fix-app-6: on fix-salary-6's rows per country: BN-6
+ reads a row's own kind where rows carry one; a unit test of BN-1 and BN-2 at
+ each country's row
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+(cherry picked from commit 38ce538a8d90610f4a3048602056b83a5f94ac0a)
+---
+ public/app.js          |  5 ++++-
+ test/fix-app-6.test.js | 14 ++++++++++++++
+ 2 files changed, 18 insertions(+), 1 deletion(-)
+
+diff --git a/public/app.js b/public/app.js
+index bf0fe41..1a0e17a 100644
+--- a/public/app.js
++++ b/public/app.js
+@@ -1025,7 +1025,10 @@ function salWhy(j, F) {
+   if (!j._usd) return 'none';
+   if (!payHere(j, F)) return 'elsewhere';
+   const u = usdHere(j, F);
+-  if (F.smin != null && u.max < F.smin && !isMinimum(j)) return 'under';
++  // A minimum is the posting's statement (salary.kind); a place's own row says so itself where rows carry a kind.
++  const rows = F.l.size ? placePay(j, F)?.ranges : null;
++  const minimum = rows?.length && rows.some((r) => r && r.kind) ? rows.every((r) => r && r.kind === 'minimum') : isMinimum(j);
++  if (F.smin != null && u.max < F.smin && !minimum) return 'under';
+   if (F.smax != null && u.min > F.smax && !shiftRange(j.salary)?.upTo) return 'over';
+   return null;
+ }
+diff --git a/test/fix-app-6.test.js b/test/fix-app-6.test.js
+index c653b09..077c4be 100644
+--- a/test/fix-app-6.test.js
++++ b/test/fix-app-6.test.js
+@@ -271,6 +271,20 @@ test('BN-2 Insights\' tiles and the map\'s pins write the median in the pay\'s o
+   assert.equal(us.price, formatMoney(170000));
+ });
+ 
++test('BN-1, BN-2 on fix-salary-6\'s rows per country: each place is counted and its median written at its own row (Toronto CA$ beside a US headline)', () => {
++  const MUC = city('Munich', 'DE'), SFO = city('San Francisco', 'US', 'CA');
++  const row = (min, max, currency, country, ...locs) => ({ min, max, currency, interval: 'year', country, label: locs.map((l) => l.city).join(', '), locations: locs.map((l) => l.name) });
++  const g = (us, ca, de) => job({ locs: [SFO, TOR, MUC], salary: { ...sal(us[0], us[1]), country: 'US', ranges: [row(us[0], us[1], 'USD', 'US', SFO), row(ca[0], ca[1], 'CAD', 'CA', TOR), row(de[0], de[1], 'EUR', 'DE', MUC)] } });
++  const jobs = [g([180000, 250000], [150000, 153000], [150000, 153000]), g([180000, 250000], [60000, 70000], [70000, 80000]), g([200000, 280000], [140000, 160000], [120000, 130000])];
++  const m = machine();
++  m.load(jobs);
++  checkPlaces(m, jobs, { l: ['San Francisco'], smin: 90000 }, 'rows per country, a $90K floor');
++  assert.equal(m.run({ smin: 90000 }).fc.l.get('Toronto'), 2, 'Toronto: its CA$ rows over $90K (CA$150K and CA$140K–160K), not the US headline');
++  const st = m.stats(m.run({ l: ['Toronto'] }).filtered);
++  assert.equal(st.cur, 'CAD');
++  assert.match(shared.medianText(st.hm), /^CA\$/);
++});
++
+ /* ------------------------------------------------------------ BN-3 */
+ 
+ test('BN-3 no count is cut out of a localized number with a digits-and-commas pattern ("3.821 3.821 roles" in de-DE)', () => {
+-- 
+2.43.0
+

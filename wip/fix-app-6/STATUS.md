@@ -2,11 +2,13 @@
 
 - Worktree: `/home/user/melon-seek/.claude/worktrees/agent-af65001c61c5e8b4f`
 - Base (on claude/stoic-ride-54ddxp): `a0763eceb553a3da77408fd81acf018174302bbc`
-- Head: `3ce7bb0245f3c4b77f7131b302bf161a8b22ed06`
+- Head: `42b2a5931b573040c84778aa58f82a3f831e622a`
 - Restore: `bash scripts/cycle/restore-wip.sh fix-app-6 <new worktree dir>`
 
 ## Commits since the base
 ```
+42b2a59 fix-app-6: log State: done on 94d65d0
+0b38b12 fix-app-6: log State on 94d65d0
 3ce7bb0 fix-app-6: V-44 on a short map: the short line hangs under the Pay | Juice switch, off the pins (the Razr cover's Menlo Park pin)
 26ad524 fix-app-6: BN-7 the chip is replaced only when the loaded posting names another level, and keeps B-2's spacing (fitMetaLine)
 b8171bd fix-app-6: log State after the rebase onto 94d65d0
@@ -76,30 +78,6 @@ ed32bf1 fix-salary-6: norm-14; golden re-baselined (0 of 300 hashes changed) and
 
 ## Uncommitted and new files
 ```
- M docs/screenshots/fix-pay-at-place/e2e-card-1114x720.png
- M docs/screenshots/fix-pay-at-place/e2e-card-280x653.png
- M docs/screenshots/fix-pay-at-place/e2e-card-352x355.png
- M docs/screenshots/fix-pay-at-place/e2e-card-375x812.png
- M docs/screenshots/fix-pay-at-place/e2e-card-720x1114.png
- M docs/screenshots/fix-salary-6/dublin-card-1280x800.png
- M docs/screenshots/fix-salary-6/dublin-card-352x355.png
- M docs/screenshots/fix-salary-6/dublin-card-375x812.png
- M docs/screenshots/fix-salary-6/dublin-drawer-1280x800.png
- M docs/screenshots/fix-salary-6/dublin-drawer-352x355.png
- M docs/screenshots/fix-salary-6/dublin-drawer-375x812.png
- M docs/screenshots/fix-salary-6/milan-card-1280x800.png
- M docs/screenshots/fix-salary-6/milan-card-352x355.png
- M docs/screenshots/fix-salary-6/milan-card-375x812.png
- M docs/screenshots/fix-salary-6/milan-drawer-1280x800.png
- M docs/screenshots/fix-salary-6/milan-drawer-352x355.png
- M docs/screenshots/fix-salary-6/milan-drawer-375x812.png
- M docs/screenshots/fix-salary-6/paris-card-1280x800.png
- M docs/screenshots/fix-salary-6/paris-card-352x355.png
- M docs/screenshots/fix-salary-6/paris-card-375x812.png
- M docs/screenshots/fix-salary-6/paris-drawer-1280x800.png
- M docs/screenshots/fix-salary-6/paris-drawer-352x355.png
- M docs/screenshots/fix-salary-6/paris-drawer-375x812.png
- M docs/screenshots/qa-mobile-beta/e2e-M-24-keyboard-location-search.png
 ```
 
 ## Left out (not in untracked.tgz)

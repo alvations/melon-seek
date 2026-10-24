@@ -2,11 +2,39 @@
 
 - Worktree: `/tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92f3-f582ebca24d9/scratchpad/wt-int`
 - Base (on claude/stoic-ride-54ddxp): `a0763eceb553a3da77408fd81acf018174302bbc`
-- Head: `94d65d087356c8e812f246f20856ec4f7676d9f3`
+- Head: `f13ebd68347a7a73605e98980af12c8ecb22d9d5`
 - Restore: `bash scripts/cycle/restore-wip.sh lead-integration <new worktree dir>`
 
 ## Commits since the base
 ```
+f13ebd6 fix-app-6: log State: done on 94d65d0
+6dfbbd4 fix-app-6: log State on 94d65d0
+f753bb7 fix-app-6: V-44 on a short map: the short line hangs under the Pay | Juice switch, off the pins (the Razr cover's Menlo Park pin)
+d5f2daa fix-app-6: BN-7 the chip is replaced only when the loaded posting names another level, and keeps B-2's spacing (fitMetaLine)
+1a58b74 fix-app-6: log State after the rebase onto 94d65d0
+b0feb05 fix-app-6: V-44 at the Razr cover (from fix-ui-6): a short map's 'N postings list no place' line is short, the sentence in its title
+fce46c7 fix-app-6: log State after the rebase onto e77cd41
+ef51747 fix-app-6: on fix-salary-6's rows per country: BN-6 reads a row's own kind where rows carry one; a unit test of BN-1 and BN-2 at each country's row
+1558aae fix-app-6: the own-plus-wide count belongs to UI: location filter, not the department test
+3818808 fix-app-6: CONTRACT (medianWording, the fits) and log decisions
+5d2d515 fix-app-6: one wording function (chart.js medianWording) for the stats line's median and the chart caption
+a8df758 fix-app-6: two e2e checks read a place's count as its own plus its country- or state-wide postings (BN-1)
+6ab1aa1 fix-app-6: log State and change log
+d66a97d fix-app-6: BN-6 the Salary note's line fits one line with a big count; screenshots (shrunk)
+69f8ed8 fix-app-6: BN-4 the stats line and the chart caption take short words where a long median would wrap or be cut; BN-8 e2e types in the phone's filter sheet
+1adeb58 fix-app-6: BN-7 the main site's Seniority note names no beta company; log gaps
+91249d9 fix-app-6: e2e: BN-1 country-wide, BN-5 and BN-6 checks fail on the base build too; log before and after
+24ccfc7 fix-app-6: BN-2 the chart caption's median in the plotted pay's currency (a place's own row); log steps
+120b18c fix-app-6: log State after the restart
+ae010d1 fix-app-6: BN-8 the pay box keeps the typed currency (chip, link, saved name), reads zł and grouped thousands, a bare number takes the view's currency; CONTRACT and guide for BN-1's wide counts and BN-8
+5ae6a7c fix-app-6: e2e fixes (empty results, locale counts, Location row counts at every phone size); log decisions
+68875fb fix-app-6: BN-1 a town's own count beside its country- or state-wide postings (list and map pins); BN-7 the chip reads the level from the loaded posting
+55f86f2 fix-app-6: log State
+8eee01d fix-app-6: e2e group (42 tests), BP-10/MR-39/shared-decision tests on the new rules, CONTRACT and methodology guide
+3ca131d fix-app-6: BN-1 place counts judged per place, BN-2/BN-4 medians in the pay's currency and per hour, BN-3 count once, BN-5 held values kept, BN-6 minimums under a floor, BN-7 posted levels
+cd85e03 fix-app-6: red unit tests for BN-1 to BN-7 (16 of 18 fail on 4ebe24f)
+efe9e9e fix-app-6: log with State
+93cd8ea fix-app-6: prompt verbatim
 94d65d0 fix-salary-6: CONTRACT and log for the Juice follow-up
 aec5de1 fix-salary-6 S-1 follow-up: Juice says 'pay-other-country' again when every place with a city record is in a country no row prices (Cohere's London)
 942db8a fix-juice-6: log, the related groups and State

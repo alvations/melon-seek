@@ -1,7 +1,7 @@
 From 241339aebe9184ce53de2842e34098abbd09a707 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 24 Oct 2026 00:44:46 +0000
-Subject: [PATCH 03/39] fix-salary-6 S-1: every country line kept as a row with
+Subject: [PATCH 03/67] fix-salary-6 S-1: every country line kept as a row with
  its places; unlisted lines; kr by line country; main-site rows tied (WIP,
  before golden)
 

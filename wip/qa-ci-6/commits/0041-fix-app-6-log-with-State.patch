@@ -1,0 +1,60 @@
+From efe9e9ee7ba4c9f91c516a5ed67463a42423f6f2 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 23 Oct 2026 21:39:30 +0000
+Subject: [PATCH 41/74] fix-app-6: log with State
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+(cherry picked from commit 838a98ef62321ed19e7f59048745a779780d155b)
+---
+ docs/process/fix-app-6.md | 38 ++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 38 insertions(+)
+ create mode 100644 docs/process/fix-app-6.md
+
+diff --git a/docs/process/fix-app-6.md b/docs/process/fix-app-6.md
+new file mode 100644
+index 0000000..2f1bd02
+--- /dev/null
++++ b/docs/process/fix-app-6.md
+@@ -0,0 +1,38 @@
++# Process log: fix-app-6 (front-end engineer, fix wave 6)
++
++## State
++- 2026-10-23 21:50 UTC: **in progress.** Base origin/claude/stoic-ride-54ddxp at db38a30 (detached; later than e800c43).
++- Findings on the list (from the persona reviews, wave 2, on e800c43's build):
++  - BN-1 (High) false Location counts with a pay minimum and one place picked: reproduced on the base build
++    (Google + Warsaw + $40K: Dublin listed 2, alone 137; Krakow 7 vs 14; search box hidden).
++  - BN-2 (Medium) a bare "$" median over a view in one foreign currency.
++  - BN-3 (Medium) the stats line shows the count twice in de-DE / fr-FR ("3.821 3.821 roles").
++  - BN-4 (Medium) part-time hourly pay: the stats line and the chart lead with a full-time year called "posted pay".
++  - BN-5 (Medium) settleKeep(): a place set aside "for now" on a company switch is lost once a Location tick changes.
++  - BN-6 (High) the pay filter hides posted minimums ("from €31,100") as if the minimum were the top; the Salary note and
++    the empty state don't count them.
++- Done: prompt saved (7ea8be8), data linked, base build in `scratchpad/fa6/dist-base` (served on :37777 for probes).
++- Next: red tests per ID, then the fixes in that order.
++- Not committed: the data links data/snapshots and data/beta/snapshots, and the node_modules link.
++
++## 1. Brief
++- **Prompt:** [prompts/fix-app-6.md](prompts/fix-app-6.md), verbatim. BN-3 to BN-6 came from the lead by message.
++- **Owned:** public/app.js derive() and the facet counts, the stats line's median and its basis, settleKeep() (BN-5), the pay
++  filter (BN-6); public/features/insights.js' tiles' basis; the label text of the map pins and the chart caption;
++  test/fix-app-6.test.js, test/e2e/fix-app-6.e2e.js, this log and the prompt file.
++- **Not owned:** the map's fit and the layout over 860 px (fix-ui-6); server/geo.js, keywords.js, Compstimate's comparables
++  and payPlaceText (fix-data-6).
++
++## 2. Inputs and sources
++
++## 3. Decisions and rationale
++
++## 4. Replayable steps
++
++## 5. Verification
++
++## 6. Known gaps and follow-ups
++
++## 7. Change log
++- 2026-10-23 21:28: checked out db38a30, saved the brief, linked the 2026-10-16 crawl, built the base (7 min at load 10-13).
++- 21:40: BN-1 reproduced on the base build.
+-- 
+2.43.0
+
