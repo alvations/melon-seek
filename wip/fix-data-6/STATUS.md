@@ -2,11 +2,13 @@
 
 - Worktree: `/home/user/melon-seek/.claude/worktrees/agent-a08f9659d62990db4`
 - Base (on claude/stoic-ride-54ddxp): `a0763eceb553a3da77408fd81acf018174302bbc`
-- Head: `69634350adf4a8ef764e8240d5bc33d49eb6f17f`
+- Head: `7fbb17e79df418979562adfe09a39b17370de6c7`
 - Restore: `bash scripts/cycle/restore-wip.sh fix-data-6 <new worktree dir>`
 
 ## Commits since the base
 ```
+7fbb17e fix-data-6: G-4 "Bogota, D.C." is Bogotá, Colombia (Distrito Capital), not Washington, DC: 15 Amazon postings, nothing else moves
+217ff5c fix-data-6: J-4 checks the tip of the chip under the mouse; log: the three rebases, P-4, the one-line forms and every run's result
 6963435 fix-data-6: J-4 reads the visible chart's edge chip (a hash-only goto left the previous board's chips first in the DOM)
 bb3df83 fix-data-6: P-4 payLocations follows the rows (every place a row prices has posted pay, Munich beside the US row); headlinePayLocations keeps payCountry and the pay estimate on the headline; BP-2 and VT-5 read the rows
 6c8f4ca fix-data-6: fix-salary-6's e2e reads the job page's exact posted figures (P-2: €124,000–127,000; the card keeps €124K–127K)
@@ -97,30 +99,6 @@ ed32bf1 fix-salary-6: norm-14; golden re-baselined (0 of 300 hashes changed) and
 
 ## Uncommitted and new files
 ```
- M docs/screenshots/fix-pay-at-place/e2e-card-1114x720.png
- M docs/screenshots/fix-pay-at-place/e2e-card-280x653.png
- M docs/screenshots/fix-pay-at-place/e2e-card-352x355.png
- M docs/screenshots/fix-pay-at-place/e2e-card-375x812.png
- M docs/screenshots/fix-pay-at-place/e2e-card-720x1114.png
- M docs/screenshots/fix-salary-6/dublin-card-1280x800.png
- M docs/screenshots/fix-salary-6/dublin-card-352x355.png
- M docs/screenshots/fix-salary-6/dublin-card-375x812.png
- M docs/screenshots/fix-salary-6/dublin-drawer-1280x800.png
- M docs/screenshots/fix-salary-6/dublin-drawer-352x355.png
- M docs/screenshots/fix-salary-6/dublin-drawer-375x812.png
- M docs/screenshots/fix-salary-6/milan-card-1280x800.png
- M docs/screenshots/fix-salary-6/milan-card-352x355.png
- M docs/screenshots/fix-salary-6/milan-card-375x812.png
- M docs/screenshots/fix-salary-6/milan-drawer-1280x800.png
- M docs/screenshots/fix-salary-6/milan-drawer-352x355.png
- M docs/screenshots/fix-salary-6/milan-drawer-375x812.png
- M docs/screenshots/fix-salary-6/paris-card-1280x800.png
- M docs/screenshots/fix-salary-6/paris-card-352x355.png
- M docs/screenshots/fix-salary-6/paris-card-375x812.png
- M docs/screenshots/fix-salary-6/paris-drawer-1280x800.png
- M docs/screenshots/fix-salary-6/paris-drawer-352x355.png
- M docs/screenshots/fix-salary-6/paris-drawer-375x812.png
- M test/e2e/fix-juice-6.e2e.js
 ```
 
 ## Left out (not in untracked.tgz)

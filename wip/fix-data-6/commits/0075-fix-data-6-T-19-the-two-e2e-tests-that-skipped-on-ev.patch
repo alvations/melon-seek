@@ -1,7 +1,7 @@
 From dd6f20c03eb949a635c70cdf7beb2087525b00a3 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 24 Oct 2026 00:30:31 +0000
-Subject: [PATCH 75/86] fix-data-6: T-19 the two e2e tests that skipped on
+Subject: [PATCH 75/88] fix-data-6: T-19 the two e2e tests that skipped on
  every run now run
 
 Fix app [P-2] picks, with the page's own compstimateForJob, the first Anthropic

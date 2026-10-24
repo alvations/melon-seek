@@ -1,7 +1,7 @@
 From 69634350adf4a8ef764e8240d5bc33d49eb6f17f Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 24 Oct 2026 07:43:36 +0000
-Subject: [PATCH 86/86] fix-data-6: J-4 reads the visible chart's edge chip (a
+Subject: [PATCH 86/88] fix-data-6: J-4 reads the visible chart's edge chip (a
  hash-only goto left the previous board's chips first in the DOM)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

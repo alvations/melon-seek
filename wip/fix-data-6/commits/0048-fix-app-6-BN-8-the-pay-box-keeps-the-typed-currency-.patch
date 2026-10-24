@@ -1,7 +1,7 @@
 From ae010d1044ff802b7618b141daa87a4ba2ff72c2 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 24 Oct 2026 00:35:01 +0000
-Subject: [PATCH 48/86] =?UTF-8?q?fix-app-6:=20BN-8=20the=20pay=20box=20kee?=
+Subject: [PATCH 48/88] =?UTF-8?q?fix-app-6:=20BN-8=20the=20pay=20box=20kee?=
  =?UTF-8?q?ps=20the=20typed=20currency=20(chip,=20link,=20saved=20name),?=
  =?UTF-8?q?=20reads=20z=C5=82=20and=20grouped=20thousands,=20a=20bare=20nu?=
  =?UTF-8?q?mber=20takes=20the=20view's=20currency;=20CONTRACT=20and=20guid?=

@@ -1,0 +1,148 @@
+From 7fbb17e79df418979562adfe09a39b17370de6c7 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 24 Oct 2026 08:54:37 +0000
+Subject: [PATCH 88/88] =?UTF-8?q?fix-data-6:=20G-4=20"Bogota,=20D.C."=20is?=
+ =?UTF-8?q?=20Bogot=C3=A1,=20Colombia=20(Distrito=20Capital),=20not=20Wash?=
+ =?UTF-8?q?ington,=20DC:=2015=20Amazon=20postings,=20nothing=20else=20move?=
+ =?UTF-8?q?s?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+---
+ docs/CONTRACT.md           |  3 ++-
+ docs/DATA_SOURCES.md       |  1 +
+ docs/process/fix-data-6.md | 15 ++++++++++++---
+ server/geo.js              |  8 +++++---
+ test/fix-data-6.test.js    | 14 ++++++++++++++
+ 5 files changed, 34 insertions(+), 7 deletions(-)
+
+diff --git a/docs/CONTRACT.md b/docs/CONTRACT.md
+index 6345c07..fdb0488 100644
+--- a/docs/CONTRACT.md
++++ b/docs/CONTRACT.md
+@@ -1228,7 +1228,8 @@ code (`AL ME MD MT PA GA MA MN SC VA NE`, and `LA`, a city alias; not `PR`) is t
+ Google's countries.csv), unless another part of the same job's places is in the US ("HR | RS | SI | AL" is Albania; "Austin |
+ TX | AL" stays Alabama). `regionInfo` and `finalCountry` do not read a dotted two-letter abbreviation as a country code ("N.L.",
+ Nuevo León, is not NL; "U.S." and "U.K." still are). New entries `Monterrey||MX` and the alias "Bayshore Shopping Centre" on
+-Ottawa. `GAZETTEER_SIZE` is 744 cities. On the 2026-10-16 crawl 2 results in 9 postings change (Monterrey, latitude and longitude
++Ottawa. G-4: the alias "Bogota DC" on Bogotá (normKey drops dots and accents), so Amazon's "Bogota, D.C." (Distrito Capital)
++is Bogotá, Colombia, not Washington, DC. `GAZETTEER_SIZE` is 744 cities. On the 2026-10-16 crawl 2 results in 9 postings change (Monterrey, latitude and longitude
+ only); on the 2026-10-23 crawl 5 results in 11 postings (Monterrey 8, Apple's Bayshore 1, Microsoft's "AL" 1 and "Monterrey,
+ N.L." 1, these two from the wrong country to the right one).
+ 
+diff --git a/docs/DATA_SOURCES.md b/docs/DATA_SOURCES.md
+index f3318c1..2f040fc 100644
+--- a/docs/DATA_SOURCES.md
++++ b/docs/DATA_SOURCES.md
+@@ -351,6 +351,7 @@ Parser changes made for these formats (`server/salary.js`):
+ 
+ | Pay words (fix wave 5) | The sentence above the table says what the figures are, and the salary keeps it (lead decisions under "we must present them as they are and not cut anything"): "The minimum gross base pay salary for this position is listed below" / "See below the minimum gross base salary" (EU, Poland) is `kind: 'minimum'`, shown as "from €X" (VT-17; a posting that also says "The base pay for this position is PLN 6000 monthly" is the pay); "including the base pay rate plus the highest available shift differential" (US hourly) keeps the posted figure with `includesShiftDifferential` and a stated lower base ("Pay starts at $18.35 per hour") as `statedBase` (VT-18); "The minimum basic salary for this position is EUR 47'000 gross annually" (Austria, 14 payments) makes that annual figure the salary (`statedAnnual`, VT-19); the drawer says "Stated as a yearly figure" and quotes the posting with its payments ("paid as 14 monthly payments of €3,358.33, not 12"; MR-37, [fix-mr-3](process/fix-mr-3.md)). A bare "$" in a Mexico-only posting ("Monthly Salary: $12,569") is MXN (DQ-35, `server/salary.js` `DOLLAR_COUNTRY`), and Mexico's legal minimum wage (`LEGAL_MIN_ANNUAL`: MXN 315.04 a day in 2026, CONASAMI resolution of 2025-12-03, × 365 = MXN 114,990) lets such pay pass the US$10,000 parser floor and the gate's $15K floor ([VETTING.md](VETTING.md) §2); it changes every 1 January. The 2026-10-16 crawl has 354 Mexico postings and none states pay. Places written with an ISO-3 code ("Bratislava, Bratislavský kraj, SVK") resolve to their country (DQ-40). Stored snapshots get all of this at read time (`server/sources/upgrade.js#upgradeAmazonJobs`) from the stored table, or from `salary.ranges` when trimming cut rows (VT-22) |
+ | Families and levels ([fix-data-6](process/fix-data-6.md), R-1 to R-3) | Amazon's warehouse, delivery-station, transport and store roles are one job family, "Warehouse, delivery & store operations" (`site-ops`, public/features/roles.js): associates, process assistants and lead associates by title, and the area and station managers by Amazon's departments "Fulfillment & Operations Management" and "Fulfillment Associate". They had been "Customer support & success" (by "customer service" in the title or the department "Administrative Support", 273 postings) or no family at all (1,451). Amazon postings with no family: 2,332 → 881. "DCO Tech" (AWS data-center operations) is a data-center technician. "Lead Associate" and "Retail Lead Associate" are Mid by title, not Senior (norm-14, server/keywords.js; 124 postings, and Anduril's 2 "Lead Materials Associate") |
++| Bogotá (norm-14, [fix-data-6](process/fix-data-6.md), G-4) | Amazon writes Bogotá as "Bogota, D.C." (D.C. = Distrito Capital). It was read as Washington, DC (a US place, pinned in Washington, listed as "Bogota, DC" in the Location filter, its pay estimate taken from US roles); it is Bogotá, Colombia. 15 postings on the 2026-10-16 crawl, each also listing "Colombia", none with posted pay; their job pages now say no similar Amazon role in Colombia lists pay instead of a US estimate. No other string changes |
+ | Places and departments (norm-12, [fix-data-3](process/fix-data-3.md)) | "City, State, CCC" is one place even when the state shares a city's name ("Cajamar, Sao Paulo, BRA"). Cajamar (67 postings), Osasco (43), São João de Meriti, Jundiaí, Paulínia, Barueri, Embu das Artes and Belford Roxo are in the gazetteer, so none is pinned and named as São Paulo or Rio de Janeiro city any more (V-45). "Luxembourg, LUX" (121) is Luxembourg City, not the country's centre; its label stays "Luxembourg". "Town and Country, Missouri, USA" is one place (it was "Town" and "Country"; stored split pairs are joined again). "St", "St." and "Saint" are written "St." in a US town ("St Louis, Michigan" is St. Louis, MI, next to St. Louis, MO) and "St" is "St." in Canada (D-41). Departments: "Project/Program/Product Management--Technical" and "--Non-Tech" read "Technical Project, Program and Product Management" and "Non-Technical Project, Program and Product Management" (UX-32, UX-38), at read time, so the snapshot keeps Amazon's own name and an old link with it still finds the department |
+ 
+ ### 7f. Apple (`server/sources/apple.js`)
+diff --git a/docs/process/fix-data-6.md b/docs/process/fix-data-6.md
+index 6755c23..946b14d 100644
+--- a/docs/process/fix-data-6.md
++++ b/docs/process/fix-data-6.md
+@@ -3,7 +3,8 @@
+ ## State
+ - 2026-10-24 08:45 UTC: **on top of f13ebd6** (the lead's integration: fix-salary-6, fix-ui-6, fix-juice-6, fix-app-6), detached,
+   after rebasing onto e77cd41, then 942db8a, then f13ebd6 as the lead asked. Every ID is fixed and committed: G-1, T-19, C-1;
+-  K-1, P-1, P-2, P-3, P-4, R-1, R-2, R-3, G-2, G-3. Head: see the change log's last line.
++  K-1, P-1, P-2, P-3, P-4, R-1, R-2, R-3, G-2, G-3, and G-4 (the lead's last: "Bogota, D.C." is Bogotá, Colombia) on top of
++  217ff5c. Head: see the change log's last line.
+ - **Verified at 6963435 (P-4 head):** npm test CI-like in the clean checkout: 1,381 tests, 1,371 pass, 0 fail, 10 skipped. e2e
+   on its build: the groups P-4 touches (fix-data-6, Fix3 app, Fix app, fix-juice-6, fix-salary-6, fix-pay-at-place, Compstimate,
+   fix-estimates, fix-app-6, fix-qa4) 315 of 316; the one failure, fix-juice-6 [J-4] at 1280x800, is a race in that test (§3,
+@@ -130,6 +131,10 @@
+     chart (Microsoft's, from the step before) for a moment, so the first edge chip in the DOM was Microsoft's "›1" while the
+     hover landed on Google's "‹2" (probe: `scratchpad/fd6/tools/j4probe.mjs` with PRE=microsoft). My data changes picked a
+     Microsoft case for the step before; the race is the test's. The tip is now checked for the chip under the mouse (`:hover`).
++20. **G-4 (from the lead): "Bogota, D.C." is Bogotá, Colombia** (D.C. = Distrito Capital), a country change the lead decided (a
++    Colombian job shown in the US misrepresents it). One alias on the Bogotá entry, "Bogota DC": `normKey` drops dots and
++    accents, so "Bogota, D.C.", "Bogotá, D.C." and "Bogota, DC" all match it as a whole string before any state is read. Kept in
++    norm-14 (not pushed yet); the golden sample has no Bogotá, so no hash moves.
+ 
+ ## 4. Replayable steps
+ ```sh
+@@ -233,14 +238,17 @@ NODE_PATH=$S/pw/node_modules node scripts/e2e.js --grep="Fix app: \[P-2\]|Deskto
+   Palantir 9 → 5, xAI 6 → 0, Netflix 1 → 0), SF Bay Area places (Amazon 1,644 → 1,804, Meta 924 → 995, Apple 2,317 → 2,320, Google
+   1,740 → 1,741), Google's bonus mentions 2,512 → 2,462. On top of fix-salary-6: P-1 532 postings (Amazon 284, Apple 248), P-2
+   16,414 job-page headings (big tech 16,240), P-3 2,442 full-time hourly cards (2,313 plain, 126 with a range per place, 3 minimums), as before the rebase.
++- **G-4:** geodiff over every stored string (G-4's geo.js against 217ff5c's): **1 result in 15 postings changes, all Amazon**
++  ("Bogota, D.C.": "Bogota, DC" [DC, US] at 38.9, -77.03 → "Bogota, Colombia" [CO] at 4.711, -74.0721); nothing else. The other
++  Bogotá strings (Google 4, Microsoft 2, Shield AI 1, Apple 1) already read Colombia. The 15 also list "Colombia", have no posted
++  pay and no Juice; their job page's estimate was US pay for all 15 ("elsewhere in the US"), now none ("no similar role in
++  Colombia lists pay"). Unit test red first (Washington, DC), green after; Washington, DC and Bogota, NJ unchanged.
+ - **P-4:** red first (the posting's shape against the old shared.js: payLocations San Jose, Kirkland, New York, disagreeing with
+   payAt at Munich; after: San Jose, Munich, Kirkland, New York, agreeing at every place; payCountry US both). Unit tests in
+   test/fix-data-6.test.js (22 now). On the 2026-10-16 crawl 112 postings gain the places their other countries' rows price
+   (Cohere 47, Google 34, Microsoft 31; 197 places), none loses one.
+ 
+ ## 6. Known gaps and follow-ups
+-- "Bogota, D.C." (15 Amazon postings) is read as Washington, DC: another country. A fix changes the country, not only the
+-  coordinates, so it is left for the lead to assign.
+ - Big cities written another way are still at their country's centre: "Buenos Aires City" (9), "Ho Chi Minh" (3), "Cracow",
+   "Lodz", "Seville", "Hanover", "Brunswick"; and region names read as towns ("Kanagawa", "Hyogo", "Uttar Pradesh"). An alias would
+   change their names, so they are not G-1.
+@@ -267,3 +275,4 @@ NODE_PATH=$S/pw/node_modules node scripts/e2e.js --grep="Fix app: \[P-2\]|Deskto
+ - 05:30–06:45: rebase onto 942db8a; fix-salary-6's e2e figures (6c0f2f1); npm test (1,357, 0 fail); related groups 511 of 513.
+ - 06:45–07:45: rebase onto f13ebd6 (6c8f4ca); npm test 1,379, 0 fail; touched groups 277 of 277.
+ - 07:45–08:45: P-4 (bb3df83); J-4's race (6963435, then the hovered-chip check); npm test 1,381, 0 fail; touched groups 315 of 316.
++- 08:45–09:10: J-4 alone 2 of 2; 217ff5c; npm test 1,381, 0 fail; SHAs to the lead. G-4 (from the lead): test, alias, geodiff.
+diff --git a/server/geo.js b/server/geo.js
+index 08a504c..4a981d0 100644
+--- a/server/geo.js
++++ b/server/geo.js
+@@ -237,8 +237,10 @@ NZ|New Zealand|-40.90|174.89|NZ
+ // "Sagamihara-shi, Kanagawa, JPN": the gazetteer knows neither state) is read with its own country named, as its own
+ // place's name only (never a later part of another place), so "Hsinchu, Hsinchu City, TW" stays one place. A "?" entry
+ // never decides what a two-letter code means ("Ontario, CA" stays Ontario, Canada, not Ontario, California). On the crawl
+-// 359 results change, in 2,206 postings, latitude and longitude only. Left out: "Bogota, D.C." (Bogotá, Colombia: another
+-// country, not a town at its centre), and "Monroe Twp" and "Hamilton Twp", NJ (two townships of each name).
++// 359 results change, in 2,206 postings, latitude and longitude only. Left out: "Monroe Twp" and "Hamilton Twp", NJ (two
++// townships of each name). G-4 (fix-data-6, the lead's decision): Amazon's "Bogota, D.C." (D.C. = Distrito Capital, 15
++// postings) is Bogotá, Colombia, by the whole-string alias "Bogota DC" (normKey drops the dots and the accent), not
++// Washington, DC; Bogota, NJ is unchanged.
+ // ---------------------------------------------------------------------------
+ 
+ const CITIES_RAW = `
+@@ -617,7 +619,7 @@ Rio de Janeiro||BR|-22.9068|-43.1729|VillageMall;Village Mall
+ Brasília||BR|-15.7939|-47.8828|Brasilia
+ Belo Horizonte||BR|-19.9167|-43.9345|
+ Buenos Aires||AR|-34.6037|-58.3816|
+-Bogota||CO|4.7110|-74.0721|Bogotá
++Bogota||CO|4.7110|-74.0721|Bogotá;Bogota DC
+ Santiago||CL|-33.4489|-70.6693|
+ Lima||PE|-12.0464|-77.0428|
+ San José||CR|9.9281|-84.0907|San Jose
+diff --git a/test/fix-data-6.test.js b/test/fix-data-6.test.js
+index ca0f348..22ab8c1 100644
+--- a/test/fix-data-6.test.js
++++ b/test/fix-data-6.test.js
+@@ -355,3 +355,17 @@ test('P-4 the headline figure keeps its own places: payCountry is US, headlinePa
+   assert.deepEqual(shared.payLocations(one).map((l) => l.city), ['Seattle']);
+   assert.deepEqual(shared.payLocations(one), shared.headlinePayLocations(one));
+ });
++
++/* --------------------------------------------------------------------- G-4 */
++// Amazon writes Bogotá as "Bogota, D.C." (D.C. = Distrito Capital): 15 postings on the 2026-10-16 crawl, read as
++// Washington, DC. It is Bogotá, Colombia; Washington and Bogota, NJ are unchanged.
++test('G-4 "Bogota, D.C." is Bogotá, Colombia, not Washington, DC', () => {
++  for (const s of ['Bogota, D.C.', 'Bogotá, D.C.', 'Bogota D.C.', 'Bogota, DC']) {
++    const [b] = geocode(s);
++    assert.deepEqual([b.city, b.country, locationPrecision(b)], ['Bogota', 'CO', 'city'], s);
++    assert.ok(Math.abs(b.lat - 4.711) < 0.01 && Math.abs(b.lng + 74.0721) < 0.01, `${s}: ${b.lat},${b.lng}`);
++  }
++  // In a list with US places it stays Colombia's.
++  assert.equal(geocodeMany(['Seattle, WA, USA', 'Bogota, D.C.'])[1].country, 'CO');
++  assert.deepEqual(['Washington, D.C.', 'Bogota, NJ'].map((s) => [geocode(s)[0].region, geocode(s)[0].country]), [['DC', 'US'], ['NJ', 'US']]);
++});
+-- 
+2.43.0
+
