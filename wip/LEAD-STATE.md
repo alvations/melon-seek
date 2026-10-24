@@ -20,7 +20,7 @@ whenever a lane starts, reports, is integrated or is retired.
 6. Then continue "Next steps" below.
 
 ## Wakers
-- Durable: scheduled task trig_01V9kyxPXVY6unE6Y6eE3D4Q fires the "Resume tick" prompt into this session at :32 every hour; it survives container restarts and fires again once a usage limit resets. Delete it with delete_trigger when the cycle is finished.
+- Durable: scheduled tasks trig_01Bx4TtFpzXmzgyebcvqUND3 (:12), trig_01V9kyxPXVY6unE6Y6eE3D4Q (:32) and trig_012giqbB2VpjDam9z3ZPEGVj (:52) fire the "Resume tick" prompt into this session at :32 every hour; it survives container restarts and fires again once a usage limit resets. Delete it with delete_trigger when the cycle is finished.
 - In-session: the 15-minute "Checkpoint tick" cron (7,22,37,52) runs `bash $S/tick.sh`; it dies with the session, and the resume tick recreates it.
 
 ## Usage pacing
@@ -59,6 +59,7 @@ Done and retired (do not relaunch): fix-phone-sizes, fix-qa4, fix-mr-3, qa-suite
 persona-beta-2-18-24, -25-34, -35-44, -45-54, -55-plus (logs on the branch, 5502155).
 
 ## Next steps
+The to-do list is $S/TODO.md (published as wip/TODO.md each tick, and as docs/process/TODO.md with each push). Tick items off as they land.
 0. PUSHED 3ff4cfa (2026-10-24 15:4x): fix wave 6 batch 1 (all six lanes + drift fixes). Next: check CI, Pages, webkit-phone.yml and e2e.yml on 3ff4cfa (dispatched); then fix-ui-6's D-1..D-15: PICKED into wt-int 8db98e3 at 15:41 by the lead (fix-ui-6 is weekly-limited); gate 3 running on 8db98e3; if it passes (or only known drift), push; its related groups (fix-salary-6|fix-app-6|fix-juice-6|fix-data-6|Fix3 app|fix-pay-at-place|fix-viz-5|Fix touch tips|Fix phone text|fix-qa4|Badge|Beta UX review), npm test, push. Then the final mobile/desktop QA (task #25).
 1. Integrate each lane's SHAs as they report (pick.sh into $S/wt-int); after fix-data-6 and fix-salary-6 are both in,
    re-baseline the golden file once for norm-14 with the tooling.
@@ -143,4 +144,4 @@ persona-beta-2-18-24, -25-34, -35-44, -45-54, -55-plus (logs on the branch, 5502
 - 15:4x PUSHED 3ff4cfa: fix wave 6 batch 1 (targeted re-run 68/68, npm 1,382/0). Dispatched webkit-phone.yml and e2e.yml. Lead log entry added.
 - 15:41 lead picked fix-ui-6's D-1..D-15 (eb16ee0..4a4428f) -> 8db98e3 clean; gate 3 started on 8db98e3.
 
-### Agents at 2026-10-24T16:00:15Z
+### Agents at 2026-10-24T16:05:20Z

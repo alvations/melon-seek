@@ -29,6 +29,8 @@ mkdir -p $C/wip/lead-tools
 # The lead's own scripts, so a new container (scratch gone) can restore them: cp wip/lead-tools/* $S/.
 cp $S/tick.sh $S/heavy.sh $S/pick.sh $S/gate.sh $S/keepboth.py $S/tick-loop.sh $C/wip/lead-tools/ 2>/dev/null
 git -C $C add wip/lead-tools 2>/dev/null
+# The to-do list (the user, 2026-10-24: "keep track of ALL the todos and check them off the list").
+cp $S/TODO.md $C/wip/TODO.md 2>/dev/null && git -C $C add wip/TODO.md
 { cat $S/lead-state.md; echo; echo "### Lead notes so far (\$S/lead-notes-wave6.md)"; cat $S/lead-notes-wave6.md 2>/dev/null; echo; echo "### Agents at $(date -u +%FT%TZ)"; agents; } > $C/wip/LEAD-STATE.md
 git -C $C add wip/LEAD-STATE.md
 if ! git -C $C diff --cached --quiet; then
