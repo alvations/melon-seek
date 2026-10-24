@@ -454,9 +454,10 @@ function sentenceLabel(before) {
 const LINE_BRACKET_RE = /^\s*\[([^\]\n]{2,40})\]\s*[A-Z][A-Za-z. ]{1,40}:\s*$/;
 // S-1 (fix-salary-6): the bracket also heads the country lines under it, on a line of its own ("[PhD degree]\n
 // Germany: €85000 (EUR)\nFrance: €66000 (EUR)") or before the first of them ("[Bachelor's degree] Ireland: €47000
-// (EUR)\nGermany: €53000 (EUR)"). Only country pay lines may come between; a blank line ends the block.
+// (EUR)\nGermany: €53000 (EUR)"), also as bullets with blank lines between ("[Master's degree]\n\n• France: €54000
+// (EUR)\n\n• Germany: …"). Only country pay lines and blank lines may come between.
 const BRACKET_HEAD_RE = /^\s*\[([^\]\n]{2,40})\]\s*(?:[A-Z][A-Za-z. ]{1,40}:\s*\S.*)?$/;
-const COUNTRY_LINE_RE = /^\s*[A-Z][A-Za-z. ]{1,40}:\s*\S/;
+const COUNTRY_LINE_RE = /^\s*(?:[•·*-]\s*)?[A-Z][A-Za-z. ]{1,40}:\s*\S/;
 function lineBracket(text, start) {
   const from0 = Math.max(0, start - 120);
   const from = from0 + text.slice(from0, start).lastIndexOf('\n') + 1;
@@ -465,10 +466,10 @@ function lineBracket(text, start) {
   if (!lineLabel(text, start) || /\[/.test(text.slice(from, start))) return null;
   // At most 12 lines and 600 characters back (S-3: bounded work per amount).
   let end = from;
-  for (let k = 0; k < 12 && end > 0 && start - end <= 600; k++) {
+  for (let k = 0; k < 16 && end > 0 && start - end <= 600; k++) {
     const ls = text.lastIndexOf('\n', end - 2) + 1;
     const line = text.slice(ls, end - 1);
-    if (!line.trim()) return null;
+    if (!line.trim()) { end = ls; continue; }
     const hm = BRACKET_HEAD_RE.exec(line);
     if (hm) return hm[1].trim();
     if (!COUNTRY_LINE_RE.test(line)) return null;

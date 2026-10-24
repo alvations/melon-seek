@@ -139,6 +139,21 @@ test('S-1 "[Bachelor\'s degree]" on its own line names the country lines under i
   assert.equal(j.salary.ranges.length, 4, 'Germany, France, Sweden and the Netherlands');
 });
 
+// google:142747733357142726 "Software Engineering, Site Reliability Engineering BS/MS Intern, 2027": the same, as bullets
+// with blank lines between.
+const BULLETS = {
+  id: 'google:142747733357142726', title: 'Software Engineering, Site Reliability Engineering BS/MS Intern, 2027', employmentType: 'Intern',
+  places: ['Zürich, Switzerland', 'Munich, Germany', 'Paris, France', 'Dublin, Ireland', 'Stockholm, Sweden'],
+  text: `${GOOGLE_PAY}[Bachelor's degree]\n\n• France: €53000 (EUR) + 0% bonus target\n\n• Germany: €68500 (EUR) + 0% bonus target\n\n• Ireland: €61000 (EUR) + 0% bonus target\n\n• Sweden: kr545000 (SEK) + 0% bonus target\n\n[Master's degree]\n\n• France: €54000 (EUR) + 0% bonus target\n\n• Germany: €71000 (EUR) + 0% bonus target\n\n• Ireland: €62500 (EUR) + 0% bonus target\n\n• Sweden: kr560000 (SEK) + 0% bonus target\n\nLearn more about benefits at Google .\n`,
+};
+test('S-1 degree headers over bulleted country lines with blank lines between name them too', () => {
+  const j = job(BULLETS);
+  assert.deepEqual(j.salary.levels.map((l) => [l.label, l.min]), [["Bachelor's degree", 68500], ["Master's degree", 71000]]);
+  assert.deepEqual(j.salary.ranges.map((r) => [r.label, r.currency, (r.levels || []).map((l) => l.min)]), [
+    ['France', 'EUR', [53000, 54000]], ['Germany', 'EUR', [68500, 71000]], ['Ireland', 'EUR', [61000, 62500]], ['Sweden', 'SEK', [545000, 560000]],
+  ]);
+});
+
 test('S-1 "kr" with no code is read by its line\'s country: Norway NOK, Denmark DKK, Sweden SEK (all were NOK, the first Nordic country listed)', () => {
   const j = job(NORDIC);
   assert.deepEqual([j.salary.currency, j.salary.country, j.salary.min, j.salary.max], ['EUR', 'BE', 120800, 267400]);
