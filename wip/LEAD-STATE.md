@@ -33,6 +33,7 @@ whenever a lane starts, reports, is integrated or is retired.
 - The hourly resume task is the backstop if a limit still lands: it fires after the reset and resumes from this file.
 
 ## Machine rules (tell every new or relaunched agent)
+- Sub-agents (the user, 2026-10-24): a lane with a long list splits it into sub-agents with one independent slice each (size class, component, test group, board), stays the single owner of its files, merges and tests once, and sends one SHA. Sub-agents count toward the running-agent cap (3-4 in all). PLAYBOOK "No lane is a bottleneck".
 - Economy: read files in parts, filter long output, don't re-run suites already run, poll every few minutes, skip the full e2e.
 - Heavy jobs (build-static.js, npm test, e2e, perf probes) go through `bash $S/heavy.sh <cmd>` (flock, 3 slots machine-wide); timeouts inside it. Load 28 on 4 CPUs at 00:58 without it.
 - Keep disk above 2 GB: agents drop stale builds; the lead retires lanes with safe-to-delete.sh.
@@ -65,7 +66,7 @@ The to-do list is $S/TODO.md (published as wip/TODO.md each tick, and as docs/pr
    re-baseline the golden file once for norm-14 with the tooling.
 2. Gate (SHARDS=2) on the integrated head; fix what it finds; npm test; push; check CI, Pages, WebKit (dispatch
    webkit-phone.yml) and e2e.yml (dispatch) on the pushed head.
-3. Final mobile and desktop QA re-check on the wave-6 deploy, every size in test/e2e/phone-sizes.mjs (task #25).
+3. Final mobile and desktop QA re-check on the wave-6 deploy (two lanes, qa-mobile and qa-desktop; each splits sizes into sub-agents by size class), every size in test/e2e/phone-sizes.mjs (task #25).
 4. Lead log entry for fix wave 6 in docs/process/lead.md from the notes.
 5. Backlog for the user (features): own-currency Juice, more households, all-company search, "within N km", Amazon speed.
 
@@ -144,4 +145,4 @@ The to-do list is $S/TODO.md (published as wip/TODO.md each tick, and as docs/pr
 - 15:4x PUSHED 3ff4cfa: fix wave 6 batch 1 (targeted re-run 68/68, npm 1,382/0). Dispatched webkit-phone.yml and e2e.yml. Lead log entry added.
 - 15:41 lead picked fix-ui-6's D-1..D-15 (eb16ee0..4a4428f) -> 8db98e3 clean; gate 3 started on 8db98e3.
 
-### Agents at 2026-10-24T16:05:20Z
+### Agents at 2026-10-24T16:15:29Z

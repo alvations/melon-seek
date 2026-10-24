@@ -21,11 +21,12 @@ docs/process/TODO.md, and at every checkpoint, as wip/TODO.md. Done items keep t
 - [ ] Site watchdog after the deploy: the next scheduled run passes on the new deploy.
 
 ## Final checks (task #25)
-- [ ] Mobile and desktop QA re-check on the wave-6 deploy, at every size in test/e2e/phone-sizes.mjs (VISIBLE and TABLETS too).
+- [ ] Mobile and desktop QA re-check on the wave-6 deploy, at every size in test/e2e/phone-sizes.mjs (VISIBLE and TABLETS too): two lanes, each splitting its sizes into sub-agents by size class.
 - [ ] Lead log entry for batch 2 (the density work) and the final QA.
 
 ## Housekeeping
 - [x] Resume after any stop: three scheduled checks an hour (:12, :32, :52) read wip/LEAD-STATE.md; checkpoints run as a shell loop; lead scripts saved in wip/lead-tools.
+- [x] Sub-agent rule in the PLAYBOOK ("No lane is a bottleneck", 40b56f7; pushes with the density batch).
 - [x] Machine: heavy jobs queued through heavy.sh (3 slots); stale test temp folders cleared each tick.
 - [ ] Retire the finished lanes' worktrees and wip/ folders after the final push (safe-to-delete.sh): fix-salary-6, fix-juice-6, fix-app-6, fix-data-6, qa-ci-6, fix-ui-6, lead-fix.
 - [ ] Delete the three resume checks when the cycle is finished.
