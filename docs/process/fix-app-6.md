@@ -148,6 +148,15 @@ bash scripts/cycle/shrink-screenshots.sh docs/screenshots/fix-app-6
     as "Microsoft · £75K+ · London" (was "$101K+").
 
 ## 6. Known gaps and follow-ups
+- **The chart's rows** (V-21, fix-viz-5's) still write a row's median in US dollars with its basis ("median $127K in Canada"); only the
+  caption follows BN-2. Insights' other cards (Pay by department, the places' medians) are on a US-dollar axis and say so in their Details.
+- **One-level Microsoft postings** carry only the pay range in the served lists, so the chip names their posted level ("Staff+ · Microsoft
+  IC5") once the posting's text loads; a server field with the posted label (fix-data-6's keywords.js/normalize.js) would let the card say
+  it too.
+- **BN-4's mixed case** (part-time hourly with yearly figures) is unit-tested and fitted ("median, a year if full-time" / "median if
+  full-time"), but no board in the 2026-10-16 crawl gives it at the phone sizes, so the phone test measures the all-hourly line.
+- **BN-8**: the slider moves a bound in the typed currency's round thousands (it snaps to $5K in dollars), and a bound typed in another
+  currency re-expresses the other one in it (rounded to a thousand, so its dollar figure can move by under $1K).
 
 ## 7. Change log
 - 2026-10-23 21:28: checked out db38a30, saved the brief, linked the 2026-10-16 crawl, built the base (7 min at load 10-13).

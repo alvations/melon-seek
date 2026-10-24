@@ -112,9 +112,11 @@ const SEN_TIP = {
 // BN-7 (fix-app-6): the company's own level comes first (VT-8), so the words say so, and a posting whose pay names two
 // of these levels counts under both.
 const SEN_NOTE = { line: 'What the levels mean', key: 'fnote-sen', details: ['Staff+ means staff, principal and above.', 'Director+ means director, head of, vice president and above.',
-  'Microsoft, Amazon and NVIDIA postings use the company’s own level, so some “Director” titles are Staff+ or Manager.',
+  // The main site lists none of these boards (its files name no beta company's postings), so it keeps the general line.
+  CHANNEL === 'beta' ? 'Microsoft, Amazon and NVIDIA postings use the company’s own level, so some “Director” titles are Staff+ or Manager.'
+    : 'A company’s own level, where a posting names one, comes before the title’s words.',
   'A posting whose pay names two of these levels (Microsoft M5–M6) counts under both.',
-  '“Level not stated”: the title names no level.'] };
+  '“Level not stated”: the title names no level.'].filter((x) => CHANNEL === 'beta' || !/Microsoft/.test(x)) };
 const SEN_OPTS = { labelOf: senLabel, tipOf: (k) => SEN_TIP[k] || null, note: SEN_NOTE };
 /** I-6: what a city pick finds. */
 const LOC_NOTE = { line: 'Also finds roles listed for its country', key: 'fnote-loc', details: ['A city also finds roles that list only its country or region, and remote-only roles in its country.'] };
