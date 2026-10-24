@@ -4,11 +4,12 @@
 
 - **Done:** brief saved verbatim (f52d08c); e800c43's site built (no product file differs between e800c43 and the
   branch tip 0c6990e) and served; the user's two screenshots measured (375x625 page, Chrome on iOS); the size matrix
-  (section 3.1) and its patch for test/e2e/phone-sizes.mjs (section 3.2); the audit script, checked against the
-  user's screenshot.
-- **In progress:** the before audit (35 sizes x 4 boards x 4 states, scratch `ux6/before/`), run through the shared
-  heavy-job queue.
-- **Next:** the density spec table (section 3.3) with its checks, sent to the lead; then the mockups (section 5).
+  (3.1) and its patch for test/e2e/phone-sizes.mjs (3.2, docs/process/patches/ux-density-6-phone-sizes.diff); the
+  density spec with checks D-1 to D-14 (3.3) and its positions (3.4); the before audit (5.1: 560 pages; no phone
+  screen shows a job, 104 of 104).
+- **In progress:** the mockups (CSS injected on e800c43's build, scratch `ux6/mock.mjs`), after counts per size.
+- **Next:** annotated boards in docs/screenshots/ux-density-6/ (the mini, a Pro Max, the Duo spanned, an iPad), the
+  after table (5.2), shrink, commit; answer fix-ui-6's questions through the lead.
 
 ## 1. Brief
 
@@ -210,3 +211,129 @@ bar, three cards, then the desktop's side-by-side list.
   median) and each edge chip's count are the same as on today's build; the toolbar, quick bar and top bar show no
   control that today's build does not, and the count of visible controls there is never higher.
 - **D-14 Nothing cut.** fix-phone-text's guard (one line from 360 px up, two below) passes at every new size.
+
+### 3.4 Positions, element by element
+
+1. **Tagline after the first visit: gone on the phone layout.** It is a full row (30 px at 375 px) that a returning
+   visitor has read. fix-ui-6's B-11 makes it say what the site is for, which is what a first visit needs, so it
+   stays then. The "visited" flag is per site (main, beta), set after the first full load; if storage throws, every
+   visit is a first visit. After that, the words live in the page title, the logo's and the Beta tag's titles and the
+   badge's sheet (UX-23 already says "beta" there). On the desktop the tagline sits beside the chart controls and costs
+   no row, so it stays.
+2. **The median: the chart's caption keeps it, at every size, in Chart view.** It is the chart's own figure, beside
+   the axis and the tick it describes, so it can never disagree with the chart (V-39 found the stats line's and the
+   chart's medians can differ under a Location filter). The stats line then says nothing in Chart view on a phone
+   (its count is in the sheet, its share in the caption's Details) and takes no row; on the tablet and the desktop it
+   keeps "4,851 roles · 57% show pay". In Map view the map has no caption, so the stats line keeps the median there.
+3. **The strip: folded on compact and short screens**, shown from 700 px. It is a second picture of the same pay
+   (the rows' bands are its parts), and on a 625 px page it costs 28 px, a third of a row. It opens with the caption's
+   Details, so it is one tap away.
+4. **Chart rows on compact screens: the band, the median and a range line, no circles.** Alternatives: smaller
+   circles (still 5–7 marks and their numbers per row: the noise the user saw), or counts of the roles outside the
+   band (always about a quarter each side, so they say nothing). The range line from the lowest to the highest pay on
+   the axis keeps what the circles showed at a glance, the spread; the "›N" chip keeps the roles past the axis. A row
+   is 52 px instead of 66, so 4 rows fit where 2 did. Nothing is hidden: each row keeps its count and median, its tap
+   shows all its roles, Ranges shows each role as a bar, and the sheet lists every posting. From 700 px the circles
+   come back.
+5. **"›N" chips: kept everywhere.** They are the only mark for roles past the axis (UX-43 made them "›1", never a bare
+   "›"), and they are data, not decoration.
+6. **The with / without pay line: in the caption's Details on compact screens**, shown from 700 px. On compact
+   screens the caption's Details is the chart's only one (UX-57 counted two in the chart view), and its first line is
+   "2,781 of 4,851 roles show pay (57%); 2,070 don't".
+7. **Clusters / Ranges and the grouping: not merged.** One select holding both ("Clusters by department … Ranges")
+   would save the caption's 20 px, not a row: the row would still be 44 px for the select, and Ranges would hide
+   inside a menu. The switch and the select already fit one row from 280 px (fix-phone-sizes decision 5).
+8. **The header's pills: unchanged.** The Beta tag, the company menu, the freshness badge and the theme button share
+   one row that the company name needs anyway; removing one frees no row. fix-phone-sizes' ladder already shortens
+   them by width (the badge's "● Oct 16", the Beta tag gone under 360 px). From 640 px wide in the phone layout the
+   whole top bar fits one row (about 620 px), which saves 50 px on the Fold open, the Duo stacked and the iPads.
+9. **The sheet's peek: measured, not a constant.** fix-ui-6's 156 px with today's toolbar leaves one chart row at
+   375x625 (73 px of rows). With this spec's savings, a peek that just reaches the first card's pay (a 20 px grip, a
+   48 px count row, the card's title on one or two lines and its pay pill, plus 8: 130 px at 375x625 for a two-line
+   title) leaves four rows. The grip and the count row together stay a 68 px drag zone. The Juice line (UX-35)
+   explains the card's Juice badge, which is below the peek anyway, so it shows from half up. Map view: the card peeks
+   too from 600 px tall (the map keeps about 280 px at 375x625); below 600 px the map keeps fix-ui-6's 84.
+10. **Tablet portrait (the iPad mini, the iPad, the iPad Pro 11"): the phone layout, roomier.** The desktop's
+    side-by-side layout at 744–834 px would give the chart about 360 px, a phone's width. The audit shows the phone
+    layout there fits all of Apple's 8 rows with 140 px of blank space and no card (iPad mini). So: the top bar in
+    one row, the stats line's count and share beside the chart controls, and the sheet resting at three whole cards.
+11. **Wide (over 860 px): the desktop layout, unchanged** except the median once (the caption's). fix-ui-6's B-8 gives
+    the Duo spanned its two screens without the Viewport Segments API.
+
+## 4. Replayable steps
+
+`<S>` is the scratchpad (`/tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92f3-f582ebca24d9/scratchpad`);
+the scripts are in `<S>/ux6/`. Heavy runs go through the shared queue, `bash <S>/heavy.sh <command>`.
+
+1. `git fetch origin claude/stoic-ride-54ddxp && git checkout --detach origin/claude/stoic-ride-54ddxp` (0c6990e; its
+   public/, index.html and scripts/ equal e800c43's). Link `data/snapshots`, `data/beta/snapshots` (the 2026-10-16
+   crawl in `<S>/wt-data2`) and `node_modules`.
+2. `node scripts/build-static.js` (85 s, 248 MB); `PORT=5466 node scripts/cycle/serve.mjs --dist dist --pid <S>/ux6/serve.pid`.
+3. The user's screenshots: `convert <png> -crop 1x2436+8+0 +repage -depth 8 txt:-`, colour changes down the left edge
+   (rows 326 and 2202 at 3x: the page is 375x625.3).
+4. The audit: `NODE_PATH=<S>/pw/node_modules node <S>/ux6/audit.mjs --out <S>/ux6/before --sizes visible,tablets,full
+   --few '{"anthropic":"q=counsel","apple":"q=accessibility","amazon":"q=writer","google":"q=counsel"}'`: 35 sizes
+   (`sizes.mjs`: VISIBLE, TABLETS and three full screens) x 4 boards x 4 states (first screen; a tap on Ranges; a tap
+   on Map; a search that leaves 8–20 roles, chosen by `probe-few.cjs` at 375x625), dark, other hosts blocked. It
+   appends one JSON line per page to `audit.jsonl` (and resumes from it) and screenshots each. `measure()` counts what
+   is on screen and not covered (`elementFromPoint`): the first card whose title and pay pill are whole; text lines
+   (text pieces clustered by line) above that card; controls by zone; whole and cut chart rows between the axis and
+   the sheet's top; circles and edge chips; the map's height and pins.
+5. Summaries: `python3 -I <S>/ux6/analyze.py audit <S>/ux6/before/audit.jsonl first` ("lines" = text lines outside the
+   chart's rows: down to the axis, plus the notes line and the sheet's count).
+6. The vertical budget of one page: `node <S>/ux6/geom.cjs 375 625 beta apple`.
+7. The mockups: `node <S>/ux6/mock.mjs --out <dir> --only <size regex> --boards beta:apple,... --states first,few,map`
+   (the CSS and mock-only DOM moves are in the file; `bypassCSP`, since the site's CSP refuses injected styles), then
+   `node <S>/ux6/compose.mjs <dir> docs/screenshots/ux-density-6 <size regex> <board> [state]` for the annotated
+   boards.
+8. The patch: `python3 -I <S>/ux6/mkpatch.py` writes `<S>/ux6/patch/phone-sizes.diff` (copied to
+   docs/process/patches/); checked with `git apply --check` and the size unit test on the patched files.
+
+## 5. Verification
+
+### 5.1 Before: e800c43 under the browsers' bars
+
+560 pages, 2026-10-24 01:00–01:17 UTC, load average 5–25 (`uptime` at the start: 25.3; other agents' builds and
+suites). Timings taken then are noise; the counts are not timing-dependent.
+
+**No phone-layout screen shows a job.** At all 26 phone-layout sizes (every VISIBLE size, the three portrait iPads,
+the two full screens) and on all four boards, the first screen has no card: 104 of 104, and the same after a tap on
+Ranges, on Map and with a filter that leaves few roles (104 of 104 each). Every desktop-layout screen (the Duo
+spanned, iPads in landscape and the 12.9"/13" in portrait, 1440x900) shows cards: 36 of 36.
+
+First screen, Apple (the other boards differ only in circles; full tables for all four boards in `<S>/ux6/before-first.md`
+and `before-other.md`):
+
+| Size | Card | Lines outside the chart | Whole (+cut) rows | Circles | "median" said |
+|---|---|---|---|---|---|
+| Fold folded 280x549 | no | 10 | 0+1 | 0 | 2 |
+| SE 1st gen 320x449 (short: no stats line) | no | 7 | 1+1 | 8 | 1 |
+| razr cover 352x275 (short) | no | 5 | 0 | 0 | 0 (no chart in view) |
+| S8 360x612 | no | 10 | 2+1 | 11 | 2 |
+| SE 3rd gen 375x544 | no | 10 | 0+1 | 5 | 2 |
+| **13 mini 375x625 (the user's)** | **no** | **10** | **2+1** | **12** | **2** |
+| 13/14 390x660, 15/16 393x656, 16 Pro/17 402x675 | no | 10 | 2+1 | 19 | 2 |
+| 15 Pro Max 430x736 | no | 10 | 3+1 | 27 | 2 |
+| 17 Pro Max 440x757 | no | 10 | 4+1 | 27 | 2 |
+| Pixel 8 412x811 | no | 10 | 5+1 | 31 | 2 |
+| Duo one screen 540x616 | no | 10 | 3+1 | 13 | 2 |
+| Fold 5 open 690x725 | no | 10 | 5+1 | 37 | 2 |
+| Duo stacked 720x1010 | no | 10 | 8 (all) | 62 | 2 |
+| iPad mini portrait 744x1023 | no | 10 | 8 (all), then 140 px blank | 62 | 2 |
+| iPad Air 11" portrait 820x1070 | no | 10 | 8 (all) | 71 | 2 |
+| Duo spanned 1114x616 | yes | 6 | 5+1 | 49 | 2 |
+| iPad mini landscape 1133x634 | yes | 6 | 5+1 | 49 | 2 |
+| iPad Pro 13" portrait 1032x1266 | yes | 6 | 8 | 53 | 2 |
+| 1440x900 | yes | 4 | 8 | 60 | 2 |
+
+- The 13 mini at 375x625 reproduces the user's screenshot row for row: the top bar (113 px), the quick bar (56), the
+  toolbar (116: the tagline, the stats line, Clusters / Ranges), the caption, strip and axis (73), two rows of 66 px
+  and a cut third, the notes line (36) and the 84 px sheet. The first card's title starts 45 px below the screen.
+- Ranges (a tap): the same, plus the legend line; 2+1 rows at 375x625, 24 on the iPad mini, no card on any phone.
+- Map (a tap): no card on any phone; the map is 322 px tall at 375x625, 196 at 280x549, 454 at 440x757.
+- Few roles (8–20 roles): 1–3 rows and no card; on the 17 Pro Max Apple's 8 roles leave 3 rows and blank space
+  above the sheet (fix-ui-6's B-10 addresses that).
+- The Duo spanned (no viewport segments in this Chromium) gets the desktop layout across the hinge, as the persona
+  runs saw; fix-ui-6's B-8 fixes it.
+- Time to the first card and a settled page at 375x625 (one run each, load 6.4–8.0, so indicative only): Anthropic
+  0.63 s, Google 0.94 s, Apple 1.07 s, Amazon 1.91 s.
