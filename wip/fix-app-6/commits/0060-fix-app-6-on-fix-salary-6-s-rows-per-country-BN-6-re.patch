@@ -1,7 +1,7 @@
 From 38ce538a8d90610f4a3048602056b83a5f94ac0a Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 24 Oct 2026 02:16:08 +0000
-Subject: [PATCH 60/64] fix-app-6: on fix-salary-6's rows per country: BN-6
+Subject: [PATCH 60/65] fix-app-6: on fix-salary-6's rows per country: BN-6
  reads a row's own kind where rows carry one; a unit test of BN-1 and BN-2 at
  each country's row
 

@@ -1,7 +1,7 @@
 From e9042a1d00f5ebc2bce6f4e89bb7b3d066029131 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 23 Oct 2026 21:28:19 +0000
-Subject: [PATCH 40/64] fix-app-6: prompt verbatim
+Subject: [PATCH 40/65] fix-app-6: prompt verbatim
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc

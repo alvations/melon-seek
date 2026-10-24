@@ -95,10 +95,21 @@ index 3fe15bf..8337059 100644
    });
    ro.observe(container);
 diff --git a/test/e2e/fix-ui-6.e2e.js b/test/e2e/fix-ui-6.e2e.js
-index 1054feb..eb7f1ef 100644
+index 1054feb..fb3e4ea 100644
 --- a/test/e2e/fix-ui-6.e2e.js
 +++ b/test/e2e/fix-ui-6.e2e.js
-@@ -1033,9 +1033,11 @@ export function registerFixUi6Tests(suite) {
+@@ -751,7 +751,9 @@ export function registerFixUi6Tests(suite) {
+ 
+   /* ----------------------------------------------------------------------------------------------------------- B-4 */
+   suite.test('fix-ui-6: [B-4] a tap on Filters starts the sheet\'s slide within 80 ms on touch screens over 860 px (932x430, 1005x412, 1114x720), and no later than two frames after a phone\'s (390x844) (Apple and Amazon, medians of 3; load-sensitive)', async (ctx) => {
+-    const wide = ALL_SIZES.filter((s) => s.width > 860 && s.height < s.width);
++    // The three touch screens over 860 px that the item is about (ALL_SIZES has the iPads too since 2026-10-24; from 1200 px
++    // their filters are a docked column, with no slide).
++    const wide = [at(932, 430), at(1005, 412), at(1114, 720)];
+     const phone = at(390, 844);
+     const bad = [];
+     const rows = [];
+@@ -1033,9 +1035,11 @@ export function registerFixUi6Tests(suite) {
      suite.test(`fix-ui-6: [D-1] [${label(size)}, ${c}] the first card's title (every line) and pay are on the first screen and uncovered, on a first and a return visit, in Chart view${c === 'short' ? '' : size.height >= 600 ? ' and Map view' : ''} and with few roles${c === 'tablet' ? ', and the third card is whole' : ''} (Apple)`, async (ctx) => {
        const back = await survey(ctx, size), firstVisit = await survey(ctx, size, { visited: false });
        const bad = [];
@@ -111,7 +122,7 @@ index 1054feb..eb7f1ef 100644
          // A short screen with less room under its bars than the card needs (a three-line title on the Razr cover under its
          // bars: 132 px in 118): the sheet stops under the quick bar, so its pay and its title's first line must show.
          if (c === 'short' && m.first.need > m.first.room && m.first.payOk && m.first.firstLine) { notes.push(`${what}: ${m.first.lines}-line title needs ${m.first.need} px, ${m.first.room} under the bars: its pay and first line show`); return; }
-@@ -1045,7 +1047,7 @@ export function registerFixUi6Tests(suite) {
+@@ -1045,7 +1049,7 @@ export function registerFixUi6Tests(suite) {
        need(firstVisit.load, 'first visit, Chart view');
        need(back.load, 'return visit, Chart view');
        need(back.few, `few roles (${back.few?.count}), Chart view`);
