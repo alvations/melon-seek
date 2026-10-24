@@ -1128,14 +1128,16 @@ chart toolbar's rows; from 861 to 1199 px the company menu has no role count and
 (540 | 34 | 540) when the browser reports no viewport segments; `screenSegments()` (`DUO_SPANNED`) gives `positionPopover` the
 two screens. A browser that reports them gets the env() block, with the same numbers.
 
-**Phones (B-9, B-10, B-12):** the results sheet peeks at 156 px in chart mode (the first card's title and pay; the map keeps 84 px,
-landscape 64 px, the Razr cover screen 104 px with the Juice line shown once the sheet is raised). `fitSheetToChart()` raises the
-peek into the room a chart's rows leave (a body-level `--sheet-peek`, never above half the screen). The company menu keeps the
-first saved search in view while it reveals the current company. On short portrait screens the toast shows over the top bar.
+**Phones (B-9, B-10, B-12):** the results sheet's peek is measured (`fitSheet()`, a body-level `--sheet-peek`): down to the
+first card's title and pay in chart mode (styles.css's 156 px until a card is there; the map keeps 84 px, landscape 64 px, the
+Razr cover screen 104 px with the Juice line shown once the sheet is raised), and raised into the room a chart's rows leave,
+never above half the screen. The chart's scroll box has its sticky axis's height as `scroll-padding-top`. The company menu
+keeps the first saved search with new roles in view while it reveals the current company. On short portrait screens the
+toast shows over the top bar.
 
-**The arrival line (`renderTagline`, B-11):** the beta site's line says what the site is for: "Job postings and their posted pay,
-and what's left after tax and rent, at N companies" (short: "Job postings and their posted pay"; shortest: "Jobs and their posted
-pay"); its title adds the big-tech boards it adds. The main site's line is unchanged.
+**The arrival line (`renderTagline`, B-11):** the beta site's line says what the site is for: "Job postings, their posted pay, and
+what's left after tax and rent" (12 words; short: "Job postings and their posted pay"; shortest: "Jobs and their posted pay"); its
+title has the number of companies and the big-tech boards the beta adds. The main site's line is unchanged.
 
 **The map's fit (`public/viz/map.js clearOfControls`, B-7):** a pin is its price tag and its pointer, down to the place
 (`PIN_TIP`, 7 px), with `CONTROL_GAP` (2 px) of air from each control; a small pan is tried before zooming out, and a re-check
