@@ -121,7 +121,36 @@ caption's label text (fix-app-6), data files.
 
 ## 5. Verification
 
-(filled in as runs finish)
+All on the 2026-10-16 crawl, Chromium 141, the baseline build of 00bd52c (e800c43's code) against this lane's dist/.
+Timings with `uptime`; any taken at a load over 8 is noise and marked so.
+
+**test/e2e/fix-ui-6.e2e.js** (129 tests): on the baseline **84 of 127 failed** (load 7–23; the 2 newer ones, at
+375x625, below), on this lane's build **129 of 129 pass** (the full run 125/129, then 53/53 for B-7, B-9, B-10 and B-12
+after the last two fixes, and 19/19 for the screenshot subset). Per item, before → after:
+
+| ID | Before (red) | After |
+|---|---|---|
+| B-1 | 384 of 400 cards read under Location or Level name the department beside the place's or level's dot | every card names its dot's key first; cards of one key share one colour (Google, Apple, Amazon; 1440 and 390) |
+| B-2 | the level badge 18.0 px after the text at all 23 sizes (21 phone sizes, 1440, 1024) | 10 px (tag 6 px); a badge that starts a line is whole and level with the text; no "·" at a line's start or end |
+| B-3 | "Show N roles" under the keyboard: 932x430 at y 382–418 (215 px left), 1005x412 at 364–400 (206 left), 1114x720 at 672–708 (360 left); phones already hid it | hidden while typing at all 21 sizes, back on screen when the keyboard closes |
+| B-4 | slide start after the tap, Apple (medians of 5, load 6–10): 932x430 70 ms, 1005x412 122, 1114x720 145, phone 390x844 197 | 12, 56, 59 and 58 ms. The test (medians of 3): before 45–127 ms (load 5), after 14–44 ms (load 5) |
+| B-5 | chart 172.4 px with touch, 188.4 with a mouse at 1005x412; 190.4 / 206.4 at 932x430 | 188.4 and 206.4 with touch too; no scroll; Sort level with the stats line |
+| B-6 | the search box from 861 px with a Refresh button: 104 px reading "Search" (beta, touch), 104–124 px with no words at 1000–1020 | at least 215 px with "Search roles" or the full hint at every width from 861 to 1440, touch and mouse, four boards |
+| B-7 | 5 of 21 sizes with a pin or its pointer under a control or out of the map (the cover screen: Apple's third pin under the attribution; 280x653, 320x568, 667x375, 932x430: under Pay \| Juice or out of the map) | 21 of 21 clear, with a basemap |
+| B-8 | 127 things across the hinge with no hinge reported (the search box at x 405–684, chips, the chart's circles, the tagline) | none, with and without the hinge reported; the search box 291 px |
+| B-9 | the first saved search out of the list's view (row at y −70 to −26 in a list at 187–288); no toast reached | the saved search and its "2 new" in view; the toast over the top bar, clear of the first card |
+| B-10 | 56–217 px blank under the chart's rows at 8 of 14 portrait sizes (10 roles) | at most 48 px everywhere (412x915: 127 → 8 px) |
+| B-11 | "Beta: adds 7 big-tech careers sites" at 22 sizes | "Job postings and their posted pay…", one line, never cut, at every size that shows it |
+| B-12 | no card on the first screen at any of 15 portrait sizes (390x844: the title's first line at 908, the screen 844) | the first card's title and pay on the first screen at all 15 and at 375x625; the cover screen its title and pay, the chart its caption (34–37 px) |
+
+**npm test** in a clean checkout with no data links (`MELON_BETA_SNAPSHOT_DIR=`): on 9d188a1 1297 pass and 1 fail
+(fix-qa4's UX-50 source test pinned the old line; updated in 2f245aa to read cardMetaItems); on 9b86087 **1308 tests,
+1298 pass, 0 fail**, 10 skipped.
+
+Screenshots (shrunk 11.8 → 2.7 MB): docs/screenshots/fix-ui-6/before-*.png and after-*.png for each item at the sizes
+that show it (B-1 Apple and Amazon at 1440, B-2 at 280, 390 and 1440, B-3 at 1005x412, B-5 at 932x430 and 1005x412, B-6
+at 861, B-7 the cover screen, B-8 the Duo, B-9 the cover screen's menu and toast, B-10 at 412x915 and 375x625, B-11 at
+390 and 1440, B-12 at 280, 352x355, 375x625 and 390).
 
 ## 6. Known gaps and follow-ups
 
