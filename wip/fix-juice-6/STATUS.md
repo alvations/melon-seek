@@ -32,6 +32,31 @@ ed32bf1 fix-salary-6: norm-14; golden re-baselined (0 of 300 hashes changed) and
 
 ## Uncommitted and new files
 ```
+ M docs/process/fix-juice-6.md
+ M docs/screenshots/dark-drawer.png
+ M docs/screenshots/dark.png
+ M docs/screenshots/drawer-juice.png
+ M docs/screenshots/drawer.png
+ M docs/screenshots/fix-salary-6/dublin-card-1280x800.png
+ M docs/screenshots/fix-salary-6/dublin-card-352x355.png
+ M docs/screenshots/fix-salary-6/dublin-card-375x812.png
+ M docs/screenshots/fix-salary-6/dublin-drawer-1280x800.png
+ M docs/screenshots/fix-salary-6/dublin-drawer-352x355.png
+ M docs/screenshots/fix-salary-6/dublin-drawer-375x812.png
+ M docs/screenshots/fix-salary-6/milan-card-1280x800.png
+ M docs/screenshots/fix-salary-6/milan-card-352x355.png
+ M docs/screenshots/fix-salary-6/milan-card-375x812.png
+ M docs/screenshots/fix-salary-6/milan-drawer-1280x800.png
+ M docs/screenshots/fix-salary-6/milan-drawer-352x355.png
+ M docs/screenshots/fix-salary-6/milan-drawer-375x812.png
+ M docs/screenshots/fix-salary-6/paris-card-1280x800.png
+ M docs/screenshots/fix-salary-6/paris-card-352x355.png
+ M docs/screenshots/fix-salary-6/paris-card-375x812.png
+ M docs/screenshots/fix-salary-6/paris-drawer-1280x800.png
+ M docs/screenshots/fix-salary-6/paris-drawer-352x355.png
+ M docs/screenshots/fix-salary-6/paris-drawer-375x812.png
+ M docs/screenshots/map-juice.png
+ M docs/screenshots/map.png
 ```
 
 ## Left out (not in untracked.tgz)
