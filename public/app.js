@@ -1901,9 +1901,11 @@ function makeCompanyMenu() {
     }
   }
   /**
-   * M-21: the menu opens with the current company (✓) in view. B-9 (fix-ui-6): saved searches, listed first, stay in
-   * view too: the list scrolls no further than keeps the first one whole. On the Razr cover screen (a list three rows
-   * tall) the menu opened on the current company with the saved search and its "1 new" above, off screen.
+   * M-21: the menu opens with the current company (✓) in view. B-9 (fix-ui-6): a saved search with new roles, listed
+   * first, stays in view too: the list scrolls no further than keeps the first such one whole. On the Razr cover screen
+   * (a list three rows tall) the menu opened on the current company with the saved search and its "1 new" above, off
+   * screen. Saved searches with nothing new leave the current company centred (M-28: five of them in landscape put it,
+   * and the end of the list, five rows further away).
    */
   function reveal() {
     const cur = list.querySelector('.company-item[aria-current="true"]');
@@ -1911,8 +1913,8 @@ function makeCompanyMenu() {
     const lr = list.getBoundingClientRect(), cr = cur.getBoundingClientRect();
     if (cr.top >= lr.top && cr.bottom <= lr.bottom) return;
     let d = cr.top - lr.top - Math.max(0, (lr.height - cr.height) / 2);
-    const saved = list.querySelector('.saved-row');
-    if (saved) d = Math.min(d, saved.getBoundingClientRect().top - lr.top);
+    const fresh = list.querySelector('.saved-row .saved-new')?.closest('.saved-row');
+    if (fresh) d = Math.min(d, fresh.getBoundingClientRect().top - lr.top);
     if (d > 0) list.scrollTop += d;
   }
   return { el, sync, reveal };
@@ -3040,12 +3042,14 @@ function renderTagline() {
   // fix-density: one line; a phone shows a shorter line than the desktop. B-11 (fix-ui-6, persona wave 2 I-1, 5 of 5):
   // the beta line said only what the beta adds ("Beta: adds 7 big-tech careers sites"), not what the site is for, so it
   // says that first, as the main site's line does; what the beta adds (the names) stays in its title.
-  const text = big.length ? `Job postings and their posted pay, and what’s left after tax and rent, at ${n} companies`
+  // fix-phone-text's guard: at most 12 words on the line (the Duo spanned gives it a row of its own, so the long one shows);
+  // the number of companies is in its title.
+  const text = big.length ? 'Job postings, their posted pay, and what’s left after tax and rent'
     : `Pay, and what’s left after tax and rent, for ${n ? `${n} companies’` : 'tech companies’'} open roles`;
   const short = big.length ? 'Job postings and their posted pay' : 'Tech pay, after tax and rent';
   if (el.dataset.text !== text) {
     el.dataset.text = text;
-    el.title = big.length ? `${text}. Beta: adds ${list} from their own careers sites` : text;
+    el.title = big.length ? `Job postings and their posted pay, and what’s left after tax and rent, at ${n} companies. Beta: adds ${list} from their own careers sites` : text;
     el.replaceChildren(h('strong', { class: 'tagline-brand' }, 'melon·seek'), h('span', { class: 'tagline-sep', 'aria-hidden': 'true' }, ' · '),
       h('span', { class: 'tagline-long' }, text), h('span', { class: 'tagline-short' }, short),
       // fix-phone-text: the shortest line, for a box too narrow for the others (fitTagline).

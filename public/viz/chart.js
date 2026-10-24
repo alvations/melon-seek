@@ -1010,6 +1010,10 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
 
     // Scroll mode: scroll internally only when the container constrains height;
     // otherwise flow with the page so the sticky header sticks to the viewport.
+    // fix-ui-6 (B-12): what is scrolled into view (find in page, a screen reader's or the keyboard's focus, a tap's target)
+    // lands under the sticky axis, not behind it; the 280 px Fold's chart box is 108 px under a 73 px axis.
+    const stickyH = sticky.offsetHeight;
+    if (scroll.style.scrollPaddingTop !== `${stickyH}px`) scroll.style.scrollPaddingTop = `${stickyH}px`;
     container.classList.remove('ms-chart--flow');
     if (scroll.scrollHeight <= scroll.clientHeight + 1) container.classList.add('ms-chart--flow');
     paint();
