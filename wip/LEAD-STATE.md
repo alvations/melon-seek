@@ -25,7 +25,7 @@ whenever a lane starts, reports, is integrated or is retired.
 
 ## Usage pacing (the user, 2026-10-24: "Make sure you don't get interrupted by session or token limit")
 - At most 3 agents run at once. Six or seven in parallel used up the 5-hour usage allowance in about 2 hours on 2026-10-23, and five did in about 2 h 15 min on 2026-10-24 (limit 02:45, reset 04:20).
-- Paused lanes wait in this order and resume, by SendMessage, one per finished lane: qa-ci-6 (fix-app-6 resumed 05:2x).
+- No lanes are paused (qa-ci-6 resumed 06:3x).
 - After a usage-limit stop, resume only the `running` lanes. The paused ones stay paused.
 - The lead keeps its own turns short: no polling loops, small outputs.
 - The hourly resume task is the backstop if a limit still lands: it fires after the reset and resumes from this file.
@@ -47,17 +47,17 @@ whenever a lane starts, reports, is integrated or is retired.
 |---|---|---|---|---|
 | fix-ui-6 | add67b9453342f4ba | .claude/worktrees/agent-add67b9453342f4ba | B-1..B-12 (layout, phone sizes, map fit); phase 2: implement ux-density-6's density spec and size matrix | running |
 | fix-data-6 | a08f9659d62990db4 | .claude/worktrees/agent-a08f9659d62990db4 | G-1 (norm-14), G-2 bare country codes, G-3 Bayshore store and Monterrey N.L., T-19 P-2/D-11, C-1, K-1, P-1, P-2, P-3, R-1, R-2, R-3 | running |
-| fix-app-6 | af65001c61c5e8b4f | .claude/worktrees/agent-af65001c61c5e8b4f | BN-1..BN-8 | running |
+| fix-app-6 | af65001c61c5e8b4f | .claude/worktrees/agent-af65001c61c5e8b4f | BN-1..BN-8 | done (42b2a59, integrated f13ebd6) |
 | fix-salary-6 | a29d354058b1f01b7 | .claude/worktrees/agent-a29d354058b1f01b7 | S-1 multi-country pay (done 49e86ee, integrated); follow-up now: attachJuice reason regression, on 942db8a | done (b0795a2, integrated 94d65d0) |
 | fix-juice-6 | aab76ab3a12b3f957 | .claude/worktrees/agent-aab76ab3a12b3f957 | J-1..J-5 | done (c3fc219, picked into wt-int 942db8a) |
 | ux-density-6 | a8d30680c4dcc21d7 | .claude/worktrees/agent-a8d30680c4dcc21d7 | the user's 2026-10-24 iPhone mini request: size matrix (visible viewports, Pro Max, iPads, Duo) and a per-size density spec for fix-ui-6; no product code | done (61747f8; picked into wt-int) |
-| qa-ci-6 | a6d5736b954b39411 | .claude/worktrees/agent-a6d5736b954b39411 | the 12 CI e2e failures and 25 skips (run 40024210372) | paused |
+| qa-ci-6 | a6d5736b954b39411 | .claude/worktrees/agent-a6d5736b954b39411 | the 12 CI e2e failures and 25 skips (run 40024210372) | running |
 
 Done and retired (do not relaunch): fix-phone-sizes, fix-qa4, fix-mr-3, qa-suite-beta, fix-viz-5 (batch 3, e800c43);
 persona-beta-2-18-24, -25-34, -35-44, -45-54, -55-plus (logs on the branch, 5502155).
 
 ## Next steps
-0. Integration branch $S/wt-int is at 94d65d0 (+ fix-salary-6's attachJuice follow-up); was 942db8a (fix-salary-6, the UX docs, fix-ui-6 B-1..B-12, fix-juice-6; one app.js conflict resolved in locSummary: J-5 order then B-1's coloured key), not pushed: it waits for the gate. fix-ui-6 is on phase 2 (D-1..D-14). fix-data-6, fix-app-6, fix-ui-6 and fix-juice-6 were told to rebase onto it.
+0. Integration branch $S/wt-int is at f13ebd6 (+ fix-app-6 BN-1..BN-8, V-44); before: 94d65d0, 942db8a (fix-salary-6, the UX docs, fix-ui-6 B-1..B-12, fix-juice-6; one app.js conflict resolved in locSummary: J-5 order then B-1's coloured key), not pushed: it waits for the gate. fix-ui-6 is on phase 2 (D-1..D-14). fix-data-6, fix-app-6, fix-ui-6 and fix-juice-6 were told to rebase onto it.
 1. Integrate each lane's SHAs as they report (pick.sh into $S/wt-int); after fix-data-6 and fix-salary-6 are both in,
    re-baseline the golden file once for norm-14 with the tooling.
 2. Gate (SHARDS=2) on the integrated head; fix what it finds; npm test; push; check CI, Pages, WebKit (dispatch
@@ -122,8 +122,10 @@ persona-beta-2-18-24, -25-34, -35-44, -45-54, -55-plus (logs on the branch, 5502
 - 05:1x fix-ui-6 B-1..B-12 green (rebased onto e77cd41, tip f6fa155): fix-ui-6 129/129; related 589/593 then 75/76 after follow-ups (7e19e64: B-9 only saved searches with new roles stay in view on the cover screen; B-11 beta line 12 words 'Job postings, their posted pay, and what's left after tax and rent'; B-12 scroll-padding-top = sticky axis); npm test 1,328/0 fail; matrix 60/60, smoke 147/147; first visible card on throttled Pixel 8 median 2.44 s (load 7). Picked 13 commits into wt-int -> b68f237 clean. Open for fix-app-6: Razr cover map V-44 'N postings list no place' line covers Meta's pins.
 - 05:2x fix-juice-6 done (c3fc219; npm test 1,337/0 fail; Juice/tax units 84/84 unchanged; J-5 reversed: the card names the graded place first, accepted). Picked into wt-int -> 942db8a with one app.js conflict in locSummary resolved (J-5 ordering, then B-1's coloured key first). Regression from S-1 (fix3-data browser lib/juice.js: Cohere London, attachJuice gives no reason) sent back to fix-salary-6 (resumed, on 942db8a).
 - 05:2x fix-salary-6 follow-up b0795a2 (attachJuice gives 'pay-other-country' again when tied rows have no city and every listed city is another country; Cohere 67 with Juice, 2 CA$ London give the reason; npm test 1,338/0 fail) picked -> 94d65d0. fix-app-6 resumed on 94d65d0 (plus V-44 Razr cover map line).
+- 06:3x fix-app-6 done (42b2a59, 28 commits on 94d65d0): BN-1 counts per place (Dublin 2->137; Vancouver 22->178, Seattle 3,668; 'Palmetto 3 +294'); BN-2 median in the pay's currency, one wording function chart.js medianWording; BN-3 once in every locale; BN-4 hourly median; BN-5 set-aside places survive; BN-6 minimums survive a floor (Milan 54->84, EU 185->313); BN-7 two-level postings count under both (MS 102, NVIDIA 51), chip 'Manager · Microsoft M5–M6'; BN-8 typed currency kept (smin+sc), zł and grouped thousands; V-44 short maps '9 with no place'. npm test 1,359/0 fail. Picked clean -> f13ebd6. qa-ci-6 resumed on f13ebd6.
+- fix-app-6 final report: known gaps: chart row medians still US$ with a country label (sent to fix-ui-6 for D-5); one-level Microsoft chips name the posted level only after the posting text loads. Pre-rebase states kept as branches fix-app-6-pre-rebase(2).
 
-### Agents at 2026-10-24T06:28:42Z
-agent fix-ui-6 add67b9453342f4ba transcript-age=6min head=3835971
-agent fix-data-6 a08f9659d62990db4 transcript-age=5min head=6c0f2f1
-agent fix-app-6 af65001c61c5e8b4f transcript-age=0min head=3ce7bb0
+### Agents at 2026-10-24T06:43:43Z
+agent fix-ui-6 add67b9453342f4ba transcript-age=0min head=6d82ea4
+agent fix-data-6 a08f9659d62990db4 transcript-age=0min head=6c0f2f1
+agent qa-ci-6 a6d5736b954b39411 transcript-age=9min head=b9baf8d
