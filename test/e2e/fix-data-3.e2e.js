@@ -67,8 +67,10 @@ async function appJobs(page, st, company, pick) {
   return r.jobs;
 }
 
-/** A filter section's options in the left column, fully expanded: [{ label, count }]. The Department section holds the
- *  Company list (hidden on a one-company board) before the departments, so its last list is read. */
+/** A filter section's options in the left column, fully expanded: [{ label, count, wide }]. The Department section holds
+ *  the Company list (hidden on a one-company board) before the departments, so its last list is read. `wide`: since
+ *  fix-app-6's BN-1 a place shows its own count with the roles listed only for its state or country beside it
+ *  ("1 +11"), and a pick lists both. */
 async function options(page, title) {
   const sec = page.locator('#filterBody details.fsec').filter({ has: page.locator('summary', { hasText: title }) });
   await sec.first().evaluate((d) => { d.open = true; }); await sleep(200);
@@ -79,7 +81,8 @@ async function options(page, title) {
     await more.first().click(); await sleep(300);
   }
   return wrap.locator('.checklist').first().evaluate((list) => [...list.querySelectorAll('label.check')].map((n) => ({
-    label: n.querySelector('.check-label').textContent.trim(), count: Number(n.querySelector('.check-count').textContent.replace(/,/g, '')) })));
+    label: n.querySelector('.check-label').textContent.trim(), count: Number(n.querySelector('.check-count').textContent.replace(/,/g, '')),
+    wide: Number(n.querySelector('.check-wide')?.textContent.replace(/\D/g, '') || 0) })));
 }
 
 async function openDrawer(page, st, company, id) {
@@ -198,7 +201,7 @@ export function registerFixData3Tests(suite) {
         }, { base: st.beta });
         assertEq(new Set(keyed).size, 1, `the ${both.length} postings written "Saint George, SC" and "St George, SC" are one place (${[...new Set(keyed)].join(' / ')})`);
         await go(page, st, `c=google&l=${encodeURIComponent(sc.label)}`);
-        assertEq(await resultsCount(page), sc.count, `"${sc.label}" lists its count`);
+        assertEq(await resultsCount(page), sc.count + sc.wide, `"${sc.label}" lists its count (${sc.count} +${sc.wide})`);
       }
     }
     await go(page, st, 'c=amazon');

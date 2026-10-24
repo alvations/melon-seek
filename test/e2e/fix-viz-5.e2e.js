@@ -546,7 +546,10 @@ export function registerFixViz5Tests(suite) {
     const bad = [];
     let low = 0;
     for (const { a, t } of pins) {
-      const m = /: ([\d,]+) postings?, median (\$[\d.]+[KM]?) from ([\d,]+) with pay/.exec(a);
+      // qa-ci-6: any currency. Since fix-salary-6's rows per country a pin outside the US is priced in its own currency
+      // ("median A$106K from 4 with pay for here"), and those are the pins priced from few postings; a "$"-only match
+      // found none on the rebased build and the test skipped.
+      const m = /: ([\d,]+) postings?, median (\S*?[\d.]+[KM]?) from ([\d,]+) with pay/.exec(a);
       if (!m) continue;
       const n = +m[1].replace(/,/g, ''), k = +m[3].replace(/,/g, '');
       if (k / n < 0.25) { low++; if (!/\bof\b/.test(t) || !/%/.test(a)) bad.push(`"${t}" (${a})`); }

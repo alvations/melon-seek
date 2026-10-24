@@ -1,8 +1,13 @@
 # Process log: qa-ci-6 (test-suite engineer: the first sharded CI run of the e2e suite, 2026-10-24)
 
 ## State
-- **Paused by the lead (2026-10-24 ~01:05, usage limit).** Worktree on fd9da2f (same code as e800c43, the CI run's
-  commit: `git diff e800c43 fd9da2f` touches only docs/ and wip/), plus this lane's commits.
+- **Resumed 06:30 after the container restart; rebased onto the lead's f13ebd6** (fix-salary-6, fix-ui-6, fix-juice-6,
+  fix-app-6). One conflict, BP-10: kept fix-app-6's BN-5 rule (a place picked in between joins what was set aside,
+  and Munich still comes back) with this lane's boards chosen by property. Rebuilding both data sets on the new code
+  and re-running the touched groups on both; npm test queued.
+- Before the rebase (8d6dcc3): newest 192/192 and 10-16 361/364 (3 known skips), npm test 0 fail.
+- (Earlier: paused by the lead, 2026-10-24 ~01:05, usage limit. The reproduction ran on fd9da2f, the same code as
+  e800c43, the CI run's commit: `git diff e800c43 fd9da2f` touches only docs/ and wip/.)
 - **Done:**
   - brief saved verbatim (5e20d9e);
   - the CI run's four shard logs read (GitHub job logs; the artifacts cannot be downloaded here, a 403 at the proxy);
@@ -159,8 +164,8 @@ cd $Q/clean && bash $S/heavy.sh env MELON_BETA_SNAPSHOT_DIR= timeout 1500 npm te
 | runs/new-touched.log | 78a6117, newest | 6-9 | the 8 groups whose tests changed (fix3-data, fix-data-3, fix-pay-at-place, fix-viz-5, Fix touch tips, fix-qa4, Fix3 app, Badge): **192/192 pass, 0 skipped**, 29 min |
 | runs/npm-test-1.log | 78a6117, clean checkout, no data | 6-9 | 1,308 tests: 1,298 pass, **0 fail**, 10 skipped; 95 s |
 | e2e-summary on the 4 CI logs | 2c5eecd's script | - | 953 tests, 916 passed, 12 failed, 25 skipped; exit 1; shard 4 over --max-skips; the error excerpt carries the problems under "2 problem(s):" |
-| runs/w16-touched.log | 8d6dcc3, 2026-10-16 crawl | | the changed groups and every server-mode group (harness.js): 364 tests (to come) |
-| runs/new-server.log | 8d6dcc3, newest | | every server-mode group, D-50 and MR-34: 195 tests (to come) |
+| runs/w16-touched.log | 8d6dcc3, 2026-10-16 crawl | 5-6 | the changed groups and every server-mode group (harness.js): **361/364 pass, 0 fail, 3 skipped** (D-11, screenshots, P-2), 42 min. The new selections pick the old cases on the old crawl: MR-34 microsoft:1970393556619327 (of 918 candidates), D-50 netflix:790298021069 (of 6) |
+| (after the rebase onto f13ebd6: product code changed, so both builds and the runs are repeated) | | | |
 
 Timings taken at a load over 8 are noise (the lead, 01:00).
 
