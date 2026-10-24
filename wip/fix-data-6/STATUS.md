@@ -40,6 +40,7 @@ ed32bf1 fix-salary-6: norm-14; golden re-baselined (0 of 300 hashes changed) and
 ```
  M public/app.js
  M test/e2e/fix-data-6.e2e.js
+ M test/fix-salary-6.test.js
 ```
 
 ## Left out (not in untracked.tgz)
