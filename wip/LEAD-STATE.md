@@ -25,7 +25,7 @@ whenever a lane starts, reports, is integrated or is retired.
 
 ## Usage pacing (the user, 2026-10-24: "Make sure you don't get interrupted by session or token limit")
 - At most 5 agents run at once. Six or seven in parallel used up the 5-hour usage allowance in about 2 hours on 2026-10-23.
-- Paused lanes wait in this order and resume, by SendMessage, one per finished lane: qa-ci-6, then fix-juice-6.
+- Paused lanes wait in this order and resume, by SendMessage, one per finished lane: fix-juice-6 next (qa-ci-6 resumed 01:3x when ux-density-6 finished).
 - After a usage-limit stop, resume only the `running` lanes. The paused ones stay paused.
 - The lead keeps its own turns short: no polling loops, small outputs.
 - The hourly resume task is the backstop if a limit still lands: it fires after the reset and resumes from this file.
@@ -50,8 +50,8 @@ whenever a lane starts, reports, is integrated or is retired.
 | fix-app-6 | af65001c61c5e8b4f | .claude/worktrees/agent-af65001c61c5e8b4f | BN-1..BN-8 | running |
 | fix-salary-6 | a29d354058b1f01b7 | .claude/worktrees/agent-a29d354058b1f01b7 | S-1 multi-country pay (norm-14 shared with fix-data-6; salary.unlisted shown in the drawer) | running |
 | fix-juice-6 | aab76ab3a12b3f957 | .claude/worktrees/agent-aab76ab3a12b3f957 | J-1..J-5 | paused |
-| ux-density-6 | a8d30680c4dcc21d7 | .claude/worktrees/agent-a8d30680c4dcc21d7 | the user's 2026-10-24 iPhone mini request: size matrix (visible viewports, Pro Max, iPads, Duo) and a per-size density spec for fix-ui-6; no product code | running |
-| qa-ci-6 | a6d5736b954b39411 | .claude/worktrees/agent-a6d5736b954b39411 | the 12 CI e2e failures and 25 skips (run 40024210372) | paused |
+| ux-density-6 | a8d30680c4dcc21d7 | .claude/worktrees/agent-a8d30680c4dcc21d7 | the user's 2026-10-24 iPhone mini request: size matrix (visible viewports, Pro Max, iPads, Duo) and a per-size density spec for fix-ui-6; no product code | done (61747f8; picked into wt-int) |
+| qa-ci-6 | a6d5736b954b39411 | .claude/worktrees/agent-a6d5736b954b39411 | the 12 CI e2e failures and 25 skips (run 40024210372) | running |
 
 Done and retired (do not relaunch): fix-phone-sizes, fix-qa4, fix-mr-3, qa-suite-beta, fix-viz-5 (batch 3, e800c43);
 persona-beta-2-18-24, -25-34, -35-44, -45-54, -55-plus (logs on the branch, 5502155).
@@ -110,10 +110,12 @@ persona-beta-2-18-24, -25-34, -35-44, -45-54, -55-plus (logs on the branch, 5502
 - 01:1x fix-juice-6 paused at c4c84ab: J-1..J-5 fixed with red tests (unit 4/9, e2e 16/16 red on base); Juice/tax unit tests unchanged; next: rebuild via heavy.sh, e2e green, related groups, screenshots, send SHA.
 - 01:1x qa-ci-6 paused at 5f24b37 (2c5eecd WIP test fixes not yet run: don't integrate). Classified: (a) pinned to 10-16, tests fixed WIP: fix3-data, D-41, MR-34, UX-59, Duo strip, 21 D-50 skips, BP-10 skip; (b) b-1, b-2 (+Monterrey) sent; (c) CI-only: UI badge (CI server fetched live boards -> MELON_OFFLINE default in harness), [cuts], 280 phone-text guard, razr landscape pass on CI's data here, suspect CI Chromium 153 vs 141 here -> pin Playwright 1.56.1 in e2e.yml; open: Badge swap. Step 4 WIP: per-shard verdict, summary fails on stopped runs and over --max-skips.
 - 01:2x ux-density-6 spec (43ddac0): before, 0 of 104 (26 phone sizes x 4 boards) show a job on the first screen; at 375x625 first title 45 px below. Visible viewports: Chrome iOS smallest (SE 375x544, mini 375x625, 17 Pro Max 440x757; iPads with Mac UA). Lead decision: ALL_SIZES = PHONES+POSTURES+TABLETS (31); VISIBLE (21) for first-screen/density checks and phone-smoke. Forwarded D-1..D-14 to fix-ui-6 phase 2.
+- 01:3x ux-density-6 done (61747f8): mockups 375x625/440x757/1114x616/820x1070; after on Apple: card's title+pay everywhere, median once, rows mini 2->4, 13/14 2->5, SE 0->2; Duo spanned chart screen compact. Picked into wt-int. qa-ci-6 resumed.
+- ux-density-6 final: the user's screenshot is Chrome iOS (page 375x625; bars never collapse since the page doesn't scroll on phones). Ownership: fix-ui-6 owns chart.js row drawing for D-4/D-5; fix-app-6 keeps the caption/stats wording (one shared function), fix-ui-6 decides placement. Caveats: Android/Duo/iPad heights estimated; WebKit/iOS 26 untested (webkit-phone.yml covers WebKit after integration).
 
-### Agents at 2026-10-24T01:28:36Z
-agent fix-ui-6 add67b9453342f4ba transcript-age=2min head=2f245aa
-agent fix-data-6 a08f9659d62990db4 transcript-age=0min head=5bf929d
-agent fix-app-6 af65001c61c5e8b4f transcript-age=5min head=e856d8d
-agent fix-salary-6 a29d354058b1f01b7 transcript-age=0min head=e23dddf
-agent ux-density-6 a8d30680c4dcc21d7 transcript-age=7min head=40c1bf4
+### Agents at 2026-10-24T01:43:32Z
+agent fix-ui-6 add67b9453342f4ba transcript-age=2min head=9b86087
+agent fix-data-6 a08f9659d62990db4 transcript-age=2min head=5bf929d
+agent fix-app-6 af65001c61c5e8b4f transcript-age=0min head=08d9e9e
+agent fix-salary-6 a29d354058b1f01b7 transcript-age=9min head=e23dddf
+agent qa-ci-6 a6d5736b954b39411 transcript-age=0min head=78a6117
