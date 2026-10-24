@@ -319,11 +319,14 @@ export function registerFixJuice6Tests(suite) {
         const side = chip.text.startsWith('›') ? 'right' : 'left';
         if (!new RegExp(`past the ${side} edge of the chart`).test(chip.aria || '')) bad.push(`the "${chip.text}" chip's accessible name: "${chip.aria}"`);
         if (d.desktop) {
-          // Its tip (the chart's own, on hover) says the same.
+          // Its tip (the chart's own, on hover) says the same. fix-data-6: for the chip the mouse is on (:hover). The chart
+          // re-renders after a hash-only goto, so the chip read above can be the previous board's, gone by the hover.
           await page.locator('#chartHost .ms-bin--overflow:visible').first().hover();
           await sleep(300);
+          const on = await page.evaluate(() => document.querySelector('#chartHost .ms-bin--overflow:hover')?.textContent.trim() || null);
+          const hSide = (on || chip.text).startsWith('›') ? 'right' : 'left';
           const tip = await page.locator('.ms-viz-tip:not([hidden])').first().textContent().catch(() => '');
-          if (!new RegExp(`paid (above|below) .*, past the ${side} edge of the chart`).test(tip || '')) bad.push(`the "${chip.text}" chip's tip: "${(tip || '').slice(0, 160)}"`);
+          if (!new RegExp(`paid (above|below) .*, past the ${hSide} edge of the chart`).test(tip || '')) bad.push(`the "${on || chip.text}" chip's tip: "${(tip || '').slice(0, 160)}"`);
         }
       }
       assert(!bad.length, bad.join('; '));
