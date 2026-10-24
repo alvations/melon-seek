@@ -1,0 +1,30 @@
+# Process log: fix-juice-6 (Juice words, tax row names, Monthly memory, jargon tips)
+
+## State
+
+- **Base:** origin/claude/stoic-ride-54ddxp at fd9da2f (batch 3, e800c43, plus persona wave-2 logs and wip/ checkpoints).
+- **Done:** prompt saved (docs/process/prompts/fix-juice-6.md); data and node_modules linked; baseline build in dist/.
+- **In progress:** measuring the drawer's Juice lines at 280, 352, 375 and 1280 on the baseline build; then red tests.
+- **List:** J-1 tax row names outside the US; J-2 the household tax line; J-3 remember Monthly/Yearly; J-4 jargon tips
+  (grades, Clusters/Ranges, the chart's ‹n/›n chips); J-5 (by message from the lead) a card's Juice grade names its place.
+- **Next:** test/fix-juice-6.test.js and test/e2e/fix-juice-6.e2e.js red, then the fixes.
+
+## 1. Brief
+
+[prompts/fix-juice-6.md](prompts/fix-juice-6.md). Fix the words of the drawer's Juice section found by persona wave 2 (J-1 to
+J-4) and the card grade's place (J-5), with a red test per ID first, keeping every tax number unchanged.
+
+## 2. Inputs and sources
+
+## 3. Decisions and rationale
+
+## 4. Replayable steps
+
+## 5. Verification
+
+## 6. Known gaps and follow-ups
+
+## 7. Change log
+
+- 2026-10-23 22:00 UTC: started on fd9da2f.
+- 2026-10-24 00:30 UTC: resumed after the container restart; J-5 added by the lead.
