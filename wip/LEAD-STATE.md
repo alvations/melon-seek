@@ -112,10 +112,11 @@ persona-beta-2-18-24, -25-34, -35-44, -45-54, -55-plus (logs on the branch, 5502
 - 01:2x ux-density-6 spec (43ddac0): before, 0 of 104 (26 phone sizes x 4 boards) show a job on the first screen; at 375x625 first title 45 px below. Visible viewports: Chrome iOS smallest (SE 375x544, mini 375x625, 17 Pro Max 440x757; iPads with Mac UA). Lead decision: ALL_SIZES = PHONES+POSTURES+TABLETS (31); VISIBLE (21) for first-screen/density checks and phone-smoke. Forwarded D-1..D-14 to fix-ui-6 phase 2.
 - 01:3x ux-density-6 done (61747f8): mockups 375x625/440x757/1114x616/820x1070; after on Apple: card's title+pay everywhere, median once, rows mini 2->4, 13/14 2->5, SE 0->2; Duo spanned chart screen compact. Picked into wt-int. qa-ci-6 resumed.
 - ux-density-6 final: the user's screenshot is Chrome iOS (page 375x625; bars never collapse since the page doesn't scroll on phones). Ownership: fix-ui-6 owns chart.js row drawing for D-4/D-5; fix-app-6 keeps the caption/stats wording (one shared function), fix-ui-6 decides placement. Caveats: Android/Duo/iPad heights estimated; WebKit/iOS 26 untested (webkit-phone.yml covers WebKit after integration).
+- 01:5x UX docs pushed a0763ec (npm test 1,308/1,298/0 fail); ux-density-6 safe-to-delete passed (checkpoint da4790c), dropped from ckpt-lanes, worktree removed.
 
-### Agents at 2026-10-24T01:43:32Z
-agent fix-ui-6 add67b9453342f4ba transcript-age=2min head=9b86087
-agent fix-data-6 a08f9659d62990db4 transcript-age=2min head=5bf929d
+### Agents at 2026-10-24T01:58:32Z
+agent fix-ui-6 add67b9453342f4ba transcript-age=0min head=402a02e
+agent fix-data-6 a08f9659d62990db4 transcript-age=0min head=5bf929d
 agent fix-app-6 af65001c61c5e8b4f transcript-age=0min head=08d9e9e
-agent fix-salary-6 a29d354058b1f01b7 transcript-age=9min head=e23dddf
-agent qa-ci-6 a6d5736b954b39411 transcript-age=0min head=78a6117
+agent fix-salary-6 a29d354058b1f01b7 transcript-age=7min head=8a8fee6
+agent qa-ci-6 a6d5736b954b39411 transcript-age=9min head=78a6117
