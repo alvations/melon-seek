@@ -1,7 +1,7 @@
-From dfc3b4eb014f479cfe878a05a1e61bec26422556 Mon Sep 17 00:00:00 2001
+From 552f8dcf6d769cec5b4b207b1b062cc2f36a7b36 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 24 Oct 2026 00:50:37 +0000
-Subject: [PATCH 4/7] fix-juice-6: J-1 to J-5 in the Juice drawer, the card
+Subject: [PATCH 17/20] fix-juice-6: J-1 to J-5 in the Juice drawer, the card
  badge and the chart's tips
 
 J-1 each tax part on its own line, named as the country names it (provincial tax, regional and
@@ -26,7 +26,7 @@ Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
  7 files changed, 95 insertions(+), 59 deletions(-)
 
 diff --git a/public/app.js b/public/app.js
-index 6ca3bc9..28b50bc 100644
+index 3cc32ee..090798a 100644
 --- a/public/app.js
 +++ b/public/app.js
 @@ -14,6 +14,7 @@ import { loadFreshness, freshnessDoc, juiceAsOfText, juiceSpanText, marketAsOfTe
@@ -86,7 +86,7 @@ index 6ca3bc9..28b50bc 100644
    }
    const names = locs.map(named);
    if (!names.length) return 'Location not listed';
-@@ -4210,7 +4219,9 @@ function salaryDistribution(job) {
+@@ -4225,7 +4234,9 @@ function salaryDistribution(job) {
  
  const INTERVAL_ADJ = { hour: 'hourly', day: 'daily', week: 'weekly', month: 'monthly', year: 'annual', term: 'fixed-term' };
  
@@ -97,7 +97,7 @@ index 6ca3bc9..28b50bc 100644
  const JUICE_DOC = 'methodology/#1-the-formula'; // site page rendered from docs/LIVABILITY.md (scripts/methodology.js); never off-site
  // MR-3: the same guide explains posted pay (ranges, levels, part-time and fixed-term pay), the pay estimate,
  // the grades and how often the data is read (docs/METHODOLOGY_GUIDE.md §2, §7 and §8).
-@@ -4227,11 +4238,14 @@ const fxAsOf = () => formatAsOf(asOf('fx-per-usd') || FX_AS_OF);
+@@ -4242,11 +4253,14 @@ const fxAsOf = () => formatAsOf(asOf('fx-per-usd') || FX_AS_OF);
     juice for one person; other households are re-attached here with the same juice.js. */
  const HOUSEHOLD_KEY = 'melon-seek.household.v1';
  const HOUSEHOLDS = [
@@ -117,7 +117,7 @@ index 6ca3bc9..28b50bc 100644
  ];
  const householdInfo = (key) => HOUSEHOLDS.find(([k]) => k === key) || HOUSEHOLDS[0];
  let juiceHousehold = householdInfo(lsGet(HOUSEHOLD_KEY, 'single'))[0];
-@@ -4297,15 +4311,26 @@ function asOfNote(cls, text) {
+@@ -4312,15 +4326,26 @@ function asOfNote(cls, text) {
    return p;
  }
  
@@ -153,7 +153,7 @@ index 6ca3bc9..28b50bc 100644
  }
  
  /**
-@@ -4352,7 +4377,8 @@ function juiceBlock(job) {
+@@ -4367,7 +4392,8 @@ function juiceBlock(job) {
    const elsewhere = noneHere && !payHere(job) ? payPlaceText(job) : null;
    const where = [
      standIn ? `${own} uses ${b.cityName}’s rent and living costs, the nearest city with cost data.` : null,
@@ -163,7 +163,7 @@ index 6ca3bc9..28b50bc 100644
      termNote,
      isOte(job) ? 'The pay is on-target earnings, so this assumes commission at target.' : null,
      b.estimated ? 'Some costs here are estimates.' : null,
-@@ -4364,13 +4390,13 @@ function juiceBlock(job) {
+@@ -4379,13 +4405,13 @@ function juiceBlock(job) {
      h('details', { class: 'juice-details' },
        h('summary', null,
          h('span', { id: 'juiceTitle', class: 'juice-title' }, '🍉 Juice'),
@@ -179,7 +179,7 @@ index 6ca3bc9..28b50bc 100644
      const div = period === 'month' ? 12 : period === 'term' ? term.toTerm : 1;
      const per = period === 'month' ? '/mo' : period === 'term' ? ' total' : '/yr';
      const step = period === 'year' ? 100 : 10;
-@@ -4388,12 +4414,17 @@ function juiceBlock(job) {
+@@ -4403,12 +4429,17 @@ function juiceBlock(job) {
      const rentWhere = b.rentBasis === 'override' ? 'your rent' : `${beds}-bedroom, ${b.rentBasis === 'outside' ? 'outside the centre' : 'city centre'}`;
      // How the tax model treated a couple or family here (server/juice.js TAX_HOUSEHOLD).
      const taxBasis = b.inputs?.tax?.basis || b.taxBasis, taxNote = b.inputs?.tax?.note || null;
@@ -201,7 +201,7 @@ index 6ca3bc9..28b50bc 100644
        ['Rent', amt(rv, '−'), seg(afterRent, afterTax), 'rent', rentWhere],
        ['Living costs', amt(lv, '−'), seg(b.net, afterRent), 'living', `everyday costs for ${people}, excluding rent`],
        ['Juice left', `${nv < 0 ? '−' : ''}${fmt(Math.abs(nv))}${per}`, seg(0, b.net), nv < 0 ? 'net is-neg' : 'net', null],
-@@ -4403,7 +4434,7 @@ function juiceBlock(job) {
+@@ -4418,7 +4449,7 @@ function juiceBlock(job) {
      const toggle = !periods.length ? null : h('div', { class: 'seg seg--sm', role: 'group', 'aria-label': 'Show amounts per' },
        ...periods.map(([v, label]) => h('button', {
          type: 'button', 'aria-pressed': String(period === v), dataset: { period: v },
@@ -210,7 +210,7 @@ index 6ca3bc9..28b50bc 100644
        }, label)));
      const household = h('div', { class: 'seg seg--sm juice-household', role: 'group', 'aria-label': 'Household: who the rent and living costs are for' },
        ...HOUSEHOLDS.map(([k, label, tip]) => h('button', {
-@@ -4411,10 +4442,10 @@ function juiceBlock(job) {
+@@ -4426,10 +4457,10 @@ function juiceBlock(job) {
          onclick: () => { setHousehold(k); },
        }, label)));
      // fix-touch-tips: the picked household's meaning in one muted line (a hover title is out of reach on a phone).
@@ -223,7 +223,7 @@ index 6ca3bc9..28b50bc 100644
        grossNote ? h('p', { class: 'fnote juice-gross' }, grossNote) : null,
        h('div', { class: 'waterfall', role: 'table', 'aria-label': 'Juice breakdown' },
          ...rows.map(([label, value, style, kind, detail, extra]) => h('div', { class: `wf-row ${kind.split(' ').map((k, i) => (i ? k : `wf--${k}`)).join(' ')}`, role: 'row' },
-@@ -4423,8 +4454,8 @@ function juiceBlock(job) {
+@@ -4438,8 +4469,8 @@ function juiceBlock(job) {
            h('span', { class: 'wf-value', role: 'cell' }, value),
            // A-6: a row owns only cells, so the details (tax split, rent basis) are a cell of their own.
            detail || extra ? h('span', { class: 'wf-details', role: 'cell' },

@@ -2,11 +2,12 @@
 
 - Worktree: `/home/user/melon-seek/.claude/worktrees/agent-af65001c61c5e8b4f`
 - Base (on claude/stoic-ride-54ddxp): `db38a3042a057155ac8f7ef45a65d54552046662`
-- Head: `08d9e9e4e4bf4f9264a8ea61ddf02704029bad33`
+- Head: `118fd287637812c1aa9f08bd5494573752c8b6a5`
 - Restore: `bash scripts/cycle/restore-wip.sh fix-app-6 <new worktree dir>`
 
 ## Commits since the base
 ```
+118fd28 fix-app-6: the own-plus-wide count belongs to UI: location filter, not the department test
 08d9e9e fix-app-6: CONTRACT (medianWording, the fits) and log decisions
 33bdc74 fix-app-6: one wording function (chart.js medianWording) for the stats line's median and the chart caption
 e856d8d fix-app-6: two e2e checks read a place's count as its own plus its country- or state-wide postings (BN-1)

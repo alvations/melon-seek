@@ -1,7 +1,7 @@
 From 27bb06c6bebecb4e6bdae05fc8fbdb6ca763f520 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 23 Oct 2026 21:52:35 +0000
-Subject: [PATCH 04/19] fix-app-6: BN-1 place counts judged per place,
+Subject: [PATCH 04/20] fix-app-6: BN-1 place counts judged per place,
  BN-2/BN-4 medians in the pay's currency and per hour, BN-3 count once, BN-5
  held values kept, BN-6 minimums under a floor, BN-7 posted levels
 

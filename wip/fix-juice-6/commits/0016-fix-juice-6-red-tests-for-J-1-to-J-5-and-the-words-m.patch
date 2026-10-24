@@ -1,7 +1,7 @@
-From b60b702510a21be2f75a46add4da8aed9099d2f0 Mon Sep 17 00:00:00 2001
+From 0ff410844844e3fb7312a9e6d953173112acd3ca Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 24 Oct 2026 00:49:03 +0000
-Subject: [PATCH 3/7] fix-juice-6: red tests for J-1 to J-5, and the words
+Subject: [PATCH 16/20] fix-juice-6: red tests for J-1 to J-5, and the words
  module they read
 
 test/fix-juice-6.test.js (unit) and test/e2e/fix-juice-6.e2e.js (registered in scripts/e2e.js):
@@ -263,21 +263,21 @@ index 0000000..a2a54bc
 +  return { Juicy: 'plenty is left', Ripe: 'a comfortable amount is left', Dry: 'a thin margin is left', Rind: 'nothing is left' }[String(grade)] || '';
 +}
 diff --git a/scripts/e2e.js b/scripts/e2e.js
-index d894d17..eac4e8e 100644
+index 7c97c0f..f405d79 100644
 --- a/scripts/e2e.js
 +++ b/scripts/e2e.js
-@@ -59,6 +59,7 @@ import { registerFixViz5Tests } from '../test/e2e/fix-viz-5.e2e.js';
- import { registerBetaDesktopQa4Tests } from '../test/e2e/beta-desktop-qa-4.e2e.js';
+@@ -60,6 +60,7 @@ import { registerBetaDesktopQa4Tests } from '../test/e2e/beta-desktop-qa-4.e2e.j
  import { registerFixQa4Tests } from '../test/e2e/fix-qa4.e2e.js';
  import { registerFixMr3Tests } from '../test/e2e/fix-mr-3.e2e.js';
+ import { registerFixSalary6Tests } from '../test/e2e/fix-salary-6.e2e.js';
 +import { registerFixJuice6Tests } from '../test/e2e/fix-juice-6.e2e.js';
  
  const args = new Set(process.argv.slice(2));
  const apiOnly = args.has('--api-only');
-@@ -197,6 +198,7 @@ if (!apiOnly) {
-   registerBetaDesktopQa4Tests(suite);
+@@ -199,6 +200,7 @@ if (!apiOnly) {
    registerFixQa4Tests(suite);
    registerFixMr3Tests(suite);
+   registerFixSalary6Tests(suite);
 +  registerFixJuice6Tests(suite);
  }
  

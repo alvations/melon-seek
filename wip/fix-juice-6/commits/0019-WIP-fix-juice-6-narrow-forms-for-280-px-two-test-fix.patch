@@ -1,8 +1,8 @@
-From c08bdc2e2f3246f7cde9fc15b51840c125567e79 Mon Sep 17 00:00:00 2001
+From e1ae15ea268f606673cebb9c681eabc09fcd0997 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 24 Oct 2026 01:04:34 +0000
-Subject: [PATCH 6/7] WIP fix-juice-6: narrow forms for 280 px, two test fixes,
- BP-2 accepts any pay place first, before screenshots
+Subject: [PATCH 19/20] WIP fix-juice-6: narrow forms for 280 px, two test
+ fixes, BP-2 accepts any pay place first, before screenshots
 
 The tax rows' shortest names fit 128 px with the largest yearly amounts (measured in the app's
 font); the family line gets a shorter form; Italy's INPS row no longer says social security; the
@@ -8943,10 +8943,10 @@ literal 0
 HcmV?d00001
 
 diff --git a/public/app.js b/public/app.js
-index 28b50bc..6aa6e02 100644
+index 090798a..7814d13 100644
 --- a/public/app.js
 +++ b/public/app.js
-@@ -4245,7 +4245,7 @@ const HOUSEHOLDS = [
+@@ -4260,7 +4260,7 @@ const HOUSEHOLDS = [
    ['couple', 'Couple', 'Two adults, one earning and the other not working, in a 2-bedroom home', 2, 'two adults',
      ['2 adults, 1 earner (the other not working), 2 bedrooms', '2 adults, 1 working, 2 bedrooms']],
    ['family', 'Family', 'Two adults, one earning and the other not working, and two children, in a 3-bedroom home', 3, 'two adults and two children',

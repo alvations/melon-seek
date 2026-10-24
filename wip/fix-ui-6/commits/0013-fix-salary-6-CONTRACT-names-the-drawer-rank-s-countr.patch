@@ -1,0 +1,29 @@
+From e77cd41b8a07f79400ac65115ba505a4f4a55161 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 24 Oct 2026 02:08:58 +0000
+Subject: [PATCH 13/14] fix-salary-6: CONTRACT names the drawer rank's country
+ rule
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+(cherry picked from commit 49e86eefc17406e4554c3735f85f14a25b52a71e)
+---
+ docs/CONTRACT.md | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/docs/CONTRACT.md b/docs/CONTRACT.md
+index 722b92d..8ae7289 100644
+--- a/docs/CONTRACT.md
++++ b/docs/CONTRACT.md
+@@ -1093,6 +1093,8 @@ else `salary.country`) and scored on that row's midpoint in its currency: Milan
+   figure is that row and the tip says other places are paid in another currency. Pay by place writes each row in its currency.
+ - Under a Location filter `pickedRange` adds `rows` (the rows the figure is); the drawer's line under the figure names the picked
+   row's currency ("Posted for Toronto · CAD · per year"), and Pay by level lists the picked row's own levels, none when it has none.
++- The drawer's rank and strip (`percentile`, `payPool`) rank a picked row of another country among that country's roles
++  (`rankSubject`): "Pays more than 88% of Google’s roles in Italy" under a Milan filter, never among the headline's country.
+ - The pay block's Details add one line per `salary.unlisted` entry: "The posting also gives pay for Spain: €38K–59.7K; this role
+   isn’t listed there." (`unlistedNotes`).
+ 
+-- 
+2.43.0
+

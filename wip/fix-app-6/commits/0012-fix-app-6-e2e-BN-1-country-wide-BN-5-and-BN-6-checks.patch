@@ -1,7 +1,7 @@
 From ed53ac0f065a4e05e02330673142b58ce7cd6dfa Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 24 Oct 2026 00:45:27 +0000
-Subject: [PATCH 12/19] fix-app-6: e2e: BN-1 country-wide, BN-5 and BN-6 checks
+Subject: [PATCH 12/20] fix-app-6: e2e: BN-1 country-wide, BN-5 and BN-6 checks
  fail on the base build too; log before and after
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

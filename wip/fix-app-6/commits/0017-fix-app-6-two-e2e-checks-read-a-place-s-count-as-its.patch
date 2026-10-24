@@ -1,7 +1,7 @@
 From e856d8d84b92ea2837c15fc704871f2f61bd7f41 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 24 Oct 2026 01:22:48 +0000
-Subject: [PATCH 17/19] fix-app-6: two e2e checks read a place's count as its
+Subject: [PATCH 17/20] fix-app-6: two e2e checks read a place's count as its
  own plus its country- or state-wide postings (BN-1)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

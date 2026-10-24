@@ -1,7 +1,7 @@
 From 692698403ff9c4ffe8f1080597ee2d19853748cb Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 24 Oct 2026 00:52:30 +0000
-Subject: [PATCH 05/10] fix-salary-6 S-1: degree headers over bulleted country
+Subject: [PATCH 05/14] fix-salary-6 S-1: degree headers over bulleted country
  lines; e2e checks registered
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

@@ -1,0 +1,69 @@
+From 98de6b2c134c8fd6dbce38c7a4c038531946c596 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 24 Oct 2026 02:08:45 +0000
+Subject: [PATCH 12/20] fix-salary-6: log (e2e before/after, rank decision,
+ payload)
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+(cherry picked from commit cf3b9cec94eaeb876ce043de3a8bccaa59229489)
+---
+ docs/process/fix-salary-6.md | 28 +++++++++++++++++++++++-----
+ 1 file changed, 23 insertions(+), 5 deletions(-)
+
+diff --git a/docs/process/fix-salary-6.md b/docs/process/fix-salary-6.md
+index a92f9b4..4cd3f81 100644
+--- a/docs/process/fix-salary-6.md
++++ b/docs/process/fix-salary-6.md
+@@ -11,10 +11,14 @@
+   - Unit tests: test/fix-salary-6.test.js 20 tests, all pass; the first 18 fail on the base (37f54e4) code.
+   - Census before/after and the nothing-dropped proof (§5); Compstimate backtest before/after (§5).
+   - The lead approved the plan (2026-10-24 00:3x) and asked for the unlisted lines in the drawer's Details: done.
+-- **In progress:** the build (queued in heavy.sh), then `--grep=fix-salary-6` and the related e2e groups; the CI-like npm
+-  test in `<scratch>/fs6/clean` (queued).
+-- **Next step:** read the e2e results, take the screenshots (the e2e writes docs/screenshots/fix-salary-6/), shrink them,
+-  commit, send the SHA to the lead.
++  - 8a8fee6: the drawer's rank and strip rank the picked line among its own country's roles (found on the after screenshot:
++    "Pays more than 76% of Google's roles in Germany" under a Milan filter). e78a6fd: screenshots.
++  - e2e: test/e2e/fix-salary-6.e2e.js 35 checks, 35 pass on this build; on e800c43's build (the reviewer's) 12 fail, 1 skips
++    (no Cohere row tied), and "nothing is dropped" passes on both. With the related groups (fix-pay-at-place, fix-data-3,
++    D-48, D-49, UX-37): 95/95.
++  - CI-like npm test at da401d7: 1,328 tests, 1,318 pass, 0 fail, 10 skipped.
++- **In progress:** the CI-like npm test at 8a8fee6 (queued in heavy.sh).
++- **Next step:** send the SHA to the lead.
+ 
+ ## 1. Brief
+ - Prompt: [prompts/fix-salary-6.md](prompts/fix-salary-6.md). S-1 (persona-beta-2-45-54): pay posted for two or more
+@@ -77,7 +81,10 @@
+ 9. **CSV.** salary_ranges lists a row's levels under its name ("Germany · Bachelor's degree: 68500-68500 EUR") and the
+    unlisted lines marked "(not a listed place)". salary_min/max still span rows in the salary's currency only.
+ 10. **VT-1 kept.** Two Microsoft postings listed only in Brazil and India post only U.S. lines: `salary: null`, as before.
+-11. **Not changed: the card's thousands.** France's €41,500 reads "€42K" on the card, as every card writes pay in
++11. **The drawer's rank and strip follow the picked line** (`rankSubject`). Under a Milan filter the figure is Italy's line;
++    ranking it among Google's roles in Germany (the headline's country) mixed countries (BP-3). The pool is now the picked
++    line's country: "Pays more than 88% of Google's roles in Italy", 9 roles on the strip. With no filter, unchanged.
++12. **Not changed: the card's thousands.** France's €41,500 reads "€42K" on the card, as every card writes pay in
+     thousands; the drawer and Pay by place keep the hundreds where the posting states them (levelMoney). A follow-up for
+     the UI lane if the lead wants hundreds on cards.
+ 
+@@ -132,6 +139,17 @@ unchanged; Cohere ±9.9% on 59 → ±5.8% on 76 and Scale AI ±11.9% on 123 →
+ asked, so more postings are estimable); OpenAI ±10.1% unchanged (within 10% 49.2% → 49.6%); NVIDIA and Meta unchanged.
+ The backtest is seeded, so these moves are the data's, not load.
+ 
++**Browser (e2e):** `--grep=fix-salary-6`: 35 checks (the Milan, Paris and Dublin cases on the card and in the drawer at
++375x812, 352x355 and 1280x800; no filter; Toronto in CAD; Spain in the pay Details; Cohere's Toronto row on the main site;
++nothing dropped; the changed lines at all 21 phone sizes). This build: 35/35. e800c43's build (BETA_QA_DIST, the reviewer's):
++12 fail, 1 skip, 1 pass; e.g. Milan: "the posting's rows are [] … the card reads "Pay posted for Germany only" … the drawer
++reads "€150K–153K" … the pay note says "Posted for Germany, not Milan" … "Several pay ranges" beside Pay by place". With
++fix-pay-at-place, fix-data-3, D-48, D-49 and UX-37: 95/95 (load 5–7).
++Screenshots (docs/screenshots/fix-salary-6/, shrunk to 456 KB): `<place>-card|drawer-<size>.png` after, `…-before.png` on
++e800c43's build (Milan and Paris; Dublin's card is not on the first page under l=Dublin there).
++**Payload:** Microsoft's list 768 KB → 1,013 KB (158 KB → 174 KB gzipped: the 978 unlisted lines and the rows' levels);
++Google's 1,245 KB → 1,254 KB.
++
+ **Unit tests:** test/fix-salary-6.test.js 20 (18 red on the base code); the whole suite with data linked at 6926984: 1,333
+ tests, 1,331 pass, 0 fail, 2 skipped (load 15–29, so its timings are noise).
+ 
+-- 
+2.43.0
+

@@ -1,0 +1,80 @@
+From 8c32da517e76db5cc2e188b8802d8b34b57e6e57 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 23 Oct 2026 21:53:00 +0000
+Subject: [PATCH 01/14] fix-salary-6: prompt verbatim
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+(cherry picked from commit 545e28be8b4083028cea6d55c647ca59883b688a)
+---
+ docs/process/prompts/fix-salary-6.md | 58 ++++++++++++++++++++++++++++
+ 1 file changed, 58 insertions(+)
+ create mode 100644 docs/process/prompts/fix-salary-6.md
+
+diff --git a/docs/process/prompts/fix-salary-6.md b/docs/process/prompts/fix-salary-6.md
+new file mode 100644
+index 0000000..bf3a728
+--- /dev/null
++++ b/docs/process/prompts/fix-salary-6.md
+@@ -0,0 +1,58 @@
++You are the data engineer `fix-salary-6` for melon-seek (repo /home/user/melon-seek, branch claude/stoic-ride-54ddxp), a zero-build vanilla ES-module app, "the Zillow of job postings". You are in your own git worktree. First run `git fetch origin claude/stoic-ride-54ddxp && git checkout --detach origin/claude/stoic-ride-54ddxp` (e800c43, the deployed batch 3, or later). Read:
++- docs/CONTRACT.md and docs/DATA_SOURCES.md (the salary sections: DQ-15, SA-4, VT-17 to VT-19);
++- docs/process/PLAYBOOK.md ("Checkpoints", step 6 included, and "Known traps") and docs/process/TEMPLATE.md;
++- docs/process/fix-pay-at-place.md (`payAt`, pay per place) and docs/process/fix-mr-3.md (norm-13, how the golden file and the refresh fixtures were re-baselined);
++- docs/process/lead.md from "Fix wave 5" on.
++
++**Standing rules from the user** (never break them):
++- "we must present them as they are and not cut anything". Never drop or hide a posting or a posted pay row.
++- Present pay as posted, so we don't misrepresent the companies and roles. Big-tech figures are base pay only, and say so.
++- Every phone size counts: any line you add or change must fit test/e2e/phone-sizes.mjs's 21 sizes, one line each (fix-phone-text's density guard).
++
++**Your findings** come from the persona reviews (wave 2) on e800c43's build (/tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92f3-f582ebca24d9/scratchpad/cycle-beta7-dist). The lead may send more salary-parser findings; add them to your list.
++1. **S-1 (High), pay posted for two or more countries keeps one country's line and drops the rest** (persona-beta-2-45-54). Under a Location filter the site then says the pay isn't posted for a place the posting does give pay for.
++   - google:111420466312159942, "Customer Engineer, Migrations Specialist" (Milan · Hamburg · London), posts "Germany: €150000 - €153000 (EUR)" and "Italy: €124000 - €127000 (EUR)". With #c=google&l=Milan, the card says "Pay posted for Germany only (€150K–153K is the pay posted for Germany, not for Milan)" and the drawer "Posted for Germany, not Milan".
++   - google:123907061523063494, "Associate Product Marketing Manager BS/MS Intern", posts Ireland €47000, Germany €53000 and France €41500. Only €47,000 is served. Paris says "Pay posted for Ireland only". The drawer shows both "Several pay ranges" ("this figure is one of them") and "One number, not a range", and neither of the other two figures appears anywhere.
++   - google:111289074672640710, "Program Manager, 3PL", posts Ireland €116–118K and Netherlands €124–127K. Dublin says "Pay posted for the Netherlands only".
++   - Scope per the reviewer: 13 of 13 Google postings with "<Country>: €X (EUR)" lines for 2+ countries, a lower bound from a regex over dist/beta/api/desc/google. Each is served with salary.ranges empty and one country's figure, and the CSV's salary_ranges is empty for them too.
++   - Cause (the reviewer's reading; confirm it): server/salary.js, DQ-15's line selection (~l.394; unitCountry ~l.952). The per-country lines are scored and one is picked; the others are never stored.
++   - Fix: keep every country line as a range with its country, as the degree lines became levels (SA-4), so payAt can price each place. The headline stays the line DQ-15 picks for the posting's main country, and the card, the drawer's "Pay by place", the CSV and Juice use each country's own line.
++   - Find every posting of the 2026-10-16 crawl with pay lines for more than one country or place, on all seven boards and the main site (USD lines by US state or zone too, not only euro countries), and say how many had rows dropped before. Show before and after counts per board, and prove no posting or row was dropped: every posted line is stored.
++   - Bump NORMALIZER_VERSION to norm-14 if the output changes. fix-data-6, running beside you, also bumps to norm-14 for its gazetteer change. Use the same 'norm-14', and re-baseline the golden file and the refresh fixtures with the tooling for your change only (`UPDATE_GOLDEN=1 GOLDEN_REASON=...`, make-fixtures.mjs), never by hand. The lead re-baselines once more after integrating both. Say how many hashes changed and why.
++
++**Your job:**
++1. A red test per ID first: unit tests in test/fix-salary-6.test.js on the three postings' text (fixtures cut from the stored descriptions), and e2e in test/e2e/fix-salary-6.e2e.js, registered in scripts/e2e.js: the Milan, Paris and Dublin cases on the card and drawer at 375x812, 352x355 and 1280x800.
++2. Fix, keeping every posting and pay row.
++3. Run the related groups: fix-pay-at-place, fix-data-3, the salary and normalize unit tests, the Compstimate backtest and accuracy tests (their documented error must not move without a reason), and the CSV export tests.
++4. Update docs/DATA_SOURCES.md (the salary rules) and docs/CONTRACT.md where they change.
++
++**Data and build:**
++- The 2026-10-16 crawl is at /tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92f3-f582ebca24d9/scratchpad/wt-data2/data/snapshots and .../wt-data2/data/beta/snapshots. Symlink them as data/snapshots and data/beta/snapshots in your worktree. Never commit them, and **never move them**: a session hung twice on moving a data link.
++- For the CI-like `npm test`, use a clean checkout with no links:
++  - `git worktree add --detach /tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92f3-f582ebca24d9/scratchpad/fs6/clean HEAD`;
++  - `ln -s /home/user/melon-seek/node_modules <clean>/node_modules`;
++  - `cd <clean> && MELON_BETA_SNAPSHOT_DIR= timeout 1500 npm test > /tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92f3-f582ebca24d9/scratchpad/fs6/npm.log 2>&1`, with run_in_background;
++  - for later SHAs, `git -C <clean> checkout --detach <sha>`.
++- Symlink node_modules from /home/user/melon-seek. Build with `node scripts/build-static.js` (about 7 minutes; run it in the background); your worktree's dist/ is yours. Serve with `node scripts/cycle/serve.mjs --dist dist --pid <scratch pidfile>`.
++- e2e: `NODE_PATH=/tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92f3-f582ebca24d9/scratchpad/pw/node_modules node scripts/e2e.js --grep=<group>`; `--list` lists the groups. Chromium is at /opt/pw-browsers/chromium-1194/chrome-linux/chrome. Never `playwright install`; no `pkill -f` / `pgrep -f`.
++- Give every command a timeout. Run anything longer than a few minutes in the background (run_in_background) and poll its log; never sit in a foreground wait. Run one e2e suite at a time: three persona reviewers and three other fix lanes share this 4-CPU machine, so note `uptime` with any timing. No crawling: work from the stored snapshots and fixtures.
++
++**Ownership:**
++- Yours: server/salary.js and the salary parts of server/normalize.js; the CSV's salary_ranges column if it needs a change for this.
++- Not yours: server/geo.js, keywords.js, roles.js, Compstimate's comparables and payPlaceText (fix-data-6); derive(), the stats line and the filters (fix-app-6); the layout (fix-ui-6).
++- Also yours:
++  - test/fix-salary-6.test.js and test/e2e/fix-salary-6.e2e.js;
++  - docs/process/fix-salary-6.md, your log in TEMPLATE.md structure with a `## State` section at the top;
++  - docs/process/prompts/fix-salary-6.md, this prompt verbatim.
++
++**Rules:**
++- Keep the UI simple: no new visible control. Use plain words.
++- Commit small and often with explicit paths; never `git add -A data`. Shrink screenshots with `bash scripts/cycle/shrink-screenshots.sh docs/screenshots/fix-salary-6` before committing them.
++- Send the lead each finished, tested piece by SendMessage to "main": the SHA, what it fixes, and its tests. The lead checkpoints your worktree every 15 minutes and integrates. Never push.
++- The lead may send you more findings (from the persona reviews running now); add them to your list.
++- Before you send any SHA:
++  - npm test in the clean checkout, 0 fail;
++  - your e2e plus the related groups with data linked. S-3, S-6, PERF-1, V15 and T21 are load-sensitive; re-run them alone.
++- Skip the full e2e: the lead's batch gate runs it.
++
++Report: per ID, before → after with counts per board, the "nothing dropped" proof, the tests that fail before and pass after, and SHAs.
+-- 
+2.43.0
+
