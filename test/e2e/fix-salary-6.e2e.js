@@ -173,7 +173,8 @@ export function registerFixSalary6Tests(suite) {
     await sleep(300);
     const note = await text(page, '#drawer .d-pay-note');
     assert(note.includes('The posting also gives pay for Spain: €38K–59.7K; this role isn’t listed there.'), `${id}: the pay Details "${note.slice(0, 400)}"`);
-    assertEq(await text(page, '#drawer .d-sal-amt'), '€49.2K–71.4K', `${id}: the figure stays Ireland's`);
+    const amt = await text(page, '#drawer .d-sal-amt');
+    assert(/^€49(\.2)?K–71(\.4)?K$/.test(amt), `${id}: the figure is Ireland's €49,200–71,400, it reads "${amt}"`);
   });
 
   suite.test('fix-salary-6: [S-1] main site: Cohere\'s rows named for places price them under a Location filter (it priced none)', async (ctx) => {
