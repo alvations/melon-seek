@@ -130,6 +130,6 @@ persona-beta-2-18-24, -25-34, -35-44, -45-54, -55-plus (logs on the branch, 5502
 - 08:4x fix-data-6 ready on f13ebd6: 217ff5c (20 commits; G-1..G-3, K-1, P-1..P-4, R-1..R-3, T-19, C-1; norm-14 golden 2/300 on top of fix-salary-6; P-4 payLocations follows rows (+112 postings gain places: Cohere 47, Google 34, MS 31; none lose), headlinePayLocations keeps the old rule for payCountry and compstimate; J-4 test race fixed; npm test 1,381/0 fail; related 315/316 then J-4 fixed; nothing dropped vs e77cd41). Pick held until the running gate finishes. Asked G-4: 'Bogota, D.C.' -> Bogotá, Colombia (15 Amazon). Pill wrap -> fix-ui-6 density.
 - 09:0x gate on 505a4df, mid-run: 516 pass, 2 fail: (1) Beta UX review [UX-17] p390 google edge chip '‹1' touches the with/without-pay line (-1 px) -> fix-ui-6 density; (2) Beta coverage [amazon] pay floor $160K: 8,461 shown vs 8,176 with top >= floor = 285 = Amazon's minimums -> the test predates BN-6 (minimums kept under a floor); update the test's reference to BN-6's rule.
 
-### Agents at 2026-10-24T09:13:44Z
+### Agents at 2026-10-24T09:28:48Z
 agent fix-ui-6 add67b9453342f4ba transcript-age=0min head=5e2c252
-agent fix-data-6 a08f9659d62990db4 transcript-age=5min head=7fbb17e
+agent fix-data-6 a08f9659d62990db4 transcript-age=0min head=7fbb17e
