@@ -1178,7 +1178,14 @@ chart's caption (`headPay`, `capMedian`) and the map's pins (`summarize()` adds 
 ("CA$101K" over Canadian pay, "€81K (euro area)" when euros are the main currency of several), never a bare "$" for converted pay; the
 approx-USD figure stays for positions and colours. When every figure is part-time hourly pay (a year if full-time), the median is per hour as
 posted ("$28.41/hour posted pay median"); when only some are, the line says "median, a year if full-time" (shorter where it would wrap), and
-its Details never call it base pay. `basePayStats` adds `pool` (the items its median is of).
+its Details never call it base pay. `basePayStats` adds `pool` (the items its median is of). The words come from one function,
+`public/viz/chart.js medianWording(pay, 'line' | 'caption')` -> `{ value, words: [long, short], where }`, which the stats line (app.js
+`medianItem`) and the chart's caption both use, so they can't disagree; MR-39's basis reads " (US)" on the line and " US" in the caption
+(a euro basis "euro area", a Canadian one "Canada"). Where the long words don't fit, the stats line takes the short ones
+(`fitStatsLine`: the median's first, "$26.80/hour median", then the pay share's, "100% show pay"), and the caption "Median $26.80/hour".
+The chart caption prices a posting at the pay plotted (a place's own row under a Location filter). The map legend's Details say a pin's
+figure is in its postings' currency and its colour compares in US dollars. The Salary note's line is fitted to one line ("1,855 roles
+hidden by the pay filter", then "1,855 hidden by the pay filter").
 
 **Typed currency (BN-8):** URL state `sc` (the currency the pay bounds were typed in) with `smin`/`smax` as typed ("smin=150000&sc=PLN");
 `S.smin`/`S.smax` stay approx US dollars (`usdOf`, rounded to $1K, as before), so the filter is unchanged, and a link without `sc` is in

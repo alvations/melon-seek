@@ -91,7 +91,18 @@
    against `seniorityFromPay`) reads the levels a posting's pay names; a posting at two of our levels is found and counted under both.
    The chip shows the posted level ("Manager · Microsoft M5–M6"); the served lists keep only the pay range for one-level postings, so for
    those the chip reads the level once the posting's text loads ("Staff+ · Microsoft IC5"); the filter never reads the text, so it finds a
-   posting the same way before and after.
+   posting the same way before and after. On the main site, which lists none of these boards, the note keeps a general line.
+10. **BN-8.** The filter keeps comparing in dollars (`smin`/`smax`, rounded to $1K as the box always did), so nothing about which roles
+    match changes; what changes is what is kept for display: the typed currency and amounts (`sc`, `smn`, `smx`). The link holds the
+    amounts as typed with `sc` ("smin=150000&sc=PLN"), so it reads as typed and an old dollar link (no `sc`) opens the same filter. A bound
+    set since in dollars (the slider) is moved in the typed currency's round thousands; a reset falls back to dollars (`payNative`
+    checks that the typed amounts still give the dollar bounds). A bare number takes the view's one currency (BN-2's rule, over the roles
+    every other filter leaves); with several, dollars, and the chip's "$" says so.
+11. **One wording for the two median lines** (the lead, for fix-ui-6's density spec): `medianWording` in chart.js (it already had
+    `payBasisPlace`; app.js imports it, so shared.js needs no copy of the country words). fix-ui-6 decides which line shows where.
+12. **Fitting the longer lines.** "$26.80/hour posted pay median" and "PLN 283K" are longer than "$56K", and every role a floor hides is a
+    bigger count: the stats line's words, the caption's title and the Salary note take shorter forms where they would wrap or be cut
+    (the text itself changes, as note.js fitLine does, so tests and screen readers read what shows).
 
 ## 4. Replayable steps
 ```sh
