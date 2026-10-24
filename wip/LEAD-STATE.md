@@ -48,8 +48,8 @@ whenever a lane starts, reports, is integrated or is retired.
 | fix-ui-6 | add67b9453342f4ba | .claude/worktrees/agent-add67b9453342f4ba | B-1..B-12 (layout, phone sizes, map fit); phase 2: implement ux-density-6's density spec and size matrix | running |
 | fix-data-6 | a08f9659d62990db4 | .claude/worktrees/agent-a08f9659d62990db4 | G-1 (norm-14), G-2 bare country codes, G-3 Bayshore store and Monterrey N.L., T-19 P-2/D-11, C-1, K-1, P-1, P-2, P-3, R-1, R-2, R-3 | running |
 | fix-app-6 | af65001c61c5e8b4f | .claude/worktrees/agent-af65001c61c5e8b4f | BN-1..BN-8 | paused |
-| fix-salary-6 | a29d354058b1f01b7 | .claude/worktrees/agent-a29d354058b1f01b7 | S-1 multi-country pay (norm-14 shared with fix-data-6; salary.unlisted shown in the drawer) | done (49e86ee, picked into wt-int e77cd41; not pushed) |
-| fix-juice-6 | aab76ab3a12b3f957 | .claude/worktrees/agent-aab76ab3a12b3f957 | J-1..J-5 | running |
+| fix-salary-6 | a29d354058b1f01b7 | .claude/worktrees/agent-a29d354058b1f01b7 | S-1 multi-country pay (norm-14 shared with fix-data-6; salary.unlisted shown in the drawer) | running (follow-up: attachJuice reason regression, on top of 942db8a) |
+| fix-juice-6 | aab76ab3a12b3f957 | .claude/worktrees/agent-aab76ab3a12b3f957 | J-1..J-5 | done (c3fc219, picked into wt-int 942db8a) |
 | ux-density-6 | a8d30680c4dcc21d7 | .claude/worktrees/agent-a8d30680c4dcc21d7 | the user's 2026-10-24 iPhone mini request: size matrix (visible viewports, Pro Max, iPads, Duo) and a per-size density spec for fix-ui-6; no product code | done (61747f8; picked into wt-int) |
 | qa-ci-6 | a6d5736b954b39411 | .claude/worktrees/agent-a6d5736b954b39411 | the 12 CI e2e failures and 25 skips (run 40024210372) | paused |
 
@@ -57,7 +57,7 @@ Done and retired (do not relaunch): fix-phone-sizes, fix-qa4, fix-mr-3, qa-suite
 persona-beta-2-18-24, -25-34, -35-44, -45-54, -55-plus (logs on the branch, 5502155).
 
 ## Next steps
-0. Integration branch $S/wt-int is at e77cd41 (fix-salary-6 + the UX docs), not pushed: it waits for the gate. fix-data-6, fix-app-6, fix-ui-6 and fix-juice-6 were told to rebase onto it.
+0. Integration branch $S/wt-int is at 942db8a (fix-salary-6, the UX docs, fix-ui-6 B-1..B-12, fix-juice-6; one app.js conflict resolved in locSummary: J-5 order then B-1's coloured key), not pushed: it waits for the gate. fix-ui-6 is on phase 2 (D-1..D-14). fix-data-6, fix-app-6, fix-ui-6 and fix-juice-6 were told to rebase onto it.
 1. Integrate each lane's SHAs as they report (pick.sh into $S/wt-int); after fix-data-6 and fix-salary-6 are both in,
    re-baseline the golden file once for norm-14 with the tooling.
 2. Gate (SHARDS=2) on the integrated head; fix what it finds; npm test; push; check CI, Pages, WebKit (dispatch
@@ -117,8 +117,11 @@ persona-beta-2-18-24, -25-34, -35-44, -45-54, -55-plus (logs on the branch, 5502
 - 02:0x fix-salary-6 done (49e86ee): S-1 every country/area line a salary.ranges row; unlisted in salary.unlisted (drawer Details + CSV); kr/$ by line's country (15 MS rows); main-site rows tied to places (Cohere 122/183, OpenAI 11/18, Scale 38/42); Google 62 dropped lines -> 0, MS 58 -> 0, 1,083 unlisted-area lines kept; nothing dropped (paid 28,176 -> 28,176; rows 6,673 -> 6,843, 0 lost); norm-14 golden 0/300 changed; npm test 1,328/0 fail; MS list 158 -> 174 KB gz. Picked into wt-int e77cd41 clean. Others told to rebase onto it; fix-juice-6 resumed.
 - fix-salary-6 final ad2cb71 (log State only) picked. Notes: cards round €41,500 to '€42K' (drawer keeps hundreds) - UI choice; OpenAI Zone A/B rows stay untied; lead re-baselines norm-14 after fix-data-6 lands.
 - 02:45 all five agents stopped on the usage limit (reset 04:20); container restarted ~04:33. 04:35 checkpoint 6582da0; cron recreated; pacing cut to 3 at once: resumed fix-data-6, fix-juice-6 (both near done) and fix-ui-6; fix-app-6 then qa-ci-6 wait.
+- 05:0x disk 90% (4.2 GB): removed 2,783 test temp dirs in /tmp older than 60 min (melon-refresh-apply 920, melon-beta-sec 703, melon-incr, melon-sync, melon-serve, melon-safe, ... ; ~3.8 GB; none a git worktree; kept /tmp/melon-ckpt).
+- tick.sh now clears /tmp/melon-* older than 120 min. Backlog: tests should remove their own mkdtemp folders (t.after cleanup).
+- 05:1x fix-ui-6 B-1..B-12 green (rebased onto e77cd41, tip f6fa155): fix-ui-6 129/129; related 589/593 then 75/76 after follow-ups (7e19e64: B-9 only saved searches with new roles stay in view on the cover screen; B-11 beta line 12 words 'Job postings, their posted pay, and what's left after tax and rent'; B-12 scroll-padding-top = sticky axis); npm test 1,328/0 fail; matrix 60/60, smoke 147/147; first visible card on throttled Pixel 8 median 2.44 s (load 7). Picked 13 commits into wt-int -> b68f237 clean. Open for fix-app-6: Razr cover map V-44 'N postings list no place' line covers Meta's pins.
+- 05:2x fix-juice-6 done (c3fc219; npm test 1,337/0 fail; Juice/tax units 84/84 unchanged; J-5 reversed: the card names the graded place first, accepted). Picked into wt-int -> 942db8a with one app.js conflict in locSummary resolved (J-5 ordering, then B-1's coloured key first). Regression from S-1 (fix3-data browser lib/juice.js: Cohere London, attachJuice gives no reason) sent back to fix-salary-6 (resumed, on 942db8a).
 
-### Agents at 2026-10-24T04:58:40Z
-agent fix-ui-6 add67b9453342f4ba transcript-age=2min head=ab125e4
-agent fix-data-6 a08f9659d62990db4 transcript-age=5min head=af86969
-agent fix-juice-6 aab76ab3a12b3f957 transcript-age=9min head=a666f08
+### Agents at 2026-10-24T05:13:41Z
+agent fix-ui-6 add67b9453342f4ba transcript-age=6min head=3759884
+agent fix-data-6 a08f9659d62990db4 transcript-age=0min head=af86969
