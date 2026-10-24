@@ -1,0 +1,149 @@
+From 5c023b3e74ccf6efea39209a7d11804e2a36cc37 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 24 Oct 2026 01:42:21 +0000
+Subject: [PATCH 57/63] fix-app-6: one wording function (chart.js
+ medianWording) for the stats line's median and the chart caption
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+---
+ public/app.js          | 16 +++++++---------
+ public/viz/chart.js    | 30 ++++++++++++++++++++++++------
+ test/fix-app-6.test.js | 11 +++++++++--
+ 3 files changed, 40 insertions(+), 17 deletions(-)
+
+diff --git a/public/app.js b/public/app.js
+index 474e042..bf0fe41 100644
+--- a/public/app.js
++++ b/public/app.js
+@@ -4,7 +4,7 @@
+ // chart and the map is delegated to ./viz/* (see docs/CONTRACT.md).
+ 
+ import { colorFor, formatMoney, resetColors, assignColors, otherColor, toUSD, SLOT_COUNT, hasFx, juiceNetForScore, JUICE_BREAKS, FX_AS_OF, FX_SOURCE, FX_PER_USD } from './viz/palette.js';
+-import { createChart, keyOf, VIEWS, DEFAULT_VIEW, payBasisPlace } from './viz/chart.js';
++import { createChart, keyOf, VIEWS, DEFAULT_VIEW, payBasisPlace, medianWording } from './viz/chart.js';
+ import { renderNote, noteLine, fitLine as fitOneLine } from './viz/note.js';
+ import { createMap } from './viz/map.js';
+ import * as api from './api.js';
+@@ -3219,7 +3219,6 @@ function renderKpis() {
+   // MR-39 (fix-mr-3): which country the median is for, when the pay in view is in more than one currency.
+   // The line says it short ("(US)", "(euro area)"), so a filtered desktop line stays within fix-density's 12 words.
+   const basisWhere = st.basis ? ` ${payBasisPlace(st.basis)}` : '';
+-  const basisShort = st.basis ? ` (${payBasisPlace(st.basis).replace(/^(?:paid )?in (?:the )?/, '')})` : '';
+   const basisTip = st.basis ? `; of the ${st.basisN.toLocaleString()} roles paid ${payBasisPlace(st.basis).replace(/^paid /, '')}, as the chart rows compare one country's pay; ${plural(st.basisLeft, 'role')} paid in other currencies left out` : '';
+   // fix-density: one line (roles · share with pay · median); the rest in the list behind "Details" (viz/note.js).
+   const line = [
+@@ -3234,7 +3233,7 @@ function renderKpis() {
+     // BN-2 (fix-app-6): in the currency of the pay it is of (CA$101K over Canadian pay; MR-39's main currency when the
+     // view mixes them), as the cards show it. BN-4: part-time hourly pay only is per hour, as posted; a median that is
+     // partly a full-time year of part-time pay says so, and an annualised figure is never "posted pay".
+-    st.median != null ? medianItem(st, basisShort,
++    st.median != null ? medianItem(st,
+       `Half of these roles pay more than this and half less (the middle of each posted range, ${ote || (st.notBaseOnly ? '' : 'base pay, ')}${medianUnitTip(st)}${here}${left}${basisTip})`) : null,
+   ].filter(Boolean);
+   // M-46 (fix-phone-text): a phone shows only the median, so with no pay in view its line said nothing but "Details".
+@@ -3280,12 +3279,11 @@ function medianUnitTip(st) {
+  * part of it is a full-time year of part-time hourly pay, "$56K median, a year if full-time" (shorter where that would
+  * wrap: fitOneLine). MR-39's "(US)" when the view mixes currencies.
+  */
+-function medianItem(st, basisShort, title) {
+-  const v = medianText(st.hm);
+-  // [long, short]: the short words show only where the line would wrap (fitStatsLine).
+-  const words = st.oteOnly ? ['median on-target earnings'] : st.fullTime ? ['median, a year if full-time', 'median if full-time']
+-    : st.notBaseOnly ? ['posted pay median', 'median'] : ['base pay median'];
+-  return h('span', { class: 'stat stat--median', title }, h('strong', null, v), ' ', tightWords(words.map((w) => `${w}${basisShort}`)));
++function medianItem(st, title) {
++  // chart.js medianWording: the chart caption's words too. [long, short]: the short ones only where the line would wrap.
++  const w = medianWording(st, 'line');
++  const [long, short] = w.words.map((x) => `${x}${w.where}`);
++  return h('span', { class: 'stat stat--median', title }, h('strong', null, w.value), ' ', tightWords(short !== long ? [long, short] : [long]));
+ }
+ /** A stats-line phrase with a shorter form for a line that would wrap: [long] or [long, short] -> text, or a span fitStatsLine fits. */
+ function tightWords([long, short]) {
+diff --git a/public/viz/chart.js b/public/viz/chart.js
+index 354bb12..234e9ec 100644
+--- a/public/viz/chart.js
++++ b/public/viz/chart.js
+@@ -317,8 +317,25 @@ function headPay(items) {
+ }
+ /** MR-39: " US" after the caption's median when it is one currency's pay of several ("Median base pay $152K US"). */
+ const medianBasis = (pay) => (pay?.basis && pay.basis !== 'mixed' && pay.basisLeft ? ` ${basisShort(pay.basis)}` : '');
+-/** BN-2: the caption's median as the stats line writes it ("CA$101K", "$28.41/hour", "$152K US"). */
+-const capMedian = (pay, med) => `${pay?.hm && pay.hm.median != null ? medianText(pay.hm) : formatMoney(med)}${medianBasis(pay)}`;
++/**
++ * BN-2, BN-4 (fix-app-6): the words of a headline median, for the stats line (form 'line': "CA$101K base pay median",
++ * "$152K base pay median (US)", "$26.80/hour posted pay median") and the chart's caption (form 'caption': "Median base pay $152K
++ * US"), one function so the two never disagree. `pay`: app.js stats() or headPay() figures ({ oteOnly, notBaseOnly, hm, basis,
++ * basisLeft, median }). -> { value ("CA$101K", "$26.80/hour"), words: [long, short] (the short form where it would not fit),
++ * where (MR-39's basis: " (US)" on the line, " US" in the caption) }.
++ */
++export function medianWording(pay, form = 'line', med = pay?.median) {
++  const hm = pay?.hm;
++  const value = hm && hm.median != null ? medianText(hm) : formatMoney(med);
++  const kind = pay?.oteOnly ? 'ote' : hm?.fullTime ? 'fullTime' : pay?.notBaseOnly ? 'posted' : 'base';
++  const words = form === 'line'
++    ? { ote: ['median on-target earnings', 'median on-target earnings'], fullTime: ['median, a year if full-time', 'median if full-time'], posted: ['posted pay median', 'median'], base: ['base pay median', 'base pay median'] }[kind]
++    : { ote: ['Median on-target earnings ', 'Median '], fullTime: ['Median if full-time ', 'Median '], posted: ['Median posted pay ', 'Median '], base: ['Median base pay ', 'Median '] }[kind];
++  const place = pay?.basis && pay.basis !== 'mixed' && pay.basisLeft ? payBasisPlace(pay.basis).replace(/^(?:paid )?in (?:the )?/, '') : '';
++  return { value, words, where: place ? (form === 'line' ? ` (${place})` : ` ${place}`) : '' };
++}
++/** BN-2: the caption's median and its basis ("CA$101K", "$28.41/hour", "$152K US"). */
++const capMedian = (pay, med) => { const w = medianWording(pay, 'caption', med); return `${w.value}${w.where}`; };
+ /** " in the US" after a median, "" when the row has no basis; "mixed" names its currencies. */
+ const basisWords = (r) => (r.basis === 'mixed' ? ', several countries’ pay' : r.basis ? ` ${payBasisPlace(r.basis)}` : '');
+ const basisWordsShort = (r) => (r.basis === 'mixed' ? ' mixed' : r.basis ? ` ${basisShort(r.basis)}` : '');
+@@ -1103,9 +1120,10 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } =
+   }
+ 
+   /** BP-13: what the median caption says ("Median base pay", or on-target earnings when that is all). */
+-  function medianCaption(pay) {
+-    // BN-4 (fix-app-6): a median partly of part-time hourly pay as a full-time year is never "posted pay".
+-    return pay?.oteOnly ? 'Median on-target earnings ' : pay?.hm?.fullTime ? 'Median if full-time ' : pay?.notBaseOnly ? 'Median posted pay ' : 'Median base pay ';
++  function medianCaption(pay, short = false) {
++    // BN-4 (fix-app-6): medianWording, as the stats line; a median partly of part-time hourly pay as a full-time year is never
++    // "posted pay".
++    return medianWording(pay, 'caption').words[short ? 1 : 0];
+   }
+   function medianTitle(pay) {
+     const where = placesPhrase(opts.places);
+@@ -1148,7 +1166,7 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } =
+       cap.style.width = labelW + 'px';
+       // BN-4 (fix-app-6): "Median posted pay $28.50/hour" is wider than a narrow label column: then "Median $28.50/hour".
+       const sub = capMedian(pay, med), long = medianCaption(pay);
+-      const title = textWidth(`${long}${sub}`, `600 12px ${curFam}`) > labelW - 16 - 4 ? 'Median ' : long;
++      const title = textWidth(`${long}${sub}`, `600 12px ${curFam}`) > labelW - 16 - 4 ? medianCaption(pay, true) : long;
+       cap.append(el('span', 'ms-hist__title', title), el('span', 'ms-hist__sub', sub));
+       cap.title = medianTitle(pay);
+       hist.append(cap);
+diff --git a/test/fix-app-6.test.js b/test/fix-app-6.test.js
+index 77044a8..c653b09 100644
+--- a/test/fix-app-6.test.js
++++ b/test/fix-app-6.test.js
+@@ -9,6 +9,7 @@ import * as shared from '../public/features/shared.js';
+ import * as roles from '../public/features/roles.js';
+ import * as insights from '../public/features/insights.js';
+ import * as mapViz from '../public/viz/map.js';
++import * as chartViz from '../public/viz/chart.js';
+ import { toUSD, FX_PER_USD, formatMoney } from '../public/viz/palette.js';
+ import { seniorityFromPay } from '../server/keywords.js';
+ 
+@@ -298,8 +299,14 @@ test('BN-4 part-time hourly pay only: the median is per hour as posted ("$28.41/
+   const st2 = m.stats(m.run({}).filtered);
+   assert.equal(st2.perHour, false);
+   assert.equal(st2.fullTime, true, 'stats().fullTime: part of the median is a full-time year of part-time pay');
+-  const k = APP.slice(APP.indexOf('function medianItem('), APP.indexOf('function medianItem(') + 900);
+-  assert.match(k, /a year if full-time/, 'the stats line never says the annualised figure is "posted pay"');
++  // One wording for the stats line and the chart caption (chart.js medianWording), so they can't disagree.
++  assert.equal(typeof chartViz.medianWording, 'function', 'chart.js medianWording');
++  const line = chartViz.medianWording(st, 'line'), cap = chartViz.medianWording(st, 'caption');
++  assert.deepEqual([line.value, line.words[0], cap.words[0].trim()], ['$30.50/hour', 'posted pay median', 'Median posted pay']);
++  const line2 = chartViz.medianWording(st2, 'line'), cap2 = chartViz.medianWording(st2, 'caption');
++  assert.match(line2.words.join('|'), /a year if full-time/, 'the stats line says the figure is a year if full-time');
++  assert.doesNotMatch(`${line2.words.join('|')}|${cap2.words.join('|')}`, /posted pay/, 'an annualised figure is never "posted pay"');
++  assert.match(APP.slice(APP.indexOf('function medianItem('), APP.indexOf('function medianItem(') + 600), /medianWording\(st, 'line'\)/, 'the stats line uses medianWording');
+ });
+ 
+ /* ------------------------------------------------------------ BN-5 */
+-- 
+2.43.0
+

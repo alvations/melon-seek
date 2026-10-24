@@ -2,11 +2,13 @@
 
 - Worktree: `/tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92f3-f582ebca24d9/scratchpad/wt-int`
 - Base (on claude/stoic-ride-54ddxp): `a0763eceb553a3da77408fd81acf018174302bbc`
-- Head: `942db8aa2336ea6af53cd43e6a17542c962db66f`
+- Head: `94d65d087356c8e812f246f20856ec4f7676d9f3`
 - Restore: `bash scripts/cycle/restore-wip.sh lead-integration <new worktree dir>`
 
 ## Commits since the base
 ```
+94d65d0 fix-salary-6: CONTRACT and log for the Juice follow-up
+aec5de1 fix-salary-6 S-1 follow-up: Juice says 'pay-other-country' again when every place with a city record is in a country no row prices (Cohere's London)
 942db8a fix-juice-6: log, the related groups and State
 4de206c fix-juice-6: log, verification so far and State
 38e122e fix-juice-6: after screenshots (Toronto, Milan, London, Munich, New York at 280, 375, 352 and 1280; J-5 cards), shrunk

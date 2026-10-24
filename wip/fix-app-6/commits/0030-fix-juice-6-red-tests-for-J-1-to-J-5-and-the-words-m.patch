@@ -1,0 +1,876 @@
+From 92314bb72b127e0df4e6a6a126bf89bc9d147254 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 24 Oct 2026 00:49:03 +0000
+Subject: [PATCH 30/63] fix-juice-6: red tests for J-1 to J-5, and the words
+ module they read
+
+test/fix-juice-6.test.js (unit) and test/e2e/fix-juice-6.e2e.js (registered in scripts/e2e.js):
+the tax rows' names per country, the household tax line, the remembered period, the grades'
+meanings and the card grade's place, at 280x653, 375x812, 352x355 and 1280x800, plus every
+phone size for the new lines. public/features/juice-drawer.js holds the words (pure); app.js
+does not use it yet, so the app checks fail.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+(cherry picked from commit 0ff410844844e3fb7312a9e6d953173112acd3ca)
+---
+ public/features/juice-drawer.js | 234 ++++++++++++++++++++
+ scripts/e2e.js                  |   2 +
+ test/e2e/fix-juice-6.e2e.js     | 371 ++++++++++++++++++++++++++++++++
+ test/fix-juice-6.test.js        | 205 ++++++++++++++++++
+ 4 files changed, 812 insertions(+)
+ create mode 100644 public/features/juice-drawer.js
+ create mode 100644 test/e2e/fix-juice-6.e2e.js
+ create mode 100644 test/fix-juice-6.test.js
+
+diff --git a/public/features/juice-drawer.js b/public/features/juice-drawer.js
+new file mode 100644
+index 0000000..a2a54bc
+--- /dev/null
++++ b/public/features/juice-drawer.js
+@@ -0,0 +1,234 @@
++// melon-seek: the Juice section's words that depend on the place, and its Monthly / Yearly memory
++// (fix-juice-6, docs/process/fix-juice-6.md). Pure functions (no DOM), used by public/app.js and
++// test/fix-juice-6.test.js. The tax numbers come from server/juice.js (taxFor); nothing here changes one.
++//
++// Persona wave 2 (2026-10-23, docs/process/persona-beta-2-35-44.md, -25-34.md, -55-plus.md):
++//   J-1  every country's tax rows read "income tax · state or local tax · social security", so Ontario's provincial
++//        tax was "state or local tax" and UK National Insurance "social security". Each row is named as its country
++//        names it (taxRowNames); a US row stays "state or local tax".
++//   J-2  "Family here means one earner; each person is taxed separately here" read as a contradiction.
++//        householdTaxLine says how that country taxes a one-earner household, in words that can't be misread.
++//   J-3  Monthly / Yearly reset to Yearly on every visit, while the household was remembered. PERIOD_KEY is kept
++//        the same way as the household (localStorage, read with the same fallback to the default).
++//   J-4  "Rind", "Dry" and the other grades were not explained where they first appear (GRADE_MEANING).
++//
++// Each name or line is a list of variants, longest first: the app shows the first that fits on one line
++// (public/viz/note.js fitLine), so every line is one line at every size of test/e2e/phone-sizes.mjs. A shorter
++// variant abbreviates the way the country does ("NI", "CPP and EI", "FICA").
++
++/** The country in a sentence ("the UK", "Germany"); start a sentence with cap(). */
++const COUNTRY = Object.freeze({
++  US: 'the US', GB: 'the UK', IE: 'Ireland', CH: 'Switzerland', DE: 'Germany', FR: 'France', NL: 'the Netherlands',
++  ES: 'Spain', PT: 'Portugal', IT: 'Italy', AT: 'Austria', BE: 'Belgium', SE: 'Sweden', DK: 'Denmark', NO: 'Norway',
++  FI: 'Finland', PL: 'Poland', CZ: 'Czechia', EE: 'Estonia', IL: 'Israel', AE: 'the UAE', SA: 'Saudi Arabia',
++  JP: 'Japan', KR: 'South Korea', SG: 'Singapore', HK: 'Hong Kong', TW: 'Taiwan', IN: 'India', AU: 'Australia',
++  NZ: 'New Zealand', CA: 'Canada', MX: 'Mexico', BR: 'Brazil',
++});
++export const countryWords = (code) => COUNTRY[code] || 'this country';
++const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
++
++/*
++ * J-1: the three parts of server/juice.js taxFor, named per country.
++ *   income   national income tax, with any surtax on it
++ *   regional state, province, canton, region or city income tax
++ *   social   compulsory social insurance the employee pays
++ * A country without a part (no regional tax in the UK) never shows that row (its amount is 0).
++ */
++const N = (...v) => Object.freeze(v);
++const DEFAULT_NAMES = Object.freeze({ income: N('income tax'), regional: N('regional tax'), social: N('social insurance') });
++const TAX_ROW_NAMES = Object.freeze({
++  US: { income: N('federal income tax', 'federal tax'), regional: N('state or local tax', 'state/local tax'), social: N('Social Security and Medicare', 'FICA') },
++  GB: { income: N('income tax'), social: N('National Insurance', 'NI') },
++  IE: { income: N('income tax and Universal Social Charge', 'income tax and USC', 'tax and USC'), social: N('PRSI social insurance', 'PRSI') },
++  CH: { income: N('federal income tax', 'federal tax'), regional: N('cantonal and communal tax', 'canton and city tax', 'local tax'), social: N('AHV, unemployment and accident insurance', 'AHV, ALV, accident', 'social insurance') },
++  DE: { income: N('income tax and solidarity surcharge', 'income tax and Soli', 'income tax'), social: N('social insurance (pension, health, care, unemployment)', 'social insurance') },
++  FR: { income: N('income tax'), social: N('social contributions, CSG and CRDS', 'social contributions', 'contributions') },
++  NL: { income: N('income tax and national insurance', 'wage tax') },
++  ES: { income: N('state income tax', 'state tax'), regional: N('regional income tax', 'regional tax'), social: N('Social Security') },
++  PT: { income: N('income tax (IRS)', 'income tax'), social: N('Social Security') },
++  IT: { income: N('income tax (IRPEF)', 'IRPEF'), regional: N('regional and municipal surcharges', 'regional and city surcharges', 'local surcharges'), social: N('INPS social security', 'INPS') },
++  AT: { income: N('income tax'), social: N('social insurance') },
++  BE: { income: N('income tax'), regional: N('municipal surcharge', 'city surcharge'), social: N('social security') },
++  SE: { income: N('state income tax', 'state tax'), regional: N('municipal tax, after the job tax credit', 'municipal tax') },
++  DK: { income: N('state income tax', 'state tax'), regional: N('municipal tax'), social: N('labour market contribution', 'AM contribution') },
++  NO: { income: N('income tax and bracket tax', 'income tax'), social: N('national insurance') },
++  FI: { income: N('state and municipal income tax', 'income tax'), social: N('social insurance') },
++  PL: { income: N('income tax (PIT)', 'PIT'), social: N('ZUS and health insurance', 'ZUS and health') },
++  CZ: { income: N('income tax'), social: N('social and health insurance', 'social and health') },
++  EE: { income: N('income tax'), social: N('unemployment insurance', 'unemployment ins.') },
++  IL: { income: N('income tax'), social: N('National Insurance and health tax', 'Bituach Leumi') },
++  AE: {},
++  SA: {},
++  JP: { income: N('income tax'), regional: N('resident tax'), social: N('social insurance') },
++  KR: { income: N('income tax'), regional: N('local income tax', 'local tax'), social: N('social insurance') },
++  SG: { income: N('income tax') },
++  HK: { income: N('salaries tax') },
++  TW: { income: N('income tax'), social: N('labour and health insurance', 'labour and health') },
++  IN: { income: N('income tax and cess', 'income tax'), regional: N('professional tax', 'prof. tax') },
++  AU: { income: N('income tax'), social: N('Medicare levy') },
++  NZ: { income: N('income tax'), social: N('ACC earners’ levy', 'ACC levy') },
++  CA: { income: N('federal income tax', 'federal tax'), regional: N('provincial tax', 'prov. tax'), social: N('CPP and EI') },
++  MX: { income: N('income tax (ISR)', 'ISR'), social: N('IMSS social security', 'IMSS') },
++  BR: { income: N('income tax (IRPF)', 'IRPF'), social: N('INSS social security', 'INSS') },
++});
++/** Names that depend on the state, province or canton (server/juice.js: its own rule or payroll contributions). */
++const REGION_NAMES = Object.freeze({
++  'US-CA': { social: N('Social Security, Medicare and SDI', 'FICA and SDI', 'payroll tax') },
++  'US-NY': { social: N('Social Security, Medicare, paid leave and disability', 'FICA, PFL and DBL', 'payroll tax') },
++  'US-WA': { social: N('Social Security, Medicare, WA Cares and paid leave', 'FICA, WA Cares, PFML', 'payroll tax') },
++  'US-MA': { social: N('Social Security, Medicare and paid leave', 'FICA and PFML', 'payroll tax') },
++  'US-OR': { social: N('Social Security, Medicare and Paid Leave Oregon', 'FICA and paid leave', 'payroll tax') },
++  'US-MN': { social: N('Social Security, Medicare and Paid Leave', 'FICA and paid leave', 'payroll tax') },
++  'US-PA': { social: N('Social Security, Medicare and unemployment', 'FICA and UC', 'payroll tax') },
++  'GB-SCT': { income: N('Scottish income tax', 'income tax') },
++  // Geneva's rule is one combined federal, cantonal and communal schedule (server/juice.js CH_GE_COMBINED).
++  'CH-GE': { income: N('federal, cantonal and communal tax', 'income taxes') },
++  'CA-QC': { regional: N('Quebec income tax', 'Quebec tax'), social: N('QPP, QPIP and EI') },
++});
++
++/**
++ * J-1: the names of the tax rows for a jurisdiction { country, region }: { income, regional, social }, each a list
++ * of variants, longest first. Unknown countries get plain generic names.
++ */
++export function taxRowNames(jur) {
++  const c = jur?.country || null;
++  const base = TAX_ROW_NAMES[c] || {};
++  const reg = (jur?.region && REGION_NAMES[`${c}-${jur.region}`]) || {};
++  return {
++    income: reg.income || base.income || DEFAULT_NAMES.income,
++    regional: reg.regional || base.regional || DEFAULT_NAMES.regional,
++    social: reg.social || base.social || DEFAULT_NAMES.social,
++  };
++}
++
++/**
++ * J-1: the tax rows to show: [{ part, value, variants }] for each part above 0, in the waterfall's order. `amount(n)`
++ * formats a value ("$2,010"); each variant is "<name> <amount>" ("provincial tax $2,010", "prov. tax $2,010").
++ */
++export function taxRows(taxParts, jur, amount = String) {
++  if (!taxParts) return [];
++  const names = taxRowNames(jur);
++  return ['income', 'regional', 'social']
++    .filter((k) => taxParts[k] > 0)
++    .map((k) => ({ part: k, value: taxParts[k], variants: names[k].map((n) => `${n} ${amount(taxParts[k])}`) }));
++}
++
++/**
++ * Where a Juice entry is taxed: { country, region, local }. From its own `inputs.tax.jurisdiction` (the TAX_SOURCES
++ * keys the best place keeps: ['CA', 'CA-ON']), else the city record (data/cities.json `tax`), else the city key's
++ * last part ("toronto-on-ca": CA, ON; "milan-it": IT).
++ */
++export function jurisdictionOf(entry, city = null) {
++  const keys = entry?.inputs?.tax?.jurisdiction;
++  if (Array.isArray(keys) && keys.length && typeof keys[0] === 'string') {
++    const country = keys[0];
++    const region = keys.find((k) => k.startsWith(`${country}-`) && !k.startsWith(`${country}-LOCAL-`));
++    const local = keys.find((k) => k.startsWith(`${country}-LOCAL-`));
++    return { country, region: region ? region.slice(country.length + 1) : null, local: local ? local.slice(country.length + 7) : null };
++  }
++  if (city?.tax?.country) return { country: city.tax.country, region: city.tax.region || null, local: city.tax.local || null };
++  const parts = String(entry?.city || '').split('-').filter(Boolean);
++  if (!parts.length) return { country: null, region: null, local: null };
++  const country = parts[parts.length - 1].toUpperCase();
++  const region = (country === 'US' || country === 'CA') && parts.length > 2 ? parts[parts.length - 2].toUpperCase() : null;
++  return { country, region, local: null };
++}
++
++/*
++ * J-2: how a one-earner couple or family is taxed there (server/juice.js taxFor `basis`), one line under the Tax row.
++ * The household line under the buttons says who is in the household ("2 adults, 1 earner (the other not working)").
++ *   joint       the country taxes the household together and the model applies it: the tax goes down
++ *   individual  the country taxes each person on their own pay: the earner pays what a single person does
++ *   single      the country has joint or family rules the model leaves out: taxed as a single person
++ *   partial     some levels apply household rules, others are taxed as single
++ */
++const JOINT = Object.freeze({
++  US: { couple: N('The US taxes a married couple jointly, which lowers the tax', 'Filing jointly lowers the tax', 'Taxed jointly'),
++    family: N('Joint filing and the child tax credit lower the US tax', 'Joint filing and child credit', 'Taxed jointly') },
++  DE: { couple: N('Germany splits the pay between the couple, which lowers the tax', 'Income splitting lowers the tax', 'Taxed with splitting'),
++    family: N('German splitting and child allowances lower the tax', 'Splitting and child allowance', 'Taxed with splitting') },
++  FR: { couple: N('France’s family quotient (quotient familial) lowers the tax', 'Family quotient lowers the tax', 'Family quotient') },
++  IE: { couple: N('Ireland’s married one-income tax band lowers the tax', 'Married tax band lowers the tax', 'Married tax band') },
++  CH: { couple: N('Switzerland taxes a married couple together, at lower rates', 'Married rates lower the tax', 'Married rates'),
++    family: N('Swiss married rates and child deductions lower the tax', 'Married rates and child deductions', 'Married rates') },
++  HK: { couple: N('Hong Kong’s married person’s allowance lowers the tax', 'Married allowance lowers the tax', 'Married allowance'),
++    family: N('Hong Kong’s married and child allowances lower the tax', 'Married and child allowances', 'Married allowances') },
++  BR: { couple: N('Brazil counts the spouse as a dependant, which lowers the tax', 'Dependants lower the tax', 'Dependants counted'),
++    family: N('Brazil counts the spouse and children as dependants', 'Dependants lower the tax', 'Dependants counted') },
++});
++/** The household rule the model leaves out, where it does (TAX_HOUSEHOLD basis 'single' in server/juice.js). */
++const NOT_COUNTED = Object.freeze({
++  PL: 'joint filing', ES: 'joint return', PT: 'joint taxation', BE: 'marital quotient', TW: 'household filing', CH: 'married rules',
++});
++
++/**
++ * J-2: the line under the Tax row for a couple or family, as variants (longest first), or null (one person, or no tax).
++ * Every variant can stand alone: the shortest says only how the tax was worked out ("Taxed as if single").
++ */
++export function householdTaxLine(hhKey, basis, jur) {
++  if (!hhKey || hhKey === 'single') return null;
++  const c = jur?.country || null;
++  const where = countryWords(c);
++  if (basis === 'joint') {
++    const j = JOINT[c];
++    if (j) return j[hhKey] || j.couple;
++    return N(`${cap(where)} taxes the household together, which lowers the tax`, 'Taxed together, which lowers the tax', 'Taxed jointly');
++  }
++  if (basis === 'individual') {
++    return N(`${cap(where)} taxes each person on their own pay, as if single`, `${cap(where)} taxes each person on their own pay`, 'Taxed on own pay, as if single', 'Taxed as if single');
++  }
++  if (basis === 'single') {
++    const rule = NOT_COUNTED[c];
++    if (rule) return N(`${cap(where)}’s ${rule} isn’t counted here, so taxed as if single`, `${cap(rule)} not counted: taxed as if single`, 'Taxed as if single');
++    return N('Household tax rules aren’t counted here, so taxed as if single', 'Taxed as if single');
++  }
++  if (basis === 'partial') return N(`Some of ${where}’s household tax rules are counted`, 'Some household rules counted', 'Partly taxed jointly');
++  return N('Taxed on the one earner’s pay');
++}
++
++/** J-2: the household line under the buttons, as variants (longest first): who is in it and who earns. */
++export const HOUSEHOLD_LINES = Object.freeze({
++  single: N('1 adult, 1 bedroom'),
++  couple: N('2 adults, 1 earner (the other not working), 2 bedrooms', '2 adults, 1 working, 2 bedrooms'),
++  family: N('2 adults (1 earner, 1 not working), 2 children, 3 bedrooms', '2 adults (1 working), 2 children, 3 bedrooms', '2 adults (1 working), 2 kids, 3 bedrooms'),
++});
++/** J-2: the household buttons' tips (no filing status: that depends on the country, and the line under Tax says it). */
++export const HOUSEHOLD_TIPS = Object.freeze({
++  single: 'One adult in a 1-bedroom home',
++  couple: 'Two adults, one earning and the other not working, in a 2-bedroom home',
++  family: 'Two adults, one earning and the other not working, and two children, in a 3-bedroom home',
++});
++
++/* J-3: Monthly / Yearly, remembered in this browser like the household (app.js HOUSEHOLD_KEY). */
++export const PERIOD_KEY = 'melon-seek.juicePeriod.v1';
++export const PERIODS = Object.freeze(['year', 'month', 'term']);
++/** The stored period, or 'year' for anything else (nothing stored, storage blocked, an old or bad value). */
++export const periodOf = (v) => (PERIODS.includes(v) ? v : 'year');
++/**
++ * The period a Juice block shows for the remembered `period`: fixed-term pay shows Monthly or Whole term (Monthly
++ * only when the length is not stated), never a year; yearly pay shows Monthly or Yearly.
++ */
++export function shownPeriod(period, term = null) {
++  const p = periodOf(period);
++  if (term) return p === 'term' && !term.unstated ? 'term' : 'month';
++  return p === 'month' ? 'month' : 'year';
++}
++
++/**
++ * J-4: what each grade means, said where the grade first shows (the card's badge tip, the drawer's score tip and
++ * its first line). `scale` is { ripe, juicy }, the yearly amounts of the breaks ("$43K", "$116K").
++ */
++export function gradeMeaning(grade, scale = null) {
++  const r = scale?.ripe, j = scale?.juicy;
++  switch (String(grade)) {
++    case 'Juicy': return `plenty left after tax, rent and living costs${j ? ` (${j} or more a year)` : ''}`;
++    case 'Ripe': return `a comfortable amount left${r && j ? ` (${r}–${j.replace(/^\$/, '')} a year)` : ''}`;
++    case 'Dry': return `a thin margin left${r ? ` (under ${r} a year)` : ''}`;
++    case 'Rind': return 'nothing left: tax, rent and living costs take all the pay or more';
++    default: return '';
++  }
++}
++/** J-4: the same in a few words, for the Juice text of the job page ("Rind means nothing is left"). */
++export function gradeShort(grade) {
++  return { Juicy: 'plenty is left', Ripe: 'a comfortable amount is left', Dry: 'a thin margin is left', Rind: 'nothing is left' }[String(grade)] || '';
++}
+diff --git a/scripts/e2e.js b/scripts/e2e.js
+index 813c779..853a370 100644
+--- a/scripts/e2e.js
++++ b/scripts/e2e.js
+@@ -61,6 +61,7 @@ import { registerFixQa4Tests } from '../test/e2e/fix-qa4.e2e.js';
+ import { registerFixMr3Tests } from '../test/e2e/fix-mr-3.e2e.js';
+ import { registerFixSalary6Tests } from '../test/e2e/fix-salary-6.e2e.js';
+ import { registerFixUi6Tests } from '../test/e2e/fix-ui-6.e2e.js';
++import { registerFixJuice6Tests } from '../test/e2e/fix-juice-6.e2e.js';
+ 
+ const args = new Set(process.argv.slice(2));
+ const apiOnly = args.has('--api-only');
+@@ -201,6 +202,7 @@ if (!apiOnly) {
+   registerFixMr3Tests(suite);
+   registerFixSalary6Tests(suite);
+   registerFixUi6Tests(suite);
++  registerFixJuice6Tests(suite);
+ }
+ 
+ const only = shard ? shardOf(suite.names(grep), shard, valueOf('timings')) : null;
+diff --git a/test/e2e/fix-juice-6.e2e.js b/test/e2e/fix-juice-6.e2e.js
+new file mode 100644
+index 0000000..05cdaa4
+--- /dev/null
++++ b/test/e2e/fix-juice-6.e2e.js
+@@ -0,0 +1,371 @@
++// fix-juice-6 (2026-10-24; docs/process/fix-juice-6.md): the Juice section's words, checked on the built beta site.
++// Persona wave 2 (docs/process/persona-beta-2-35-44.md, -25-34.md, -55-plus.md, -45-54.md) found:
++//   J-1 the tax rows read "state or local tax" for Ontario's provincial tax and Italy's regional surcharge, and
++//       "social security" for UK National Insurance and Canada's CPP and EI;
++//   J-2 "Family here means one earner; each person is taxed separately here" read as a contradiction;
++//   J-3 Juice went back to Yearly on every visit, while the household was remembered;
++//   J-4 "Rind", "Dry", "Clusters / Ranges" and the chart's "‹2" / "›13" chips were not explained;
++//   J-5 a card's Juice grade was for another place than the one the card names first (Google "New York, NY +1"
++//       graded for Chicago, Meta's "Los Angeles" for Seattle).
++// Chromium against the static build (BETA_QA_DIST, else dist/), served under /melon-seek/ like GitHub Pages; other
++// hosts are aborted. Each test finds its case in the build's own data (public/api.js getJobs, as the UI sees it), so it
++// keeps testing the same rule on a new crawl, and skips when the case is gone. The drawer tests run at 280x653 (Galaxy
++// Fold), 375x812 (iPhone 13 mini), 352x355 (Motorola razr cover) and 1280x800, for Ontario, Italy, the UK, Germany and
++// a US state. "[phone]" measures every line this lane added or changed at every size of test/e2e/phone-sizes.mjs with
++// fix-phone-text's own scanner: one line, at most 12 words, never cut. The expected words come from
++// public/features/juice-drawer.js, the module the app uses, so a test checks the rule, not a copy of a string.
++import http from 'node:http';
++import fs from 'node:fs';
++import path from 'node:path';
++import zlib from 'node:zlib';
++import { ROOT, assert, assertEq, skip } from './harness.js';
++import { ALL_SIZES, contextFor } from './phone-sizes.mjs';
++import { scanText, CAPTION_SEL } from './fix-phone-text.e2e.js';
++import { taxRowNames, householdTaxLine, HOUSEHOLD_LINES, PERIOD_KEY, gradeMeaning, gradeShort } from '../../public/features/juice-drawer.js';
++import { taxFor } from '../../server/juice.js';
++
++const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
++const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.csv': 'text/csv', '.txt': 'text/plain', '.woff2': 'font/woff2' };
++const SIZE = (name) => ALL_SIZES.find((d) => d.name === name);
++const DESKTOP = { name: 'Desktop', width: 1280, height: 800, desktop: true };
++/** The brief's four sizes. */
++const SIZES = [SIZE('Galaxy Fold (folded)'), SIZE('iPhone 13 mini'), SIZE('Motorola razr (cover screen)'), DESKTOP];
++/** The places, by the Juice city they are scored in, and the boards to look on (smallest first). */
++const PLACES = [
++  { key: 'toronto-on-ca', name: 'Ontario (Toronto)' },
++  { key: 'milan-it', name: 'Italy (Milan)' },
++  { key: 'london-gb', name: 'the UK (London)' },
++  { key: 'munich-de', alt: 'berlin-de', name: 'Germany (Munich)' },
++  { key: 'new-york-ny-us', alt: 'atlanta-ga-us', name: 'a US state (New York)' },
++];
++const BOARDS = ['netflix', 'meta', 'nvidia', 'microsoft', 'google', 'apple', 'amazon'];
++const HH_KEY = 'melon-seek.household.v1';
++
++let shared = null;
++/** Serve the build under /melon-seek/ (gzip, like Pages); null without a beta build. One server for the whole file. */
++async function serveDist() {
++  if (shared) return shared;
++  const dist = path.resolve(process.env.BETA_QA_DIST || path.join(ROOT, 'dist'));
++  if (!fs.existsSync(path.join(dist, 'beta', 'index.html')) || !fs.existsSync(path.join(dist, 'beta', 'api', 'jobs'))) return null;
++  const server = http.createServer((req, res) => {
++    const u = new URL(req.url, 'http://x');
++    if (!u.pathname.startsWith('/melon-seek/')) { res.writeHead(302, { location: '/melon-seek/' }); return res.end(); }
++    let p;
++    try { p = path.join(dist, decodeURIComponent(u.pathname.slice('/melon-seek/'.length))); } catch { res.writeHead(400); return res.end(); }
++    if (p !== dist && !p.startsWith(dist + path.sep)) { res.writeHead(403); return res.end(); }
++    if (fs.existsSync(p) && fs.statSync(p).isDirectory()) p = path.join(p, 'index.html');
++    if (!fs.existsSync(p)) { res.writeHead(404); return res.end(); }
++    const type = MIME[path.extname(p)] || 'application/octet-stream';
++    const body = fs.readFileSync(p);
++    const gz = /text|javascript|json|svg|csv/.test(type) && /gzip/.test(req.headers['accept-encoding'] || '') && body.length > 1024;
++    res.writeHead(200, { 'content-type': type, ...(gz ? { 'content-encoding': 'gzip' } : {}) });
++    res.end(gz ? zlib.gzipSync(body) : body);
++  });
++  await new Promise((r) => server.listen(0, '127.0.0.1', r));
++  server.unref();
++  const origin = `http://127.0.0.1:${server.address().port}`;
++  shared = { origin, dist, beta: `${origin}/melon-seek/beta` };
++  return shared;
++}
++
++/** A fresh context on the beta site at `device` (a phone-sizes.mjs entry, or DESKTOP). `household` is stored first. */
++async function open(ctx, device, { household = null } = {}) {
++  const st = await serveDist();
++  if (!st) skip('no beta build (npm run build, or BETA_QA_DIST=<dir>)');
++  const engine = ctx.browser.browserType?.().name() || 'chromium';
++  const opts = device.desktop ? { viewport: { width: device.width, height: device.height }, deviceScaleFactor: 1 } : contextFor(device, engine);
++  const context = await ctx.browser.newContext({ ...opts, colorScheme: 'light' });
++  ctx.cleanup.push(() => context.close().catch(() => {}));
++  await context.route((u) => !u.href.startsWith(st.origin) && !u.href.startsWith('data:') && !u.href.startsWith('blob:'), (r) => r.abort('blockedbyclient'));
++  if (household) await context.addInitScript(([k, v]) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* blocked */ } }, [HH_KEY, household]);
++  const page = await context.newPage();
++  const errors = [];
++  page.on('pageerror', (e) => errors.push(e.message));
++  return { st, context, page, errors };
++}
++const ready = (page) => page.waitForFunction(() => {
++  const t = document.querySelector('#resultsTitle');
++  return t && !/Loading/.test(t.textContent) && /\d/.test(t.textContent) && document.querySelector('#resultsList .card[data-id]');
++}, null, { timeout: 120000 });
++
++/** Open a job by a full page load, with its Juice waterfall open; null when the job page has no Juice. */
++async function openJuice(page, st, c) {
++  await page.goto('about:blank');
++  await page.goto(`${st.beta}/#c=${c.slug}&job=${encodeURIComponent(c.id)}`);
++  await page.waitForSelector('#drawer.is-open:not([hidden]) #drawerTitle', { timeout: 120000 });
++  const has = await page.waitForSelector('#drawer .d-juice details.juice-details', { timeout: 30000 }).then(() => true, () => false);
++  if (!has) return null;
++  await page.evaluate(() => { const d = document.querySelector('#drawer details.juice-details'); if (d) d.open = true; });
++  await page.waitForSelector('#drawer .d-juice .waterfall', { timeout: 10000 });
++  await sleep(500); // the lines' fit (fitLine's ResizeObserver) settles
++  return true;
++}
++
++/* ---------------------------------------------------------------- the cases, found in the build's data once */
++
++let casesPromise = null;
++/**
++ * One job per place: yearly pay (Monthly / Yearly toggle), one scored place, its best place in that city. Read with
++ * the app's own api.js in a page, board by board, smallest first. Also J-5's cards: a posting scored at more than one
++ * place whose best place is not the first place the card would name (the first of its pay places).
++ */
++function findCases(ctx) {
++  if (!casesPromise) casesPromise = (async () => {
++    const { st, page } = await open(ctx, DESKTOP);
++    await page.goto(`${st.beta}/`);
++    const out = { places: {}, j5: {}, rindDry: null };
++    for (const slug of BOARDS) {
++      const r = await page.evaluate(async ({ beta, slug, keys }) => {
++        const api = await import(`${beta}/api.js`);
++        const shared = await import(`${beta}/features/shared.js`);
++        const res = await api.getJobs({ company: slug });
++        if (res.mode !== 'snapshot') return null;
++        const places = {};
++        let j5 = null, rindDry = null;
++        for (const j of res.jobs) {
++          const b = j.juice?.best;
++          if (!b || !j.salary || j.salary.termWeeks || j.salary.partTime || shared.isTermUnstated?.(j) || shared.isFixedTerm?.(j)) continue;
++          if (j.juice.byLocation.length === 1 && keys.includes(b.city) && !places[b.city]) places[b.city] = { slug, id: j.id, title: j.title, city: b.city, jur: b.inputs?.tax?.jurisdiction || null };
++          if (!rindDry && (b.grade === 'Rind' || b.grade === 'Dry')) rindDry = { slug, id: j.id, title: j.title, grade: b.grade };
++          if (!j5 && j.juice.byLocation.length > 1) {
++            const pay = shared.payLocations(j);
++            const first = (pay && pay.length ? pay : j.locations)[0];
++            const graded = j.locations.find((l) => l && l.name === b.locationName);
++            if (first && graded && first !== graded && j.locations.indexOf(first) < j.locations.indexOf(graded)) {
++              const named = (l) => (l.city && l.region ? `${l.city}, ${l.region}` : l.name);
++              j5 = { slug, id: j.id, title: j.title, graded: named(graded), first: named(first), gradedCity: graded.city || graded.name, score: b.score, grade: b.grade };
++            }
++          }
++        }
++        return { places, j5, rindDry };
++      }, { beta: st.beta, slug, keys: PLACES.flatMap((p) => [p.key, p.alt].filter(Boolean)) });
++      if (!r) continue;
++      for (const [k, v] of Object.entries(r.places)) if (!out.places[k]) out.places[k] = v;
++      if (r.j5) out.j5[slug] = r.j5;
++      if (!out.rindDry && r.rindDry) out.rindDry = r.rindDry;
++    }
++    await page.context().close().catch(() => {});
++    return out;
++  })();
++  return casesPromise;
++}
++async function placeCase(ctx, p) {
++  const all = await findCases(ctx);
++  return all.places[p.key] || (p.alt && all.places[p.alt]) || null;
++}
++/** { country, region } of a found case (its best place's tax keys, else its city key). */
++function jurOf(c) {
++  if (Array.isArray(c.jur) && c.jur.length) {
++    const country = c.jur[0];
++    const reg = c.jur.find((k) => k.startsWith(`${country}-`) && !k.includes('-LOCAL-'));
++    return { country, region: reg ? reg.slice(country.length + 1) : null };
++  }
++  const parts = c.city.split('-');
++  return { country: parts.at(-1).toUpperCase(), region: ['US', 'CA'].includes(parts.at(-1).toUpperCase()) ? parts.at(-2).toUpperCase() : null };
++}
++
++/** fix-phone-text's scanner on `sel`: lines over one, over 12 words, or cut. */
++async function oneLine(page, sel, where) {
++  const r = await page.evaluate(scanText, { roots: [sel], captionSel: `${CAPTION_SEL}, ${sel}`, allow: [], words: 12, maxLines: 1 });
++  return [...r.lines.map((m) => `${where} ${m.sel}: ${m.lines} lines, ${m.words} words: "${m.text}"`), ...r.cut.map((m) => `${where} ${m.sel}: cut by ${m.over} px: "${m.text}"`)];
++}
++/** The Tax row's lines: [{ part, text }] (each part's own line), or the old single line as part null. */
++const taxLines = (page) => page.evaluate(() => [...document.querySelectorAll('#drawer .wf--tax .wf-detail:not(.wf-tax-basis)')]
++  .map((e) => ({ part: e.dataset.part || null, text: (e.textContent || '').replace(/\s+/g, ' ').trim() })));
++const nameOf = (text) => text.replace(/\s+−?[$€£¥₹][\d,.]+(\/mo|\/yr| total)?$/, '').trim();
++
++/* ---------------------------------------------------------------- the tests */
++
++export function registerFixJuice6Tests(suite) {
++  for (const d of SIZES) {
++    suite.test(`fix-juice-6: [J-1] ${d.width}x${d.height}: each tax row is named as its country names it (Ontario, Italy, the UK, Germany, a US state), one line each`, async (ctx) => {
++      const { st, page, errors } = await open(ctx, d);
++      const bad = [];
++      let checked = 0;
++      for (const p of PLACES) {
++        const c = await placeCase(ctx, p);
++        if (!c) { ctx.notes.push(`fix-juice-6 [J-1]: no ${p.name} job with Juice in this build`); continue; }
++        if (!(await openJuice(page, st, c))) { bad.push(`${c.id}: no Juice on the job page`); continue; }
++        const jur = jurOf(c);
++        const names = taxRowNames(jur);
++        const lines = await taxLines(page);
++        for (const l of lines) {
++          const n = nameOf(l.text);
++          const want = l.part ? names[l.part] : null;
++          if (!want || !want.includes(n)) bad.push(`${p.name} ${c.id}: the Tax row reads "${l.text}", not ${l.part ? `one of ${JSON.stringify(names[l.part])}` : `a row of its own (${JSON.stringify(names)})`}`);
++          if (jur.country !== 'US' && /state or local tax|social security/.test(l.text)) bad.push(`${p.name} ${c.id}: "${l.text}"`);
++        }
++        if (jur.country === 'US' && !lines.some((l) => l.part === 'regional' && /^state (or|\/)local tax/.test(l.text))) bad.push(`${p.name} ${c.id}: no "state or local tax" row (${JSON.stringify(lines)})`);
++        bad.push(...await oneLine(page, '#drawer .wf--tax .wf-detail', `${p.name} ${c.id}`));
++        checked += 1;
++      }
++      if (!checked) skip('none of the five places has a job with Juice in this build');
++      assert(!bad.length, bad.join('; '));
++      assert(!errors.length, errors.join('; '));
++    });
++
++    suite.test(`fix-juice-6: [J-2] ${d.width}x${d.height}: a family's tax line says how the country taxes one earner, never "each person is taxed separately", one line`, async (ctx) => {
++      const { st, page, errors } = await open(ctx, d, { household: 'family' });
++      const bad = [];
++      let checked = 0;
++      for (const p of PLACES) {
++        const c = await placeCase(ctx, p);
++        if (!c || !(await openJuice(page, st, c))) continue;
++        const jur = jurOf(c);
++        const basis = taxFor(100000, { country: jur.country, region: jur.region }, { household: 'family' }).basis;
++        const want = householdTaxLine('family', basis, jur);
++        const got = await page.locator('#drawer .wf-tax-basis').first().textContent().catch(() => null);
++        const line = (got || '').replace(/\s+/g, ' ').trim();
++        if (!want.includes(line)) bad.push(`${p.name} ${c.id}: the tax line reads "${line}", not one of ${JSON.stringify(want)}`);
++        if (/separately|one earner;/.test(line)) bad.push(`${p.name} ${c.id}: "${line}"`);
++        const hh = ((await page.locator('#drawer .juice-hh-note').first().textContent().catch(() => '')) || '').trim();
++        if (!HOUSEHOLD_LINES.family.includes(hh)) bad.push(`${p.name} ${c.id}: the household line reads "${hh}", not one of ${JSON.stringify(HOUSEHOLD_LINES.family)}`);
++        const tip = await page.locator('#drawer .juice-household [data-household="family"]').getAttribute('title');
++        if (/filing jointly/.test(tip || '')) bad.push(`${p.name}: the Family button's tip still says "${tip}"`);
++        bad.push(...await oneLine(page, '#drawer .wf-tax-basis, #drawer .juice-hh-note', `${p.name} ${c.id}`));
++        checked += 1;
++      }
++      if (!checked) skip('none of the five places has a job with Juice in this build');
++      assert(!bad.length, bad.join('; '));
++      assert(!errors.length, errors.join('; '));
++    });
++
++    suite.test(`fix-juice-6: [J-3] ${d.width}x${d.height}: Monthly is remembered across job pages and visits, like the household`, async (ctx) => {
++      const a = await placeCase(ctx, PLACES[0]) || await placeCase(ctx, PLACES[4]);
++      const b = await placeCase(ctx, PLACES[2]) || await placeCase(ctx, PLACES[3]) || a;
++      if (!a) skip('no job with Juice in this build');
++      const { st, page, errors } = await open(ctx, d);
++      await openJuice(page, st, a);
++      await page.locator('#drawer .d-juice .juice-household [data-household="couple"]').click();
++      await sleep(600);
++      await page.evaluate(() => { const x = document.querySelector('#drawer details.juice-details'); if (x) x.open = true; });
++      await page.locator('#drawer .d-juice [data-period="month"]').click();
++      await sleep(300);
++      assertEq(await page.locator('#drawer .d-juice [data-period="month"]').getAttribute('aria-pressed'), 'true', 'Monthly is picked');
++      assertEq(await page.evaluate((k) => localStorage.getItem(k), PERIOD_KEY), JSON.stringify('month'), `localStorage ${PERIOD_KEY}`);
++      // Another visit (a new page load), another job: Couple and Monthly both kept.
++      await openJuice(page, st, b);
++      assertEq(await page.locator('#drawer .d-juice [data-household="couple"]').getAttribute('aria-pressed'), 'true', 'the household is remembered (as before)');
++      assertEq(await page.locator('#drawer .d-juice [data-period="month"]').getAttribute('aria-pressed'), 'true', `Monthly is remembered on ${b.id} after a reload`);
++      const head = (await page.locator('#drawer .juice-head-net').textContent()).trim();
++      assert(/\/mo left for a couple in /.test(head), `the headline is monthly: "${head}"`);
++      // Yearly is remembered the same way.
++      await page.locator('#drawer .d-juice [data-period="year"]').click();
++      await sleep(200);
++      await openJuice(page, st, a);
++      assertEq(await page.locator('#drawer .d-juice [data-period="year"]').getAttribute('aria-pressed'), 'true', 'Yearly is remembered');
++      // A bad stored value reads as the default, as the household's does.
++      await page.evaluate((k) => localStorage.setItem(k, '"fortnightly"'), PERIOD_KEY);
++      await openJuice(page, st, a);
++      assertEq(await page.locator('#drawer .d-juice [data-period="year"]').getAttribute('aria-pressed'), 'true', 'an unknown stored value falls back to Yearly');
++      assert(!errors.length, errors.join('; '));
++    });
++  }
++
++  for (const d of [SIZE('iPhone 13 mini'), DESKTOP]) {
++    suite.test(`fix-juice-6: [J-4] ${d.width}x${d.height}: the grades say what they mean in the card's badge and the job page; Clusters, Ranges and the chart's edge chips are explained`, async (ctx) => {
++      const all = await findCases(ctx);
++      const c = all.rindDry;
++      if (!c) skip('no Rind or Dry job in this build');
++      const { st, page, errors } = await open(ctx, d);
++      await page.goto(`${st.beta}/#c=${c.slug}&q=${encodeURIComponent(c.title)}`);
++      await ready(page);
++      await sleep(600);
++      const badges = await page.locator('#resultsList .card .juice-badge').evaluateAll((els) => els.slice(0, 8).map((e) => ({ text: e.textContent.trim(), title: e.title, aria: e.getAttribute('aria-label') })));
++      assert(badges.length, `no Juice badges for "${c.title}"`);
++      const bad = [];
++      for (const x of badges) {
++        const m = /(\d+) · (\w+)/.exec(x.text);
++        if (!m) { bad.push(`badge "${x.text}"`); continue; }
++        const meaning = gradeMeaning(m[2]).replace(/ \(.*$/, '');
++        if (!x.title.startsWith(`${m[1]} · ${m[2]}`) || !x.title.includes(meaning)) bad.push(`the "${x.text}" badge's tip doesn't start with what ${m[2]} means: "${x.title.slice(0, 160)}"`);
++        if (!(x.aria || '').includes(meaning)) bad.push(`the "${x.text}" badge's accessible name doesn't say what ${m[2]} means: "${x.aria}"`);
++      }
++      // The job page: the score's tip and the Juice text say what its grade means.
++      await openJuice(page, st, c);
++      const pill = await page.locator('#drawer .juice-score').evaluate((e) => ({ text: e.textContent.trim(), title: e.title }));
++      const g = /· (\w+)/.exec(pill.text)?.[1];
++      const meaning = gradeMeaning(g).replace(/ \(.*$/, '');
++      if (!pill.title.startsWith(`${pill.text}: ${meaning}`)) bad.push(`the job page's "${pill.text}" tip: "${pill.title.slice(0, 160)}"`);
++      const where = (await page.locator('#drawer .juice-where').textContent()).replace(/\s+/g, ' ');
++      if (!where.includes(`${g} means ${gradeShort(g)}`)) bad.push(`the Juice text doesn't say what ${g} means: "${where.slice(0, 200)}"`);
++      // The Juice filter's Dry chip says Rind is counted there.
++      const dry = await page.locator('.kw--juice.kw--dry').first().getAttribute('title').catch(() => null);
++      if (dry != null && !/Rind/.test(dry)) bad.push(`the Dry filter's tip doesn't say Rind is counted there: "${dry}"`);
++      // The chart's view switch: a plain tip on each button.
++      await page.goto(`${st.beta}/#c=google`);
++      await ready(page);
++      const views = await page.locator('[data-view]').evaluateAll((els) => els.map((e) => ({ v: e.dataset.view, title: e.title })));
++      const cl = views.find((v) => v.v === 'clusters')?.title || '', ra = views.find((v) => v.v === 'ranges')?.title || '';
++      if (!/^Clusters: each bubble is a group of roles with about the same pay/.test(cl)) bad.push(`Clusters tip: "${cl}"`);
++      if (!/^Ranges: one bar for each role/.test(ra)) bad.push(`Ranges tip: "${ra}"`);
++      // The edge chips ("‹2", "›13"): an accessible name and a tip that say what they are.
++      let chip = null;
++      for (const slug of ['google', 'amazon', 'microsoft']) {
++        if (slug !== 'google') { await page.goto(`${st.beta}/#c=${slug}`); await ready(page); }
++        await page.waitForSelector('#chartHost .ms-bin', { timeout: 60000 }).catch(() => {});
++        chip = await page.locator('#chartHost .ms-bin--overflow').first().evaluate((e) => ({ text: e.textContent.trim(), aria: e.getAttribute('aria-label') })).catch(() => null);
++        if (chip) break;
++      }
++      if (!chip) ctx.notes.push('fix-juice-6 [J-4]: no edge chip on Google, Amazon or Microsoft in this build; the chip words were not checked');
++      else {
++        const side = chip.text.startsWith('›') ? 'right' : 'left';
++        if (!new RegExp(`past the ${side} edge of the chart`).test(chip.aria || '')) bad.push(`the "${chip.text}" chip's accessible name: "${chip.aria}"`);
++        if (d.desktop) {
++          // Its tip (the chart's own, on hover) says the same.
++          await page.locator('#chartHost .ms-bin--overflow').first().hover();
++          await sleep(300);
++          const tip = await page.locator('.ms-viz-tip:not([hidden])').first().textContent().catch(() => '');
++          if (!new RegExp(`paid (above|below) .*, past the ${side} edge of the chart`).test(tip || '')) bad.push(`the "${chip.text}" chip's tip: "${(tip || '').slice(0, 160)}"`);
++        }
++      }
++      assert(!bad.length, bad.join('; '));
++      assert(!errors.length, errors.join('; '));
++    });
++
++    suite.test(`fix-juice-6: [J-5] ${d.width}x${d.height}: a card's Juice grade is for the place the card names first, and its tip and accessible name say the place`, async (ctx) => {
++      const all = await findCases(ctx);
++      const cases = Object.values(all.j5);
++      if (!cases.length) skip('no posting scored at several places with its best place listed after its first in this build');
++      const { st, page, errors } = await open(ctx, d);
++      const bad = [];
++      for (const c of cases) {
++        await page.goto('about:blank');
++        await page.goto(`${st.beta}/#c=${c.slug}&q=${encodeURIComponent(c.title)}`);
++        await ready(page);
++        await sleep(400);
++        const card = page.locator(`#resultsList .card[data-id="${c.id}"]`);
++        if (!(await card.count())) { bad.push(`${c.slug} ${c.id}: no card for "${c.title}"`); continue; }
++        const r = await card.evaluate((e) => ({ loc: e.querySelector('.card-loc')?.textContent.trim(), badge: e.querySelector('.juice-badge')?.textContent.trim(), title: e.querySelector('.juice-badge')?.title, aria: e.querySelector('.juice-badge')?.getAttribute('aria-label') }));
++        const grade = `${c.score} · ${c.grade}`;
++        if (!(r.loc || '').startsWith(c.graded)) bad.push(`${c.slug} ${c.id}: the card reads "${r.loc}" and its Juice "${r.badge}" is for ${c.graded}`);
++        if (!(r.title || '').startsWith(`${grade}, for ${c.gradedCity}`)) bad.push(`${c.slug} ${c.id}: the badge's tip doesn't start "${grade}, for ${c.gradedCity}": "${(r.title || '').slice(0, 120)}"`);
++        if (!(r.aria || '').includes(`${c.grade}, for ${c.gradedCity}`)) bad.push(`${c.slug} ${c.id}: the badge's accessible name doesn't name ${c.gradedCity}: "${r.aria}"`);
++        bad.push(...await oneLine(page, `#resultsList .card[data-id="${c.id}"] .juice-badge`, `${c.slug} ${c.id} badge`));
++      }
++      assert(!bad.length, bad.join('; '));
++      assert(!errors.length, errors.join('; '));
++    });
++  }
++
++  // [phone] Every line this lane added or changed, at every size: the Tax row's lines and the household lines for a
++  // family in Ontario (the longest names: "federal income tax", "provincial tax", "CPP and EI") and the UK.
++  for (const d of [...ALL_SIZES, DESKTOP]) {
++    suite.test(`fix-juice-6: [phone] ${d.name} ${d.width}x${d.height}: the Tax row's lines and the household lines are one line each, never cut`, async (ctx) => {
++      const cases = [await placeCase(ctx, PLACES[0]), await placeCase(ctx, PLACES[4]), await placeCase(ctx, PLACES[2])].filter(Boolean);
++      if (!cases.length) skip('no Ontario, US or UK job with Juice in this build');
++      const { st, page, errors } = await open(ctx, d, { household: 'family' });
++      const bad = [];
++      for (const c of cases) {
++        if (!(await openJuice(page, st, c))) continue;
++        for (const period of ['year', 'month']) {
++          const b = page.locator(`#drawer .d-juice [data-period="${period}"]`);
++          if (await b.count()) { await b.click(); await sleep(400); }
++          bad.push(...await oneLine(page, '#drawer .wf--tax .wf-detail, #drawer .juice-hh-note', `${c.id} ${period}`));
++        }
++      }
++      assert(!bad.length, bad.join('; '));
++      assert(!errors.length, errors.join('; '));
++    });
++  }
++}
+diff --git a/test/fix-juice-6.test.js b/test/fix-juice-6.test.js
+new file mode 100644
+index 0000000..98fb35f
+--- /dev/null
++++ b/test/fix-juice-6.test.js
+@@ -0,0 +1,205 @@
++// Fix lane fix-juice-6 (docs/process/fix-juice-6.md): the Juice section's words, found by persona wave 2 (2026-10-23,
++// docs/process/persona-beta-2-35-44.md, -25-34.md, -55-plus.md, -45-54.md). The pure logic is in
++// public/features/juice-drawer.js; what only the built page shows (the drawer's rows at 280, 352, 375 and 1280 px, the
++// remembered Monthly, the tips and the card's place) is in test/e2e/fix-juice-6.e2e.js. Each test fails on fd9da2f.
++//   J-1 the tax rows are named as each country names them (Ontario "provincial tax", Italy "regional and municipal
++//       surcharges", UK "National Insurance", Canada "CPP and EI"); a US row stays "state or local tax".
++//   J-2 the household's tax line can't be misread ("one earner; each person is taxed separately" read as a contradiction).
++//   J-3 Monthly / Yearly is remembered like the household.
++//   J-4 the grades say what they mean where they first show.
++// The tax numbers are not touched: these tests read server/juice.js, and test/juice*.test.js pin its figures.
++import { test } from 'node:test';
++import assert from 'node:assert/strict';
++import fs from 'node:fs';
++import path from 'node:path';
++import { fileURLToPath } from 'node:url';
++
++import {
++  taxRowNames, taxRows, jurisdictionOf, householdTaxLine, HOUSEHOLD_LINES, HOUSEHOLD_TIPS,
++  PERIOD_KEY, periodOf, shownPeriod, gradeMeaning, gradeShort, countryWords,
++} from '../public/features/juice-drawer.js';
++import { computeJuice, TAX_COUNTRIES, TAX_HOUSEHOLD } from '../server/juice.js';
++
++const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
++const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
++const APP = read('public/app.js');
++const CITIES = JSON.parse(read('data/cities.json'));
++/** A check on app.js's source that prints only its message when it fails. */
++const has = (re, msg) => assert.ok(re.test(APP), `public/app.js: ${msg || re}`);
++const hasNot = (re, msg) => assert.ok(!re.test(APP), `public/app.js still has ${msg || re}`);
++const words = (s) => s.split(' ').filter((x) => /[\p{L}\p{N}]/u.test(x)).length;
++// The narrowest drawer (Galaxy Fold, 280 px) leaves 128 px for a Tax row's line at 12 px: about 24 characters.
++const NARROW_CHARS = 24;
++
++/** Every city's Juice for one person and a family on a big-tech salary, with its tax split. */
++function everyCity() {
++  const out = [];
++  for (const city of CITIES.cities) {
++    for (const household of ['single', 'couple', 'family']) {
++      let j;
++      try { j = computeJuice(180000, city, { household }); } catch { continue; } // a city with no 3-bedroom rent
++      out.push({ city, household, j });
++    }
++  }
++  return out;
++}
++const ALL = everyCity();
++
++/* ---------------------------------------------------------------- J-1: the tax rows' names */
++
++test('J-1: Ontario\'s rows are federal income tax, provincial tax, and CPP and EI (not "state or local tax", "social security")', () => {
++  const n = taxRowNames({ country: 'CA', region: 'ON' });
++  assert.equal(n.income[0], 'federal income tax');
++  assert.equal(n.regional[0], 'provincial tax');
++  assert.equal(n.social[0], 'CPP and EI');
++  const toronto = CITIES.cities.find((c) => c.key === 'toronto-on-ca');
++  const j = computeJuice(150000, toronto, { household: 'family' });
++  const rows = taxRows(j.taxParts, jurisdictionOf({ ...j, city: toronto.key }), (v) => `$${v.toLocaleString('en-US')}`);
++  assert.deepEqual(rows.map((r) => r.variants[0].replace(/ \$[\d,]+$/, '')), ['federal income tax', 'provincial tax', 'CPP and EI']);
++  assert.ok(rows.every((r) => r.variants.every((v) => /\$[\d,]+$/.test(v))), 'every variant ends with its amount');
++  // Quebec has its own pension plan and parental insurance.
++  assert.equal(taxRowNames({ country: 'CA', region: 'QC' }).social[0], 'QPP, QPIP and EI');
++});
++
++test('J-1: Italy\'s regional surcharge, the UK\'s National Insurance (NI), and a US state\'s "state or local tax"', () => {
++  assert.equal(taxRowNames({ country: 'IT' }).regional[0], 'regional and municipal surcharges');
++  const gb = taxRowNames({ country: 'GB' });
++  assert.equal(gb.social[0], 'National Insurance');
++  assert.ok(gb.social.includes('NI'), 'the narrow form abbreviates as the UK does');
++  for (const region of ['CA', 'NY', 'GA', 'VA', 'WA', 'TX']) assert.equal(taxRowNames({ country: 'US', region }).regional[0], 'state or local tax', `US-${region}`);
++  assert.match(taxRowNames({ country: 'US', region: 'WA' }).social[0], /WA Cares and paid leave/);
++  assert.match(taxRowNames({ country: 'DE' }).income[0], /solidarity surcharge/);
++  assert.match(taxRowNames({ country: 'DE' }).social[0], /^social insurance/);
++});
++
++test('J-1: every country Juice taxes has its own names; outside the US no row reads "state or local tax", and only Belgium "social security"', () => {
++  for (const c of TAX_COUNTRIES) {
++    const n = taxRowNames({ country: c });
++    for (const k of ['income', 'regional', 'social']) {
++      assert.ok(n[k].length >= 1 && n[k].every((v) => typeof v === 'string' && v.length), `${c} ${k}`);
++      if (c !== 'US') assert.notEqual(n[k][0], 'state or local tax', `${c} ${k}`);
++      if (c !== 'BE') assert.notEqual(n[k][0], 'social security', `${c} ${k}`);
++    }
++    assert.ok(countryWords(c) !== 'this country', `${c} has a name in a sentence`);
++  }
++  // Every row a city's tax actually shows has a name with a narrow form short enough for a 280 px drawer.
++  const seen = new Set();
++  for (const { city, j } of ALL) {
++    const jur = jurisdictionOf({ ...j, city: city.key });
++    for (const r of taxRows(j.taxParts, jur, (v) => `$${(Math.round(v / 100) * 100).toLocaleString('en-US')}`)) {
++      seen.add(`${jur.country}:${r.part}`);
++      const short = r.variants[r.variants.length - 1];
++      assert.ok(short.length <= NARROW_CHARS + 2, `${city.key} ${r.part}: "${short}" is ${short.length} characters, more than a 280 px line holds`);
++      assert.ok(words(r.variants[0]) <= 12, `${city.key} ${r.part}: "${r.variants[0]}"`);
++    }
++  }
++  for (const want of ['CA:regional', 'IT:regional', 'GB:social', 'DE:social', 'US:regional', 'CH:regional', 'JP:regional', 'SE:regional', 'DK:social']) assert.ok(seen.has(want), want);
++});
++
++test('J-1: the place is read from the best place\'s own jurisdiction, else the city record, else the city key', () => {
++  assert.deepEqual(jurisdictionOf({ inputs: { tax: { jurisdiction: ['US', 'US-NY', 'US-LOCAL-NYC'] } } }), { country: 'US', region: 'NY', local: 'NYC' });
++  assert.deepEqual(jurisdictionOf({ inputs: { tax: { jurisdiction: ['CA', 'CA-ON'] } } }), { country: 'CA', region: 'ON', local: null });
++  const geneva = CITIES.cities.find((c) => c.key === 'geneva-ch');
++  assert.deepEqual(jurisdictionOf({ city: 'geneva-ch' }, geneva), { country: 'CH', region: 'GE', local: null });
++  assert.equal(taxRowNames(jurisdictionOf({ city: 'geneva-ch' }, geneva)).income[0], 'federal, cantonal and communal tax');
++  assert.deepEqual(jurisdictionOf({ city: 'montreal-qc-ca' }), { country: 'CA', region: 'QC', local: null });
++  assert.deepEqual(jurisdictionOf({ city: 'milan-it' }), { country: 'IT', region: null, local: null });
++  // Each city's own record and its computed inputs agree.
++  for (const { city, j } of ALL.filter((x) => x.household === 'single')) {
++    const a = jurisdictionOf(j), b = jurisdictionOf({ city: city.key }, city);
++    assert.equal(a.country, b.country, city.key);
++    assert.equal(a.region, b.region, city.key);
++  }
++});
++
++test('J-1: app.js names the Tax row\'s parts with taxRows (no fixed "state or local tax" / "social security" list)', () => {
++  hasNot(/\['state or local tax', tp\.regional\]/);
++  has(/taxRows\(/);
++  has(/wf-tax-part/);
++});
++
++/* ---------------------------------------------------------------- J-2: the household's tax line */
++
++test('J-2: the household tax line says how the country taxes one earner, and never "each person is taxed separately"', () => {
++  const ca = householdTaxLine('family', 'individual', { country: 'CA', region: 'ON' });
++  assert.equal(ca[0], 'Canada taxes each person on their own pay, as if single');
++  assert.equal(ca[ca.length - 1], 'Taxed as if single');
++  assert.match(householdTaxLine('couple', 'individual', { country: 'GB' })[0], /^The UK taxes each person on their own pay/);
++  assert.match(householdTaxLine('couple', 'joint', { country: 'DE' })[0], /Germany splits the pay between the couple/);
++  assert.match(householdTaxLine('family', 'joint', { country: 'US', region: 'GA' })[0], /Joint filing and the child tax credit/);
++  assert.match(householdTaxLine('couple', 'single', { country: 'PL' })[0], /^Poland’s joint filing isn’t counted here/);
++  assert.equal(householdTaxLine('single', 'single', { country: 'US' }), null);
++  // Every basis the model gives, for every city and household: a line that can't be read as two earners.
++  for (const { city, household, j } of ALL) {
++    const basis = j.inputs.tax.basis;
++    const line = householdTaxLine(household, basis, jurisdictionOf(j));
++    if (household === 'single') { assert.equal(line, null); continue; }
++    assert.ok(line && line.length, `${city.key} ${household}`);
++    for (const v of line) {
++      assert.doesNotMatch(v, /separately|one earner;|filer|aren’t modeled here/, `${city.key} ${household} ${basis}: "${v}"`);
++      assert.ok(words(v) <= 12, `${city.key} ${household}: "${v}" has ${words(v)} words`);
++    }
++    assert.ok(line[line.length - 1].length <= NARROW_CHARS, `${city.key} ${household}: "${line[line.length - 1]}" is too long for a 280 px drawer`);
++    if (basis === 'individual') assert.match(line[0], /taxes each person on their own pay/, city.key);
++  }
++  // Every country rule's basis has words (server/juice.js TAX_HOUSEHOLD).
++  for (const [key, e] of Object.entries(TAX_HOUSEHOLD)) {
++    const c = key.split('-')[0];
++    assert.ok(householdTaxLine('couple', e.basis === 'neutral' ? 'individual' : e.basis, { country: c })?.length, key);
++  }
++});
++
++test('J-2: the household line and the buttons\' tips say one adult earns and the other is not working, with no US filing status', () => {
++  assert.match(HOUSEHOLD_LINES.couple[0], /1 earner \(the other not working\)/);
++  assert.match(HOUSEHOLD_LINES.family[0], /1 earner, 1 not working/);
++  for (const k of ['couple', 'family']) {
++    assert.match(HOUSEHOLD_TIPS[k], /one earning and the other not working/);
++    assert.doesNotMatch(HOUSEHOLD_TIPS[k], /filing jointly/);
++    for (const v of HOUSEHOLD_LINES[k]) assert.ok(words(v) <= 12, v);
++  }
++  hasNot(/here means one earner; each person is taxed separately/);
++  hasNot(/one earner \(married, filing jointly\)/);
++  has(/householdTaxLine\(/);
++});
++
++/* ---------------------------------------------------------------- J-3: Monthly / Yearly remembered */
++
++test('J-3: the period is kept like the household: one localStorage key, the default for anything else', () => {
++  assert.equal(PERIOD_KEY, 'melon-seek.juicePeriod.v1');
++  assert.equal(periodOf('month'), 'month');
++  assert.equal(periodOf('year'), 'year');
++  assert.equal(periodOf('term'), 'term');
++  for (const bad of [null, undefined, '', 'weekly', 12, {}]) assert.equal(periodOf(bad), 'year', String(bad));
++  assert.equal(shownPeriod('month'), 'month');
++  assert.equal(shownPeriod('term'), 'year', 'yearly pay has no whole term');
++  assert.equal(shownPeriod('year', { weeks: 12 }), 'month', 'fixed-term pay is never shown per year');
++  assert.equal(shownPeriod('term', { weeks: 12 }), 'term');
++  assert.equal(shownPeriod('term', { unstated: true }), 'month', 'no whole term when the length is not stated');
++  // app.js reads it with the household's helpers (lsGet / lsSet, try/catch inside) and writes it on every pick.
++  has(/let juicePeriod = periodOf\(lsGet\(PERIOD_KEY, 'year'\)\)/);
++  has(/juicePeriod = v; lsSet\(PERIOD_KEY, v\);/);
++  const hh = APP.match(/const HOUSEHOLD_KEY = '([^']+)'/)?.[1];
++  assert.equal(hh?.replace('household', 'juicePeriod'), PERIOD_KEY, 'named like the household key');
++});
++
++/* ---------------------------------------------------------------- J-4: the grades say what they mean */
++
++test('J-4: each grade says what it means, with its amounts, and app.js puts it in the card\'s and the drawer\'s tips', () => {
++  const scale = { ripe: '$43K', juicy: '$116K' };
++  assert.equal(gradeMeaning('Rind', scale), 'nothing left: tax, rent and living costs take all the pay or more');
++  assert.equal(gradeMeaning('Dry', scale), 'a thin margin left (under $43K a year)');
++  assert.match(gradeMeaning('Ripe', scale), /\$43K–116K a year/);
++  assert.match(gradeMeaning('Juicy', scale), /\$116K or more a year/);
++  for (const g of ['Juicy', 'Ripe', 'Dry', 'Rind']) assert.match(gradeShort(g), /is left$/, g);
++  has(/gradeMeaning\(/);
++  has(/gradeShort\(/);
++  // The Dry filter's tip says Rind is counted there (the guide: "Rind jobs are listed under Dry").
++  has(/\['Dry', '[^']*Rind[^']*'\]/);
++  // The chart's view switch has plain tips (public/index.html).
++  const html = read('public/index.html');
++  assert.match(html, /data-view="clusters"[^>]*title="Clusters: each bubble is a group of roles with about the same pay/);
++  assert.match(html, /data-view="ranges"[^>]*title="Ranges: one bar for each role/);
++  // The edge chips ("‹2", "›13") say which edge and what they hold (public/viz/chart.js overflowMarker).
++  const chart = read('public/viz/chart.js');
++  assert.match(chart, /past the \$\{hi \? 'right' : 'left'\} edge of the chart/);
++});
+-- 
+2.43.0
+

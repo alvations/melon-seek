@@ -1,0 +1,45 @@
+From 9755677e9d15994964cb9cf8c8088e7ef64ff6d7 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 24 Oct 2026 01:22:48 +0000
+Subject: [PATCH 56/63] fix-app-6: two e2e checks read a place's count as its
+ own plus its country- or state-wide postings (BN-1)
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+---
+ test/e2e/fix-phone-controls.e2e.js | 2 +-
+ test/e2e/ui.e2e.js                 | 5 ++++-
+ 2 files changed, 5 insertions(+), 2 deletions(-)
+
+diff --git a/test/e2e/fix-phone-controls.e2e.js b/test/e2e/fix-phone-controls.e2e.js
+index 42079bb..6332648 100644
+--- a/test/e2e/fix-phone-controls.e2e.js
++++ b/test/e2e/fix-phone-controls.e2e.js
+@@ -237,7 +237,7 @@ function shownRows(sel) {
+     const input = row?.querySelector('input');
+     // The checkbox's name from its <label>: the name, then the count.
+     const named = input?.labels?.[0]?.cloneNode(true);
+-    named?.querySelectorAll('.check-count').forEach((e) => e.remove());
++    named?.querySelectorAll('.check-count, .check-wide').forEach((e) => e.remove()); // fix-app-6 (BN-1): "3 +294"
+     const lh = parseFloat(getComputedStyle(label).lineHeight) || parseFloat(getComputedStyle(label).fontSize) * 1.3;
+     return {
+       full: label.textContent.replace(/\s+/g, ' ').trim(),
+diff --git a/test/e2e/ui.e2e.js b/test/e2e/ui.e2e.js
+index 7f763fd..c788bad 100644
+--- a/test/e2e/ui.e2e.js
++++ b/test/e2e/ui.e2e.js
+@@ -403,7 +403,10 @@ export function registerUiTests(suite) {
+       const before = await resultCount(page);
+       const row = filterSection(page, 'Department').locator('label.check').nth(1);
+       const dept = (await row.locator('.check-label').innerText()).trim();
+-      const expectedCount = Number((await row.locator('.check-count').innerText()).trim());
++      // fix-app-6 (BN-1): a place's own count, with the roles listed only for its country or state beside it ("481 +18"); a pick
++      // finds both (I-6).
++      const wide = (await row.locator('.check-wide').count()) ? Number((await row.locator('.check-wide').innerText()).replace(/\D/g, '')) : 0;
++      const expectedCount = Number((await row.locator('.check-count').innerText()).trim()) + wide;
+       await row.click();
+       const after = await countChange(page, before);
+       assert(after < before && after > 0, `department "${dept}" should narrow (${before} -> ${after})`);
+-- 
+2.43.0
+

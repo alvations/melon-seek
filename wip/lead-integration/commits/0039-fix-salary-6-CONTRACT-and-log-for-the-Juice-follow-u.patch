@@ -1,0 +1,47 @@
+From 94d65d087356c8e812f246f20856ec4f7676d9f3 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 24 Oct 2026 05:10:25 +0000
+Subject: [PATCH 39/39] fix-salary-6: CONTRACT and log for the Juice follow-up
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+(cherry picked from commit b0795a26806560ff202385b5e54187e352a0672a)
+---
+ docs/CONTRACT.md             | 4 +++-
+ docs/process/fix-salary-6.md | 8 ++++++++
+ 2 files changed, 11 insertions(+), 1 deletion(-)
+
+diff --git a/docs/CONTRACT.md b/docs/CONTRACT.md
+index 3539768..b9b2ec0 100644
+--- a/docs/CONTRACT.md
++++ b/docs/CONTRACT.md
+@@ -1086,7 +1086,9 @@ interval, in posted order; `head` marks the headline's line. New export `nationC
+ split, which `withAreaRanges` still exports) and `tieRangePlaces(salary, locations, text)` (structured rows named for places).
+ 
+ **Juice (`server/juice.js#attachJuice`):** a place with its own row is matched to the row's currency and country (`ranges[].country`,
+-else `salary.country`) and scored on that row's midpoint in its currency: Milan on Italy's line, Toronto on the CAD line.
++else `salary.country`) and scored on that row's midpoint in its currency: Milan on Italy's line, Toronto on the CAD line. When the
++posting's priced places have no city record and every place that has one is in a country no row prices (Cohere's London beside its
++"Canada" and "United States" rows), `juiceMissing` is `pay-other-country` again, as before the rows were tied.
+ 
+ **App (`public/app.js`):**
+ - `payRanges(s)` returns rows in any currency. `payHeadline` spans only the rows in `salary.currency`; with one such row the
+diff --git a/docs/process/fix-salary-6.md b/docs/process/fix-salary-6.md
+index 45a401a..210be7a 100644
+--- a/docs/process/fix-salary-6.md
++++ b/docs/process/fix-salary-6.md
+@@ -166,3 +166,11 @@ tests, 1,331 pass, 0 fail, 2 skipped (load 15–29, so its timings are noise).
+ - 2026-10-24 00:30: resumed after the container restart; nothing was lost. Plan sent to the lead, approved.
+ - 00:44: the fix and 18 red tests (015d801); 00:46 norm-14 and re-baselines (93b8979).
+ - 00:55: bulleted degree lines; e2e file (6926984). 01:00: Amazon guard (2b92966). 01:05: docs (da401d7).
++- 02:0x: the drawer's rank by the picked line's country (8a8fee6); screenshots; 49e86ee sent to the lead.
++- Follow-up from the lead (fix-juice-6 found it on e77cd41): "fix3-data: [browser] lib/juice.js gives no Juice from another
++  country's pay…" failed. Cohere's "Head of Corporate Development" has rows tied to "Canada" and "United States", places with no
++  city record, so attachJuice returned with no `juiceMissing` for London. Fixed on the lead's head 942db8a (3462319): when every
++  place with a city record is in a country no row (nor the headline) prices, `juiceMissing` is `pay-other-country`, with the old
++  text ("the pay is posted in Canadian dollars (for Canada), and London, UK uses another currency"). The e2e test was right and is
++  unchanged; a unit test in test/fix-salary-6.test.js fails on 942db8a and passes now. Cohere on the built list: 67 postings
++  with Juice (65 on e800c43's), the 2 London postings say why, and the 13 with neither are the same as before.
+-- 
+2.43.0
+

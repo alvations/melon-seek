@@ -1,7 +1,7 @@
 From 38e122eb496e92a65d27e0bd8c93c2243319e14f Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 24 Oct 2026 02:24:46 +0000
-Subject: [PATCH 35/37] fix-juice-6: after screenshots (Toronto, Milan, London,
+Subject: [PATCH 35/39] fix-juice-6: after screenshots (Toronto, Milan, London,
  Munich, New York at 280, 375, 352 and 1280; J-5 cards), shrunk
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
