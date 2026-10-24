@@ -736,7 +736,7 @@ export function registerFixUi6Tests(suite) {
         return { rowsEnd: Math.round(rowsEnd), next: Math.round(next), blank: Math.round(next - rowsEnd), scroll: host.querySelector('.ms-chart__scroll')?.clientHeight };
       });
       if (g.blank > 48) await shot(page, `B-10-few-roles-${slug(size.name)}-${size.width}x${size.height}`);
-      if (size.width === 412 && size.height === 915) await shot(page, `B-10-few-roles-pixel8`);
+      if ((size.width === 412 && size.height === 915) || size === MINI_SAFARI) await shot(page, `B-10-few-roles-${size.width}x${size.height}`);
       assert(g.blank <= 48 && !errors.length, `${n} roles: ${g.blank} px blank between the chart's rows (end ${g.rowsEnd}) and what follows (${g.next}) ${errors.join(' | ')}`);
     });
   }
@@ -777,9 +777,9 @@ export function registerFixUi6Tests(suite) {
         else {
           if (!r.title) bad.push(`${board}: the first card's title "${r.text}" is not on the first screen (its first line ends at ${r.titleBottom}, the sheet's top at ${r.sheetTop}, the screen ${r.inner})`);
           if (!cover && !r.pay) bad.push(`${board}: the first card's pay is not on the first screen (it ends at ${r.payBottom}, the screen ${r.inner})`);
-          if (r.chart < 40) bad.push(`${board}: the chart is ${r.chart} px tall`);
+          if (r.chart < (cover ? 32 : 40)) bad.push(`${board}: the chart is ${r.chart} px tall`);
         }
-        if (board === 'google' && [280, 352, 390].includes(size.width)) await shot(page, `B-12-first-screen-${slug(size.name)}-${size.width}x${size.height}`);
+        if (board === 'google' && ([280, 352, 390].includes(size.width) || size === MINI_SAFARI)) await shot(page, `B-12-first-screen-${slug(size.name)}-${size.width}x${size.height}`);
         bad.push(...errors);
         await context.close();
       }

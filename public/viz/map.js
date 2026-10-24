@@ -1126,20 +1126,26 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
       for (const p of container.querySelectorAll('.ms-pin')) { const r = pinFootprint(p); if (r && (!inside(r) || ctl.some((c) => nearHit(r, c)))) n++; }
       return n;
     };
-    // B-7 (fix-ui-6): a small pan first, at the fitted zoom, so no pin is merged away by zooming out: up and down in 4 px
-    // steps (Apple on the Razr cover screen needs 12 px: its pins span 100 of the map's 123 px, and the attribution takes
-    // the foot's 17), then sideways. True when a pan clears every pin; otherwise the map is back where it was.
-    const shifts = [];
-    for (let d = 4; d <= 32; d += 4) shifts.push([0, -d], [0, d]);
-    shifts.push([-24, 0], [24, 0], [-24, -16], [24, -16], [-24, 16], [24, 16]);
+    // B-7 (fix-ui-6): a small pan first, at the fitted zoom, so no pin is merged away by zooming out. Every pin moves with
+    // a pan, so the offsets are tried on the pins' boxes (up to 32 px up or down and 24 px sideways, nearest first) and
+    // the map pans once, to the nearest that clears them all: Apple on the Razr cover screen needs 12 px up (its pins
+    // span 100 of the map's 123 px and the attribution takes the foot's 17), and on the 280 px Fold 4 px right and 8 px
+    // down at once. True when a pan clears every pin; otherwise the map stays where it was.
     const panClear = () => {
-      let at = [0, 0];
-      for (const [dx, dy] of shifts) {
-        map.panBy([dx - at[0], dy - at[1]], { animate: false });
-        at = [dx, dy];
-        if (!covered()) return true;
-      }
-      map.panBy([-at[0], -at[1]], { animate: false }); // nothing better: back where the fit put it
+      const ctl = controlBoxes();
+      const pins = [...container.querySelectorAll('.ms-pin')].map(pinFootprint).filter(Boolean);
+      const clearAt = (dx, dy) => pins.every((r) => {
+        const q = { left: r.left + dx, right: r.right + dx, top: r.top + dy, bottom: r.bottom + dy };
+        return inside(q) && !ctl.some((c) => nearHit(q, c));
+      });
+      const offsets = [];
+      for (let dy = -32; dy <= 32; dy += 2) for (let dx = -24; dx <= 24; dx += 2) if (dx || dy) offsets.push([dx, dy]);
+      offsets.sort((a, b) => Math.abs(a[0]) + Math.abs(a[1]) - Math.abs(b[0]) - Math.abs(b[1]));
+      const hit = offsets.find(([dx, dy]) => clearAt(dx, dy));
+      if (!hit) return false;
+      map.panBy([-hit[0], -hit[1]], { animate: false }); // panBy moves the view: the pins move the other way
+      if (!covered()) return true;
+      map.panBy([hit[0], hit[1]], { animate: false }); // a pan across the date line moved them otherwise: back
       return false;
     };
     // A re-check after a resize (the sheet settling) starts from the pins as they are: one merged at a size the map

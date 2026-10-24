@@ -1797,3 +1797,14 @@ html[data-mode="map"] .tagline, html[data-mode="insights"] .tagline { display: n
   .toast { top: calc(6px + env(safe-area-inset-top)); bottom: auto; left: 8px; right: 8px; max-width: none; transform: translate(0, -8px); border-radius: 14px; text-align: center; }
   .toast.is-on { transform: none; }
 }
+/* B-7 (fix-ui-6): on a short screen over 860 px (the Razr inner screen in landscape, 1005x412; an iPhone Pro Max in
+   landscape) the map kept viz.css's 320 px minimum in a 260 px box, so its foot was cut off: the Remote button and the
+   attribution sat below the screen, and pins fitted to the whole map ran out of the part that shows. As on phones in
+   landscape (M-1), the map fits the box. */
+@media (max-height: 500px) {
+  .ms-map { min-height: 0; }
+}
+@media (max-width: 319px) and (min-height: 501px) {
+  /* B-12: at 280 px the Juice line above the list takes two lines, so the peek reaches 16 px further for the first card. */
+  :root:not([data-mode="map"]) { --sheet-peek: 172px; }
+}
