@@ -1,18 +1,23 @@
 # Process log: fix-data-6 (data and test engineer, fix wave 6)
 
 ## State
-- 2026-10-24 01:15 UTC: base 00bd52c (detached). Every ID is fixed and committed (G-1, T-19, C-1; K-1, P-1, P-2, P-3, R-1,
-  R-2, R-3, G-2, G-3); the related e2e groups on the build of 29250f0 are running.
-- **Commits (worktree only, never pushed), oldest first:** 4d675bb brief, 93dfb08 log, cb71da7 G-1 + K-1 + norm-14,
-  fa52f61 freshness inventory, 5440eba R-1/R-3, R-2, K-1 bonus targets, P-1, P-2 and the e2e file, 5e29ff4 T-19, 0f007cc log,
-  7b3a06a P-3 and C-1, b2a684e CONTRACT, DATA_SOURCES and the guide, 29250f0 G-2 and G-3, then the docs for G-2/G-3 and this log.
-- **Verified:** npm test CI-like at 29250f0: 1,328 tests, 1,318 pass, 0 fail, 10 skipped. Unit file test/fix-data-6.test.js
-  20/20. Red: the 10 ID e2e tests all fail on the base build (`scratchpad/fd6/dist-base`, 00bd52c), each on its finding; all 10
-  pass on the build of 7b3a06a.
-- **Next:** the related e2e groups (312 tests, with the 21 phone sizes) on the build of 29250f0, T-19 with `--max-skips=0`;
-  send the SHAs to the lead.
+- 2026-10-24 04:45 UTC: **rebased onto e77cd41** (the lead's integration with fix-salary-6), detached; the container
+  restarted at 04:33 and the worktree and links were intact. Every ID is fixed and committed (G-1, T-19, C-1; K-1, P-1, P-2,
+  P-3, R-1, R-2, R-3, G-2, G-3). Running: the related e2e groups (fix-salary-6's included) on the build of 733f793, and the
+  per-board counts against e77cd41's build (`scratchpad/fd6/dist-int`).
+- **Commits after the rebase (worktree only, never pushed), oldest first:** 5c995f2 brief, 2ac23ef log, 63139ff log,
+  5887101 G-1 + K-1 + norm-14 (golden re-baselined on top of fix-salary-6's: 2 of 300), c89c769 log, f21a0c4 freshness inventory,
+  8afc8a3 R-1/R-3, R-2, K-1 targets, P-1, P-2 and the e2e file, 5eb6871 T-19, 5f9ed0f log, 08512b1 P-3 and C-1, 3115ae8 docs,
+  1ebab41 G-2 and G-3, 30603a6 docs for G-2/G-3 and this log, 799a164 related e2e fixes, 733f793 one line at 280 and 320 px.
+  (Before the rebase: cb71da7, fa52f61, 5440eba, 5e29ff4, 0f007cc, 7b3a06a, b2a684e, 29250f0, 5bf929d, 5a9ef58.)
+- **Verified:** npm test CI-like at 799a164 (rebased): 1,348 tests, 1,335 pass, 3 fail (fix-salary-6.test.js's harness lacked
+  P-3's `isFullTimeHourly`; stubbed in 733f793, file 20/20), 10 skipped. Unit file test/fix-data-6.test.js 20/20. Red: the 10 ID
+  e2e tests all fail on the base build (00bd52c), each on its finding; all 10 pass on the build of 7b3a06a. Related groups on the
+  build of 29250f0 (before the rebase): 308 of 311 passed; the 3 failures were tests that expected the old rounded heading or
+  had never run (T-19), fixed in 799a164 and passing on their re-run.
+- **Next:** the related groups' result on 733f793, npm test at the head in the clean checkout, then the SHAs to the lead.
 - Not committed: the data links (data/snapshots, data/beta/snapshots) and node_modules.
-- Shares norm-14 with fix-salary-6 (the lead re-baselines the golden file after integrating both).
+- norm-14 is shared with fix-salary-6 (one bump; the golden history has both lanes' norm-14 entries).
 
 ## 1. Brief
 - **Prompt:** [prompts/fix-data-6.md](prompts/fix-data-6.md), verbatim.
