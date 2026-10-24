@@ -3,7 +3,8 @@
 ## State
 - 2026-10-24 08:45 UTC: **on top of f13ebd6** (the lead's integration: fix-salary-6, fix-ui-6, fix-juice-6, fix-app-6), detached,
   after rebasing onto e77cd41, then 942db8a, then f13ebd6 as the lead asked. Every ID is fixed and committed: G-1, T-19, C-1;
-  K-1, P-1, P-2, P-3, P-4, R-1, R-2, R-3, G-2, G-3. Head: see the change log's last line.
+  K-1, P-1, P-2, P-3, P-4, R-1, R-2, R-3, G-2, G-3, and G-4 (the lead's last: "Bogota, D.C." is Bogotá, Colombia) on top of
+  217ff5c. Head: see the change log's last line.
 - **Verified at 6963435 (P-4 head):** npm test CI-like in the clean checkout: 1,381 tests, 1,371 pass, 0 fail, 10 skipped. e2e
   on its build: the groups P-4 touches (fix-data-6, Fix3 app, Fix app, fix-juice-6, fix-salary-6, fix-pay-at-place, Compstimate,
   fix-estimates, fix-app-6, fix-qa4) 315 of 316; the one failure, fix-juice-6 [J-4] at 1280x800, is a race in that test (§3,
@@ -130,6 +131,10 @@
     chart (Microsoft's, from the step before) for a moment, so the first edge chip in the DOM was Microsoft's "›1" while the
     hover landed on Google's "‹2" (probe: `scratchpad/fd6/tools/j4probe.mjs` with PRE=microsoft). My data changes picked a
     Microsoft case for the step before; the race is the test's. The tip is now checked for the chip under the mouse (`:hover`).
+20. **G-4 (from the lead): "Bogota, D.C." is Bogotá, Colombia** (D.C. = Distrito Capital), a country change the lead decided (a
+    Colombian job shown in the US misrepresents it). One alias on the Bogotá entry, "Bogota DC": `normKey` drops dots and
+    accents, so "Bogota, D.C.", "Bogotá, D.C." and "Bogota, DC" all match it as a whole string before any state is read. Kept in
+    norm-14 (not pushed yet); the golden sample has no Bogotá, so no hash moves.
 
 ## 4. Replayable steps
 ```sh
@@ -233,14 +238,17 @@ NODE_PATH=$S/pw/node_modules node scripts/e2e.js --grep="Fix app: \[P-2\]|Deskto
   Palantir 9 → 5, xAI 6 → 0, Netflix 1 → 0), SF Bay Area places (Amazon 1,644 → 1,804, Meta 924 → 995, Apple 2,317 → 2,320, Google
   1,740 → 1,741), Google's bonus mentions 2,512 → 2,462. On top of fix-salary-6: P-1 532 postings (Amazon 284, Apple 248), P-2
   16,414 job-page headings (big tech 16,240), P-3 2,442 full-time hourly cards (2,313 plain, 126 with a range per place, 3 minimums), as before the rebase.
+- **G-4:** geodiff over every stored string (G-4's geo.js against 217ff5c's): **1 result in 15 postings changes, all Amazon**
+  ("Bogota, D.C.": "Bogota, DC" [DC, US] at 38.9, -77.03 → "Bogota, Colombia" [CO] at 4.711, -74.0721); nothing else. The other
+  Bogotá strings (Google 4, Microsoft 2, Shield AI 1, Apple 1) already read Colombia. The 15 also list "Colombia", have no posted
+  pay and no Juice; their job page's estimate was US pay for all 15 ("elsewhere in the US"), now none ("no similar role in
+  Colombia lists pay"). Unit test red first (Washington, DC), green after; Washington, DC and Bogota, NJ unchanged.
 - **P-4:** red first (the posting's shape against the old shared.js: payLocations San Jose, Kirkland, New York, disagreeing with
   payAt at Munich; after: San Jose, Munich, Kirkland, New York, agreeing at every place; payCountry US both). Unit tests in
   test/fix-data-6.test.js (22 now). On the 2026-10-16 crawl 112 postings gain the places their other countries' rows price
   (Cohere 47, Google 34, Microsoft 31; 197 places), none loses one.
 
 ## 6. Known gaps and follow-ups
-- "Bogota, D.C." (15 Amazon postings) is read as Washington, DC: another country. A fix changes the country, not only the
-  coordinates, so it is left for the lead to assign.
 - Big cities written another way are still at their country's centre: "Buenos Aires City" (9), "Ho Chi Minh" (3), "Cracow",
   "Lodz", "Seville", "Hanover", "Brunswick"; and region names read as towns ("Kanagawa", "Hyogo", "Uttar Pradesh"). An alias would
   change their names, so they are not G-1.
@@ -267,3 +275,4 @@ NODE_PATH=$S/pw/node_modules node scripts/e2e.js --grep="Fix app: \[P-2\]|Deskto
 - 05:30–06:45: rebase onto 942db8a; fix-salary-6's e2e figures (6c0f2f1); npm test (1,357, 0 fail); related groups 511 of 513.
 - 06:45–07:45: rebase onto f13ebd6 (6c8f4ca); npm test 1,379, 0 fail; touched groups 277 of 277.
 - 07:45–08:45: P-4 (bb3df83); J-4's race (6963435, then the hovered-chip check); npm test 1,381, 0 fail; touched groups 315 of 316.
+- 08:45–09:10: J-4 alone 2 of 2; 217ff5c; npm test 1,381, 0 fail; SHAs to the lead. G-4 (from the lead): test, alias, geodiff.

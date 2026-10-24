@@ -237,8 +237,10 @@ NZ|New Zealand|-40.90|174.89|NZ
 // "Sagamihara-shi, Kanagawa, JPN": the gazetteer knows neither state) is read with its own country named, as its own
 // place's name only (never a later part of another place), so "Hsinchu, Hsinchu City, TW" stays one place. A "?" entry
 // never decides what a two-letter code means ("Ontario, CA" stays Ontario, Canada, not Ontario, California). On the crawl
-// 359 results change, in 2,206 postings, latitude and longitude only. Left out: "Bogota, D.C." (Bogotá, Colombia: another
-// country, not a town at its centre), and "Monroe Twp" and "Hamilton Twp", NJ (two townships of each name).
+// 359 results change, in 2,206 postings, latitude and longitude only. Left out: "Monroe Twp" and "Hamilton Twp", NJ (two
+// townships of each name). G-4 (fix-data-6, the lead's decision): Amazon's "Bogota, D.C." (D.C. = Distrito Capital, 15
+// postings) is Bogotá, Colombia, by the whole-string alias "Bogota DC" (normKey drops the dots and the accent), not
+// Washington, DC; Bogota, NJ is unchanged.
 // ---------------------------------------------------------------------------
 
 const CITIES_RAW = `
@@ -617,7 +619,7 @@ Rio de Janeiro||BR|-22.9068|-43.1729|VillageMall;Village Mall
 Brasília||BR|-15.7939|-47.8828|Brasilia
 Belo Horizonte||BR|-19.9167|-43.9345|
 Buenos Aires||AR|-34.6037|-58.3816|
-Bogota||CO|4.7110|-74.0721|Bogotá
+Bogota||CO|4.7110|-74.0721|Bogotá;Bogota DC
 Santiago||CL|-33.4489|-70.6693|
 Lima||PE|-12.0464|-77.0428|
 San José||CR|9.9281|-84.0907|San Jose

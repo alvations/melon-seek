@@ -355,3 +355,17 @@ test('P-4 the headline figure keeps its own places: payCountry is US, headlinePa
   assert.deepEqual(shared.payLocations(one).map((l) => l.city), ['Seattle']);
   assert.deepEqual(shared.payLocations(one), shared.headlinePayLocations(one));
 });
+
+/* --------------------------------------------------------------------- G-4 */
+// Amazon writes Bogotá as "Bogota, D.C." (D.C. = Distrito Capital): 15 postings on the 2026-10-16 crawl, read as
+// Washington, DC. It is Bogotá, Colombia; Washington and Bogota, NJ are unchanged.
+test('G-4 "Bogota, D.C." is Bogotá, Colombia, not Washington, DC', () => {
+  for (const s of ['Bogota, D.C.', 'Bogotá, D.C.', 'Bogota D.C.', 'Bogota, DC']) {
+    const [b] = geocode(s);
+    assert.deepEqual([b.city, b.country, locationPrecision(b)], ['Bogota', 'CO', 'city'], s);
+    assert.ok(Math.abs(b.lat - 4.711) < 0.01 && Math.abs(b.lng + 74.0721) < 0.01, `${s}: ${b.lat},${b.lng}`);
+  }
+  // In a list with US places it stays Colombia's.
+  assert.equal(geocodeMany(['Seattle, WA, USA', 'Bogota, D.C.'])[1].country, 'CO');
+  assert.deepEqual(['Washington, D.C.', 'Bogota, NJ'].map((s) => [geocode(s)[0].region, geocode(s)[0].country]), [['DC', 'US'], ['NJ', 'US']]);
+});

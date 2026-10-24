@@ -1228,7 +1228,8 @@ code (`AL ME MD MT PA GA MA MN SC VA NE`, and `LA`, a city alias; not `PR`) is t
 Google's countries.csv), unless another part of the same job's places is in the US ("HR | RS | SI | AL" is Albania; "Austin |
 TX | AL" stays Alabama). `regionInfo` and `finalCountry` do not read a dotted two-letter abbreviation as a country code ("N.L.",
 Nuevo León, is not NL; "U.S." and "U.K." still are). New entries `Monterrey||MX` and the alias "Bayshore Shopping Centre" on
-Ottawa. `GAZETTEER_SIZE` is 744 cities. On the 2026-10-16 crawl 2 results in 9 postings change (Monterrey, latitude and longitude
+Ottawa. G-4: the alias "Bogota DC" on Bogotá (normKey drops dots and accents), so Amazon's "Bogota, D.C." (Distrito Capital)
+is Bogotá, Colombia, not Washington, DC. `GAZETTEER_SIZE` is 744 cities. On the 2026-10-16 crawl 2 results in 9 postings change (Monterrey, latitude and longitude
 only); on the 2026-10-23 crawl 5 results in 11 postings (Monterrey 8, Apple's Bayshore 1, Microsoft's "AL" 1 and "Monterrey,
 N.L." 1, these two from the wrong country to the right one).
 
