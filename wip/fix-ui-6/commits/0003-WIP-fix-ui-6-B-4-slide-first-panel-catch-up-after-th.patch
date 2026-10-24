@@ -1,7 +1,7 @@
 From 0e2a32a55b153f04701a2c72fa71d27b86b43a36 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 24 Oct 2026 00:30:29 +0000
-Subject: [PATCH 3/7] WIP fix-ui-6: B-4 (slide first, panel catch-up after the
+Subject: [PATCH 3/8] WIP fix-ui-6: B-4 (slide first, panel catch-up after the
  first frame; root vars written on change), B-8 (the Duo's two screens without
  viewport segments)
 

@@ -2,11 +2,13 @@
 
 - Worktree: `/home/user/melon-seek/.claude/worktrees/agent-af65001c61c5e8b4f`
 - Base (on claude/stoic-ride-54ddxp): `db38a3042a057155ac8f7ef45a65d54552046662`
-- Head: `e856d8d84b92ea2837c15fc704871f2f61bd7f41`
+- Head: `08d9e9e4e4bf4f9264a8ea61ddf02704029bad33`
 - Restore: `bash scripts/cycle/restore-wip.sh fix-app-6 <new worktree dir>`
 
 ## Commits since the base
 ```
+08d9e9e fix-app-6: CONTRACT (medianWording, the fits) and log decisions
+33bdc74 fix-app-6: one wording function (chart.js medianWording) for the stats line's median and the chart caption
 e856d8d fix-app-6: two e2e checks read a place's count as its own plus its country- or state-wide postings (BN-1)
 559e6e5 fix-app-6: log State and change log
 41ffc42 fix-app-6: BN-6 the Salary note's line fits one line with a big count; screenshots (shrunk)

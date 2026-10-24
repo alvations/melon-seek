@@ -1,0 +1,87 @@
+From d46109293993561f4bac79ff4370007f5c906793 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 24 Oct 2026 00:45:12 +0000
+Subject: [PATCH 1/8] ux-density-6: save brief verbatim
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+(cherry picked from commit f52d08cc9cca369bfec928f4787a68b9bc36bf9c)
+---
+ docs/process/prompts/ux-density-6.md | 65 ++++++++++++++++++++++++++++
+ 1 file changed, 65 insertions(+)
+ create mode 100644 docs/process/prompts/ux-density-6.md
+
+diff --git a/docs/process/prompts/ux-density-6.md b/docs/process/prompts/ux-density-6.md
+new file mode 100644
+index 0000000..747d45d
+--- /dev/null
++++ b/docs/process/prompts/ux-density-6.md
+@@ -0,0 +1,65 @@
++You are the UX designer `ux-density-6` for melon-seek (repo /home/user/melon-seek, branch claude/stoic-ride-54ddxp), a zero-build vanilla ES-module app, "the Zillow of job postings": the main site at /melon-seek/ and the beta at /melon-seek/beta/. You are in your own git worktree. First run `git fetch origin claude/stoic-ride-54ddxp && git checkout --detach origin/claude/stoic-ride-54ddxp`. You design and measure; you don't change product code. A front-end engineer (fix-ui-6, the phone-layout owner) implements your spec.
++
++**The user's request, 2026-10-24, verbatim:** "Look at these the charts and view is way too noisy on an iPhone mini make sure we have the frontend agent and ui UX agent work to make sure that the amount of information scales as per phone iPad sizes from iPhone mini up to like iPhone 18 pro max or even iPhone Duo"
++
++The user's two screenshots, on an iPhone 13 mini (375x812 CSS px at 3x, in a browser with a top address bar and a bottom toolbar), are at /tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92f3-f582ebca24d9/scratchpad/ux6/user-iphone-mini-beta-apple.png and .../ux6/user-iphone-mini-main-anthropic.png. Look at them first. The page gets about 375x625 of the screen; the browser takes the rest. On that first screen there is no job at all. Top to bottom:
++- Beta pill, the company picker, the freshness pill and the theme button;
++- search, and Chart / Map / Insights;
++- Filters, Salary and Department;
++- the tagline ("melon·seek · Beta: adds 7 big-tech careers sites");
++- the stats line ("$214K base pay median");
++- Clusters / Ranges and the Department grouping;
++- the chart caption, which repeats the median ("US dollars a year · Median base pay $214K");
++- a histogram strip and an axis;
++- two and a half chart rows, each with a label, a count, a median, 5–7 dots, a band and a "›4" chip;
++- "2,835 with pay · 2,117 without · Details";
++- the collapsed sheet: "4,952 roles · Highest pay".
++
++Read:
++- docs/process/PLAYBOOK.md and docs/process/TEMPLATE.md;
++- the UX and viz reviews in docs/process/ (the ux-review, viz-review and fix-phone-* logs; fix-phone-text's density guard; fix-phone-sizes.md);
++- test/e2e/phone-sizes.mjs (today's 21 sizes, all as full screens);
++- the five persona wave-2 logs (docs/process/persona-beta-2-*.md). Several say the phone's first screen shows no job, and a filtered chart leaves half the screen blank.
++- fix-ui-6 is already fixing "a card on the first screen" and "few roles" (its B-10 and B-12). Read its log and WIP at /home/user/melon-seek/.claude/worktrees/agent-add67b9453342f4ba (docs/process/fix-ui-6.md; `git -C <it> log --oneline -6`) so your spec builds on that, not against it.
++
++**Standing rules from the user:**
++- "we must present them as they are and not cut anything": no posting or posted pay row may be hidden. Density means fewer things on the first screen and more behind one tap, never less data.
++- Present pay as posted; big-tech figures are base pay only, and say so.
++- "Make sure we check for all phone sizes from iPhone mini to razr to duo or something", and now iPads and the largest iPhones.
++
++**Your job:**
++1. **The size matrix.** Propose the size classes and the exact test sizes, as the page sees them with the browser's bars, not only full screens:
++   - iPhone SE (375x667);
++   - iPhone 13 mini (375x812);
++   - iPhone 16/17 (393x852, 402x874);
++   - iPhone 16/17 Pro Max (440x956). The iPhone 18 Pro Max is assumed the same until Apple's numbers are known; say so;
++   - the Android phones and the folds and Razr already in phone-sizes.mjs;
++   - the Surface Duo single, spanned and stacked;
++   - iPad mini (744x1133), iPad and iPad Air 11" (820x1180), iPad Pro 11" (834x1194) and iPad Pro 13" (1024x1366 and 1032x1376), portrait and landscape.
++   For each phone, give the visible viewport in Safari and in Chrome on iOS with the bars shown (the user's mini is about 375x625) and with them collapsed. Cite where each number comes from, or measure it from a screenshot as above. Write it as a proposed patch to test/e2e/phone-sizes.mjs (new VISIBLE and TABLETS lists, ALL_SIZES extended) in your log. fix-ui-6 applies it.
++2. **Audit.** Build e800c43's site (`node scripts/build-static.js` with the 2026-10-16 crawl linked as below), and screenshot the first screen of the main site (Anthropic) and the beta (Apple, Amazon, Google) at every size of your matrix.
++   - For each, count the elements above the fold: controls, lines of text, chart rows and dots, and whether a job card is visible. Do it again after a tap on Ranges, on Map, and with a filter that leaves few roles.
++   - Use a quiet moment for timings, and note `uptime`.
++3. **The density spec**, per size class, as a table: what shows on the first screen, what folds behind one tap, and what moves to Details or a tip. Take a position on each element above:
++   - The tagline after the first visit.
++   - The stats line and the chart caption, which say the median twice. Say which one keeps it at each size.
++   - The histogram strip.
++   - The number of chart rows and the dots per row: the band and the median only on compact phones, the outliers as a count.
++   - The "›N" chips, the with/without-pay line, and Clusters/Ranges plus the grouping (one control at compact sizes?).
++   - The header's pills.
++   - The sheet's peek height, so that at least one full job card shows on the first screen at every phone size.
++   Bigger screens (Pro Max, Fold open, Duo spanned, iPad) earn more, up to the desktop layout. Give each rule a measurable check, e.g. "at 375x625, a card's title and pay are above the fold, and at most N text lines sit above the first card", so fix-ui-6 can turn each into an e2e test. Keep the UI simple and in plain words: no new visible control unless it replaces two.
++4. **Mockups**: an annotated before/after for the iPhone mini (375x625), a Pro Max (440x~800 visible), the Duo spanned and an iPad, as screenshots with CSS overrides injected by Playwright (`page.addStyleTag`). No product code change. Put them in docs/screenshots/ux-density-6/.
++5. Send the lead the spec as soon as the table and the matrix are ready, by SendMessage to "main", with the log's path and the SHA. The lead forwards it to fix-ui-6. Then do the mockups, and answer fix-ui-6's questions through the lead.
++
++**Data and tools:**
++- The 2026-10-16 crawl: symlink /tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92f3-f582ebca24d9/scratchpad/wt-data2/data/snapshots as data/snapshots and .../wt-data2/data/beta/snapshots as data/beta/snapshots in your worktree. Never commit or move them.
++- Symlink node_modules from /home/user/melon-seek. Serve with `node scripts/cycle/serve.mjs --dist dist --pid <scratch pidfile>`.
++- Playwright: NODE_PATH=/tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92f3-f582ebca24d9/scratchpad/pw/node_modules, Chromium at /opt/pw-browsers/chromium-1194/chrome-linux/chrome. Never `playwright install`; no `pkill -f` / `pgrep -f`.
++- Your scratch folder: /tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92f3-f582ebca24d9/scratchpad/ux6/.
++- Give every command a timeout. Run anything long in the background and poll its log. Six other agents share this 4-CPU machine.
++- Shrink screenshots with `bash scripts/cycle/shrink-screenshots.sh docs/screenshots/ux-density-6` before committing.
++
++**Yours:** docs/process/ux-density-6.md (TEMPLATE.md structure with a `## State` section at the top), docs/process/prompts/ux-density-6.md (this prompt verbatim) and docs/screenshots/ux-density-6/. Commit small and often with explicit paths. The lead checkpoints your worktree every 15 minutes. Never push.
++
++Report: the size matrix, the density table with its checks, the before/after counts per size, and the SHAs.
+-- 
+2.43.0
+

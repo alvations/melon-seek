@@ -2,11 +2,12 @@
 
 - Worktree: `/home/user/melon-seek/.claude/worktrees/agent-a8d30680c4dcc21d7`
 - Base (on claude/stoic-ride-54ddxp): `0c6990e59601347415cabfd6128914bbf9289b86`
-- Head: `40c1bf4be0a245eb8fff3e49a42d2348300cfd19`
+- Head: `61747f8b1afa116596ed4a17887bb1a44af229c6`
 - Restore: `bash scripts/cycle/restore-wip.sh ux-density-6 <new worktree dir>`
 
 ## Commits since the base
 ```
+61747f8 ux-density-6: mockups (375x625, 440x757, 1114x616, 820x1070, annotated, shrunk), the after counts, D-6 minimums, State done
 40c1bf4 ux-density-6: gaps and change log
 9a55793 ux-density-6: the lead's matrix decision in the patch (ALL_SIZES = PHONES + POSTURES + TABLETS, 31; VISIBLE apart, 21)
 43ddac0 ux-density-6: positions per element, replay steps, the before audit (no phone screen shows a job: 104 of 104)

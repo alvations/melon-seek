@@ -1,7 +1,7 @@
 From 43ddac06b3c6fc27b665dafa10bfade6ea0b9519 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 24 Oct 2026 01:18:36 +0000
-Subject: [PATCH 5/7] ux-density-6: positions per element, replay steps, the
+Subject: [PATCH 5/8] ux-density-6: positions per element, replay steps, the
  before audit (no phone screen shows a job: 104 of 104)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

@@ -1,0 +1,219 @@
+From 1842627b79647bad9f763d51deb361a5836da6fe Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 24 Oct 2026 01:15:55 +0000
+Subject: [PATCH 4/8] ux-density-6: the density spec (per size class, checks
+ D-1 to D-14) and the phone-sizes.mjs patch (VISIBLE, TABLETS, 52 sizes)
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+(cherry picked from commit d0ec32e796b3e31f659580cea3ebee8a09dbac8d)
+---
+ .../patches/ux-density-6-phone-sizes.diff     | 109 ++++++++++++++++++
+ docs/process/ux-density-6.md                  |  78 +++++++++++++
+ 2 files changed, 187 insertions(+)
+ create mode 100644 docs/process/patches/ux-density-6-phone-sizes.diff
+
+diff --git a/docs/process/patches/ux-density-6-phone-sizes.diff b/docs/process/patches/ux-density-6-phone-sizes.diff
+new file mode 100644
+index 0000000..1dd80af
+--- /dev/null
++++ b/docs/process/patches/ux-density-6-phone-sizes.diff
+@@ -0,0 +1,109 @@
++--- a/test/e2e/phone-sizes.mjs
+++++ b/test/e2e/phone-sizes.mjs
++@@ -3,10 +3,17 @@
++ // the platform (its user agent and engine family). Foldables and dual-screen devices are listed per posture.
++ // Used by test/e2e/webkit/phone-smoke.mjs, test/e2e/phone-matrix.e2e.js and the QA templates; fix lanes and QA
++ // passes test their phone changes on every entry.
+++// The user, 2026-10-24: "make sure that the amount of information scales as per phone iPad sizes from iPhone mini up to
+++// like iPhone 18 pro max or even iPhone Duo". PHONES and POSTURES are whole screens; VISIBLE is what the page gets
+++// under the browser's bars, and TABLETS are the iPads (docs/process/ux-density-6.md, "The size matrix").
++ const IOS_UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.6 Mobile/15E148 Safari/604.1';
+++const CRIOS_UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/141.0.7390.96 Mobile/15E148 Safari/604.1';
+++// iPadOS Safari asks for the desktop site by default: a Mac user agent, with touch.
+++const IPAD_UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.6 Safari/605.1.15';
++ const ANDROID_UA = (model) => `Mozilla/5.0 (Linux; Android 15; ${model}) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Mobile Safari/537.36`;
++ 
++-const ios = (name, width, height, dpr) => ({ name, width, height, dpr, platform: 'ios', ua: IOS_UA });
+++const ios = (name, width, height, dpr, ua = IOS_UA) => ({ name, width, height, dpr, platform: 'ios', ua });
+++const ipad = (name, width, height) => ({ name, width, height, dpr: 2, platform: 'ipados', ua: IPAD_UA });
++ const android = (name, width, height, dpr, model) => ({ name, width, height, dpr, platform: 'android', ua: ANDROID_UA(model) });
++ 
++ /** Portrait phones, narrowest first. */
++@@ -40,7 +47,56 @@
++   android('Motorola razr (inner, landscape)', 1005, 412, 2.625, 'motorola razr 50 ultra'),
++ ]);
++ 
++-export const ALL_SIZES = Object.freeze([...PHONES, ...POSTURES]);
+++/**
+++ * What the page gets under the browser's bars, portrait (ux-density-6, "The size matrix"). On this site the page never
+++ * scrolls on a phone (the results sheet drags), so the bars stay shown and these are the sizes people see. iPhones:
+++ * Chrome on iOS with its bars shown, the smallest page there (measured from the user's iPhone 13 mini: 375x625; Safari's
+++ * bottom bar leaves 4 px more). Android: Chrome with a 56 px toolbar, a 24 px status bar and a 24 px gesture bar
+++ * (estimates). The iPhone 18 Pro Max is assumed to be the 17 Pro Max until Apple publishes its numbers.
+++ */
+++export const VISIBLE = Object.freeze([
+++  android('Galaxy Fold (folded), Chrome bars shown', 280, 549, 3, 'SM-F900U'),
+++  ios('iPhone SE (1st gen), Chrome bars shown', 320, 445, 2, CRIOS_UA),
+++  android('Galaxy Z Fold 5 (cover), Chrome bars shown', 344, 778, 2.625, 'SM-F946U'),
+++  android('Motorola razr (cover screen), Chrome bars shown', 352, 275, 3, 'motorola razr 40 ultra'),
+++  android('Galaxy S8, Chrome bars shown', 360, 612, 4, 'SM-G950U'),
+++  android('Galaxy Z Flip 5, Chrome bars shown', 360, 776, 3, 'SM-F731U'),
+++  ios('iPhone SE (3rd gen), Chrome bars shown', 375, 544, 2, CRIOS_UA),
+++  ios('iPhone 13 mini, Chrome bars shown', 375, 625, 3, CRIOS_UA),        // the user's phone, 2026-10-24
+++  ios('iPhone 13 mini, Safari bars shown', 375, 629, 3),
+++  ios('iPhone 13 / 14, Chrome bars shown', 390, 660, 3, CRIOS_UA),
+++  ios('iPhone 15 / 16, Chrome bars shown', 393, 656, 3, CRIOS_UA),
+++  ios('iPhone 16 Pro / 17, Chrome bars shown', 402, 675, 3, CRIOS_UA),
+++  android('Pixel 8, Chrome bars shown', 412, 811, 2.625, 'Pixel 8'),
+++  android('Motorola razr (inner), Chrome bars shown', 412, 901, 2.625, 'motorola razr 50 ultra'),
+++  ios('iPhone 15 Pro Max / 16 Plus, Chrome bars shown', 430, 736, 3, CRIOS_UA),
+++  ios('iPhone 16 / 17 / 18 Pro Max, Chrome bars shown', 440, 757, 3, CRIOS_UA),
+++  ios('iPhone 16 / 17 / 18 Pro Max, Safari bars collapsed', 440, 844, 3),
+++  android('Surface Duo (one screen), bars shown', 540, 616, 2.5, 'Surface Duo'),
+++  android('Galaxy Z Fold 5 (open), Chrome bars shown', 690, 725, 2.625, 'SM-F946U'),
+++  // The stacked Duo under its bars: the top screen keeps 460 px, the hinge is at y 460–494, the bottom screen 516 px.
+++  android('Surface Duo (stacked), bars shown', 720, 1010, 2.5, 'Surface Duo'),
+++  android('Surface Duo (spanned), bars shown', 1114, 616, 2.5, 'Surface Duo'),
+++]);
+++
+++/**
+++ * iPads in Safari, portrait and landscape, under its status bar, toolbar and tab bar (110 px; iPadOS 18's default
+++ * "Separate" tabs). Portrait iPads up to 834 px wide get the phone layout (≤ 860 px), the 12.9" and 13" the desktop.
+++ */
+++export const TABLETS = Object.freeze([
+++  ipad('iPad mini (portrait)', 744, 1023),
+++  ipad('iPad mini (landscape)', 1133, 634),
+++  ipad('iPad / iPad Air 11" (portrait)', 820, 1070),
+++  ipad('iPad / iPad Air 11" (landscape)', 1180, 710),
+++  ipad('iPad Pro 11" (portrait)', 834, 1084),
+++  ipad('iPad Pro 11" (landscape)', 1194, 724),
+++  ipad('iPad Pro 12.9" / iPad Air 13" (portrait)', 1024, 1256),
+++  ipad('iPad Pro 12.9" / iPad Air 13" (landscape)', 1366, 914),
+++  ipad('iPad Pro 13" (M4, portrait)', 1032, 1266),
+++  ipad('iPad Pro 13" (M4, landscape)', 1376, 922),
+++]);
+++
+++export const ALL_SIZES = Object.freeze([...PHONES, ...POSTURES, ...VISIBLE, ...TABLETS]);
++ 
++ /** Playwright context options for one entry (isMobile is Chromium-only; WebKit takes the rest). */
++ export function contextFor(d, engine = 'chromium') {
++--- a/test/beta-coverage.test.js
+++++ b/test/beta-coverage.test.js
++@@ -92,20 +92,23 @@
++   assert.deepEqual(m[1].split(',').sort(), BETA, 'the WebKit phone smoke boards');
++ });
++ 
++-test('beta-coverage: phone-sizes.mjs lists 21 distinct sizes, each a touch phone with a viewport, DPR and user agent', async () => {
+++test('beta-coverage: phone-sizes.mjs lists 52 distinct sizes (whole screens, the page under the browser bars, iPads), each a touch screen with a viewport, DPR and user agent', async () => {
++   const { ALL_SIZES, contextFor } = await import(pathToFileURL(path.join(E2E, 'phone-sizes.mjs')).href);
++-  assert.ok(ALL_SIZES.length >= 19, `${ALL_SIZES.length} sizes`);
+++  assert.ok(ALL_SIZES.length >= 52, `${ALL_SIZES.length} sizes`);
++   const keys = ALL_SIZES.map((d) => `${d.name} ${d.width}x${d.height}`);
++   assert.equal(new Set(keys).size, keys.length, 'sizes are distinct');
++   assert.equal(new Set(ALL_SIZES.map((d) => d.name)).size, ALL_SIZES.length, 'names are distinct (tests are named by them)');
++   for (const d of ALL_SIZES) {
++     const o = contextFor(d);
++-    assert.ok(o.viewport.width >= 280 && o.viewport.height >= 300 && o.deviceScaleFactor >= 1 && o.hasTouch && o.isMobile, d.name);
++-    assert.match(o.userAgent, /iPhone|Android/, d.name);
+++    assert.ok(o.viewport.width >= 280 && o.viewport.height >= 260 && o.deviceScaleFactor >= 1 && o.hasTouch && o.isMobile, d.name);
+++    assert.match(o.userAgent, /iPhone|Android|Macintosh/, d.name); // iPadOS Safari sends a Mac user agent
++   }
++   assert.ok(ALL_SIZES.some((d) => d.width === 280), 'the folded Fold (280 px)');
++   assert.ok(ALL_SIZES.some((d) => d.width === 352 && d.height === 355), 'the Razr cover screen');
++   assert.ok(ALL_SIZES.some((d) => d.width > d.height), 'a landscape posture');
+++  assert.ok(ALL_SIZES.some((d) => d.width === 375 && d.height === 625), 'the iPhone 13 mini under Chrome\'s bars (the user\'s, 2026-10-24)');
+++  assert.ok(ALL_SIZES.some((d) => d.width === 440 && d.height === 757), 'the largest iPhone under its bars');
+++  assert.ok(ALL_SIZES.some((d) => d.platform === 'ipados' && d.width < d.height) && ALL_SIZES.some((d) => d.platform === 'ipados' && d.width > d.height), 'iPads, portrait and landscape');
++ });
++ 
++ /** e2e files whose tests loop over every phone size (ALL_SIZES, or PHONES with POSTURES). */
+diff --git a/docs/process/ux-density-6.md b/docs/process/ux-density-6.md
+index 391429c..f2f79ff 100644
+--- a/docs/process/ux-density-6.md
++++ b/docs/process/ux-density-6.md
+@@ -132,3 +132,81 @@ asks for the desktop site by default, so it sends a Mac user agent and has touch
+ 
+ Width still decides what it decides today (the top bar's give-way ladder, the narrow chart rows under 520 px). The
+ class adds only the vertical budget.
++
++**How to set the class.** By the visible height, read once the page has laid out and again on a width change or a
++rotation, never on a height change alone (the keyboard: bindKeyboardInsets already tells it apart), as a root
++attribute, e.g. `<html data-fit="compact">`. A `max-height` media query gives the same answer in Chromium and in the
++tests; the attribute is the safer choice for iOS, whose browsers report the large viewport to some CSS and the small
++one to `innerHeight`. Either way the e2e tests set the viewport to the sizes above.
++
++### 3.2 The patch for test/e2e/phone-sizes.mjs
++
++[patches/ux-density-6-phone-sizes.diff](patches/ux-density-6-phone-sizes.diff) (`git apply` checks clean on
++0c6990e). For fix-ui-6 to apply:
++- `VISIBLE` (21 entries): every phone above under its bars, the test sizes of 3.1. iPhones carry Chrome on iOS's
++  user agent (`CriOS`), except the mini's Safari size and the Pro Max with Safari's bars collapsed (440x844).
++- `TABLETS` (10 entries): the five iPads, portrait and landscape, with iPadOS Safari's Mac user agent, touch and 2x.
++- `ALL_SIZES` = PHONES + POSTURES + VISIBLE + TABLETS: 52 entries (21 today).
++- test/beta-coverage.test.js: the size test now wants at least 52 sizes, a height of 260 or more (the razr cover
++  screen under its bars is 275), a user agent matching `iPhone|Android|Macintosh`, and names the mini under Chrome's
++  bars (375x625), the largest iPhone (440x757) and iPads in both orientations. It passes on the patched files
++  (`node --test --test-name-pattern=phone-sizes test/beta-coverage.test.js`: 1 pass).
++- **Cost:** every e2e file that loops over ALL_SIZES (phone-matrix, fix-phone-text, fix-phone-controls,
++  beta-coverage and seven more) runs about 2.5 times as many cases. If that is too slow for the gate, keep the new
++  lists out of ALL_SIZES and loop the density tests (3.3) over `[...VISIBLE, ...TABLETS]`; the lead decides.
++
++### 3.3 The density spec
++
++The rule in one line: **the first screen of every phone shows the first card's title and pay, and at least two or
++three whole chart rows; everything else is one tap away (the caption's Details, the sheet, the row's tap), and
++nothing is dropped.** Bigger classes add back, in this order: the circles, the strip, the notes line, the one-row top
++bar, three cards, then the desktop's side-by-side list.
++
++| Element (top to bottom) | Short ≤ 500 | Compact 501–699 | Tall 700–959 | Tablet portrait ≥ 960 | Wide > 860 | Check |
++|---|---|---|---|---|---|---|
++| Header pills: Beta, company, freshness, theme | as today (fix-phone-sizes' give-way ladder) | as today: one row, name whole | as today | **one row with the search and the views** (from 640 px wide, so the Fold open too) | as today | D-11 |
++| Search, Chart / Map / Insights, quick bar | as today | as today | as today | (in the top bar's one row) | as today | D-13 |
++| Tagline | gone (today) | **first visit only** | **first visit only** | **first visit only** | as today, beside the controls | D-3 |
++| Stats line | gone (today) | **Chart view: gone** (the caption has the median); Map view: as today | same as compact | Chart view: **count · share** (+ Details), beside Clusters / Ranges; Map: as today | Chart view: **count · share**; Map: as today | D-2 |
++| Clusters / Ranges and Group | as today | **as today, one row, two controls** (not merged, see 3.4) | as today | as today | as today | D-13 |
++| Chart caption | unit + median | **unit + median + the chart's one Details** | unit + median | unit + median (as today) | "Median base pay $214K" over the strip (today) | D-2, D-8 |
++| Histogram strip | folded | **folded: opens with the caption's Details** | shown | shown | shown | D-4 |
++| Ranges' legend line ("Striped … · Colour: department") | folded | **folded into Details** | shown | shown | shown | D-4 |
++| Chart rows | as compact | **52 px rows: the label line (name · N roles · median) and the band, the median tick and a thin line from the lowest to the highest pay on the axis; no circles** | today's rows: circles with their counts | today's (wide) rows | today's | D-5 |
++| Whole rows on the first screen (Apple) | 0 is allowed (cover screen: a glance at the header and one card) | **≥ 3 from 600 px tall, ≥ 2 below** | **≥ 3** | **≥ 6** | ≥ 5 | D-6 |
++| "›N" edge chips | kept | **kept**, at the line's end | kept | kept | kept | D-13 |
++| With / without pay line | folded | **folded: the first line of the caption's Details** | shown | shown | shown | D-7 |
++| Sheet peek | fix-ui-6's 104 (cover), 64 (landscape) | **grip 20 + count row 48 + the first card down to its pay + 8 (measured, ~130 px)**; the Juice line shows from half up; Map view too | same rule (~130–150 px) | **three whole cards** (~40 % of the height) | no sheet: the list column | D-1 |
++| Few roles (a filter leaves ≤ 20) | | fix-ui-6's B-10: the peek rises into the room the rows leave | same | same | | D-1, D-6 |
++
++**The checks**, each a test fix-ui-6 can write (sizes from 3.1, the four boards of the audit, dark and light):
++
++- **D-1 A card on the first screen.** At every phone-layout size in VISIBLE and TABLETS (portrait), in Chart and Map
++  view, on load and after a filter that leaves few roles: the first card's `.card-title` (all its lines) and its
++  `.card-pay .sal-pill` are inside the viewport and not covered (`elementFromPoint` at their centres lands in them).
++  Short sizes: Chart view only. Tablet portrait: the third card is whole too.
++- **D-2 The median once.** In Chart view, exactly one visible element on the first screen states the view's median
++  figure (text matching /median/i with a money figure); it is the chart's caption at every size. In Map view it is the
++  stats line.
++- **D-3 Tagline.** With the site's "visited" flag in localStorage before load, `#tagline` is not visible at any
++  phone-layout size; without it, it is visible and one line (fix-phone-text's guard). Desktop: unchanged. Storage that
++  throws counts as a first visit.
++- **D-4 Strip and Ranges legend.** Compact and short: `.ms-chart__hist` and the Ranges legend line are not visible
++  until the caption's Details is opened, then visible. Tall and up: visible on load.
++- **D-5 Compact rows.** Compact and short: no `.ms-bin` other than the edge chips is visible; every row with pay has a
++  visible band, median tick and range line; a row is at most 52 px tall. Tall and up: circles as today.
++- **D-6 Rows on the first screen.** Whole `.ms-crow` between the axis and the sheet's top, on Apple: the minimums in the
++  table (375x625: ≥ 3; 375x544: ≥ 2; 440x757: ≥ 3; 744x1023: ≥ 6).
++- **D-7 The notes line.** Compact: `.ms-chart__foot` is not visible, and the first item of the caption's Details has
++  both numbers ("2,781 … with pay", "2,070 without"). Tall and up: visible, one line.
++- **D-8 One Details.** Compact, Chart view: exactly one visible "Details" control in the toolbar and the chart.
++- **D-9 Lines above the first card.** Compact: at most 7 text lines outside the chart's rows sit above the first
++  card's title (top bar 2, quick bar 1, Clusters / Ranges 1, caption 1, axis 1, the sheet's count 1). 375x625 on Apple
++  today: 10.
++- **D-11 Tablet portrait and the Fold open.** `.topbar` is one row (≤ 64 px tall) from 640 px wide in the phone layout.
++- **D-12 The Duo stacked under its bars** (720x1010, hinge at y 460–494, CDP `displayFeature`): nothing on the hinge,
++  at least two whole cards on the bottom screen and two whole rows on the top screen.
++- **D-13 Nothing lost.** At every size: the sheet's count equals the board's; each row's accessible name (its count and
++  median) and each edge chip's count are the same as on today's build; the toolbar, quick bar and top bar show no
++  control that today's build does not, and the count of visible controls there is never higher.
++- **D-14 Nothing cut.** fix-phone-text's guard (one line from 360 px up, two below) passes at every new size.
+-- 
+2.43.0
+

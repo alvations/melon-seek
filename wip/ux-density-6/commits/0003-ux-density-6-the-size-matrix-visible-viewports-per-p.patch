@@ -1,7 +1,7 @@
 From 6ae424b9b28e177c7fc78a2a3758e55cd7e245ff Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 24 Oct 2026 01:06:30 +0000
-Subject: [PATCH 3/7] ux-density-6: the size matrix (visible viewports per
+Subject: [PATCH 3/8] ux-density-6: the size matrix (visible viewports per
  phone and browser, iPads, size classes)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

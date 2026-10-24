@@ -20,8 +20,25 @@ da401d7 fix-salary-6: DATA_SOURCES §7a and CONTRACT for S-1; the CSV README nam
 
 ## Uncommitted and new files
 ```
+ M docs/screenshots/fix-pay-at-place/e2e-card-1114x720.png
+ M docs/screenshots/fix-pay-at-place/e2e-card-280x653.png
+ M docs/screenshots/fix-pay-at-place/e2e-card-352x355.png
+ M docs/screenshots/fix-pay-at-place/e2e-card-375x812.png
  M test/e2e/fix-salary-6.e2e.js
+?? docs/screenshots/fix-salary-6/
 ```
 
 ## Left out (not in untracked.tgz)
+- docs/screenshots/fix-salary-6/milan-card-1280x800-before.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-salary-6/milan-card-352x355-before.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-salary-6/milan-card-375x812-before.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-salary-6/milan-drawer-1280x800-before.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-salary-6/milan-drawer-352x355-before.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-salary-6/milan-drawer-375x812-before.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-salary-6/paris-card-1280x800-before.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-salary-6/paris-card-352x355-before.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-salary-6/paris-card-375x812-before.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-salary-6/paris-drawer-1280x800-before.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-salary-6/paris-drawer-352x355-before.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-salary-6/paris-drawer-375x812-before.png (screenshot; the lane's tests regenerate it)
 - node_modules (symlink)

@@ -1,7 +1,7 @@
 From 7ee089405a9d4964bfb7c6ff610bf6135f0606b5 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 24 Oct 2026 01:02:52 +0000
-Subject: [PATCH 14/17] fix-app-6: BN-4 the stats line and the chart caption
+Subject: [PATCH 14/19] fix-app-6: BN-4 the stats line and the chart caption
  take short words where a long median would wrap or be cut; BN-8 e2e types in
  the phone's filter sheet
 

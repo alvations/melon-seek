@@ -1,7 +1,7 @@
 From d0ec32e796b3e31f659580cea3ebee8a09dbac8d Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 24 Oct 2026 01:15:55 +0000
-Subject: [PATCH 4/7] ux-density-6: the density spec (per size class, checks
+Subject: [PATCH 4/8] ux-density-6: the density spec (per size class, checks
  D-1 to D-14) and the phone-sizes.mjs patch (VISIBLE, TABLETS, 52 sizes)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

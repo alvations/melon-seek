@@ -1,7 +1,7 @@
 From 2c5eecda9ebfa30ef2edf8f5c0ba8a1aaeeb50b8 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 24 Oct 2026 01:05:33 +0000
-Subject: [PATCH 3/4] WIP qa-ci-6: case selection by property for the 10-23
+Subject: [PATCH 3/5] WIP qa-ci-6: case selection by property for the 10-23
  data, offline server in e2e, shard verdicts (not yet run)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

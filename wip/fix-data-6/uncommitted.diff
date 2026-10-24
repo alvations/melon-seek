@@ -4005,3 +4005,72 @@ z<{I*J>Q)Y^gv%H&{?517O0?dDYVpiDr+cwcUPXtbk*YFKyIV!kUhf~`8WpjWjh4q7
 zGxhc=QC{i4(u=>4-gFk_E3WViGVJEcF9|!L`qXoi%o6-jc1f?hD>|yC<?UR<SN5k=
 ijYTUP^jm*leX{rloV1muBK)y~NL&3mpia#`=6?a{DVZYx
 
+diff --git a/public/app.js b/public/app.js
+index 3e84c50..7d9bc3c 100644
+--- a/public/app.js
++++ b/public/app.js
+@@ -4986,8 +4986,9 @@ function drawerContent(job) {
+     : fullHourly ? `from ${postedMoney(sal.min / 2080, sal.currency)} an hour`
+     : term ? `${term.amount}${perText(term.per)}` : isMinimum(job) ? `from ${money(sal.min, sal.currency)}` : salaryRange(sal);
+   // P-2 (fix-data-6): the heading gives a yearly figure the posting states exactly ("€46,400", "$119,800–234,700"), as
+-  // fixed-term and part-time pay already are; where that doesn't fit one line (280 px), the card's rounded figure.
+-  const exactText = !sal || !statedYearly(sal) || shiftR || partHourly || term ? null : phExact ? phExact.range
++  // fixed-term and part-time pay already are; where that doesn't fit one line (280 px), the card's rounded figure. A
++  // programme's yearly rates by place ("$39,695–44,115/year", amazon:10502807) too, as its Pay by place rows are.
++  const exactText = !sal || !statedYearly(sal) || shiftR || partHourly || (term && !ph) ? null : phExact ? phExact.range
+     : isMinimum(job) ? `from ${postedMoney(sal.min, sal.currency)}` : postedPair(sal.min, sal.max ?? sal.min, sal.currency);
+   const subText = !sal ? null : (ph?.picked ? `Posted for ${ph.picked.label} · ` : ph?.sub ? `${ph.sub} · ` : '') + (partHourly ? `${cur} · part-time, paid by the hour` : fullHourly ? `${cur} · paid by the hour`
+     : term?.fixed ? `${cur} · ${term.unstated ? 'length not stated' : `for ${termText(term.weeks)}`}` : term ? `${cur} · ${programText(job, term)}` : `${cur} · per year`);
+diff --git a/test/e2e/fix-app.e2e.js b/test/e2e/fix-app.e2e.js
+index 1fd5240..2ea0d15 100644
+--- a/test/e2e/fix-app.e2e.js
++++ b/test/e2e/fix-app.e2e.js
+@@ -146,11 +146,15 @@ export function registerFixAppTests(suite) {
+     const lowMeta = (slug, body) => { if (body.meta) body.meta.compstimate = { ...(body.meta.compstimate || {}), medianAbsPctError: 31, n: 400 }; };
+     const { page, errors } = await openFx(ctx, { hash: 'c=anthropic', patch: lowMeta });
+     // T-19 (fix-data-6): the first role without pay gets no estimate, so this skipped on every run. The page's own
+-    // estimate (compstimateForJob) picks the first candidate that has one.
++    // estimate (compstimateForJob) and what may be shown of it (estimateView, as the drawer decides) pick the first
++    // candidate the drawer shows an estimate for (one in another country than its comparables shows none).
+     const pick = await page.evaluate(async ({ ids }) => {
+       const api = await import('./api.js'); const m = await import('./features/compstimate.js');
+       const res = await api.getJobs({ company: 'anthropic' });
+-      for (const id of ids) { const j = res.jobs.find((x) => x.id === id); const r = j && m.compstimateForJob(res.jobs, j); if (r && r.mid != null) return id; }
++      for (const id of ids) {
++        const j = res.jobs.find((x) => x.id === id); const r = j && m.compstimateForJob(res.jobs, j);
++        if (r && r.mid != null && m.estimateView(r, { company: 'Anthropic', meta: res.meta }).ok) return id;
++      }
+       return null;
+     }, { ids: noPay.map((j) => j.id) });
+     if (!pick) skip(`none of Anthropic's ${noPay.length} roles without pay gets an estimate`);
+diff --git a/test/e2e/fix-pay-at-place.e2e.js b/test/e2e/fix-pay-at-place.e2e.js
+index 57769c6..742306f 100644
+--- a/test/e2e/fix-pay-at-place.e2e.js
++++ b/test/e2e/fix-pay-at-place.e2e.js
+@@ -280,11 +280,12 @@ export function registerFixPayAtPlaceTests(suite) {
+   });
+ 
+   suite.test('fix-pay-at-place: [UX-37, M-42, D-45, UX-52] a range per place: the drawer heading is the card\'s span, the place count a muted line', async (ctx) => {
+-    const cases = [['amazon', 'amazon:10371179', '$60K–129K', '5 places', 'Bellevue'], ['amazon', 'amazon:10371388', '$148K–220K', '3 places', 'Austin'], ['microsoft', 'microsoft:1970393556650765', '$102K–261K', null, 'Redmond']];
++    // P-2 (fix-data-6): the job page writes the span as posted ("$60,200–128,800"; the card "$60K–129K").
++    const cases = [['amazon', 'amazon:10371179', '$60,200–128,800', '5 places', 'Bellevue'], ['amazon', 'amazon:10371388', '$147,900–220,200', '3 places', 'Austin'], ['microsoft', 'microsoft:1970393556650765', '$102,100–261,000', null, 'Redmond']];
+     for (const [company, id, range, count, rankPlace] of cases) {
+       const { page } = await openBeta(ctx, `c=${company}&job=${encodeURIComponent(id)}`);
+       const d = await drawerPay(page);
+-      assertEq(d.amt, range, `${id}: the drawer heading is the card's span`);
++      assertEq(d.amt, range, `${id}: the drawer heading is the card's span, as posted`);
+       assert(/\d+ places/.test(d.sub) && (!count || d.sub.startsWith(count)), `${id}: the line under it counts the places: "${d.sub}"`);
+       assert(d.places.length >= 2, `${id}: Pay by place lists each range (${JSON.stringify(d.places)})`);
+       assert(d.details.some((t) => t.includes(`posted for ${rankPlace}`)), `${id}: the Details name whose range the rank and strip use (${rankPlace}): ${JSON.stringify(d.details)}`);
+@@ -322,8 +323,9 @@ export function registerFixPayAtPlaceTests(suite) {
+     const { page } = await openBeta(ctx, `c=amazon&job=${encodeURIComponent('amazon:10502807')}`);
+     const d = await drawerPay(page);
+     if (!d.amt) skip('amazon:10502807 is not on the board today');
+-    assertEq(d.amt, '$40K–44K/year', 'the span of its places\' yearly rates');
+-    assert(d.places.some(([name, pay]) => /Mt Juliet/.test(name) && pay === '$40K/year'), `Mt Juliet's own rate is listed: ${JSON.stringify(d.places)}`);
++    // P-2 (fix-data-6): as posted on the job page ("$40K–44K/year" on the card).
++    assertEq(d.amt, '$39,695–44,115/year', 'the span of its places\' yearly rates');
++    assert(d.places.some(([name, pay]) => /Mt Juliet/.test(name) && pay === '$39,695/year'), `Mt Juliet's own rate is listed: ${JSON.stringify(d.places)}`);
+   });
+ 
+   suite.test('fix-pay-at-place: [V-35] Amazon Ranges: one place\'s row is never striped, and its tip names the place', async (ctx) => {
