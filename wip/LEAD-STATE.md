@@ -51,13 +51,13 @@ whenever a lane starts, reports, is integrated or is retired.
 | fix-salary-6 | a29d354058b1f01b7 | .claude/worktrees/agent-a29d354058b1f01b7 | S-1 multi-country pay (done 49e86ee, integrated); follow-up now: attachJuice reason regression, on 942db8a | done (b0795a2, integrated 94d65d0) |
 | fix-juice-6 | aab76ab3a12b3f957 | .claude/worktrees/agent-aab76ab3a12b3f957 | J-1..J-5 | done (c3fc219, picked into wt-int 942db8a) |
 | ux-density-6 | a8d30680c4dcc21d7 | .claude/worktrees/agent-a8d30680c4dcc21d7 | the user's 2026-10-24 iPhone mini request: size matrix (visible viewports, Pro Max, iPads, Duo) and a per-size density spec for fix-ui-6; no product code | done (61747f8; picked into wt-int) |
-| qa-ci-6 | a6d5736b954b39411 | .claude/worktrees/agent-a6d5736b954b39411 | the 12 CI e2e failures and 25 skips (run 40024210372) | running |
+| qa-ci-6 | a6d5736b954b39411 | .claude/worktrees/agent-a6d5736b954b39411 | the 12 CI e2e failures and 25 skips (run 40024210372) | done (1dde1eb, integrated 505a4df) |
 
 Done and retired (do not relaunch): fix-phone-sizes, fix-qa4, fix-mr-3, qa-suite-beta, fix-viz-5 (batch 3, e800c43);
 persona-beta-2-18-24, -25-34, -35-44, -45-54, -55-plus (logs on the branch, 5502155).
 
 ## Next steps
-0. Integration branch $S/wt-int is at f13ebd6 (+ fix-app-6 BN-1..BN-8, V-44); before: 94d65d0, 942db8a (fix-salary-6, the UX docs, fix-ui-6 B-1..B-12, fix-juice-6; one app.js conflict resolved in locSummary: J-5 order then B-1's coloured key), not pushed: it waits for the gate. fix-ui-6 is on phase 2 (D-1..D-14). fix-data-6, fix-app-6, fix-ui-6 and fix-juice-6 were told to rebase onto it.
+0. Integration branch $S/wt-int is at 505a4df (fix-salary-6, fix-ui-6 B-1..B-12, fix-juice-6, fix-app-6, qa-ci-6). Gate started 08:16 (SHARDS=2, detached; result in $S/gate/result). If it passes: push, check CI/Pages/WebKit/e2e.yml. Still to come: fix-data-6 (incl. P-4), fix-ui-6 D-1..D-14, then a second gate. (fix-salary-6, the UX docs, fix-ui-6 B-1..B-12, fix-juice-6; one app.js conflict resolved in locSummary: J-5 order then B-1's coloured key), not pushed: it waits for the gate. fix-ui-6 is on phase 2 (D-1..D-14). fix-data-6, fix-app-6, fix-ui-6 and fix-juice-6 were told to rebase onto it.
 1. Integrate each lane's SHAs as they report (pick.sh into $S/wt-int); after fix-data-6 and fix-salary-6 are both in,
    re-baseline the golden file once for norm-14 with the tooling.
 2. Gate (SHARDS=2) on the integrated head; fix what it finds; npm test; push; check CI, Pages, WebKit (dispatch
@@ -126,8 +126,8 @@ persona-beta-2-18-24, -25-34, -35-44, -45-54, -55-plus (logs on the branch, 5502
 - fix-app-6 final report: known gaps: chart row medians still US$ with a country label (sent to fix-ui-6 for D-5); one-level Microsoft chips name the posted level only after the posting text loads. Pre-rebase states kept as branches fix-app-6-pre-rebase(2).
 - 07:2x qa-ci-6 on f13ebd6: BP-2 fails (google:108135834237969094 under Zurich: card 'Pay posted for San Jose, Munich and 2 more only' is right with rows per country; features/shared.js payLocations still returns only US places). Decision: payLocations follows the rows -> fix-data-6 P-4 (updates BP-2's expectation). qa-ci-6 a5bdbc9: D-41 counts state-wide roles (BN-1), V-43 reads pins in any currency.
 - 07:5x fix-ui-6: the iPad Pro 11" portrait touch-tips strip failure is the 2 px bar case (half-pixel offset after the one-row top bar moved the strip up 86 px; the touch lands on the axis); qa-ci-6's a5bdbc9 tallest-bar pick fixes it. Not a D-4 regression.
+- 08:1x qa-ci-6 done (1dde1eb; 9 commits on f13ebd6): (a) case fixes from the data (Badge swap biggest cluster, fix3-data Head of, D-41, MR-34, D-50 x21, BP-10+BN-5, UX-59, touch-tip tallest bars, V-43 any currency); (c) harness MELON_OFFLINE=1, e2e.yml pins Playwright 1.56.1 (Chromium 141); step 4 per-shard verdict, summary fails on stopped runs and over --max-skips. npm test 1,359/0 fail; 10-16 data 371/374 0 fail; newest 3 red awaiting fix-data-6 (fix-pay-data, D-32, BP-2/P-4). Picked clean -> 505a4df. Gate started 08:16 on 505a4df, SHARDS=2.
 
-### Agents at 2026-10-24T08:13:45Z
-agent fix-ui-6 add67b9453342f4ba transcript-age=24min head=5e2c252 STALE
-agent fix-data-6 a08f9659d62990db4 transcript-age=0min head=6963435
-agent qa-ci-6 a6d5736b954b39411 transcript-age=0min head=a5bdbc9
+### Agents at 2026-10-24T08:28:48Z
+agent fix-ui-6 add67b9453342f4ba transcript-age=39min head=5e2c252 STALE
+agent fix-data-6 a08f9659d62990db4 transcript-age=4min head=6963435
