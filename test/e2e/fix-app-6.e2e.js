@@ -351,7 +351,11 @@ export function registerFixApp6Tests(suite) {
         const n = [...document.querySelectorAll('.salary-nopay')].find((e) => !e.hidden);
         return n ? n.textContent.replace(/\s+/g, ' ') : '';
       });
-      if (viewport.width > 860) assert(new RegExp(`^${hidden.toLocaleString('en-US')} roles? hidden by the pay filter`).test(note.trim()), `Salary note "${note}", ${hidden} hidden (${before} → ${after})`);
+      if (viewport.width > 860) {
+        const r = await page.evaluate(scanText, { roots: ['#filterBody .salary-nopay'], captionSel: `${CAPTION_SEL}, #filterBody .salary-nopay`, allow: [], words: 12, maxLines: 1 });
+        assert(!r.lines.length && !r.cut.length, `the Salary note is not one line: ${JSON.stringify(r)}`);
+      }
+      if (viewport.width > 860) assert(new RegExp(`^${hidden.toLocaleString('en-US')}( roles?)? hidden by (the pay filter|it)`).test(note.trim()), `Salary note "${note}", ${hidden} hidden (${before} → ${after})`);
       // The empty state names the pay filter too.
       await go(page, 'c=amazon&l=Milan&smin=400000&q=engineer');
       const empty = await page.evaluate(() => [...document.querySelectorAll('.state-card')].find((e) => e.getClientRects().length)?.textContent.replace(/\s+/g, ' ') || '');

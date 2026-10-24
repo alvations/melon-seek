@@ -2606,7 +2606,8 @@ function makeSalary({ compact = false } = {}) {
     const all = hidden + elsewhere + why.under + why.over;
     const is = (n) => (n === 1 ? 'is' : 'are');
     // M-36 (fix-phone-text): one line, the reasons behind its Details.
-    renderNote(noPay, { key: 'fnote-nopay', line: all ? `${plural(all, 'role')} hidden by the pay filter` : '', details: [
+    // BN-6: every role it hides is a bigger number ("1,855"), so the line takes shorter words where it would wrap.
+    renderNote(noPay, { key: 'fnote-nopay', line: all ? fitOneLine(h('span'), [`${plural(all, 'role')} hidden by the pay filter`, `${all.toLocaleString()} hidden by the pay filter`, `${all.toLocaleString()} hidden by it`]) : '', details: [
       why.under ? `${plural(why.under, 'role')} whose posted pay is all under ${boundText('min')} a year ${is(why.under)} hidden. Posted minimums (“from …”) are kept: their top isn’t stated.` : '',
       why.over ? `${plural(why.over, 'role')} whose posted pay is all over ${boundText('max')} a year ${is(why.over)} hidden.` : '',
       hidden ? `${plural(hidden, 'role')} that ${hidden === 1 ? 'lists' : 'list'} no pay ${is(hidden)} hidden while a pay filter is on.` : '',
