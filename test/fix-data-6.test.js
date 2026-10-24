@@ -15,6 +15,7 @@ import { NORMALIZER_VERSION, relabelJobs } from '../server/normalize.js';
 import * as keywords from '../server/keywords.js';
 import { roleFamily, FAMILY_LABELS, familySim } from '../public/features/roles.js';
 import { FAMILY_TITLES, shownComparables, estimateComp } from '../public/features/compstimate.js';
+import * as shared from '../public/features/shared.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
@@ -312,4 +313,45 @@ test('G-3 a dotted state abbreviation is not a country code, and Apple\'s Baysho
   }
   const [b] = geocode('Bayshore Shopping Centre, Canada');
   assert.deepEqual([b.city, b.region, b.country, locationPrecision(b)], ['Ottawa', 'ON', 'CA', 'city']);
+});
+
+/* --------------------------------------------------------------------- P-4 */
+// google:108135834237969094 (Principal Engineer, Hybrid Cloud Environment; qa-ci-6 on the newest crawl): the US row
+// prices San Jose, Kirkland and New York, Germany's row Munich; Zurich has no row. Every place a row prices has posted
+// pay (payLocations follows the rows, as payAt does); the headline's comparisons stay US pay (payCountry).
+const P4_LOC = (name, city, region, country) => ({ name, rawName: name, city, region, country, remote: false });
+const P4_JOB = () => {
+  const sj = P4_LOC('San Jose, CA, USA', 'San Jose', 'CA', 'US'), zu = P4_LOC('Zurich, Switzerland', 'Zurich', null, 'CH');
+  const mu = P4_LOC('Munich, Germany', 'Munich', null, 'DE'), ki = P4_LOC('Kirkland, WA, USA', 'Kirkland', 'WA', 'US');
+  const ny = P4_LOC('New York, NY, USA', 'New York', 'NY', 'US');
+  return {
+    id: 'google:108135834237969094', company: 'google', title: 'Principal Engineer, Hybrid Cloud Environment', locations: [sj, zu, mu, ki, ny],
+    salary: {
+      min: 307000, max: 427000, mid: 367000, currency: 'USD', country: 'US', interval: 'year',
+      ranges: [
+        { label: 'US', min: 307000, max: 427000, currency: 'USD', country: 'US', locations: [sj.name, ki.name, ny.name] },
+        { label: 'Germany', min: 232000, max: 237000, currency: 'EUR', country: 'DE', locations: [mu.name] },
+      ],
+    },
+  };
+};
+
+test('P-4 payLocations follows the rows: a row-priced Munich beside the US row is a place with posted pay, Zurich is not', () => {
+  const j = P4_JOB();
+  assert.deepEqual(shared.payLocations(j).map((l) => l.city), ['San Jose', 'Munich', 'Kirkland', 'New York']);
+  // The same places payAt prices, each at its own row.
+  for (const l of j.locations) assert.equal(!!shared.payAt(j, l), shared.payLocations(j).includes(l), l.name);
+  assert.equal(shared.payAt(j, j.locations[2]).currency, 'EUR');
+  assert.equal(shared.payAppliesIn(j, 'DE'), true);
+  assert.equal(shared.payAppliesIn(j, 'CH'), false);
+});
+
+test('P-4 the headline figure keeps its own places: payCountry is US, headlinePayLocations the US places', () => {
+  const j = P4_JOB();
+  assert.equal(shared.payCountry(j), 'US');
+  assert.deepEqual(shared.headlinePayLocations(j).map((l) => l.city), ['San Jose', 'Kirkland', 'New York']);
+  // A posting with one range and no rows is unchanged (a US range listed in Sydney is not Sydney pay).
+  const one = { locations: [P4_LOC('Seattle, WA, USA', 'Seattle', 'WA', 'US'), P4_LOC('Sydney, Australia', 'Sydney', null, 'AU')], salary: { min: 1, max: 2, currency: 'USD' } };
+  assert.deepEqual(shared.payLocations(one).map((l) => l.city), ['Seattle']);
+  assert.deepEqual(shared.payLocations(one), shared.headlinePayLocations(one));
 });

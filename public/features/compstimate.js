@@ -17,8 +17,12 @@
 
 import {
   salaryUSD, weightedPercentile, percentile, median, formatMoney, plural, h, uid, locationKey,
-  payLocations, isOTE, payKind, isInternLike, countryName, countryInSentence, OTE_LABEL, payAt, payCovers, toUSD,
+  headlinePayLocations as payLocations, isOTE, payKind, isInternLike, countryName, countryInSentence, OTE_LABEL, payAt, payCovers, toUSD,
 } from './shared.js';
+// P-4 (fix-data-6): the estimate prices each comparable at its headline figure (salaryUSD) or, at the city asked, at
+// its own row there (payAtQuery), so its places are the headline's (headlinePayLocations, payLocations' rule before
+// P-4): a US range's posting with a German row is never German pay at its US figure. The backtest does not move.
+
 import {
   normalizeTitle, familySim, rolePart, roleFamily, FAMILY_LABELS, SENIORITY_LADDER,
   levelLabel, levelStated, displayLevel, NOT_STATED, LEVEL_NOT_STATED, DISPLAY_LEVEL_ORDER, levelKey, levelFromKey,

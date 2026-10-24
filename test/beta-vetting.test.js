@@ -17,7 +17,7 @@ import { deriveSalary } from '../server/normalize.js';
 import { parseSalary } from '../server/salary.js';
 import { vetSalaries } from '../server/vet.js';
 import { jobSeniority } from '../server/keywords.js';
-import { payLocations } from '../public/features/shared.js';
+import { payLocations, headlinePayLocations, payAt } from '../public/features/shared.js';
 import { reviewedFiles, latestFlags } from '../scripts/llm-vet.js';
 import { mapEightfoldJob, EIGHTFOLD_BOARDS, upgradeEightfoldJobs } from '../server/sources/eightfold.js';
 
@@ -97,8 +97,16 @@ test('VT-5 Ireland\'s range is not applied to the posting\'s places in Spain', (
   ];
   const salary = deriveSalary({ title: 'Digital Enterprise Solution Sales Specialist - AI Workforce- Hebrew speaking', text: MS_IE_ES, html: '' }, locations);
   assert.deepEqual([salary.min, salary.max, salary.currency, salary.country], [49200, 71400, 'EUR', 'IE'], 'the first location\'s country line (correct)');
-  const where = payLocations({ salary, locations }).map((l) => l.name);
+  // P-4 (fix-data-6): since S-1 (fix-salary-6) Spain's own line is a row for the Spanish places, so they have posted pay
+  // (payLocations follows the rows), each at Spain's €38,000–59,700, never Ireland's range; the headline (Ireland's line)
+  // applies to Dublin only.
+  const job = { salary, locations };
+  const where = headlinePayLocations(job).map((l) => l.name);
   assert.deepEqual(where, ['Dublin, Ireland'], `Ireland's pay is treated as posted for ${where.join(', ')}`);
+  for (const l of payLocations(job)) {
+    const at = payAt(job, l);
+    assert.deepEqual([at.min, at.max], l.country === 'IE' ? [49200, 71400] : [38000, 59700], `${l.name} is priced at its own country's line`);
+  }
 });
 
 /* ------------------------------------------------------------------ VT-6 */

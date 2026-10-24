@@ -328,8 +328,30 @@ export function locationKey(loc) {
  *   - VT-5: when the pay line names its country (salary.country, "across Ireland is €…"), only
  *     places in that country: Ireland's euro range is not Spain's.
  * Each narrowing is skipped when it would leave no place.
+ * P-4 (fix-data-6, the lead's decision): a posting that prices its places on rows of their own (salary.ranges with
+ * `locations`; since S-1 one row per country or pay area, each in its own currency) has posted pay at every place a
+ * row prices, as payAt and the card's "Pay posted for … only" read it: google:108135834237969094's Munich (Germany's
+ * €232K–237K row) beside San Jose, Kirkland and New York (the US row), never Zurich, which no row names. Where a
+ * caller pairs the places with the headline figure (salary.min/max: payCountry, the pay estimate), it reads
+ * headlinePayLocations, the places of the headline's own currency and country.
  */
 export function payLocations(job) {
+  const locs = job?.locations || [];
+  const sal = job?.salary;
+  if (!String(sal?.currency || '').toUpperCase() || !locs.length) return locs;
+  if (Array.isArray(sal.ranges) && sal.ranges.some((r) => r && Array.isArray(r.locations) && r.locations.length && Number.isFinite(Number(r.min)))) {
+    const own = pricedPlaces(job);
+    if (own.length) return own;
+  }
+  return headlinePayLocations(job);
+}
+
+/**
+ * The places the posting's headline figure (salary.min/max, its currency and salary.country) applies to: payLocations'
+ * rule before P-4. A US range with a German row is US pay for its comparisons: payCountry is 'US', and the pay estimate
+ * never prices a German place on the US figure.
+ */
+export function headlinePayLocations(job) {
   const locs = job?.locations || [];
   const sal = job?.salary;
   const cur = String(sal?.currency || '').toUpperCase();
@@ -374,8 +396,8 @@ const iso = (c) => { const u = String(c || '').toUpperCase(); return u === 'UK' 
 
 /**
  * The country a posting's pay is for (shared decision 2 of fix wave 3, BP-3: comparisons stay
- * within one country): the ISO code of the first of payLocations(job) that names a country.
- * payLocations keeps remote entries without a country, which Anthropic and Anduril list first, so
+ * within one country): the ISO code of the first of headlinePayLocations(job) that names a country.
+ * headlinePayLocations keeps remote entries without a country, which Anthropic and Anduril list first, so
  * the first such entry is skipped. With no located place, the currency's home country when only
  * one country uses it ("$" with no place is US pay; a missing currency reads as USD, as everywhere
  * else in the app); else null (a euro range on a remote-only posting is for no one country).
@@ -384,7 +406,7 @@ const iso = (c) => { const u = String(c || '').toUpperCase(); return u === 'UK' 
  * @returns {string|null}
  */
 export function payCountry(job) {
-  const loc = payLocations(job).find((l) => l && l.country);
+  const loc = headlinePayLocations(job).find((l) => l && l.country); // P-4: the headline's country, as before
   if (loc) return iso(loc.country);
   const cur = String(job?.salary?.currency || (job?.salary ? 'USD' : '')).toUpperCase();
   return CURRENCY_HOME[cur] || null;

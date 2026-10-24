@@ -1255,10 +1255,20 @@ the comparables `estimateComp` lists (`comparables`, `comparablePay`, `scores`).
 the room left is shown by the members nearest the estimate's mid, low, high, then halfway between, sorted by pay. `low`, `mid`,
 `high`, `n` and `confidence` are worked out from every comparable as before (the backtest does not move).
 
+**Places with posted pay (`public/features/shared.js`, P-4):** `payLocations(job)` follows the posting's rows: with
+`salary.ranges` tied to places (since S-1 one row per country or pay area, each in its own currency) it is every place a row
+prices (`pricedPlaces`, as `payAt` reads it), so google:108135834237969094's Munich (Germany's row) is a place with posted pay
+beside its US places, and Zurich, which no row names, is not. Without such rows it is unchanged. New export
+`headlinePayLocations(job)`: the places of the headline figure's own currency and country (payLocations' rule before P-4).
+`payCountry` reads it, and so does the pay estimate (`compstimate.js` imports it as its `payLocations`), so comparisons and the
+backtest do not move. In the app `job._payLocs` (Juice under a Location filter, the card's place order, "No Juice" places, and
+the countries "Pay posted for … only" names) follows the rows.
+
 **App (`public/app.js`):**
 - `payPlaceText(job, max = 2)` (P-1): pay tied to named places, by per-place rows or `salary.places`, names them ("Tempe", "Seattle
   and Herndon") under a Location filter; the country only when none of those places is in a country of the places picked. The
-  drawer's line is `fitOneLine`d: "Posted for Tempe, not Atlanta", "Posted for Tempe only", then one place named.
+  drawer's line is `fitOneLine`d: "Posted for Tempe, not Atlanta", "Posted for Tempe only", "For Tempe only", then "Posted for
+  other places".
 - P-2: `statedYearly(s)`; `payUnit(job, exact)` and `payHeadline(job, F, exact)`: on the job page a stated yearly figure is written
   as posted (`postedPair`: "$119,800–234,700", "€46,400", "from €20,100"), the heading `fitOneLine`d with the card's rounded form
   where it would wrap; Pay by place rows are exact. Cards keep the rounded figures.

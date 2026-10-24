@@ -179,7 +179,7 @@ export function registerFix3AppTests(suite) {
     const st = await setup(ctx);
     const body = await plainList(st, 'google');
     if (!body) skip('no Google list');
-    const { payLocations } = await lib('features/shared.js');
+    const { payLocations, pricedPlaces, placeLabel, countryInSentence } = await lib('features/shared.js');
     const inZurich = body.jobs.filter((j) => j.salary && (j.locations || []).some((l) => l.city === 'Zurich'));
     const foreign = inZurich.filter((j) => !payLocations(j).some((l) => l.city === 'Zurich' || (l.country === 'CH' && !l.city)));
     if (!foreign.length) skip('no Zurich role paid for another country');
@@ -189,10 +189,16 @@ export function registerFix3AppTests(suite) {
     for (const j of foreign) {
       const c = pills.find((p) => p.id === j.id);
       if (!c) continue; // past the first page
-      const countries = [...new Set(payLocations(j).map((l) => l.country))];
-      const want = countries.length === 1 ? `Pay posted for ${COUNTRY_SENTENCE[countries[0]] || null} only` : null;
+      // P-4 (fix-data-6): the places with posted pay follow the posting's rows (payLocations, as payAt does): a Munich row
+      // beside a US row is pay posted for Munich (google:108135834237969094). The card names those places, or, when none
+      // is in the country picked, their countries.
+      const countries = [...new Set(payLocations(j).map((l) => String(l.country || '').toUpperCase()).filter(Boolean))];
+      const byCountry = !countries.length ? null : `Pay posted for ${countries.length > 2 ? 'other countries' : countries.map((cc) => COUNTRY_SENTENCE[cc] || countryInSentence(cc)).join(' and ')} only`;
+      const priced = (j.salary.ranges?.length || j.salary.places?.length) ? pricedPlaces(j) : [];
+      const byPlace = priced.length ? `Pay posted for ${placeLabel(priced)} only` : null;
       assert(/^Pay posted for .+ only$/.test(c.pill), `${j.id} (${j.salary.currency}) card pill "${c.pill}"`);
-      if (want && !want.includes('null')) assertEq(c.pill, want, `${j.id} names the pay's country`);
+      const wants = [byCountry, byPlace].filter(Boolean);
+      if (wants.length) assert(wants.includes(c.pill), `${j.id} names the places or countries its pay is posted for: "${c.pill}", want ${wants.map((w) => `"${w}"`).join(' or ')}`);
     }
     // "Highest pay" sorts them with the roles that list no pay here: after every role with pay for Zurich.
     const firstForeign = pills.findIndex((p) => /^Pay posted for/.test(p.pill) || /^(No salary|No pay listed)$/.test(p.pill));
