@@ -14,6 +14,23 @@
 
 ## Uncommitted and new files
 ```
+ M docs/screenshots/chart.png
+ M docs/screenshots/dark-drawer.png
+ M docs/screenshots/dark.png
+ M docs/screenshots/drawer-juice.png
+ M docs/screenshots/drawer.png
+ M docs/screenshots/insights.png
+ M docs/screenshots/map-juice.png
+ M docs/screenshots/map.png
+ M docs/screenshots/mobile.png
+ M docs/screenshots/qa-mobile-beta-2/e2e-M-28-iPhone-SE-Safari-375x548.png
+ M docs/screenshots/qa-mobile-beta-2/e2e-M-28-landscape-844x390.png
+ M docs/screenshots/qa-mobile-beta/e2e-M-19-sort-while-scrolled.png
+ M docs/screenshots/qa-mobile-beta/e2e-M-21-company-menu.png
+ M docs/screenshots/qa-mobile-beta/e2e-M-22-paused-board.png
+ M docs/screenshots/qa-mobile-beta/e2e-M-24-keyboard-location-search.png
+ M docs/screenshots/qa-mobile-beta/e2e-M-27-topbar-360.png
+ M docs/screenshots/qa-mobile/e2e-landscape-map.png
 ```
 
 ## Left out (not in untracked.tgz)
