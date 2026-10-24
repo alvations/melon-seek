@@ -1,9 +1,9 @@
 From 80a676b8468e57c5f35361e89edf07c03e3c9198 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 23 Oct 2026 22:02:44 +0000
-Subject: [PATCH 7/8] fix-app-6: BN-1 a town's own count beside its country- or
- state-wide postings (list and map pins); BN-7 the chip reads the level from
- the loaded posting
+Subject: [PATCH 07/10] fix-app-6: BN-1 a town's own count beside its country-
+ or state-wide postings (list and map pins); BN-7 the chip reads the level
+ from the loaded posting
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc

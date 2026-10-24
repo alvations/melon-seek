@@ -1,0 +1,161 @@
+diff --git a/server/salary.js b/server/salary.js
+index c4c8a67..40907e0 100644
+--- a/server/salary.js
++++ b/server/salary.js
+@@ -259,6 +259,16 @@ const US_RANGE_RE = /\b(?:US|U\.S\.)\s+(?:base\s+)?(?:salary|pay|compensation|wa
+  *     no Nordic country is listed).
+  */
+ export const DOLLAR_COUNTRY = Object.freeze({ CA: 'CAD', MX: 'MXN', AU: 'AUD', NZ: 'NZD', SG: 'SGD', HK: 'HKD' });
++/**
++ * S-1 (fix-salary-6): the currency a shared symbol means on a pay line for `code`'s country ("across Denmark is
++ * kr 880,000.00" is DKK, "Canada: $150000" CAD, "US: $X" USD), or null when the symbol is not that country's.
++ */
++function weakCurrencyFor(sym, code) {
++  const c = String(code || '').toUpperCase();
++  if (sym === '$') return DOLLAR_COUNTRY[c] || (c === 'US' ? 'USD' : null);
++  const by = WEAK_SYMS[sym];
++  return (by && by[c]) || null;
++}
+ function resolveWeakCurrencies(toks, text, countries) {
+   const cs = (countries || []).map((c) => String(c || '').toUpperCase()).filter(Boolean);
+   // The one dollar (or peso) country every location is in, or null.
+@@ -409,7 +419,7 @@ function lineLabel(text, start) {
+   const from = from0 + text.slice(from0, start).lastIndexOf('\n') + 1; // S-3: never past 120 characters back
+   const m = LINE_LABEL_RE.exec(text.slice(from, start));
+   const code = m ? NATION_CODE[m[1].toLowerCase().replace(/\.$/, '')] || null : null;
+-  return code ? { code, at: from + m.index + m[0].indexOf(m[1]) } : null;
++  return code ? { code, at: from + m.index + m[0].indexOf(m[1]), name: m[1] } : null;
+ }
+ // VT-6 (fix wave 4): NVIDIA names the country before its pay sentence, not right before the
+ // amount: "We are considering the following: Italy: The base salary range is 66,000 EUR – …",
+@@ -417,26 +427,50 @@ function lineLabel(text, start) {
+ // label earlier in the amount's clause.
+ const SENTENCE_LABEL_RE = /([A-Z][A-Za-z.]*(?:\s+[A-Z][A-Za-z.]*){0,3})\s*:\s+(?:[Tt]he\s+)?(?:(?:base|annual|hourly)\s+)?(?:salary|pay|compensation|wage)\b/g;
+ function sentenceCountry(before) {
+-  let code = null;
++  const l = sentenceLabel(before);
++  return l ? l.code : null;
++}
++/** { code, name } of the last "<Country>: The base salary …" label in `before` ("Poland" of "For Poland:"), or null. */
++function sentenceLabel(before) {
++  let out = null;
+   for (const m of before.matchAll(SENTENCE_LABEL_RE)) {
+     const words = m[1].split(/\s+/);
+     // "For Poland" -> "Poland"; "United Kingdom" stays whole.
+     for (let i = 0; i < words.length; i++) {
+-      const c = NATION_CODE[words.slice(i).join(' ').toLowerCase().replace(/\.$/, '')];
+-      if (c) { code = c; break; }
++      const name = words.slice(i).join(' ');
++      const c = NATION_CODE[name.toLowerCase().replace(/\.$/, '')];
++      if (c) { out = { code: c, name }; break; }
+     }
+   }
+-  return code;
++  return out;
+ }
+ // SA-4 (salary audit): Google prices one country by degree on separate lines ("[Bachelor's degree] Canada:
+ // $99000 (CAD)", "[Master's degree] Canada: $102000 (CAD)"). The bracket before the country label names the
+ // line, so a span of the lines keeps each line as a level (salary.levels), as Microsoft's IC levels do.
+ const LINE_BRACKET_RE = /^\s*\[([^\]\n]{2,40})\]\s*[A-Z][A-Za-z. ]{1,40}:\s*$/;
++// S-1 (fix-salary-6): the bracket also heads the country lines under it, on a line of its own ("[PhD degree]\n
++// Germany: €85000 (EUR)\nFrance: €66000 (EUR)") or before the first of them ("[Bachelor's degree] Ireland: €47000
++// (EUR)\nGermany: €53000 (EUR)"). Only country pay lines may come between; a blank line ends the block.
++const BRACKET_HEAD_RE = /^\s*\[([^\]\n]{2,40})\]\s*(?:[A-Z][A-Za-z. ]{1,40}:\s*\S.*)?$/;
++const COUNTRY_LINE_RE = /^\s*[A-Z][A-Za-z. ]{1,40}:\s*\S/;
+ function lineBracket(text, start) {
+   const from0 = Math.max(0, start - 120);
+   const from = from0 + text.slice(from0, start).lastIndexOf('\n') + 1;
+   const m = LINE_BRACKET_RE.exec(text.slice(from, start));
+-  return m && lineLabel(text, start) ? m[1].trim() : null;
++  if (m) return lineLabel(text, start) ? m[1].trim() : null;
++  if (!lineLabel(text, start) || /\[/.test(text.slice(from, start))) return null;
++  // At most 12 lines and 600 characters back (S-3: bounded work per amount).
++  let end = from;
++  for (let k = 0; k < 12 && end > 0 && start - end <= 600; k++) {
++    const ls = text.lastIndexOf('\n', end - 2) + 1;
++    const line = text.slice(ls, end - 1);
++    if (!line.trim()) return null;
++    const hm = BRACKET_HEAD_RE.exec(line);
++    if (hm) return hm[1].trim();
++    if (!COUNTRY_LINE_RE.test(line)) return null;
++    end = ls;
++  }
++  return null;
+ }
+ /** ISO code of the country that labels the amount's line, or null. */
+ function lineCountry(text, start) {
+@@ -775,6 +809,10 @@ function buildUnits(text, toks, countries) {
+     const { a, b } = u;
+     u.currency = (a.weak && b && b.currency) ? b.currency : (a.currency || (b && b.currency) || null);
+     u.explicit = a.explicit || !!(b && b.explicit);
++    // S-1 (fix-salary-6): a currency read from a shared symbol alone ("kr 880,000.00 - kr 2,028,600.00",
++    // no code beside it) was the job's first country's; the line's own country decides it (evaluate).
++    const ts = b ? [a, b] : [a];
++    if (ts.some((t) => t.weak) && !ts.some((t) => t.currency && !t.weak)) u.weakSym = (a.weak ? a.sym : b.sym) || null;
+   }
+   // "3,850 USD / 2,310 GBP / 4,300 CAD": keep the location's currency.
+   const out = [];
+@@ -867,14 +905,16 @@ function evaluate(text, u, countries) {
+   if (b && !a.mult && b.mult && a.base < 1000) lo = a.base * multFactor(b.mult);
+   if (b && a.mult && !b.mult && b.base < 1000) hi = b.base * multFactor(a.mult);
+   if (!u.currency) return null;
++  // S-1 (fix-salary-6): "across Denmark is kr 880,000.00 - kr 2,028,600.00" is DKK on a job listed in Oslo first.
++  const cur = (u.weakSym && weakCurrencyFor(u.weakSym, unitCountry(text, u))) || u.currency;
+   // Pay in a currency the site has no exchange rate for (FX_PER_USD, shared with the
+   // browser's palette.js) cannot be plotted or compared, so it is not read. Romanian "lei"
+   // (RON) has a rate since fix wave 4 (MR-1). The vetting scan still sees such pay and flags
+   // the posting missed_salary.
+-  if (!FX_PER_USD[u.currency]) return null;
++  if (!FX_PER_USD[cur]) return null;
+   if (!b && !u.explicit) return null;
+   // S-3: an amount below a year's pay floor even at an hourly rate ("$1") needs no context.
+-  if (!meetsAnnualFloor(Math.max(lo, hi) * FACTORS.hour, u.currency)) return null;
++  if (!meetsAnnualFloor(Math.max(lo, hi) * FACTORS.hour, cur)) return null;
+ 
+   const gs = u.groupStart ?? u.start;
+   const ge = u.groupEnd ?? u.end;
+@@ -898,7 +938,6 @@ function evaluate(text, u, countries) {
+   }
+   let intervalCorrected = false;
+   let statedInterval = null;
+-  const cur = u.currency;
+   if (interval !== 'year' && interval !== 'term' && usdOr(hi * FACTORS[interval], cur) > MAX_ANNUAL && usdOr(lo, cur) >= PLAUSIBLE_ANNUAL_MIN && usdOr(hi, cur) <= MAX_ANNUAL) {
+     statedInterval = interval;
+     interval = 'year';
+@@ -927,7 +966,7 @@ function evaluate(text, u, countries) {
+   else if (standalone) score += 2;
+   if (stated) score += 1;
+   const want = currenciesFor(countries);
+-  if (want.includes(u.currency)) score += 2;
++  if (want.includes(cur)) score += 2;
+   if (lo > 0 && hi / lo > 3) score -= 2;
+   // Microsoft: "<Profession> IC4 - The typical base pay range for this role across
+   // the U.S. is USD $X - $Y per year." One such national sentence per level; the
+@@ -951,10 +990,14 @@ function evaluate(text, u, countries) {
+   score += own(natCode);
+   // DQ-15: "US: $X - $Y (USD) ...", "Ireland: €X - €Y (EUR) ...": the line for the job's
+   // country, and lines for different countries are never spanned together.
+-  const area = natCode || lineCountry(text, gs);
++  const ll = natCode ? null : lineLabel(text, gs);
++  const area = natCode || (ll ? ll.code : null);
+   if (!natCode) score += own(area);
+   // VT-6: a "<Country>: The base salary range is …" sentence names the pay's country.
+-  const labelCountry = area ? null : sentenceCountry(before);
++  const sl = area ? null : sentenceLabel(before);
++  const labelCountry = sl ? sl.code : null;
++  // S-1 (fix-salary-6): the country's name as the posting writes it ("Germany", "U.S.", "United Kingdom").
++  const placeName = natCode ? nat[1].replace(/\s+/g, ' ') : ll ? ll.name : sl ? sl.name : null;
+   // DQ-13: the SF Bay Area / NYC range ("... in those locations is USD $X - $Y").
+   const cityAreas = cityAreasOf(before);
+   // DQ-8: "... for Level 4": the level a tier is for.
+@@ -964,8 +1007,8 @@ function evaluate(text, u, countries) {
+   return {
+     // For "3,850 USD / 2,310 GBP / 4,300 CAD per week" the text is the whole statement;
+     // a term amount keeps its "for the four-month fellowship".
+-    score, start: gs, end: term ? ge + termAmount[0].length : ge, lo, hi, currency: u.currency, interval, kind, national, level,
+-    area, cityAreas, levelLabel, single: !b, over, ...(labelCountry ? { labelCountry } : {}),
++    score, start: gs, end: term ? ge + termAmount[0].length : ge, lo, hi, currency: cur, interval, kind, national, level,
++    area, cityAreas, levelLabel, single: !b, over, ...(labelCountry ? { labelCountry } : {}), ...(placeName ? { placeName } : {}),
+     ...(term ? { termWeeks: term.weeks, termFactor: Math.round((52 / term.exact) * 10000) / 10000 } : {}),
+     ...(intervalCorrected ? { intervalCorrected, statedInterval } : {}),
+   };

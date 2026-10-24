@@ -2,11 +2,13 @@
 
 - Worktree: `/home/user/melon-seek/.claude/worktrees/agent-af65001c61c5e8b4f`
 - Base (on claude/stoic-ride-54ddxp): `db38a3042a057155ac8f7ef45a65d54552046662`
-- Head: `4a0265d2431ba3b281e3cd9363b500df94a01b52`
+- Head: `f4c1a72e0e7c1caea666a65c6257218d372fb3e3`
 - Restore: `bash scripts/cycle/restore-wip.sh fix-app-6 <new worktree dir>`
 
 ## Commits since the base
 ```
+f4c1a72 fix-app-6: log State after the restart
+5ceb621 fix-app-6: BN-8 the pay box keeps the typed currency (chip, link, saved name), reads zł and grouped thousands, a bare number takes the view's currency; CONTRACT and guide for BN-1's wide counts and BN-8
 4a0265d fix-app-6: e2e fixes (empty results, locale counts, Location row counts at every phone size); log decisions
 80a676b fix-app-6: BN-1 a town's own count beside its country- or state-wide postings (list and map pins); BN-7 the chip reads the level from the loaded posting
 d9d050e fix-app-6: log State

@@ -1,126 +1,34 @@
 diff --git a/public/app.js b/public/app.js
-index fb3c7c5..8efbd90 100644
+index 8efbd90..faeac18 100644
 --- a/public/app.js
 +++ b/public/app.js
-@@ -2853,6 +2853,18 @@ function syncPopover() {
-   if (done) done.textContent = `See ${plural(visible.length, 'role')}`;
- }
- 
-+/**
-+ * B-8 (fix-ui-6): the screens side by side, [{ x, width }], or null for one screen: the browser's viewport segments, or
-+ * the Surface Duo's own two 540 px screens around its 34 px hinge when its browser reports none (styles.css: the same
-+ * media query, DUO_SPANNED).
-+ */
-+const DUO_SPANNED = '(pointer: coarse) and (min-width: 1104px) and (max-width: 1124px) and (orientation: landscape)';
-+function screenSegments() {
-+  const segs = window.viewport?.segments;
-+  if (segs?.length > 1) return segs;
-+  return matchMedia(DUO_SPANNED).matches ? [{ x: 0, width: 540 }, { x: 574, width: innerWidth - 574 }] : null;
-+}
-+
- function positionPopover() {
-   const el = $('#popover');
-   if (!popover.anchor || el.hidden) return;
-@@ -2861,8 +2873,8 @@ function positionPopover() {
-   const w = el.offsetWidth;
-   el.style.top = `${r.bottom + 8}px`;
-   // fix-phone-sizes: on a dual screen (the Surface Duo spanned) the popover stays on its control's screen, off the hinge.
--  const segs = window.viewport?.segments;
--  const seg = segs?.length > 1 ? segs.find((s) => r.left < s.x + s.width) || segs[segs.length - 1] : { x: 0, width: innerWidth };
-+  const segs = screenSegments();
-+  const seg = segs ? segs.find((s) => r.left < s.x + s.width) || segs[segs.length - 1] : { x: 0, width: innerWidth };
-   el.style.left = `${Math.max(seg.x + 12, Math.min(r.left, seg.x + seg.width - w - 12))}px`;
- }
- 
-@@ -5481,7 +5493,11 @@ function revealField(el) {
- 
- let filtersOpener = null; // the chip or Filters button that opened the overlay sheet (M-4, M-15)
- function setFiltersOpen(open, { opener = null, focus = null } = {}) {
--  if (open && filtersDirty) { filtersDirty = false; renderFilterPanel(); } // PERF-2: catch up the skipped sync
-+  // PERF-2: a panel hidden while the list changed catches up the skipped sync when it opens. B-4 (fix-ui-6): a sheet
-+  // (below 1200 px) catches up just after the slide's first frame, so the tap's task is short and the slide starts at
-+  // the next frame; the compositor runs the slide while the panel renders (60–110 ms for Apple and Amazon at load 3).
-+  const catchUp = open && filtersDirty;
-+  if (catchUp && !isOverlayFilters()) { filtersDirty = false; renderFilterPanel(); }
-   if (isOverlayFilters()) {
-     const was = document.body.classList.contains('filters-open');
-     document.body.classList.toggle('filters-open', open);
-@@ -5492,8 +5508,16 @@ function setFiltersOpen(open, { opener = null, focus = null } = {}) {
-       if (!was || opener) filtersOpener = opener || filtersOpener;
-       // M-26: the Filters button opens the sheet at its top, where focus goes (Salary); a chip passes its own section.
-       if (!focus) $('#filterBody').scrollTop = 0;
--      const target = focus || $('#filters summary');
--      setTimeout(() => target?.focus({ preventScroll: true }), 50);
-+      const giveFocus = () => {
-+        if (!document.body.classList.contains('filters-open')) return; // closed again meanwhile
-+        (focus?.isConnected ? focus : $('#filters summary'))?.focus({ preventScroll: true });
-+      };
-+      if (catchUp) {
-+        requestAnimationFrame(() => setTimeout(() => {
-+          if (filtersDirty && document.body.classList.contains('filters-open')) { filtersDirty = false; renderFilterPanel(); }
-+          giveFocus();
-+        }, 0));
-+      } else setTimeout(giveFocus, 50);
-       if (!was) overlayHistPush('filters');
-     } else if (was) {
-       overlayHistRelease();
-diff --git a/public/styles.css b/public/styles.css
-index 083b4f9..ec9cb66 100644
---- a/public/styles.css
-+++ b/public/styles.css
-@@ -1592,6 +1592,26 @@ html[data-mode="map"] .tagline, html[data-mode="insights"] .tagline { display: n
-    nothing lies on the hinge: the top bar and the quick bar put their right-hand controls on the right screen, the
-    toast shows on the right screen, and popovers open on their control's screen (app.js positionPopover). Two screens
-    narrower than 861 px in all keep the phone layout. */
-+/* B-8 (fix-ui-6): the Surface Duo spanned when its browser reports one screen (no viewport segments: the persona runs of
-+   2026-10-23, and any browser without the Viewport Segments API): 1114 px wide on a touch screen in landscape is the Duo's
-+   two 540 px screens and its 34 px hinge at 540–574, so the same layout as the block below, from those sizes. The search
-+   box, the stats line and the chart crossed the hinge. A browser that reports the screens also gets the block below,
-+   with the same numbers from env(). app.js screenSegments() gives positionPopover the same two screens. */
-+@media (pointer: coarse) and (min-width: 1104px) and (max-width: 1124px) and (orientation: landscape) {
-+  .layout, body.filters-collapsed .layout {
-+    display: grid;
-+    grid-template-columns: 540px 34px minmax(0, 1fr);
-+    grid-template-areas: "main . results";
-+  }
-+  .filters, body.filters-collapsed .filters { width: 540px; }
-+  .drawer { width: calc(100vw - 574px); }
-+  .topbar-right { flex: none; width: calc(100vw - 574px - 24px); margin-left: 34px; }
-+  .topbar-right .seg { margin-right: auto; }
-+  .quickbar-end { flex: none; width: calc(100vw - 574px - 24px); justify-content: flex-start; margin-left: 42px; }
-+  .quick-chips { -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 18px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 18px), transparent); padding-right: 18px; }
-+  .toast { left: calc(574px + (100vw - 574px) / 2); }
-+  .tagline { flex: 1 1 100%; margin: 0; text-align: left; }
-+}
- @media (horizontal-viewport-segments: 2) and (min-width: 861px) {
-   .layout, body.filters-collapsed .layout {
-     display: grid;
-diff --git a/test/e2e/fix-ui-6.e2e.js b/test/e2e/fix-ui-6.e2e.js
-index 131ebd0..6c02ff5 100644
---- a/test/e2e/fix-ui-6.e2e.js
-+++ b/test/e2e/fix-ui-6.e2e.js
-@@ -249,14 +249,21 @@ async function openFilters(page) {
- /* ------------------------------------------------------------------------------------------------------------- B-4 */
- 
- /**
-- * In the page: from the tap on Filters to the start of the sheet's slide (its transform transition's transitionrun), as
-- * event times; the tap is the touchstart's (or pointerdown's) time.
-+ * In the page: from the tap on Filters to the start of the sheet's slide: the start time of its transform transition
-+ * (the frame it began in, on the document timeline, the clock of event times), read when its transitionrun arrives (the
-+ * event itself can wait behind later work). The tap is the touchstart's (or pointerdown's) time.
-  */
- const SLIDE_CLOCK = () => {
-   window.__fui6 = { tap: null, run: null };
-   addEventListener('touchstart', (e) => { if (e.target.closest?.('#filtersToggle') && window.__fui6.tap == null) window.__fui6.tap = e.timeStamp; }, { capture: true, passive: true });
-   addEventListener('pointerdown', (e) => { if (e.target.closest?.('#filtersToggle') && window.__fui6.tap == null) window.__fui6.tap = e.timeStamp; }, { capture: true, passive: true });
--  addEventListener('transitionrun', (e) => { if (e.target.id === 'filters' && e.propertyName === 'transform' && window.__fui6.run == null) window.__fui6.run = e.timeStamp; }, true);
-+  addEventListener('transitionrun', (e) => {
-+    if (e.target.id !== 'filters' || e.propertyName !== 'transform' || window.__fui6.run != null) return;
-+    const a = e.target.getAnimations().find((x) => x.transitionProperty === 'transform');
-+    if (!a) { window.__fui6.run = e.timeStamp; return; }
-+    if (a.startTime != null) window.__fui6.run = a.startTime;
-+    else a.ready.then(() => { window.__fui6.run = a.startTime ?? e.timeStamp; });
-+  }, true);
- };
- /** One tap on Filters on a fresh page of `size`: ms from the tap to the slide's start. */
- async function slideStart(ctx, size, board) {
+@@ -3026,21 +3026,22 @@ function renderTagline() {
+   const el = $('#tagline');
+   if (!el) return;
+   const n = companies.filter((c) => !c.custom).length;
+-  // UX-23: on the beta site the line says what the beta adds (the Beta tag by the logo links to the main site).
++  // UX-23: the Beta tag by the logo says it is the beta site and links to the main site.
+   const big = CHANNEL === 'beta' ? companies.filter((c) => c.live === false && !c.custom).map((c) => c.name) : [];
+   const list = big.length > 1 ? `${big.slice(0, -1).join(', ')} and ${big[big.length - 1]}` : big[0];
+-  // fix-density: one line. The beta line names how many careers sites it adds (the names are in its title
+-  // and the company menu); a phone shows a shorter line than the desktop.
+-  const text = big.length ? `Beta: adds ${big.length > 1 ? `${big.length} big-tech companies’` : `${big[0]}’s`} own careers sites`
++  // fix-density: one line; a phone shows a shorter line than the desktop. B-11 (fix-ui-6, persona wave 2 I-1, 5 of 5):
++  // the beta line said only what the beta adds ("Beta: adds 7 big-tech careers sites"), not what the site is for, so it
++  // says that first, as the main site's line does; what the beta adds (the names) stays in its title.
++  const text = big.length ? `Job postings and their posted pay, and what’s left after tax and rent, at ${n} companies`
+     : `Pay, and what’s left after tax and rent, for ${n ? `${n} companies’` : 'tech companies’'} open roles`;
+-  const short = big.length ? `Beta: adds ${big.length > 1 ? `${big.length} big-tech careers sites` : `${big[0]}’s careers site`}` : 'Tech pay, after tax and rent';
++  const short = big.length ? 'Job postings and their posted pay' : 'Tech pay, after tax and rent';
+   if (el.dataset.text !== text) {
+     el.dataset.text = text;
+-    el.title = big.length ? `Beta: adds ${list} from their own careers sites` : text;
++    el.title = big.length ? `${text}. Beta: adds ${list} from their own careers sites` : text;
+     el.replaceChildren(h('strong', { class: 'tagline-brand' }, 'melon·seek'), h('span', { class: 'tagline-sep', 'aria-hidden': 'true' }, ' · '),
+       h('span', { class: 'tagline-long' }, text), h('span', { class: 'tagline-short' }, short),
+       // fix-phone-text: the shortest line, for a box too narrow for the others (fitTagline).
+-      h('span', { class: 'tagline-tiny' }, big.length ? `Beta: ${big.length > 1 ? `${big.length} big-tech sites` : `${big[0]}’s site`}` : 'Pay after tax and rent'));
++      h('span', { class: 'tagline-tiny' }, big.length ? 'Jobs and their posted pay' : 'Pay after tax and rent'));
+     requestAnimationFrame(fitTagline);
+   }
+   document.body.classList.toggle('is-filtered', activeFilterCount() > 0 || !!area);

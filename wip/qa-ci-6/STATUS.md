@@ -13,3 +13,6 @@
 ## Uncommitted and new files
 ```
 ```
+
+## Left out (not in untracked.tgz)
+- node_modules (symlink)

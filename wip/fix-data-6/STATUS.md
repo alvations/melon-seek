@@ -2,11 +2,13 @@
 
 - Worktree: `/home/user/melon-seek/.claude/worktrees/agent-a08f9659d62990db4`
 - Base (on claude/stoic-ride-54ddxp): `00bd52cc29ee94513234f39beed686d7cd111d33`
-- Head: `5440ebada4bbd18d2ef44e5bda8717a22f8c9a07`
+- Head: `0f007cc699fae5abb45fc62d345b5ac9e96fc3c4`
 - Restore: `bash scripts/cycle/restore-wip.sh fix-data-6 <new worktree dir>`
 
 ## Commits since the base
 ```
+0f007cc fix-data-6: log state after the restart
+5e29ff4 fix-data-6: T-19 the two e2e tests that skipped on every run now run
 5440eba fix-data-6: R-1/R-3 operations and data-center families, R-2 lead associates are Mid, K-1 stated bonus targets as posted, P-1 pay places named, P-2 exact posted pay on the job page
 fa52f61 fix-data-6: the freshness inventory regenerated (registry.js --docs --write) for the gazetteer size
 d217716 fix-data-6: log state (P-2 queued)
@@ -18,8 +20,9 @@ cb71da7 fix-data-6: G-1 359 towns near the big-tech hubs at their own place (Bay
 
 ## Uncommitted and new files
 ```
- M test/e2e/desktop-qa.e2e.js
- M test/e2e/fix-app.e2e.js
+ M public/app.js
+ M public/features/compstimate.js
+ M test/e2e/fix-data-6.e2e.js
 ```
 
 ## Left out (not in untracked.tgz)
