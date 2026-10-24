@@ -504,7 +504,7 @@ export function registerFixUi6Tests(suite) {
   }
 
   /* ----------------------------------------------------------------------------------------------------------- B-4 */
-  suite.test('fix-ui-6: [B-4] a tap on Filters starts the sheet\'s slide on touch screens over 860 px (932x430, 1005x412, 1114x720) within 1.25x the phone\'s time (390x844) plus one frame, and within 250 ms (Amazon and Apple, medians of 3)', async (ctx) => {
+  suite.test('fix-ui-6: [B-4] a tap on Filters starts the sheet\'s slide within 80 ms on touch screens over 860 px (932x430, 1005x412, 1114x720), and no later than two frames after a phone\'s (390x844) (Apple and Amazon, medians of 3; load-sensitive)', async (ctx) => {
     const wide = ALL_SIZES.filter((s) => s.width > 860 && s.height < s.width);
     const phone = at(390, 844);
     const bad = [];
@@ -519,7 +519,7 @@ export function registerFixUi6Tests(suite) {
         for (let i = 0; i < 3; i++) v.push(await slideStart(ctx, size, board));
         const m = median(v);
         rows.push(`${board} ${size.width}x${size.height} ${m == null ? 'never' : `${Math.round(m)} ms`} (phone ${Math.round(base)} ms)`);
-        if (m == null || m > Math.max(base * 1.25 + 17, base + 17) || m > 250) bad.push(rows[rows.length - 1]);
+        if (m == null || m > 80 || m > base + 34) bad.push(rows[rows.length - 1]);
       }
     }
     console.log(`      slide starts: ${rows.join('; ')}`);

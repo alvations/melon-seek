@@ -3,13 +3,15 @@
 ## State
 
 - **Done (in the worktree, not yet sent):**
-  - prompt saved (814f6f1); baseline build of 00bd52c (e800c43 plus the checkpoint retirements) kept as a hard-linked copy;
-  - baselines on that build: phone smoke 147/147 (21 sizes x 7 boards), phone matrix 60/60;
-  - first fixes in public/app.js, public/styles.css and public/viz/map.js for B-1 to B-7 (section 3);
-  - test/e2e/fix-ui-6.e2e.js (72 tests), registered in scripts/e2e.js.
-- **In progress:** B-4's before/after timings; the red run of the new tests on the baseline build.
-- **Next:** B-8 to B-11 (persona wave 2, from the lead); green runs, the related groups, smoke and matrix after, screenshots,
-  npm test in a clean checkout, then send the SHAs.
+  - prompt (814f6f1); baseline build of 00bd52c (e800c43 plus the checkpoint retirements) kept hard-linked at
+    `<scratch>/fui6/dist-before`; baselines there: phone smoke 147/147 (21 sizes x 7 boards), phone matrix 60/60;
+  - fixes for B-1 to B-12 in public/app.js, public/styles.css and public/viz/map.js (section 3), CONTRACT section;
+  - test/e2e/fix-ui-6.e2e.js (127 tests), registered in scripts/e2e.js;
+  - B-4 measured before/after (section 5).
+- **In progress (2026-10-24 00:45, after the container restart at 00:23):** the red run of the group on the baseline build
+  (`<scratch>/fui6/fui6-before.log`).
+- **Next:** the green run on dist/, the B-12 first-card timing (`probes/firstcard.cjs`), phone smoke and the matrix after,
+  the related groups, screenshots (FUI6_SHOTS=before|after), npm test in `<scratch>/fui6/clean`, then send the SHAs.
 
 ## 1. Brief
 
@@ -35,7 +37,76 @@ caption's label text (fix-app-6), data files.
 
 ## 3. Decisions and rationale
 
-(written as each item lands; see the change log)
+1. **B-1, the card's dot.** The dot is coloured for the key the chart colours by (`keyOf(job, colorBy())`), so the meta
+   line names that key first, beside it:
+   - Company: "YouTube · User Experience and Design" (UX-50, unchanged);
+   - Level: "Senior · Software Engineering" (the level's words, `levelLabel`, as the chart's rows and legend say them);
+   - Location: the place first, "Seattle, WA +2 · Software Engineering". The place the dot stands for is the job's first
+     on-site place (`primaryLocation`, the chart's key), so `locSummary(job, 1, { coloured: true })` names it first even
+     where a Location filter or the pay's places would put another first. Naming it twice ("Seattle · … · Seattle, WA")
+     was the other way; it costs a narrow card its department.
+   - Department and No grouping: the department, as before.
+   The department still gives way first on a narrow card (UX-16): `.card-dept` shrinks, `.card-loc` doesn't, whatever
+   their order. No CSS change.
+2. **B-2, the level badge's gap.** M-51's clip needs a badge that starts a line to step in by 12 px; with a flex gap of
+   6 px that made every badge 18 px after the text before it. CSS cannot tell a line's first item from the others, and a
+   negative margin on the item before the badge would let that item overflow the right edge by 8 px when the badge wraps.
+   So app.js `fitMetaLine` (on the job page's open, and on resize with `fitApplyLabel`) tries each badge and tag on the
+   line of the item before it (`.is-inline`: 4 px, so 10 px; the tag 0, so 6 px after the badge, as before M-51) and
+   keeps 12 px only when it starts a line. Without JS a badge keeps 12 px: never cut.
+3. **B-3, "Show N roles" under the keyboard over 860 px.** bindKeyboardInsets sets `body.kb-open` on a coarse pointer over
+   860 px too, but only while a field is typed in (on phones a panned visual viewport counts as well). styles.css hides
+   the sheet's footer then, as phones do (the M-52 block). Every other `kb-open` rule is inside a phone media query, so
+   nothing else changes over 860 px. Considered: the sheet sized to the visual viewport with its footer above the
+   keyboard; with 206 px left on the Razr landscape that leaves the list about 90 px.
+4. **B-4, the sheet's late start.** Measured (section 5): the slide started 70–197 ms after the tap, on phones as over
+   860 px (the "up to 300 ms" is the same delay at a higher load). Two causes, both ours:
+   - the tap's task rendered the panel (PERF-2 skips its sync while it is closed and catches up on open: 60 ms for Apple,
+     about 100 for Amazon at load 3), and the slide could start only after it;
+   - the frame after the tap restyled the whole page twice: `measure()` (bindKeyboardInsets, run on every focus change
+     and at three settle timers) wrote `--vvh` and `--vvt` on the root's inline style each time, and Chrome restyles every
+     element on such a write even with the same value (trace: "Inline CSS style declaration was mutated", 1,789
+     elements, 15–20 ms each).
+   Fixes: setFiltersOpen toggles the sheet first and, when the panel is behind, renders it just after the slide's first
+   frame (rAF, then a task), with focus after it; `setRootVar` writes a root property only when it changes. A docked
+   column (1200 px and up) still renders first. No transition, font or style flush of ours was on the open path
+   otherwise; the transition is on transform only.
+5. **B-5, the Razr inner landscape chart.** M-52's 44 px chart controls made the toolbar 16 px taller. On a short touch
+   screen over 860 px (max-height 500) the main column's top padding goes from 16 to 8 px, its gap from 10 to 6 and the
+   toolbar's row gap from 12 to 8: 16 px back, so the chart is as tall as with a mouse (188.4 px at 1005x412). The list's
+   header loses the same 8 px, so the Sort stays level with the stats line.
+6. **B-6, the search box from 861 px.** From 861 to 1199 px the top bar takes the phone's shorter forms: the company menu
+   without its role count (the list's header has it) and a saved snapshot's badge with its date alone ("● Oct 16"; its
+   name, tip and sheet keep "saved snapshot"). The search box is then at least 215 px with "Search roles" or the full hint
+   at every width, touch or mouse, with a Refresh button (it was 104 px reading "Search", and nothing at 1000–1020 px).
+   A pending badge keeps "Checking live…" (badge.e2e checks it at 1020 px).
+7. **B-7, the map's fit.** clearOfControls (fix-viz-5's after-fit check) measured a pin by its price tag, whose box does
+   not hold its pointer (a pseudo-element 7 px under it, down to the place), and allowed 1 px of overlap. So the Razr
+   cover screen's third pin pointed under the attribution. Now a pin is its tag plus its pointer, with 2 px of air from
+   every control (`pinFootprint`, `nearHit`); a small pan (4 px steps up and down to 32, then sideways) is tried before
+   zooming out, so no pin is merged away when a pan clears them all; a re-check after a resize starts from unmerged pins.
+   Considered: a larger bottom padding in fitToData for the attribution; on the 123 px map it cost half a zoom step and
+   merged two pins. The "N postings list no place" line (V-44) still lies over Meta's pins on the cover screen; it takes
+   no taps (pointer-events none), and fitting around it merges the pins anyway. Reported (section 6).
+8. **B-8, the Duo's hinge.** The dual-screen layout (fix-phone-sizes decision 8) needs the browser to report two
+   viewport segments. A browser that reports one screen (the persona runs, or one without the Viewport Segments API) got
+   the desktop layout across the hinge. A touch screen 1104–1124 px wide in landscape is the Duo spanned, so the same
+   layout applies there from the Duo's own sizes (540 | 34 | 540), and app.js `screenSegments()` gives positionPopover
+   the same two screens. A browser that reports the screens gets env()'s numbers, the same.
+9. **B-9, the Razr cover screen.** The company menu scrolls the current company into view no further than keeps the
+   first saved search whole (saved searches are listed first and carry "N new"). The toast shows over the top bar, full
+   width, on short portrait screens, so a "2 new roles…" toast no longer covers the first card for 4.5 s.
+10. **B-12 and B-10, a card on the first screen.** The phone's results sheet peeks at 156 px (was 84): the count and Sort,
+    the Juice line and the first card's title and pay (149 px under the sheet's top at 390x844). The chart gives up that
+    room; at 320x568 its rows keep 54 px. Landscape keeps 64. The Razr cover screen peeks at 104 px with the Juice line
+    shown once the sheet is raised: the first card's title and pay show, and the chart keeps its caption and scale (it
+    held half a row before). With few roles (B-10), app.js `fitSheetToChart` raises the peek into the room the chart's
+    rows leave, as a body-level `--sheet-peek` (the chart's box shrinks to its rows, its notes line follows them), never
+    above half the screen; it comes back down when the rows need it.
+11. **B-11, the arrival line.** It said what the beta adds, not what the site is for. The beta line now reads "Job
+    postings and their posted pay, and what's left after tax and rent, at 15 companies" (desktop), "Job postings and
+    their posted pay" (phone) and "Jobs and their posted pay" (narrowest); its title adds "Beta: adds Amazon, Apple, …, NVIDIA
+    from their own careers sites". The main site's line is unchanged. The line is built in public/app.js `renderTagline`.
 
 ## 4. Replayable steps
 

@@ -1102,3 +1102,41 @@ else `salary.country`) and scored on that row's midpoint in its currency: Milan 
 degree: 68500-68500 EUR"), and the salary's levels are then not listed again; `salary.unlisted` lines follow, marked "(not a
 listed place)": "Spain (not a listed place): 38000-59700 EUR". `salary_min` / `salary_max` still span only rows in the salary's
 currency.
+
+## fix-ui-6 additions (2026-10-24): the card's dot, the job page's badge, the layout over 860 px, the Duo, the cover screen and the first screen (fix-ui-6 lane)
+
+Round 4's backlog B-1 to B-7 ([docs/process/fix-phone-sizes.md](process/fix-phone-sizes.md) §6, [fix-qa4.md](process/fix-qa4.md) §6) and
+persona wave 2's B-8 to B-12. Log: [docs/process/fix-ui-6.md](process/fix-ui-6.md). Job fields, `NORMALIZER_VERSION` and every export are
+unchanged; no posting or pay row is hidden.
+
+**The card (`public/app.js card`, B-1):** the meta line names first the key its dot is coloured for (`colorBy()`): the company
+(UX-50), the level ("Senior · Software Engineering"), or, under Location colouring, the place ("Seattle, WA +2 · Software
+Engineering": `locSummary(job, max, { coloured: true })` names the job's first on-site place, the chart's `keyOf` key, first).
+
+**The job page (`public/app.js fitMetaLine`, B-2):** on the meta line the level badge sits 10 px after the text before it and the
+tag 6 px after the badge (`.is-inline`); one that starts a line keeps M-51's 12 px. Run with `fitApplyLabel`.
+
+**Keyboard and the filter sheet (B-3, B-4):** `body.kb-open` is also set over 860 px on a coarse pointer while a field is typed in,
+and hides the sheet's "Show N roles" footer there. `setFiltersOpen` slides a sheet (below 1200 px) in first and renders a panel
+that missed syncs while closed (PERF-2) just after the slide's first frame. `setRootVar(name, value)` writes a root custom
+property only when it changes (`--vvh`, `--vvt`).
+
+**Layout over 860 px (B-5, B-6):** a short touch screen over 860 px (max-height 500) has 16 px less space above and between the
+chart toolbar's rows; from 861 to 1199 px the company menu has no role count and a saved snapshot's badge shows its date alone.
+
+**The Surface Duo spanned (B-8):** a touch screen 1104–1124 px wide in landscape gets the dual-screen layout from the Duo's sizes
+(540 | 34 | 540) when the browser reports no viewport segments; `screenSegments()` (`DUO_SPANNED`) gives `positionPopover` the
+two screens. A browser that reports them gets the env() block, with the same numbers.
+
+**Phones (B-9, B-10, B-12):** the results sheet peeks at 156 px in chart mode (the first card's title and pay; the map keeps 84 px,
+landscape 64 px, the Razr cover screen 104 px with the Juice line shown once the sheet is raised). `fitSheetToChart()` raises the
+peek into the room a chart's rows leave (a body-level `--sheet-peek`, never above half the screen). The company menu keeps the
+first saved search in view while it reveals the current company. On short portrait screens the toast shows over the top bar.
+
+**The arrival line (`renderTagline`, B-11):** the beta site's line says what the site is for: "Job postings and their posted pay,
+and what's left after tax and rent, at N companies" (short: "Job postings and their posted pay"; shortest: "Jobs and their posted
+pay"); its title adds the big-tech boards it adds. The main site's line is unchanged.
+
+**The map's fit (`public/viz/map.js clearOfControls`, B-7):** a pin is its price tag and its pointer, down to the place
+(`PIN_TIP`, 7 px), with `CONTROL_GAP` (2 px) of air from each control; a small pan is tried before zooming out, and a re-check
+after a resize starts from unmerged pins.
