@@ -444,6 +444,28 @@ export function registerFixApp6Tests(suite) {
     });
   }
 
+  suite.test('fix-app-6: [V-44 at the Razr cover, from fix-ui-6] Meta\'s map at 352x355: the "N postings list no place" line is short and leaves the pins clear', async (ctx) => {
+    const d = ALL_SIZES.find((x) => x.width === 352 && x.height === 355);
+    const { st, page, errors } = await open(ctx, { device: d });
+    await board(page, st, 'c=meta&m=map');
+    await page.locator('#mapHost .ms-pin').first().waitFor({ timeout: 60000 }).catch(() => {});
+    await sleep(1500);
+    const r = await page.evaluate(() => {
+      const e = document.querySelector('#mapHost .ms-map__unplaced');
+      if (!e || e.hidden) return null;
+      const b = e.getBoundingClientRect();
+      const pins = [...document.querySelectorAll('#mapHost .ms-pin')].map((p) => p.getBoundingClientRect()).filter((p) => p.width && p.height);
+      const over = pins.filter((p) => p.left < b.right && p.right > b.left && p.top < b.bottom && p.bottom > b.top).length;
+      return { text: e.textContent, title: e.title, w: Math.round(b.width), over, pins: pins.length };
+    });
+    if (!r) skip('every Meta posting lists a place in this build');
+    assert(/^[\d.,K]+ with no place$/.test(r.text), `the line reads "${r.text}" (${r.w} px)`);
+    assert(/lists? no place, so not on the map/.test(r.title), `its title "${r.title}"`);
+    assert(!r.over, `the line covers ${r.over} of ${r.pins} pins`);
+    await shot(page, 'v44-razr-cover-meta-map');
+    noErrors(errors);
+  });
+
   // [phone] Every line this lane added or changed, at every phone size: the stats line and the chart caption over Canadian
   // pay (Amazon interns in Vancouver) and over part-time hourly pay (Apple), and Insights' tiles.
   for (const d of ALL_SIZES) {

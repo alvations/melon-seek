@@ -549,8 +549,14 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
   let unplaced = 0;
   function drawUnplaced() {
     unplacedEl.hidden = !unplaced;
-    unplacedEl.textContent = unplaced ? `${plural(unplaced, 'posting')} ${unplaced === 1 ? 'lists' : 'list'} no place, so not on the map` : '';
+    const long = unplaced ? `${plural(unplaced, 'posting')} ${unplaced === 1 ? 'lists' : 'list'} no place, so not on the map` : '';
+    // fix-app-6 (fix-ui-6's Razr cover screen, 352x355: the map is about 123 px tall): the long line covered the pins, so a
+    // short map gets the short one; the whole sentence stays in its title.
+    const short = unplaced && container.getBoundingClientRect().height < 220;
+    unplacedEl.textContent = short ? `${shortCount(unplaced)} with no place` : long;
+    unplacedEl.title = long;
   }
+  map.on('resize', () => { if (unplaced) drawUnplaced(); });
 
   // "Pay | Juice" segmented control (+ the Juice legend when active)
   let colorMode = COLOR_MODES.includes(initialMode) ? initialMode : 'pay';
