@@ -1,7 +1,7 @@
 From 5ae6a7cf4a79f6b574a4a7a5899b082a0af88bcb Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 23 Oct 2026 22:04:57 +0000
-Subject: [PATCH 47/76] fix-app-6: e2e fixes (empty results, locale counts,
+Subject: [PATCH 47/98] fix-app-6: e2e fixes (empty results, locale counts,
  Location row counts at every phone size); log decisions
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

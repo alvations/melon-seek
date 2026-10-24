@@ -1,7 +1,7 @@
 From e0d5ba3d8d699ee37240acdfb800df84d7c38055 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 24 Oct 2026 01:42:12 +0000
-Subject: [PATCH 72/76] WIP qa-ci-6: Badge swap picks its cluster and card by
+Subject: [PATCH 72/98] WIP qa-ci-6: Badge swap picks its cluster and card by
  property; CI pins Playwright 1.56.1 (Chromium 141, the local gate's)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

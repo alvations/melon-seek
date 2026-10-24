@@ -2,11 +2,33 @@
 
 - Worktree: `/tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92f3-f582ebca24d9/scratchpad/wt-int`
 - Base (on claude/stoic-ride-54ddxp): `a0763eceb553a3da77408fd81acf018174302bbc`
-- Head: `505a4df05ba92707898b55630e7275abc31c7979`
+- Head: `5de0efc42a3fdb240e3e881570c0babaee4d86b8`
 - Restore: `bash scripts/cycle/restore-wip.sh lead-integration <new worktree dir>`
 
 ## Commits since the base
 ```
+5de0efc Beta coverage: the pay floor's reference follows BN-6 (fix-app-6): a posted minimum states no top, so a floor never hides it (Amazon's 285 minimums under $160K)
+a2b224e fix-data-6: G-4 "Bogota, D.C." is Bogotá, Colombia (Distrito Capital), not Washington, DC: 15 Amazon postings, nothing else moves
+5794e3a fix-data-6: J-4 checks the tip of the chip under the mouse; log: the three rebases, P-4, the one-line forms and every run's result
+c005419 fix-data-6: J-4 reads the visible chart's edge chip (a hash-only goto left the previous board's chips first in the DOM)
+7387c8e fix-data-6: P-4 payLocations follows the rows (every place a row prices has posted pay, Munich beside the US row); headlinePayLocations keeps payCountry and the pay estimate on the headline; BP-2 and VT-5 read the rows
+bd01dab fix-data-6: fix-salary-6's e2e reads the job page's exact posted figures (P-2: €124,000–127,000; the card keeps €124K–127K)
+7ef0b2e fix-data-6: log state after the rebase onto e77cd41 and the restart
+84f6922 fix-data-6: on top of fix-salary-6, one line at 280 and 320 px: the hourly heading ($27.98–48.99/hour, then whole dollars), the yearly line (hours in Details), P-1's line (shorter forms); fix-salary-6's harness stubs isFullTimeHourly
+f89fd17 fix-data-6: related e2e after P-2 and T-19: exact headings in fix-pay-at-place, a programme's per-place rates exact, Fix app [P-2] picks what the drawer shows; phone lines one line at every size
+66b2eac fix-data-6: CONTRACT and DATA_SOURCES for G-2 and G-3; log with the counts, the red and green runs
+41dba4c fix-data-6: G-2 bare ISO codes that are US state codes are countries; G-3 dotted state abbreviations, Monterrey and Apple Bayshore
+ccf4c31 fix-data-6: CONTRACT, DATA_SOURCES and the methodology guide for G-1, K-1, P-1 to P-3, R-1 to R-3 and C-1
+6664d4a fix-data-6: P-3 full-time hourly pay at its posted rate; C-1 equally similar comparables spread across the estimate's pay
+de2a387 fix-data-6: log state after the restart
+b8cd738 fix-data-6: T-19 the two e2e tests that skipped on every run now run
+e0021fb fix-data-6: R-1/R-3 operations and data-center families, R-2 lead associates are Mid, K-1 stated bonus targets as posted, P-1 pay places named, P-2 exact posted pay on the job page
+f6649f5 fix-data-6: the freshness inventory regenerated (registry.js --docs --write) for the gazetteer size
+013a062 fix-data-6: log state (P-2 queued)
+f27e17e fix-data-6: G-1 359 towns near the big-tech hubs at their own place (Bay Area first), K-1 '+ 0% bonus target' is no bonus; norm-14
+1678f22 fix-data-6: log state (G-1, K-1 in progress; P-1, R-1 queued)
+78a9518 fix-data-6: process log started
+0155904 fix-data-6: the brief, verbatim
 505a4df qa-ci-6: log: verification on f13ebd6, State done, change log
 132b2bf qa-ci-6: on f13ebd6: D-41 counts a place's state-wide roles (BN-1); V-43 reads pins in any currency (fix-salary-6's rows per country)
 6bea94e qa-ci-6: log verification table and known gaps
@@ -87,51 +109,6 @@ ed32bf1 fix-salary-6: norm-14; golden re-baselined (0 of 300 hashes changed) and
 
 ## Uncommitted and new files
 ```
- M docs/screenshots/chart.png
- M docs/screenshots/dark-drawer.png
- M docs/screenshots/dark.png
- M docs/screenshots/drawer-juice.png
- M docs/screenshots/drawer.png
- M docs/screenshots/fix-pay-at-place/e2e-card-1114x720.png
- M docs/screenshots/fix-pay-at-place/e2e-card-280x653.png
- M docs/screenshots/fix-pay-at-place/e2e-card-352x355.png
- M docs/screenshots/fix-pay-at-place/e2e-card-375x812.png
- M docs/screenshots/fix-pay-at-place/e2e-card-720x1114.png
- M docs/screenshots/fix-salary-6/dublin-card-1280x800.png
- M docs/screenshots/fix-salary-6/dublin-card-352x355.png
- M docs/screenshots/fix-salary-6/dublin-card-375x812.png
- M docs/screenshots/fix-salary-6/dublin-drawer-1280x800.png
- M docs/screenshots/fix-salary-6/dublin-drawer-352x355.png
- M docs/screenshots/fix-salary-6/dublin-drawer-375x812.png
- M docs/screenshots/fix-salary-6/milan-card-1280x800.png
- M docs/screenshots/fix-salary-6/milan-card-352x355.png
- M docs/screenshots/fix-salary-6/milan-card-375x812.png
- M docs/screenshots/fix-salary-6/milan-drawer-1280x800.png
- M docs/screenshots/fix-salary-6/milan-drawer-352x355.png
- M docs/screenshots/fix-salary-6/milan-drawer-375x812.png
- M docs/screenshots/fix-salary-6/paris-card-1280x800.png
- M docs/screenshots/fix-salary-6/paris-card-352x355.png
- M docs/screenshots/fix-salary-6/paris-card-375x812.png
- M docs/screenshots/fix-salary-6/paris-drawer-1280x800.png
- M docs/screenshots/fix-salary-6/paris-drawer-352x355.png
- M docs/screenshots/fix-salary-6/paris-drawer-375x812.png
- M docs/screenshots/insights.png
- M docs/screenshots/map-juice.png
- M docs/screenshots/map.png
- M docs/screenshots/mobile.png
- M docs/screenshots/qa-mobile-beta-2/e2e-M-28-360x640-with-the-keyboard-up-300-px-.png
- M docs/screenshots/qa-mobile-beta-2/e2e-M-28-iPhone-SE-Safari-375x548.png
- M docs/screenshots/qa-mobile-beta-2/e2e-M-28-landscape-844x390-with-5-saved-searches.png
- M docs/screenshots/qa-mobile-beta-2/e2e-M-28-landscape-844x390.png
- M docs/screenshots/qa-mobile-beta-2/e2e-M-29-company-menu-focus.png
- M docs/screenshots/qa-mobile-beta-2/e2e-M-30-saved-searches-loaded.png
- M docs/screenshots/qa-mobile-beta-2/e2e-M-31-empty-message-half-sheet.png
- M docs/screenshots/qa-mobile-beta/e2e-M-19-sort-while-scrolled.png
- M docs/screenshots/qa-mobile-beta/e2e-M-21-company-menu.png
- M docs/screenshots/qa-mobile-beta/e2e-M-22-paused-board.png
- M docs/screenshots/qa-mobile-beta/e2e-M-24-keyboard-location-search.png
- M docs/screenshots/qa-mobile-beta/e2e-M-27-topbar-360.png
- M docs/screenshots/qa-mobile/e2e-landscape-map.png
 ```
 
 ## Left out (not in untracked.tgz)

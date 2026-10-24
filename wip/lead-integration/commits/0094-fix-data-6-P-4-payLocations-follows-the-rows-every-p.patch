@@ -1,0 +1,271 @@
+From 7387c8e5db8e501f76be1f7ce2d958624ab5ae74 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 24 Oct 2026 07:33:10 +0000
+Subject: [PATCH 94/98] fix-data-6: P-4 payLocations follows the rows (every
+ place a row prices has posted pay, Munich beside the US row);
+ headlinePayLocations keeps payCountry and the pay estimate on the headline;
+ BP-2 and VT-5 read the rows
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+(cherry picked from commit bb3df8304ad1af62ae688f04342005460ad0a74c)
+---
+ docs/CONTRACT.md               | 12 +++++++++-
+ docs/DATA_SOURCES.md           |  2 +-
+ docs/METHODOLOGY_GUIDE.md      |  2 +-
+ public/features/compstimate.js |  6 ++++-
+ public/features/shared.js      | 28 ++++++++++++++++++++---
+ test/beta-vetting.test.js      | 12 ++++++++--
+ test/e2e/fix3-app.e2e.js       | 14 ++++++++----
+ test/fix-data-6.test.js        | 42 ++++++++++++++++++++++++++++++++++
+ 8 files changed, 105 insertions(+), 13 deletions(-)
+
+diff --git a/docs/CONTRACT.md b/docs/CONTRACT.md
+index fc568f1..6345c07 100644
+--- a/docs/CONTRACT.md
++++ b/docs/CONTRACT.md
+@@ -1255,10 +1255,20 @@ the comparables `estimateComp` lists (`comparables`, `comparablePay`, `scores`).
+ the room left is shown by the members nearest the estimate's mid, low, high, then halfway between, sorted by pay. `low`, `mid`,
+ `high`, `n` and `confidence` are worked out from every comparable as before (the backtest does not move).
+ 
++**Places with posted pay (`public/features/shared.js`, P-4):** `payLocations(job)` follows the posting's rows: with
++`salary.ranges` tied to places (since S-1 one row per country or pay area, each in its own currency) it is every place a row
++prices (`pricedPlaces`, as `payAt` reads it), so google:108135834237969094's Munich (Germany's row) is a place with posted pay
++beside its US places, and Zurich, which no row names, is not. Without such rows it is unchanged. New export
++`headlinePayLocations(job)`: the places of the headline figure's own currency and country (payLocations' rule before P-4).
++`payCountry` reads it, and so does the pay estimate (`compstimate.js` imports it as its `payLocations`), so comparisons and the
++backtest do not move. In the app `job._payLocs` (Juice under a Location filter, the card's place order, "No Juice" places, and
++the countries "Pay posted for … only" names) follows the rows.
++
+ **App (`public/app.js`):**
+ - `payPlaceText(job, max = 2)` (P-1): pay tied to named places, by per-place rows or `salary.places`, names them ("Tempe", "Seattle
+   and Herndon") under a Location filter; the country only when none of those places is in a country of the places picked. The
+-  drawer's line is `fitOneLine`d: "Posted for Tempe, not Atlanta", "Posted for Tempe only", then one place named.
++  drawer's line is `fitOneLine`d: "Posted for Tempe, not Atlanta", "Posted for Tempe only", "For Tempe only", then "Posted for
++  other places".
+ - P-2: `statedYearly(s)`; `payUnit(job, exact)` and `payHeadline(job, F, exact)`: on the job page a stated yearly figure is written
+   as posted (`postedPair`: "$119,800–234,700", "€46,400", "from €20,100"), the heading `fitOneLine`d with the card's rounded form
+   where it would wrap; Pay by place rows are exact. Cards keep the rounded figures.
+diff --git a/docs/DATA_SOURCES.md b/docs/DATA_SOURCES.md
+index 99db4c9..f3318c1 100644
+--- a/docs/DATA_SOURCES.md
++++ b/docs/DATA_SOURCES.md
+@@ -261,7 +261,7 @@ pay table). Every result then passes the vetting gate (`server/vet.js`); see
+ | **On-target earnings** (norm-6) | A range the posting calls OTE / on-target earnings / on target compensation / base + commission at target keeps its numbers and gets `salary.kind: "ote"` (base plus commission at target), never shown or pooled as base pay. "For sales roles, the range provided is the role's On Target Earnings ("OTE") range" (Anthropic boilerplate) applies to sales titles only. See [VETTING.md](VETTING.md) §2. NVIDIA's sales "cash compensation range" (85% base, 15% variable) is `"ote"` since fix wave 5 (VT-7, the lead's decision: shown, not hidden). Netflix's sales "market range" for an area is still `salary: null` under the rule below |
+ | **Base pay only** | "+ bonus + equity + benefits" after a range marks it as base pay, and the extras are never added. A **total** compensation range (Google DeepMind "Total Compensation Range: $550,000 – $1,100,000 (includes … sign-on bonus …)") is not base pay, so the posting gets `salary: null`. NVIDIA's sales **cash** compensation range ("85% paid through base salary and 15% variable compensation. The cash compensation range is …") is base plus variable pay at target: on-target earnings, `kind: "ote"` (fix wave 5, VT-7) |
+ | **Several ranges by location** | The first or national range. Microsoft states the U.S. range first and the SF Bay Area / NYC range second: the U.S. one is used, except for a job whose US locations are **all** in the SF Bay Area (75 km around the bay) or the New York City metro (60 km around Manhattan), which uses the SF Bay Area / NYC range (norm-7, decided by the lead for DQ-13: 31 postings, median 18% higher). The distance is the town's own: since norm-13 ([fix-mr-3](process/fix-mr-3.md), MR-40) the gazetteer has the 43 New York, New Jersey and Connecticut towns within about 80 km of Manhattan that the boards list (Garden City NY, Fort Lee and Paramus NJ, Bridgewater NJ, the Bronx, Staten Island, Long Island, Westchester and North and Central Jersey towns); before, they were placed at their state's centre (New York State's is 200 km from the city), so Microsoft's Garden City (3 postings), Fort Lee (1), Paramus (1) and Bridgewater (4) places were priced at the U.S. range. They are now on the posting's NYC-metro row; one Philadelphia and Bridgewater posting keeps both its posted ranges (1,821 → 1,822 Microsoft pay rows). A town elsewhere with the same name ("Oceanside, CA") is not moved: these entries are read only with their state named. Since norm-14 ([fix-data-6](process/fix-data-6.md), G-1) the gazetteer also has the 359 other places of the 2026-10-16 crawl within about 80 km (85 km at most) of a city with 200 or more big-tech postings, or of Washington, DC, that were at their state's or country's centre (California's is 200 km from San Francisco): East Palo Alto (80 Amazon postings), Burlingame (71 Meta), Tracy, Brisbane, Hayward, Newark CA, San Leandro and 11 more now sit inside the SF Bay Area, and the rest are around Los Angeles, San Diego, Seattle, Austin, Dallas, Houston, Boston, the DC area, Chicago, Atlanta, Denver, Nashville, New Jersey and the Hudson Valley, Toronto, Vancouver, London, Dublin, Munich, Tel Aviv, the north of Israel, Mumbai, Delhi, Tokyo, Beijing, Taipei, Mexico City, Sydney and Melbourne. No Microsoft place moves into or out of an area, so Microsoft's pay rows are unchanged (1,822). Over all 67,372 location strings, 359 results in 2,206 postings change, latitude and longitude only (names, regions and countries stay, so the Location filter lists the same places with the same counts). Amazon has no national figure, only a per-location table, so the row for the posting's own primary city is used (city and state compared whole, so "York, PA" is not "New York, NY"), else the first row for one of the posting's own places, else the first row in the posting's country, else the first row. Every row is kept in `salary.ranges`, each with the posting's places it names (`ranges[].locations`, fix wave 5, DQ-33), so Juice and the Location filter use each place's own range; identical rows are one range and one zone; a "Virtual Location" row for a state the posting lists no place in is dropped (DQ-41) |
+-| **Rows named for places are tied to them** (norm-14, [fix-salary-6](process/fix-salary-6.md), S-1, main site) | Ashby and Greenhouse rows stored with a name and no places ("Canada", "USA - California, New York and Washington", "USA - All Other States", "Canada - Toronto (GTA), Montreal", "San Francisco, New York, Seattle", "Remote - US", "London"; Scale AI's unnamed rows, named by its own text: "the base salary range for this full-time position in the locations of San Francisco, New York, Seattle is: $180,000 — $259,000 USD") are tied to the job's places they name (`ranges[].locations`): a state list takes the job's places in those states, "All Other States" or "elsewhere in the US" the country's places no other row names, a country alone its places no more specific row names, a whole-country place ("United States", "Canada") every row of its country, "Remote - US" the remote US place. A row that names no place the job lists, or a name that is no place ("Zone A"), stays as it was. Before, no row of these postings was tied, so a Location filter found no posted pay at any of their places. On the 2026-10-16 crawl: Cohere 122 of 183 rows tied (55 postings), OpenAI 11 of 18 (8), Scale AI 38 of 42 (16); Compstimate's backtest: Cohere ±9.9% on 59 → ±5.8% on 76 (more comparables priced at the city asked), Scale AI ±11.9% on 123 → ±9.7% on 124, OpenAI ±10.1% and every big-tech board unchanged except Google within 10% 44.6% → 43.8% (±12.4% unchanged). Amazon's, Apple's and Microsoft's rows already have their places |
++| **Rows named for places are tied to them** (norm-14, [fix-salary-6](process/fix-salary-6.md), S-1, main site) | Ashby and Greenhouse rows stored with a name and no places ("Canada", "USA - California, New York and Washington", "USA - All Other States", "Canada - Toronto (GTA), Montreal", "San Francisco, New York, Seattle", "Remote - US", "London"; Scale AI's unnamed rows, named by its own text: "the base salary range for this full-time position in the locations of San Francisco, New York, Seattle is: $180,000 — $259,000 USD") are tied to the job's places they name (`ranges[].locations`): a state list takes the job's places in those states, "All Other States" or "elsewhere in the US" the country's places no other row names, a country alone its places no more specific row names, a whole-country place ("United States", "Canada") every row of its country, "Remote - US" the remote US place. A row that names no place the job lists, or a name that is no place ("Zone A"), stays as it was. Before, no row of these postings was tied, so a Location filter found no posted pay at any of their places. On the 2026-10-16 crawl: Cohere 122 of 183 rows tied (55 postings), OpenAI 11 of 18 (8), Scale AI 38 of 42 (16); Compstimate's backtest: Cohere ±9.9% on 59 → ±5.8% on 76 (more comparables priced at the city asked), Scale AI ±11.9% on 123 → ±9.7% on 124, OpenAI ±10.1% and every big-tech board unchanged except Google within 10% 44.6% → 43.8% (±12.4% unchanged). Amazon's, Apple's and Microsoft's rows already have their places. Every place a row prices has posted pay there, at that row and in its currency (`payLocations` follows the rows, as `payAt` does: [fix-data-6](process/fix-data-6.md), P-4); the headline figure's own places (`headlinePayLocations`) still decide the pay's country for comparisons and the pay estimate. On the 2026-10-16 crawl 112 postings gain the places their other countries' rows price (Cohere 47, Google 34, Microsoft 31), none loses one |
+ | **Every posted row is kept** (norm-11, [salary-audit-backend](process/salary-audit-backend.md)) | No cap on rows: Amazon's table and `salary.ranges` keep every posted row (SB-3; it was 12). A stored row that a trimmed description no longer shows is put back from `salary.ranges` (SB-1), and trimming keeps every pay-table row and the sentence above it (SB-2, VT-22). Amazon row names are matched to the posting's places, including "New York City", "N.Reading", "Westboro", "Hazle Township" and "San Franscisco" (SB-4). A posting that lists a Remote place keeps its "Virtual Location - <state>" rows, which are its remote pay (SB-6; DQ-41 still drops them when no place is remote). Microsoft's SF Bay Area / NYC range is kept as a second `salary.ranges` entry with its own places, and the headline stays the U.S. range (SB-5). **Lead decision (2026-10-16), applied since norm-12 ([fix-data-3](process/fix-data-3.md)):** a place the posting lists but prices with no row of its own gets no posted pay there: no Juice for that place, and it is never scored on another place's row. The card still shows the posting's range, and every row is kept. A row tied to no listed place (Amazon "San Francisco" on a posting that lists Austin, Seattle, Columbus and Herndon) prices nothing; it used to make every place score on the headline row. On the 2026-10-16 crawl this was 7 postings: Amazon 10434407 and 10572516 (Austin), 10543760 (Sunnyvale), 10579032 (East Palo Alto), 10580055 and 10580057 (Arlington, VA), and Apple 200679317-3337 (San Francisco Bay Area, whose second footer names no place). Applied by `server/juice.js` `postedPlaceSet` (Juice) and, in every other view (the chart, the map, the stats line, Compstimate, Insights and the drawer), by one helper, `payAt` in public/features/shared.js ([fix-pay-at-place](process/fix-pay-at-place.md); `postedPlaces` for `payLocations`). Virtual-location rows keep their state in their labels ("Remote (CA)") |
+ | **Bonus targets** (norm-14, [fix-data-6](process/fix-data-6.md), K-1) | Google states a bonus target on each pay line ("+ 20% bonus target"). A figure above zero is kept as posted (`extras.bonusTarget`, one figure per posting: 2,455 Google postings on the 2026-10-16 crawl, none with two) and the drawer's chip reads "+ 20% bonus target"; "+ 0% bonus target" (50 Google postings: "Canada: $99000 (CAD) + 0% bonus target") is not a bonus, so there is no chip. "+ bonus mentioned" stays for a bonus with no figure. Bonus mentions: Google 2,512 → 2,462, every other board unchanged; no other "0%" or "no bonus" wording in the crawl reads as a bonus (Shield AI's "Interns/Military Fellows/Part-time not eligible for bonus" already counts as none for those roles). The bonus is never added to the pay |
+ | **Several ranges by level** | Lowest listed min to highest listed max, with the levels named in `salary.text`: NVIDIA "168,000 USD - 264,500 USD for Level 4, and 196,000 USD - 310,500 USD for Level 5"; Microsoft "IC4: USD $119,800 - $234,700 per year; IC5: USD $142,800 - $274,800 per year". Each level's own range is kept in `salary.levels` (`[{ label: "Level 4", min, max }, …]`, annual, norm-7). The span is capped at 4× (the gate's ratio bound). Microsoft also prices one level per **country** ("across Ireland is €…", "across Germany is €…"). Those are not levels: the job's own country is used, and countries are never mixed |
+diff --git a/docs/METHODOLOGY_GUIDE.md b/docs/METHODOLOGY_GUIDE.md
+index 7a35149..d08b7ff 100644
+--- a/docs/METHODOLOGY_GUIDE.md
++++ b/docs/METHODOLOGY_GUIDE.md
+@@ -149,7 +149,7 @@ Every $100 a month less than our figure adds $1,200 a year to Juice left, and ev
+ 
+ ### How is the posted pay read?
+ 
+-From the posting itself, or from the careers site's own pay field where there is one. Only base pay counts: a range that includes bonus, commission or equity is shown as such or left out. When a posting gives a range per level (Microsoft's "IC4" and "IC5", NVIDIA's "Level 4" and "Level 5", the company's own level names), the drawer lists each level's range under **Pay by level**, the card says "· 2 levels", and the headline range runs from the lowest to the highest. When it gives a range for each place (Amazon's pay table, Apple's and Microsoft's ranges for some areas), the drawer lists each place's own range under **Pay by place** and the card says "· N places". A posting that states only a minimum shows it as "from €46K"; an hourly rate that includes the highest shift differential says so ("Incl. top shift pay"), with the stated base beside it when the posting gives one; where a posting states a yearly figure (Austria's minimum, paid in 14 instalments) that figure is used, and the drawer says "Stated as a yearly figure" and quotes the posting. An internship's pay per hour, week or month is shown as posted, also when the posting doesn't say how long the internship lasts; it is never turned into a yearly salary, and a converted figure ("≈ $6,025 a month") is converted at the same interval. The headline median (the stats line over the chart, and Insights' median and middle half) compares one country's pay, as the chart's rows do: when the roles in view are paid in more than one currency, it is the median of the main one ("base pay median (US)"), and the rest are counted, not pooled. The median is written in the currency of the pay it is of, as the cards show pay: Amazon's interns in Vancouver read "CA$101K", Google's Warsaw roles "PLN …", never a dollar figure converted from them; the map's pins and Insights' tiles say the same figure. Part-time hourly pay is also shown as a full-time year of 2,080 hours, for comparison only; when every role in view is paid that way, the median is the hourly rate as posted ("$28.41/hour posted pay median"), and when only some are it says "a year if full-time". Full-time pay posted by the hour is shown at its hourly rate too ("$31.39–54.90/hour"), with its yearly figure at 2,080 hours beside it, marked as converted; sorting, the pay filter and the chart use the yearly figure. The job page gives a yearly figure exactly as the posting states it ("$119,800–234,700", "€46,400"); the card rounds it ("$120K–235K"). A bonus target the posting states as a percentage is shown as posted ("+ 20% bonus target"); a stated "+ 0% bonus target" is no bonus, and "+ bonus mentioned" means the posting mentions a bonus without a figure. None of these is added to the pay. The pay filter compares each role's posted range with yours: a posted minimum ("from €31,100") states no top, so a minimum pay filter never hides it, and pay stated "up to" one figure is never hidden by a maximum; the filter's note counts every role it hides, and why. You can type the amount in another currency ("PLN 150,000", "£75,000", "360 000 zł"): the filter compares it in US dollars at the same fixed rates, and the chip, the link and a saved search keep it as you typed it; a number with no currency is read in the currency of the pay in view when it is all in one, else in dollars.
++From the posting itself, or from the careers site's own pay field where there is one. Only base pay counts: a range that includes bonus, commission or equity is shown as such or left out. When a posting gives a range per level (Microsoft's "IC4" and "IC5", NVIDIA's "Level 4" and "Level 5", the company's own level names), the drawer lists each level's range under **Pay by level**, the card says "· 2 levels", and the headline range runs from the lowest to the highest. When it gives a range for each place (Amazon's pay table, Apple's and Microsoft's ranges for some areas), the drawer lists each place's own range under **Pay by place** and the card says "· N places". Every place with a line of its own has posted pay there: a role with a US line and a German line is paid in Munich at the German line. Under a Location filter, a role whose pay is posted only for other places says where ("Pay posted for Tempe only", "Pay posted for the US and Germany only"). A posting that states only a minimum shows it as "from €46K"; an hourly rate that includes the highest shift differential says so ("Incl. top shift pay"), with the stated base beside it when the posting gives one; where a posting states a yearly figure (Austria's minimum, paid in 14 instalments) that figure is used, and the drawer says "Stated as a yearly figure" and quotes the posting. An internship's pay per hour, week or month is shown as posted, also when the posting doesn't say how long the internship lasts; it is never turned into a yearly salary, and a converted figure ("≈ $6,025 a month") is converted at the same interval. The headline median (the stats line over the chart, and Insights' median and middle half) compares one country's pay, as the chart's rows do: when the roles in view are paid in more than one currency, it is the median of the main one ("base pay median (US)"), and the rest are counted, not pooled. The median is written in the currency of the pay it is of, as the cards show pay: Amazon's interns in Vancouver read "CA$101K", Google's Warsaw roles "PLN …", never a dollar figure converted from them; the map's pins and Insights' tiles say the same figure. Part-time hourly pay is also shown as a full-time year of 2,080 hours, for comparison only; when every role in view is paid that way, the median is the hourly rate as posted ("$28.41/hour posted pay median"), and when only some are it says "a year if full-time". Full-time pay posted by the hour is shown at its hourly rate too ("$31.39–54.90/hour"), with its yearly figure at 2,080 hours beside it, marked as converted; sorting, the pay filter and the chart use the yearly figure. The job page gives a yearly figure exactly as the posting states it ("$119,800–234,700", "€46,400"); the card rounds it ("$120K–235K"). A bonus target the posting states as a percentage is shown as posted ("+ 20% bonus target"); a stated "+ 0% bonus target" is no bonus, and "+ bonus mentioned" means the posting mentions a bonus without a figure. None of these is added to the pay. The pay filter compares each role's posted range with yours: a posted minimum ("from €31,100") states no top, so a minimum pay filter never hides it, and pay stated "up to" one figure is never hidden by a maximum; the filter's note counts every role it hides, and why. You can type the amount in another currency ("PLN 150,000", "£75,000", "360 000 zł"): the filter compares it in US dollars at the same fixed rates, and the chip, the link and a saved search keep it as you typed it; a number with no currency is read in the currency of the pay in view when it is all in one, else in dollars.
+ 
+ ### How are levels read?
+ 
+diff --git a/public/features/compstimate.js b/public/features/compstimate.js
+index ed8fffb..073b952 100644
+--- a/public/features/compstimate.js
++++ b/public/features/compstimate.js
+@@ -17,8 +17,12 @@
+ 
+ import {
+   salaryUSD, weightedPercentile, percentile, median, formatMoney, plural, h, uid, locationKey,
+-  payLocations, isOTE, payKind, isInternLike, countryName, countryInSentence, OTE_LABEL, payAt, payCovers, toUSD,
++  headlinePayLocations as payLocations, isOTE, payKind, isInternLike, countryName, countryInSentence, OTE_LABEL, payAt, payCovers, toUSD,
+ } from './shared.js';
++// P-4 (fix-data-6): the estimate prices each comparable at its headline figure (salaryUSD) or, at the city asked, at
++// its own row there (payAtQuery), so its places are the headline's (headlinePayLocations, payLocations' rule before
++// P-4): a US range's posting with a German row is never German pay at its US figure. The backtest does not move.
++
+ import {
+   normalizeTitle, familySim, rolePart, roleFamily, FAMILY_LABELS, SENIORITY_LADDER,
+   levelLabel, levelStated, displayLevel, NOT_STATED, LEVEL_NOT_STATED, DISPLAY_LEVEL_ORDER, levelKey, levelFromKey,
+diff --git a/public/features/shared.js b/public/features/shared.js
+index a6009cd..e4d5c57 100644
+--- a/public/features/shared.js
++++ b/public/features/shared.js
+@@ -328,8 +328,30 @@ export function locationKey(loc) {
+  *   - VT-5: when the pay line names its country (salary.country, "across Ireland is €…"), only
+  *     places in that country: Ireland's euro range is not Spain's.
+  * Each narrowing is skipped when it would leave no place.
++ * P-4 (fix-data-6, the lead's decision): a posting that prices its places on rows of their own (salary.ranges with
++ * `locations`; since S-1 one row per country or pay area, each in its own currency) has posted pay at every place a
++ * row prices, as payAt and the card's "Pay posted for … only" read it: google:108135834237969094's Munich (Germany's
++ * €232K–237K row) beside San Jose, Kirkland and New York (the US row), never Zurich, which no row names. Where a
++ * caller pairs the places with the headline figure (salary.min/max: payCountry, the pay estimate), it reads
++ * headlinePayLocations, the places of the headline's own currency and country.
+  */
+ export function payLocations(job) {
++  const locs = job?.locations || [];
++  const sal = job?.salary;
++  if (!String(sal?.currency || '').toUpperCase() || !locs.length) return locs;
++  if (Array.isArray(sal.ranges) && sal.ranges.some((r) => r && Array.isArray(r.locations) && r.locations.length && Number.isFinite(Number(r.min)))) {
++    const own = pricedPlaces(job);
++    if (own.length) return own;
++  }
++  return headlinePayLocations(job);
++}
++
++/**
++ * The places the posting's headline figure (salary.min/max, its currency and salary.country) applies to: payLocations'
++ * rule before P-4. A US range with a German row is US pay for its comparisons: payCountry is 'US', and the pay estimate
++ * never prices a German place on the US figure.
++ */
++export function headlinePayLocations(job) {
+   const locs = job?.locations || [];
+   const sal = job?.salary;
+   const cur = String(sal?.currency || '').toUpperCase();
+@@ -374,8 +396,8 @@ const iso = (c) => { const u = String(c || '').toUpperCase(); return u === 'UK'
+ 
+ /**
+  * The country a posting's pay is for (shared decision 2 of fix wave 3, BP-3: comparisons stay
+- * within one country): the ISO code of the first of payLocations(job) that names a country.
+- * payLocations keeps remote entries without a country, which Anthropic and Anduril list first, so
++ * within one country): the ISO code of the first of headlinePayLocations(job) that names a country.
++ * headlinePayLocations keeps remote entries without a country, which Anthropic and Anduril list first, so
+  * the first such entry is skipped. With no located place, the currency's home country when only
+  * one country uses it ("$" with no place is US pay; a missing currency reads as USD, as everywhere
+  * else in the app); else null (a euro range on a remote-only posting is for no one country).
+@@ -384,7 +406,7 @@ const iso = (c) => { const u = String(c || '').toUpperCase(); return u === 'UK'
+  * @returns {string|null}
+  */
+ export function payCountry(job) {
+-  const loc = payLocations(job).find((l) => l && l.country);
++  const loc = headlinePayLocations(job).find((l) => l && l.country); // P-4: the headline's country, as before
+   if (loc) return iso(loc.country);
+   const cur = String(job?.salary?.currency || (job?.salary ? 'USD' : '')).toUpperCase();
+   return CURRENCY_HOME[cur] || null;
+diff --git a/test/beta-vetting.test.js b/test/beta-vetting.test.js
+index 199f107..f34ee59 100644
+--- a/test/beta-vetting.test.js
++++ b/test/beta-vetting.test.js
+@@ -17,7 +17,7 @@ import { deriveSalary } from '../server/normalize.js';
+ import { parseSalary } from '../server/salary.js';
+ import { vetSalaries } from '../server/vet.js';
+ import { jobSeniority } from '../server/keywords.js';
+-import { payLocations } from '../public/features/shared.js';
++import { payLocations, headlinePayLocations, payAt } from '../public/features/shared.js';
+ import { reviewedFiles, latestFlags } from '../scripts/llm-vet.js';
+ import { mapEightfoldJob, EIGHTFOLD_BOARDS, upgradeEightfoldJobs } from '../server/sources/eightfold.js';
+ 
+@@ -97,8 +97,16 @@ test('VT-5 Ireland\'s range is not applied to the posting\'s places in Spain', (
+   ];
+   const salary = deriveSalary({ title: 'Digital Enterprise Solution Sales Specialist - AI Workforce- Hebrew speaking', text: MS_IE_ES, html: '' }, locations);
+   assert.deepEqual([salary.min, salary.max, salary.currency, salary.country], [49200, 71400, 'EUR', 'IE'], 'the first location\'s country line (correct)');
+-  const where = payLocations({ salary, locations }).map((l) => l.name);
++  // P-4 (fix-data-6): since S-1 (fix-salary-6) Spain's own line is a row for the Spanish places, so they have posted pay
++  // (payLocations follows the rows), each at Spain's €38,000–59,700, never Ireland's range; the headline (Ireland's line)
++  // applies to Dublin only.
++  const job = { salary, locations };
++  const where = headlinePayLocations(job).map((l) => l.name);
+   assert.deepEqual(where, ['Dublin, Ireland'], `Ireland's pay is treated as posted for ${where.join(', ')}`);
++  for (const l of payLocations(job)) {
++    const at = payAt(job, l);
++    assert.deepEqual([at.min, at.max], l.country === 'IE' ? [49200, 71400] : [38000, 59700], `${l.name} is priced at its own country's line`);
++  }
+ });
+ 
+ /* ------------------------------------------------------------------ VT-6 */
+diff --git a/test/e2e/fix3-app.e2e.js b/test/e2e/fix3-app.e2e.js
+index b92d434..18c6e94 100644
+--- a/test/e2e/fix3-app.e2e.js
++++ b/test/e2e/fix3-app.e2e.js
+@@ -179,7 +179,7 @@ export function registerFix3AppTests(suite) {
+     const st = await setup(ctx);
+     const body = await plainList(st, 'google');
+     if (!body) skip('no Google list');
+-    const { payLocations } = await lib('features/shared.js');
++    const { payLocations, pricedPlaces, placeLabel, countryInSentence } = await lib('features/shared.js');
+     const inZurich = body.jobs.filter((j) => j.salary && (j.locations || []).some((l) => l.city === 'Zurich'));
+     const foreign = inZurich.filter((j) => !payLocations(j).some((l) => l.city === 'Zurich' || (l.country === 'CH' && !l.city)));
+     if (!foreign.length) skip('no Zurich role paid for another country');
+@@ -189,10 +189,16 @@ export function registerFix3AppTests(suite) {
+     for (const j of foreign) {
+       const c = pills.find((p) => p.id === j.id);
+       if (!c) continue; // past the first page
+-      const countries = [...new Set(payLocations(j).map((l) => l.country))];
+-      const want = countries.length === 1 ? `Pay posted for ${COUNTRY_SENTENCE[countries[0]] || null} only` : null;
++      // P-4 (fix-data-6): the places with posted pay follow the posting's rows (payLocations, as payAt does): a Munich row
++      // beside a US row is pay posted for Munich (google:108135834237969094). The card names those places, or, when none
++      // is in the country picked, their countries.
++      const countries = [...new Set(payLocations(j).map((l) => String(l.country || '').toUpperCase()).filter(Boolean))];
++      const byCountry = !countries.length ? null : `Pay posted for ${countries.length > 2 ? 'other countries' : countries.map((cc) => COUNTRY_SENTENCE[cc] || countryInSentence(cc)).join(' and ')} only`;
++      const priced = (j.salary.ranges?.length || j.salary.places?.length) ? pricedPlaces(j) : [];
++      const byPlace = priced.length ? `Pay posted for ${placeLabel(priced)} only` : null;
+       assert(/^Pay posted for .+ only$/.test(c.pill), `${j.id} (${j.salary.currency}) card pill "${c.pill}"`);
+-      if (want && !want.includes('null')) assertEq(c.pill, want, `${j.id} names the pay's country`);
++      const wants = [byCountry, byPlace].filter(Boolean);
++      if (wants.length) assert(wants.includes(c.pill), `${j.id} names the places or countries its pay is posted for: "${c.pill}", want ${wants.map((w) => `"${w}"`).join(' or ')}`);
+     }
+     // "Highest pay" sorts them with the roles that list no pay here: after every role with pay for Zurich.
+     const firstForeign = pills.findIndex((p) => /^Pay posted for/.test(p.pill) || /^(No salary|No pay listed)$/.test(p.pill));
+diff --git a/test/fix-data-6.test.js b/test/fix-data-6.test.js
+index 8366841..ca0f348 100644
+--- a/test/fix-data-6.test.js
++++ b/test/fix-data-6.test.js
+@@ -15,6 +15,7 @@ import { NORMALIZER_VERSION, relabelJobs } from '../server/normalize.js';
+ import * as keywords from '../server/keywords.js';
+ import { roleFamily, FAMILY_LABELS, familySim } from '../public/features/roles.js';
+ import { FAMILY_TITLES, shownComparables, estimateComp } from '../public/features/compstimate.js';
++import * as shared from '../public/features/shared.js';
+ 
+ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+ const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
+@@ -313,3 +314,44 @@ test('G-3 a dotted state abbreviation is not a country code, and Apple\'s Baysho
+   const [b] = geocode('Bayshore Shopping Centre, Canada');
+   assert.deepEqual([b.city, b.region, b.country, locationPrecision(b)], ['Ottawa', 'ON', 'CA', 'city']);
+ });
++
++/* --------------------------------------------------------------------- P-4 */
++// google:108135834237969094 (Principal Engineer, Hybrid Cloud Environment; qa-ci-6 on the newest crawl): the US row
++// prices San Jose, Kirkland and New York, Germany's row Munich; Zurich has no row. Every place a row prices has posted
++// pay (payLocations follows the rows, as payAt does); the headline's comparisons stay US pay (payCountry).
++const P4_LOC = (name, city, region, country) => ({ name, rawName: name, city, region, country, remote: false });
++const P4_JOB = () => {
++  const sj = P4_LOC('San Jose, CA, USA', 'San Jose', 'CA', 'US'), zu = P4_LOC('Zurich, Switzerland', 'Zurich', null, 'CH');
++  const mu = P4_LOC('Munich, Germany', 'Munich', null, 'DE'), ki = P4_LOC('Kirkland, WA, USA', 'Kirkland', 'WA', 'US');
++  const ny = P4_LOC('New York, NY, USA', 'New York', 'NY', 'US');
++  return {
++    id: 'google:108135834237969094', company: 'google', title: 'Principal Engineer, Hybrid Cloud Environment', locations: [sj, zu, mu, ki, ny],
++    salary: {
++      min: 307000, max: 427000, mid: 367000, currency: 'USD', country: 'US', interval: 'year',
++      ranges: [
++        { label: 'US', min: 307000, max: 427000, currency: 'USD', country: 'US', locations: [sj.name, ki.name, ny.name] },
++        { label: 'Germany', min: 232000, max: 237000, currency: 'EUR', country: 'DE', locations: [mu.name] },
++      ],
++    },
++  };
++};
++
++test('P-4 payLocations follows the rows: a row-priced Munich beside the US row is a place with posted pay, Zurich is not', () => {
++  const j = P4_JOB();
++  assert.deepEqual(shared.payLocations(j).map((l) => l.city), ['San Jose', 'Munich', 'Kirkland', 'New York']);
++  // The same places payAt prices, each at its own row.
++  for (const l of j.locations) assert.equal(!!shared.payAt(j, l), shared.payLocations(j).includes(l), l.name);
++  assert.equal(shared.payAt(j, j.locations[2]).currency, 'EUR');
++  assert.equal(shared.payAppliesIn(j, 'DE'), true);
++  assert.equal(shared.payAppliesIn(j, 'CH'), false);
++});
++
++test('P-4 the headline figure keeps its own places: payCountry is US, headlinePayLocations the US places', () => {
++  const j = P4_JOB();
++  assert.equal(shared.payCountry(j), 'US');
++  assert.deepEqual(shared.headlinePayLocations(j).map((l) => l.city), ['San Jose', 'Kirkland', 'New York']);
++  // A posting with one range and no rows is unchanged (a US range listed in Sydney is not Sydney pay).
++  const one = { locations: [P4_LOC('Seattle, WA, USA', 'Seattle', 'WA', 'US'), P4_LOC('Sydney, Australia', 'Sydney', null, 'AU')], salary: { min: 1, max: 2, currency: 'USD' } };
++  assert.deepEqual(shared.payLocations(one).map((l) => l.city), ['Seattle']);
++  assert.deepEqual(shared.payLocations(one), shared.headlinePayLocations(one));
++});
+-- 
+2.43.0
+

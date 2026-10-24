@@ -1,7 +1,7 @@
 From 98de6b2c134c8fd6dbce38c7a4c038531946c596 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 24 Oct 2026 02:08:45 +0000
-Subject: [PATCH 12/76] fix-salary-6: log (e2e before/after, rank decision,
+Subject: [PATCH 12/98] fix-salary-6: log (e2e before/after, rank decision,
  payload)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

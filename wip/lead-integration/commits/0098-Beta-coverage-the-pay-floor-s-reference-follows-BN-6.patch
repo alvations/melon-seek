@@ -1,0 +1,59 @@
+From 5de0efc42a3fdb240e3e881570c0babaee4d86b8 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 24 Oct 2026 10:02:03 +0000
+Subject: [PATCH 98/98] Beta coverage: the pay floor's reference follows BN-6
+ (fix-app-6): a posted minimum states no top, so a floor never hides it
+ (Amazon's 285 minimums under $160K)
+
+The gate on 505a4df failed here only because the test predates BN-6: 8,461 shown, 8,176 with a top that high, and 285 = Amazon's posted minimums. Beta coverage 32/32 on that build.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+---
+ test/e2e/beta-coverage.e2e.js | 11 ++++++-----
+ 1 file changed, 6 insertions(+), 5 deletions(-)
+
+diff --git a/test/e2e/beta-coverage.e2e.js b/test/e2e/beta-coverage.e2e.js
+index 3594c8c..0d784ec 100644
+--- a/test/e2e/beta-coverage.e2e.js
++++ b/test/e2e/beta-coverage.e2e.js
+@@ -147,7 +147,8 @@ function boardFacts(page, base, company, ids = []) {
+     // Listing age as prepare() reads it: ageDays when the list has it, else days since updatedAt.
+     const now = Date.now();
+     const age = (j) => ('ageDays' in j ? (Number.isFinite(j.ageDays) ? j.ageDays : null) : (Date.parse(j.updatedAt || '') ? Math.max(0, Math.floor((now - Date.parse(j.updatedAt)) / 864e5)) : null));
+-    const jobs = res.jobs.map((j) => ({ id: j.id, url: j.url || null, team: j.team || '', title: j.title, usd: usd(j), age: age(j) }));
++    // BN-6 (fix-app-6): a posted minimum ("from €31,100") states no top, so a pay floor never hides it.
++    const jobs = res.jobs.map((j) => ({ id: j.id, url: j.url || null, team: j.team || '', title: j.title, usd: usd(j), age: age(j), minimum: j.salary?.kind === 'minimum' }));
+     const paid = jobs.filter((j) => j.usd);
+     const med = (a) => { const s = a.slice().sort((x, y) => x - y); return s.length ? s[Math.floor(s.length / 2)] : null; };
+     const want = new Set(ids);
+@@ -156,7 +157,7 @@ function boardFacts(page, base, company, ids = []) {
+       medMax: med(paid.map((j) => j.usd.max)), medMin: med(paid.map((j) => j.usd.min)),
+       maxMid: paid.length ? Math.max(...paid.map((j) => j.usd.mid)) : null,
+       minMid: paid.length ? Math.min(...paid.map((j) => j.usd.mid)) : null,
+-      maxes: paid.map((j) => j.usd.max), mins: paid.map((j) => j.usd.min),
++      maxes: paid.map((j) => j.usd.max), mins: paid.map((j) => j.usd.min), minimums: paid.map((j) => j.minimum),
+       ages: jobs.map((j) => j.age),
+       pick: jobs.filter((j) => want.has(j.id)),
+       sampleIds: [jobs[0], jobs[Math.floor(jobs.length / 2)], jobs[jobs.length - 1]].filter(Boolean).map((j) => j.id),
+@@ -252,14 +253,14 @@ export function registerBetaCoverageTests(suite) {
+   async function payFilter(page, base, c, f, bad) {
+     if (f.paid < 20) { bad.push(`only ${f.paid} roles with pay`); return; }
+     const lo = roundTo(f.medMax, 10000), hi = roundTo(f.medMin, 10000);
+-    const wantMin = f.maxes.filter((x) => x >= lo).length;
++    const wantMin = f.maxes.filter((x, i) => x >= lo || f.minimums[i]).length;
+     const wantMax = f.mins.filter((x) => x <= hi).length;
+     await hashTo(page, `c=${c.slug}&smin=${lo}`);
+     let got = await count(page);
+-    if (got !== wantMin) bad.push(`pay at least $${lo}: ${got} roles shown, ${wantMin} have a top approx-USD pay that high`);
++    if (got !== wantMin) bad.push(`pay at least $${lo}: ${got} roles shown, ${wantMin} have a top approx-USD pay that high or are a posted minimum`);
+     const ids = await cardIds(page, 40);
+     const g = await boardFacts(page, base, c.slug, ids);
+-    for (const j of g.pick) if (!j.usd || j.usd.max < lo) bad.push(`${j.id} is listed under "at least $${lo}" with ${j.usd ? `$${Math.round(j.usd.max)} at most` : 'no pay'}`);
++    for (const j of g.pick) if (!j.usd || (j.usd.max < lo && !j.minimum)) bad.push(`${j.id} is listed under "at least $${lo}" with ${j.usd ? `$${Math.round(j.usd.max)} at most` : 'no pay'}`);
+     await hashTo(page, `c=${c.slug}&smax=${hi}`);
+     got = await count(page);
+     if (got !== wantMax) bad.push(`pay up to $${hi}: ${got} roles shown, ${wantMax} have a lowest approx-USD pay that low`);
+-- 
+2.43.0
+

@@ -1,7 +1,7 @@
 From 48987125fc0695f8900b53c6830bbf92c94908e1 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 24 Oct 2026 00:51:57 +0000
-Subject: [PATCH 32/76] fix-juice-6: log, State and decisions
+Subject: [PATCH 32/98] fix-juice-6: log, State and decisions
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
