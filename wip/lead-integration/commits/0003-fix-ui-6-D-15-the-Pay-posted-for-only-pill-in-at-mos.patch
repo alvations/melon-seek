@@ -1,0 +1,273 @@
+From 8db98e33a91b7b1f0e8fac01d2bc9f85146dfb91 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 24 Oct 2026 09:28:51 +0000
+Subject: [PATCH 3/3] =?UTF-8?q?fix-ui-6:=20D-15=20the=20"Pay=20posted=20fo?=
+ =?UTF-8?q?r=20=E2=80=A6=20only"=20pill=20in=20at=20most=20two=20lines=20(?=
+ =?UTF-8?q?fitPill:=2010.5em,=20then=2015.5em,=20then=20fix-data-6's=20sho?=
+ =?UTF-8?q?rter=20forms);=20fix-viz-5=20V-46=20split=20for=20the=20iPads?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+The lead's item from fix-data-6 (2026-10-24): naming places made the card's pill three or four lines at every VISIBLE
+size. It keeps BP-2's 10.5em where the whole sentence fits two lines, widens to 15.5em where it doesn't (under the title on
+a phone), and only past that shows a shorter form (one place named, "For … only", "Posted for other places"); the
+card's accessible name and the tip keep the whole sentence. D-15 over VISIBLE and TABLETS: 31 of 31 fail before, 31
+pass after. fix-viz-5's V-46 looped over all 31 sizes in one test and ran past the harness's 120 s: one test for the
+phones and postures, one for the iPads.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+(cherry picked from commit 4a4428ff49a68bd79f0392a2807cf9458a888c4f)
+---
+ docs/CONTRACT.md          | 10 +++++--
+ docs/process/fix-ui-6.md  | 14 ++++++++++
+ public/app.js             | 51 ++++++++++++++++++++++++++++++++++--
+ public/styles.css         |  2 ++
+ test/e2e/fix-ui-6.e2e.js  | 55 ++++++++++++++++++++++++++++++++++++++-
+ test/e2e/fix-viz-5.e2e.js | 10 ++++---
+ 6 files changed, 133 insertions(+), 9 deletions(-)
+
+diff --git a/docs/CONTRACT.md b/docs/CONTRACT.md
+index 7719f09..9c04787 100644
+--- a/docs/CONTRACT.md
++++ b/docs/CONTRACT.md
+@@ -1177,9 +1177,15 @@ posting stays in the list, and what folds is one tap away.
+   on the phone layout. The map's sheet peeks at its first card too from 600 px tall where the map keeps 300 px (else the stylesheet's 84 px). The phone
+   layout 960 px tall and up (portrait iPads) rests on three whole cards, at most half the screen.
+ - **One-row top bar from 640 px wide on the phone layout** (the Fold open, the Duo stacked, portrait iPads), as in landscape.
++- **The card's "Pay posted for … only" pill in at most two lines (`fitPill`, D-15, the lead's):** it keeps BP-2's 10.5em
++  where the whole sentence fits two lines there; one that would take more widens to 15.5em (`.is-wide`; on the phone layout it
++  then goes under the title by the card's wrap rule), and only where that is not enough shows a shorter form from `payPill`'s
++  `forms` (one place named, then fix-data-6's "For … only", then "Posted for other places"). The card's accessible name and the
++  pill's tip keep the whole sentence. Measured once laid out by one shared ResizeObserver, again when the pill's size changes.
+ - **Tests:** `test/e2e/phone-sizes.mjs` `VISIBLE` (21 sizes under the browsers' bars) and `TABLETS` (10 iPads); `ALL_SIZES` is
+-  PHONES + POSTURES + TABLETS (31). `test/e2e/fix-ui-6.e2e.js` D-1 to D-13 run over VISIBLE and TABLETS; fix-phone-text's size
+-  guard runs over VISIBLE too (D-14); `phone-smoke.mjs --sizes visible|tablets` (groups combine: `--sizes all,visible`).
++  PHONES + POSTURES + TABLETS (31). `test/e2e/fix-ui-6.e2e.js` D-1 to D-13 and D-15 run over VISIBLE and TABLETS;
++  fix-phone-text's size guard runs over VISIBLE too (D-14); `phone-smoke.mjs --sizes visible|tablets` (groups combine:
++  `--sizes all,visible`).
+ 
+ ## fix-app-6 additions (2026-10-23): facet counts per place, medians in the pay's currency, posted minimums, carried filters, posted levels and typed currencies (fix-app-6 lane)
+ 
+diff --git a/docs/process/fix-ui-6.md b/docs/process/fix-ui-6.md
+index a52d18e..dae097f 100644
+--- a/docs/process/fix-ui-6.md
++++ b/docs/process/fix-ui-6.md
+@@ -164,6 +164,20 @@ fix-app-6's (only where each line shows changed).
+     (Apple, Meta, Netflix); D-12 emulates the stacked Duo's hinge (CDP displayFeature) at 720x1010; D-13 compares the
+     folded rows' counts, medians and chips with the unfolded rows of the same build (412x901) and the board's count. D-14 is
+     fix-phone-text's size guard, now over VISIBLE too.
++22. **D-15, the "Pay posted for … only" pill** (the lead, 2026-10-24, from fix-data-6, whose P-1 names the places): at
++    10.5em it took 3 lines for two places and 4 for "Santa Clara, Sunnyvale and 3 more" at all 21 VISIBLE sizes (at 280 and
++    320 px under the title, still 137 px wide). Tried on six postings at six sizes: 14em leaves 3 lines for the longest,
++    15.5em gives 2 everywhere; widening every such pill made "Pay posted for Tempe only" one line and squeezed its title to 5
++    lines at 375 px. So the pill keeps 10.5em where the whole sentence fits two lines and widens only where it doesn't
++    (`fitPill`, measured, `.is-wide`); the shorter forms (one place named, fix-data-6's "For … only" and "Posted for other
++    places") come only past that. With 15.5em the whole sentence fits two lines at every VISIBLE size for all six, 280 and
++    320 px included, so those show it whole rather than fix-data-6's short form; the short forms stay for longer lists. The
++    card's accessible name and the tip keep the whole sentence.
++23. **On the new base (fix-data-6's 217ff5c)**: the D commits cherry-picked cleanly. Two related failures on the f13ebd6
++    run were the size patch's, not the folding: fix-viz-5's V-46 loops over ALL_SIZES in one test and ran past the
++    harness's 120 s with the iPads (74 s with 21 sizes before), so it is two tests, phones and postures, then tablets; Fix
++    touch tips at 834x1084 (a new TABLETS size) tapped a 2 px strip bar whose touch lands on the axis under it (the
++    one-row top bar moved the strip to a half pixel), which qa-ci-6's a5bdbc9 fixes by tapping the tallest bars first.
+ 
+ ## 4. Replayable steps
+ 
+diff --git a/public/app.js b/public/app.js
+index ca409c3..161de5b 100644
+--- a/public/app.js
++++ b/public/app.js
+@@ -4329,7 +4329,11 @@ function payPill(job) {
+   if (viewSpec?.l.size && job._usd && !payHere(job)) {
+     const where = payPlaceText(job);
+     const range = payPill({ ...job, _usd: null })?.text || salaryRange(s);
+-    return { text: `Pay posted for ${where} only`, tip: `${range} is the pay posted for ${where}, not for ${placesPicked()}`, elsewhere: true };
++    // fix-ui-6 (the lead, 2026-10-24): the card shows the first of these that takes at most two lines (fitPill); the card's
++    // accessible name and the pill's tip keep the whole sentence. The shorter ones are fix-data-6's (the job page's line).
++    const one = payPlaceText(job, 1);
++    const forms = [...new Set([`Pay posted for ${where} only`, `Pay posted for ${one} only`, `For ${one} only`, 'Posted for other places'])];
++    return { text: `Pay posted for ${where} only`, forms, tip: `${range} is the pay posted for ${where}, not for ${placesPicked()}`, elsewhere: true };
+   }
+   // UX-22, QA round 3 (fix-pay-at-place): a posting that gives each place its own range, in the unit it was posted
+   // in (an internship's yearly rate, a part-time hourly rate): the places' span, or the range of the place picked.
+@@ -4407,6 +4411,49 @@ function payPlaceText(job, max = 2) {
+   if (cs.length > 2) return 'other countries';
+   return cs.map(countryInSentence).join(' and ');
+ }
++/**
++ * fix-ui-6 (the lead, 2026-10-24, with ux-density-6's D checks): the "Pay posted for … only" pill in at most two lines at
++ * every size. It wraps by design beside the title (styles.css, max-width 10.5em, fix3-app BP-2); one that takes more
++ * lines there ("Pay posted for Santa Clara, Sunnyvale and 3 more only": four) widens to 15.5em (.is-wide; on a phone it
++ * then goes under the title, styles.css's card-top wrap), and only past that takes the shorter forms (`forms`, one place
++ * named, then fix-data-6's "For … only" and "Posted for other places"). Measured once laid out, by one shared observer,
++ * and again when its size changes (a font that loads late).
++ */
++let pillObserver = null;
++function pillLines(el) {
++  const r = document.createRange();
++  r.selectNodeContents(el);
++  const mids = [];
++  for (const x of r.getClientRects()) { if (x.width < 0.5) continue; const m = x.top + x.height / 2; if (!mids.some((t) => Math.abs(t - m) < 6)) mids.push(m); }
++  return mids.length;
++}
++function refitPill(el) {
++  const forms = el._pillForms;
++  el.classList.remove('is-wide');
++  if (el.textContent !== forms[0]) el.textContent = forms[0];
++  if (pillLines(el) <= 2) return;
++  el.classList.add('is-wide');
++  for (const f of forms) {
++    if (el.textContent !== f) el.textContent = f;
++    if (pillLines(el) <= 2) return;
++  }
++}
++function fitPill(el, forms) {
++  if (!forms?.length || typeof ResizeObserver !== 'function') return el;
++  el._pillForms = forms;
++  pillObserver ??= new ResizeObserver((entries) => {
++    for (const { target } of entries) {
++      if (!target.isConnected) { pillObserver.unobserve(target); continue; }
++      const w = target.getBoundingClientRect().width;
++      if (w < 1 || Math.abs(w - (target._pillW ?? -1)) < 0.5) continue;
++      refitPill(target);
++      target._pillW = target.getBoundingClientRect().width;
++    }
++  });
++  pillObserver.observe(el);
++  return el;
++}
++
+ /** The places of the Location filter, in a sentence: "Zurich", "Zurich and Geneva", "the places you picked". */
+ function placesPicked(F = viewSpec) {
+   const l = F ? [...F.l] : [];
+@@ -4450,7 +4497,7 @@ function card(job, pos = null, size = null) {
+   h('div', { class: 'card-top' },
+     h('h3', { class: 'card-title' }, job.title),
+     h('div', { class: 'card-pay' },
+-      pay ? h('span', { class: `sal-pill${pay.elsewhere ? ' sal-pill--elsewhere' : ''}`, title: pay.tip }, pay.range || (pay.short && narrowCard() ? pay.short : pay.text))
++      pay ? fitPill(h('span', { class: `sal-pill${pay.elsewhere ? ' sal-pill--elsewhere' : ''}`, title: pay.tip }, pay.range || (pay.short && narrowCard() ? pay.short : pay.text)), pay.forms)
+         : job.salaryFlag ? h('span', { class: 'sal-pill sal-pill--unclear', title: job.salaryFlag.reason || 'Pay unclear' }, 'Pay unclear')
+           : h('span', { class: 'sal-pill sal-pill--none' }, 'No pay listed'),
+       // UX-52 (fix-pay-at-place): "5 places" or "2 levels" as a muted line under the pill, not in pay green inside it.
+diff --git a/public/styles.css b/public/styles.css
+index 2cb6988..b5fb9db 100644
+--- a/public/styles.css
++++ b/public/styles.css
+@@ -890,6 +890,8 @@ html[data-mode="insights"] .viz-controls { display: none; }
+ /* Shared decision 1 (fix3-app BP-2): under a Location filter, pay posted for another country. Muted and
+    outlined (no new colour); it may wrap to two lines beside a long title. */
+ .sal-pill--elsewhere { background: transparent; color: var(--ms-muted); font-weight: 600; box-shadow: inset 0 0 0 1px var(--ms-border); white-space: normal; text-align: right; max-width: 10.5em; line-height: 1.3; border-radius: 10px; cursor: help; }
++/* fix-ui-6 (app.js fitPill): one that would take more than two lines at 10.5em widens (on a phone, under the title). */
++.sal-pill--elsewhere.is-wide { max-width: 15.5em; }
+ /* Shared decisions 1 and 4: one line on why a posting with pay has no Juice. */
+ .d-juice--none { padding: 10px 14px; }
+ .juice-none { margin: 0; font-size: 13px; color: var(--ms-muted); }
+diff --git a/test/e2e/fix-ui-6.e2e.js b/test/e2e/fix-ui-6.e2e.js
+index b0694e8..f5099a4 100644
+--- a/test/e2e/fix-ui-6.e2e.js
++++ b/test/e2e/fix-ui-6.e2e.js
+@@ -24,7 +24,7 @@
+ // and the Ranges legend folded on compact and short screens, D-5 the folded rows (band, median, the posted range), D-6 the
+ // rows on the first screen, D-7 the notes line in the caption's Details, D-8 one Details, D-9 the lines above the card,
+ // D-11 the one-row top bar from 640 px, D-12 the Duo stacked under its bars, D-13 nothing lost (D-14 is fix-phone-text's
+-// size guard over VISIBLE).
++// size guard over VISIBLE), and the lead's D-15: the "Pay posted for … only" pill in at most two lines.
+ // Serves the static build (FUI6_DIST, else BETA_QA_DIST, else dist/) under /melon-seek/ the way GitHub Pages does, and
+ // skips without a beta build. Expected values come from the board's own list (public/api.js unpackJobs of the build's
+ // files) and the page's geometry, not from the code under test. FUI6_SHOTS=<label> saves screenshots to
+@@ -1317,6 +1317,59 @@ export function registerFixUi6Tests(suite) {
+       assert(!bad.length, bad.slice(0, 10).join('; '));
+     });
+   }
++
++  // D-15, the lead (2026-10-24, from fix-data-6): the card's "Pay posted for … only" pill wraps by design (max-width
++  // 10.5em, fix3-app BP-2) and took three or four lines once it named places ("Pay posted for Santa Clara, Sunnyvale and
++  // 3 more only"). At most two at every size, never cut; a shorter form only where the whole one cannot fit two; the
++  // card's accessible name and the pill's tip keep the whole sentence. Postings of the 2026-10-16 crawl whose pay names
++  // some of their places (fix-data-6's P-1 cases and three with longer lists); one not in the build is left out.
++  const PILL_CASES = [
++    { c: 'amazon', id: 'amazon:10401115', l: 'Irvine' }, // five places priced (East Palo Alto … Sunnyvale)
++    { c: 'amazon', id: 'amazon:10488147', l: 'Florence' }, // four Italian places
++    { c: 'amazon', id: 'amazon:10373614', l: 'Austin' }, // Seattle and Herndon
++    { c: 'apple', id: 'apple:200657542-0157', l: 'Austin' }, // Cupertino and Santa Clara
++    { c: 'apple', id: 'apple:200609322-0157', l: 'Austin' }, // San Jose
++    { c: 'amazon', id: 'amazon:10487128', l: 'Atlanta' }, // Tempe
++  ];
++  for (const size of DENSITY) {
++    const c = classOf(size);
++    suite.test(`fix-ui-6: [D-15] [${label(size)}, ${c}] a "Pay posted for … only" pill takes at most two lines and is never cut; a shorter form only where the whole one cannot fit; the card's name and tip keep the whole sentence (Amazon, Apple under a Location filter)`, async (ctx) => {
++      const st = await serveDist();
++      if (!st) skip('no beta build');
++      const titles = {};
++      for (const b of new Set(PILL_CASES.map((k) => k.c))) for (const j of await boardJobs(st, b)) titles[j.id] = j.title;
++      const cases = PILL_CASES.filter((k) => titles[k.id]);
++      if (!cases.length) skip('none of the postings is in this build');
++      const q = (k) => `c=${k.c}&l=${encodeURIComponent(k.l)}&q=${encodeURIComponent(titles[k.id])}`;
++      const { page, errors } = await open(ctx, size, { hash: q(cases[0]), init: VISITED });
++      const bad = [], seen = [];
++      for (const [i, k] of cases.entries()) {
++        if (i) await hashTo(page, q(k), 300);
++        const sel = `#resultsList .card[data-id="${k.id}"] .sal-pill`;
++        if (!(await page.waitForSelector(sel, { timeout: 30000 }).then(() => true, () => false))) { bad.push(`${k.id}: no card under ${k.l}`); continue; }
++        await sleep(200);
++        const r = await page.evaluate((sel) => {
++          const pill = document.querySelector(sel), card = pill.closest('.card');
++          const rg = document.createRange(); rg.selectNodeContents(pill);
++          const mids = [];
++          for (const x of rg.getClientRects()) { if (x.width < 0.5) continue; const m = x.top + x.height / 2; if (!mids.some((t) => Math.abs(t - m) < 6)) mids.push(m); }
++          const pr = pill.getBoundingClientRect(), cr = card.getBoundingClientRect();
++          return { text: pill.textContent.trim(), lines: mids.length, cut: pill.scrollWidth > pill.clientWidth + 0.5 || pr.right > cr.right + 0.5 || pr.left < cr.left - 0.5, tip: pill.title || '', aria: card.getAttribute('aria-label') || '', elsewhere: pill.classList.contains('sal-pill--elsewhere') };
++        }, sel);
++        if (!r.elsewhere) { bad.push(`${k.id} under ${k.l}: "${r.text}" is not a pay-elsewhere pill`); continue; }
++        const where = (/is the pay posted for (.+), not for /.exec(r.tip) || [])[1];
++        const full = where ? `Pay posted for ${where} only` : null;
++        if (r.lines > 2) bad.push(`${k.id}: ${r.lines} lines: "${r.text}"`);
++        if (r.cut) bad.push(`${k.id}: cut: "${r.text}"`);
++        if (!where || !r.tip.includes(`not for ${k.l}`)) bad.push(`${k.id}: the tip "${r.tip}"`);
++        else if (!r.aria.includes(full)) bad.push(`${k.id}: the card's name lacks "${full}"`);
++        if (full && r.text !== full && !/^(Pay posted for|For) .+ only$/.test(r.text) && r.text !== 'Posted for other places') bad.push(`${k.id}: "${r.text}" is not a form of "${full}"`);
++        seen.push(`${r.text === full ? 'whole' : `short ("${r.text}")`}, ${r.lines} line(s)`);
++      }
++      if (seen.some((x) => x.startsWith('short'))) ctx.notes.push(`D-15 ${label(size)}: ${seen.join('; ')}`);
++      assert(!bad.length && !errors.length, [...bad, ...errors].slice(0, 8).join('; '));
++    });
++  }
+ }
+ 
+ // Standalone: node test/e2e/fix-ui-6.e2e.js [--grep=re]
+diff --git a/test/e2e/fix-viz-5.e2e.js b/test/e2e/fix-viz-5.e2e.js
+index 974c1b0..def116f 100644
+--- a/test/e2e/fix-viz-5.e2e.js
++++ b/test/e2e/fix-viz-5.e2e.js
+@@ -8,7 +8,7 @@ import http from 'node:http';
+ import fs from 'node:fs';
+ import path from 'node:path';
+ import { ROOT, assert, skip } from './harness.js';
+-import { ALL_SIZES, contextFor } from './phone-sizes.mjs';
++import { ALL_SIZES, TABLETS, contextFor } from './phone-sizes.mjs';
+ 
+ const DESKTOP = { width: 1440, height: 900 };
+ const PHONE = { width: 390, height: 844 };
+@@ -429,12 +429,14 @@ export function registerFixViz5Tests(suite) {
+ 
+   /* --------------------------------------------------------------- axis, legend and words at every size */
+ 
+-  suite.test('fix-viz-5: [V-46, UX-61] at every phone size the chart says its axis is US dollars a year, with the median, on one line (Google; Amazon at 390)', async (ctx) => {
++  // fix-ui-6 (2026-10-24): one test for the phones and postures and one for the iPads that ux-density-6's patch added to
++  // ALL_SIZES, as one test over all 31 sizes ran past the harness's 120 s.
++  for (const [what, sizes] of [['phone size', ALL_SIZES.filter((d) => !TABLETS.includes(d))], ['tablet size', TABLETS]]) suite.test(`fix-viz-5: [V-46, UX-61] at every ${what} the chart says its axis is US dollars a year, with the median, on one line (Google${what === 'phone size' ? '; Amazon at 390' : ''})`, async (ctx) => {
+     const bad = [];
+     // Landscape phones hide the strip, and the axis caption carries the median: Apple's and Microsoft's label columns
+     // are the narrowest there.
+-    const land = ALL_SIZES.filter((d) => d.width > d.height && d.height < 500);
+-    const cases = [...ALL_SIZES.map((d) => ['google', d]), ['amazon', ALL_SIZES.find((d) => d.width === 390)], ...land.flatMap((d) => [['apple', d], ['microsoft', d]])];
++    const land = sizes.filter((d) => d.width > d.height && d.height < 500);
++    const cases = [...sizes.map((d) => ['google', d]), ...(what === 'phone size' ? [['amazon', sizes.find((d) => d.width === 390)]] : []), ...land.flatMap((d) => [['apple', d], ['microsoft', d]])];
+     for (const [company, d] of cases) {
+       for (const v of ['clusters', 'ranges']) {
+         if (company === 'google' && v === 'ranges' && d.width > 430) continue;
+-- 
+2.43.0
+
