@@ -128,7 +128,8 @@ persona-beta-2-18-24, -25-34, -35-44, -45-54, -55-plus (logs on the branch, 5502
 - 07:5x fix-ui-6: the iPad Pro 11" portrait touch-tips strip failure is the 2 px bar case (half-pixel offset after the one-row top bar moved the strip up 86 px; the touch lands on the axis); qa-ci-6's a5bdbc9 tallest-bar pick fixes it. Not a D-4 regression.
 - 08:1x qa-ci-6 done (1dde1eb; 9 commits on f13ebd6): (a) case fixes from the data (Badge swap biggest cluster, fix3-data Head of, D-41, MR-34, D-50 x21, BP-10+BN-5, UX-59, touch-tip tallest bars, V-43 any currency); (c) harness MELON_OFFLINE=1, e2e.yml pins Playwright 1.56.1 (Chromium 141); step 4 per-shard verdict, summary fails on stopped runs and over --max-skips. npm test 1,359/0 fail; 10-16 data 371/374 0 fail; newest 3 red awaiting fix-data-6 (fix-pay-data, D-32, BP-2/P-4). Picked clean -> 505a4df. Gate started 08:16 on 505a4df, SHARDS=2.
 - 08:4x fix-data-6 ready on f13ebd6: 217ff5c (20 commits; G-1..G-3, K-1, P-1..P-4, R-1..R-3, T-19, C-1; norm-14 golden 2/300 on top of fix-salary-6; P-4 payLocations follows rows (+112 postings gain places: Cohere 47, Google 34, MS 31; none lose), headlinePayLocations keeps the old rule for payCountry and compstimate; J-4 test race fixed; npm test 1,381/0 fail; related 315/316 then J-4 fixed; nothing dropped vs e77cd41). Pick held until the running gate finishes. Asked G-4: 'Bogota, D.C.' -> Bogotá, Colombia (15 Amazon). Pill wrap -> fix-ui-6 density.
+- 09:0x gate on 505a4df, mid-run: 516 pass, 2 fail: (1) Beta UX review [UX-17] p390 google edge chip '‹1' touches the with/without-pay line (-1 px) -> fix-ui-6 density; (2) Beta coverage [amazon] pay floor $160K: 8,461 shown vs 8,176 with top >= floor = 285 = Amazon's minimums -> the test predates BN-6 (minimums kept under a floor); update the test's reference to BN-6's rule.
 
-### Agents at 2026-10-24T08:58:53Z
-agent fix-ui-6 add67b9453342f4ba transcript-age=3min head=5e2c252
-agent fix-data-6 a08f9659d62990db4 transcript-age=0min head=7fbb17e
+### Agents at 2026-10-24T09:13:44Z
+agent fix-ui-6 add67b9453342f4ba transcript-age=0min head=5e2c252
+agent fix-data-6 a08f9659d62990db4 transcript-age=5min head=7fbb17e
