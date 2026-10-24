@@ -1,0 +1,1122 @@
+From 498b4d79b9c05f95c57f9d759f38643c7c82d2b8 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sun, 11 Oct 2026 12:03:26 +0000
+Subject: [PATCH 2/4] amazon-meta-data: DOL disclosure route (LCA and PERM) for
+ Amazon and Meta pay, with tests
+
+scripts/alt-data/dol-disclosure.js finds the latest OFLC disclosure files, streams them,
+keeps only Amazon and Meta employer rows and the job, place and wage columns (never the
+contact, attorney or preparer columns), maps titles to the site's role families and levels,
+and writes a small summary. employers.js is the entity allow-list with a near-miss report;
+sample.js is a made-up sample in the FY2026 record layout. Two small fixtures come from the
+real FY2026 Q3 LCA workbook (its central directory and its first two rows of indices).
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+---
+ scripts/alt-data/dol-disclosure.js            | 465 ++++++++++++++++++
+ scripts/alt-data/employers.js                 |  88 ++++
+ scripts/alt-data/sample.js                    | 124 +++++
+ scripts/alt-data/xlsx.js                      |  87 ++++
+ test/alt-data-dol.test.js                     | 267 ++++++++++
+ .../lca-fy2026-q3-central-directory.bin       | Bin 0 -> 662 bytes
+ .../alt-data/lca-fy2026-q3-rows-1-2.xml       |   3 +
+ 7 files changed, 1034 insertions(+)
+ create mode 100644 scripts/alt-data/dol-disclosure.js
+ create mode 100644 scripts/alt-data/employers.js
+ create mode 100644 scripts/alt-data/sample.js
+ create mode 100644 test/alt-data-dol.test.js
+ create mode 100644 test/fixtures/alt-data/lca-fy2026-q3-central-directory.bin
+ create mode 100644 test/fixtures/alt-data/lca-fy2026-q3-rows-1-2.xml
+
+diff --git a/scripts/alt-data/dol-disclosure.js b/scripts/alt-data/dol-disclosure.js
+new file mode 100644
+index 0000000..79435ee
+--- /dev/null
++++ b/scripts/alt-data/dol-disclosure.js
+@@ -0,0 +1,465 @@
++#!/usr/bin/env node
++// Amazon and Meta pay filed with the US Department of Labor (docs/AMAZON_META.md,
++// docs/process/amazon-meta-data.md).
++//
++// The Office of Foreign Labor Certification publishes, every quarter, the Labor Condition
++// Applications (LCA: H-1B, H-1B1, E-3) and permanent labor certifications (PERM) it decided,
++// with each employer's job title, worksite and offered wage. The files are US government
++// works in the public domain (https://www.dol.gov/general/aboutdol/copyright). This script:
++//   1. finds the latest LCA and PERM disclosure files on the OFLC performance page and
++//      downloads them (--download; one request each, honest User-Agent);
++//   2. streams each workbook (scripts/alt-data/xlsx.js) and keeps only the rows whose
++//      employer is an Amazon or Meta entity (scripts/alt-data/employers.js), and only the
++//      columns below: no names, e-mails or phone numbers of contacts, attorneys or preparers;
++//   3. maps each job title to the site's role family and level (public/features/roles.js,
++//      server/keywords.js) and each worksite to its canonical place (server/geo.js);
++//   4. writes a small summary (counts and median annual offered wage by role family, level,
++//      title and city) to data/alt/dol-amazon-meta.json.
++//
++//   node scripts/alt-data/dol-disclosure.js --download [--dir DIR]          # latest files from dol.gov
++//   node scripts/alt-data/dol-disclosure.js --lca LCA.xlsx [--perm PERM.xlsx] # files already on disk
++//   options: --out FILE (default data/alt/dol-amazon-meta.json), --rows FILE.csv (the kept rows,
++//            for a workflow artifact; never committed), --print (summary to stdout), --fy N --q N
++//
++// These are wages employers filed for visa and green-card cases, not job postings: one row
++// is one filing (it can cover several workers), the "offered wage" is the employer's stated
++// range for that position, and only certified, full-time filings are used for pay.
++import fs from 'node:fs';
++import path from 'node:path';
++import { Readable } from 'node:stream';
++import { pipeline } from 'node:stream/promises';
++import { fileURLToPath } from 'node:url';
++import { openZip, firstSheet, eachRowXml, rowCells, cellAt, colLetters, sharedStrings, excelDate } from './xlsx.js';
++import { matchEmployer, nearMiss, employerCandidate } from './employers.js';
++import { roleFamily, readableTitle, displayLevel, levelLabel, FAMILY_LABELS, DISPLAY_LEVEL_ORDER } from '../../public/features/roles.js';
++import { jobSeniority } from '../../server/keywords.js';
++import { geocode } from '../../server/geo.js';
++
++const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
++export const PERFORMANCE_PAGE = 'https://www.dol.gov/agencies/eta/foreign-labor/performance';
++export const USER_AGENT = 'melon-seek/0.2 (+https://alvations.github.io/melon-seek/; open-source job-postings salary chart; US DOL disclosure files, one request per file)';
++export const DEFAULT_OUT = path.join(ROOT, 'data', 'alt', 'dol-amazon-meta.json');
++
++/**
++ * The columns kept, by program, with the header names they go by (current layout first;
++ * the FY2020+ layouts in the OFLC record-layout PDFs). Nothing else is read.
++ */
++export const FIELDS = Object.freeze({
++  lca: {
++    caseNumber: ['CASE_NUMBER'], status: ['CASE_STATUS'], received: ['RECEIVED_DATE'], decision: ['DECISION_DATE'],
++    visa: ['VISA_CLASS'], title: ['JOB_TITLE'], soc: ['SOC_CODE'], socTitle: ['SOC_TITLE'], fullTime: ['FULL_TIME_POSITION'],
++    begin: ['BEGIN_DATE'], workers: ['TOTAL_WORKER_POSITIONS'], employer: ['EMPLOYER_NAME'],
++    city: ['WORKSITE_CITY'], state: ['WORKSITE_STATE'],
++    wageFrom: ['WAGE_RATE_OF_PAY_FROM'], wageTo: ['WAGE_RATE_OF_PAY_TO'], wageUnit: ['WAGE_UNIT_OF_PAY'],
++    pw: ['PREVAILING_WAGE'], pwUnit: ['PW_UNIT_OF_PAY'], pwLevel: ['PW_WAGE_LEVEL'],
++  },
++  perm: {
++    caseNumber: ['CASE_NUMBER'], status: ['CASE_STATUS'], received: ['RECEIVED_DATE'], decision: ['DECISION_DATE'],
++    title: ['JOB_TITLE'], soc: ['PWD_SOC_CODE'], socTitle: ['PWD_SOC_TITLE'], fullTime: ['OTHER_REQ_IS_FULLTIME_EMP'],
++    employer: ['EMP_BUSINESS_NAME', 'EMPLOYER_NAME'],
++    city: ['PRIMARY_WORKSITE_CITY', 'WORKSITE_CITY'], state: ['PRIMARY_WORKSITE_STATE', 'WORKSITE_STATE'],
++    wageFrom: ['JOB_OPP_WAGE_FROM', 'WAGE_OFFER_FROM_9089'], wageTo: ['JOB_OPP_WAGE_TO', 'WAGE_OFFER_TO_9089'],
++    wageUnit: ['JOB_OPP_WAGE_PER', 'WAGE_OFFER_UNIT_OF_PAY_9089'],
++  },
++});
++const REQUIRED = ['status', 'title', 'employer', 'wageFrom', 'wageUnit'];
++
++/** Certified outcomes used for pay (a denied or withdrawn filing is counted, not priced). */
++export const PAY_STATUSES = Object.freeze({ lca: ['certified'], perm: ['certified', 'certified-expired'] });
++/** Annual pay bounds for a usable offered wage (a typo such as "$15" a year is left out). */
++export const WAGE_BOUNDS = Object.freeze({ min: 20000, max: 1500000 });
++const FACTORS = { year: 1, month: 12, 'bi-weekly': 26, biweekly: 26, week: 52, hour: 2080 }; // as server/salary.js
++const QUARTER_END = { 1: '12-31', 2: '03-31', 3: '06-30', 4: '09-30' };
++
++const log = (msg) => process.stderr.write(`[dol] ${msg}\n`);
++
++/* --------------------------------------------------------------- files */
++
++/** Disclosure-file links on the OFLC performance page: [{ program, fy, q, url }], newest first. */
++export function findDisclosureLinks(html, base = 'https://www.dol.gov') {
++  const out = [];
++  const seen = new Set();
++  for (const m of String(html).matchAll(/href="([^"]*?\b(LCA|PERM)_Disclosure_Data_FY(\d{4})_Q(\d)\.xlsx)"/gi)) {
++    const url = new URL(m[1].replace(/^(https?:\/\/[^/]+)\/{2,}/, '$1/'), base).href.replace(/([^:])\/{2,}/g, '$1/');
++    if (seen.has(url)) continue;
++    seen.add(url);
++    out.push({ program: m[2].toLowerCase(), fy: Number(m[3]), q: Number(m[4]), url });
++  }
++  return out.sort((a, b) => b.fy - a.fy || b.q - a.q);
++}
++
++/** The reporting period of a fiscal-year-to-date file: FY2026 Q3 -> 2025-10-01 to 2026-06-30. */
++export function reportingPeriod(fy, q) {
++  if (!fy || !q || !QUARTER_END[q]) return null;
++  return { from: `${fy - 1}-10-01`, to: `${q === 1 ? fy - 1 : fy}-${QUARTER_END[q]}` };
++}
++
++/** FY and quarter from a file name ("LCA_Disclosure_Data_FY2026_Q3.xlsx"). */
++export function fileQuarter(name) {
++  const m = /FY_?(\d{4})_Q(\d)/i.exec(String(name || ''));
++  return m ? { fy: Number(m[1]), q: Number(m[2]) } : null;
++}
++
++async function get(url, { accept = '*/*', timeoutMs = 120000 } = {}) {
++  for (let attempt = 0; ; attempt++) {
++    const ctrl = new AbortController();
++    const timer = setTimeout(() => ctrl.abort(), timeoutMs);
++    try {
++      const res = await fetch(url, { headers: { 'user-agent': USER_AGENT, accept }, signal: ctrl.signal, redirect: 'follow' });
++      if ((res.status === 429 || res.status >= 500) && attempt < 3) { await new Promise((r) => setTimeout(r, 5000 * (attempt + 1))); continue; }
++      if (!res.ok) throw new Error(`HTTP ${res.status} from ${url}`);
++      return { res, timer };
++    } catch (err) {
++      clearTimeout(timer);
++      if (attempt >= 3 || /HTTP 4\d\d/.test(err.message)) throw err;
++      await new Promise((r) => setTimeout(r, 5000 * (attempt + 1)));
++    }
++  }
++}
++
++/** Download the newest LCA and PERM files into `dir`: { lca: { file, url, fy, q, bytes, lastModified }, perm }. */
++export async function downloadLatest(dir) {
++  fs.mkdirSync(dir, { recursive: true });
++  const { res, timer } = await get(PERFORMANCE_PAGE, { accept: 'text/html' });
++  const html = await res.text();
++  clearTimeout(timer);
++  const links = findDisclosureLinks(html);
++  const out = {};
++  for (const program of ['lca', 'perm']) {
++    const link = links.find((l) => l.program === program);
++    if (!link) throw new Error(`no ${program.toUpperCase()} disclosure file linked from ${PERFORMANCE_PAGE}`);
++    const file = path.join(dir, path.basename(new URL(link.url).pathname));
++    const t0 = Date.now();
++    const got = await get(link.url, { timeoutMs: 30 * 60 * 1000 });
++    await pipeline(Readable.fromWeb(got.res.body), fs.createWriteStream(file));
++    clearTimeout(got.timer);
++    const bytes = fs.statSync(file).size;
++    const head = Buffer.alloc(2);
++    const fd = fs.openSync(file, 'r'); fs.readSync(fd, head, 0, 2, 0); fs.closeSync(fd);
++    if (head.toString('latin1') !== 'PK') throw new Error(`${link.url} is not an xlsx (zip) file`);
++    out[program] = { file, url: link.url, fy: link.fy, q: link.q, bytes, lastModified: got.res.headers.get('last-modified') };
++    log(`downloaded ${link.url}: ${(bytes / 1048576).toFixed(1)} MB in ${Math.round((Date.now() - t0) / 1000)} s`);
++  }
++  return out;
++}
++
++/* ------------------------------------------------------------- extract */
++
++function columnMap(names, program) {
++  const idx = new Map(names.map((n, i) => [String(n || '').trim().toUpperCase(), i]));
++  const cols = {};
++  for (const [field, aliases] of Object.entries(FIELDS[program])) {
++    const hit = aliases.find((a) => idx.has(a));
++    if (hit != null) cols[field] = idx.get(hit);
++  }
++  const missing = REQUIRED.filter((f) => cols[f] == null);
++  if (missing.length) throw new Error(`${program.toUpperCase()} file lacks ${missing.map((f) => FIELDS[program][f][0]).join(', ')} (header: ${names.slice(0, 12).join(', ')}, ...)`);
++  return cols;
++}
++
++/** 'lca' or 'perm' from a header row. */
++export function detectProgram(names) {
++  const set = new Set(names.map((n) => String(n || '').trim().toUpperCase()));
++  if (set.has('WAGE_RATE_OF_PAY_FROM') && set.has('EMPLOYER_NAME')) return 'lca';
++  if (set.has('EMP_BUSINESS_NAME') || set.has('JOB_OPP_WAGE_FROM') || set.has('WAGE_OFFER_FROM_9089')) return 'perm';
++  return null;
++}
++
++/**
++ * Stream one disclosure workbook and return the Amazon and Meta rows (kept columns only).
++ * @returns {Promise<{ program, columns: string[], rowsScanned, records: object[], nearMisses: Array<{ company, name, filings }> }>}
++ */
++export async function extractWorkbook(file, { program = null } = {}) {
++  const t0 = Date.now();
++  const zip = await openZip(file);
++  const sheet = await firstSheet(zip);
++  let headerXml = null;
++  await eachRowXml(zip, sheet, (xml, stop) => { headerXml = xml; stop(); });
++  if (!headerXml) throw new Error(`${file}: empty sheet`);
++  const headerCells = rowCells(headerXml);
++  const headerIdx = new Set([...headerCells.values()].filter((c) => c.t === 's').map((c) => Number(c.v)));
++  // Pass 1: header names, and which shared strings could be an Amazon or Meta employer name.
++  const pass1 = await sharedStrings(zip, { want: headerIdx, test: (s) => employerCandidate(s) });
++  const width = Math.max(...headerCells.keys()) + 1;
++  const names = Array.from({ length: width }, (_, i) => {
++    const c = headerCells.get(i);
++    return !c ? '' : c.t === 's' ? pass1.strings.get(Number(c.v)) || '' : c.v;
++  });
++  const prog = program || detectProgram(names);
++  if (!prog) throw new Error(`${file}: not an LCA or PERM disclosure file (header: ${names.slice(0, 8).join(', ')}, ...)`);
++  const cols = columnMap(names, prog);
++  const keep = new Set(Object.values(cols));
++  const empLetters = colLetters(cols.employer);
++  // Pass 2: rows whose employer cell is a candidate; only the kept columns are parsed.
++  const raw = [];
++  const want = new Set();
++  let rowsScanned = 0;
++  let first = true;
++  await eachRowXml(zip, sheet, (xml) => {
++    if (first) { first = false; return; }
++    rowsScanned++;
++    const emp = cellAt(xml, empLetters);
++    if (!emp) return;
++    const candidate = emp.t === 's' ? pass1.matches.has(Number(emp.v)) : employerCandidate(emp.v);
++    if (!candidate) return;
++    const cells = rowCells(xml, keep);
++    for (const c of cells.values()) if (c.t === 's') want.add(Number(c.v));
++    raw.push(cells);
++  });
++  // Pass 3: resolve the shared strings those rows use.
++  const pass3 = await sharedStrings(zip, { want });
++  const value = (c) => (!c ? null : c.t === 's' ? pass3.strings.get(Number(c.v)) ?? null : c.v);
++  const records = [];
++  const misses = new Map();
++  for (const cells of raw) {
++    const rec = { program: prog };
++    for (const [field, col] of Object.entries(cols)) rec[field] = value(cells.get(col));
++    const hit = matchEmployer(rec.employer);
++    if (hit) records.push({ ...rec, company: hit.company, entity: hit.entity });
++    else {
++      const company = nearMiss(rec.employer);
++      if (company) {
++        const key = `${company}\u0000${String(rec.employer).trim()}`;
++        misses.set(key, (misses.get(key) || 0) + 1);
++      }
++    }
++  }
++  const nearMisses = [...misses].map(([k, filings]) => { const [company, name] = k.split('\u0000'); return { company, name, filings }; })
++    .sort((a, b) => b.filings - a.filings || a.name.localeCompare(b.name));
++  log(`${path.basename(file)}: ${prog.toUpperCase()}, ${rowsScanned} rows scanned, ${records.length} Amazon/Meta rows, ${nearMisses.length} near-miss names, ${Math.round((Date.now() - t0) / 1000)} s`);
++  return { program: prog, columns: names, rowsScanned, records, nearMisses };
++}
++
++/* ------------------------------------------------------------- mapping */
++
++const num = (v) => {
++  if (v == null || v === '') return null;
++  const n = Number(String(v).replace(/[$,\s]/g, ''));
++  return Number.isFinite(n) ? n : null;
++};
++
++/** Annual amount for a wage and its unit ("Hour", "Bi-Weekly", "Year"); null when unknown. */
++export function annualize(amount, unit) {
++  const n = num(amount);
++  const f = FACTORS[String(unit || '').trim().toLowerCase().replace(/\s+/g, '')];
++  return n == null || !f ? null : Math.round(n * f);
++}
++
++const date = (v) => {
++  if (v == null || v === '') return null;
++  const n = Number(v);
++  if (Number.isFinite(n)) return excelDate(n);
++  const t = Date.parse(v);
++  return Number.isFinite(t) ? new Date(t).toISOString().slice(0, 10) : null;
++};
++
++const ACRONYM = new Set(['II', 'III', 'IV', 'VI', 'VII', 'AWS', 'AI', 'ML', 'SDE', 'SDET', 'IT', 'UX', 'UI', 'QA', 'HR', 'VP', 'US', 'BI', 'TPM', 'PM', 'GPU', 'SOC', 'ASIC', 'RF', 'AR', 'VR', 'XR', 'EC2', 'S3', 'L4', 'L5', 'L6', 'L7', 'NLP', 'LLM', 'SRE']);
++/** "SOFTWARE DEVELOPMENT ENGINEER II" -> "Software Development Engineer II" (mixed case is kept). */
++export function displayTitle(title) {
++  const t = String(title || '').replace(/\s+/g, ' ').trim();
++  if (/[a-z]/.test(t)) return readableTitle(t);
++  return readableTitle(t.replace(/[A-Z0-9][A-Z0-9'.]*/g, (w) => (ACRONYM.has(w) || /\d/.test(w) && w.length <= 3 ? w : w[0] + w.slice(1).toLowerCase())));
++}
++
++const titleKey = (t) => t.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
++
++/** "SEATTLE" + "WA" -> "Seattle, WA" (server/geo.js), else the words title-cased. */
++export function placeName(city, state) {
++  const c = String(city || '').replace(/\s+/g, ' ').trim();
++  const s = String(state || '').trim();
++  if (!c) return s || null;
++  const [g] = geocode(s ? `${c}, ${s}` : c);
++  if (g && g.city && g.country === 'US') return g.name;
++  const tc = c.toLowerCase().replace(/\b[a-z]/g, (m) => m.toUpperCase());
++  return s ? `${tc}, ${s.toUpperCase()}` : tc;
++}
++
++/** One kept row -> the observation the summary is built from. */
++export function observe(rec) {
++  const program = rec.program;
++  const title = displayTitle(rec.title);
++  const level = jobSeniority({ title, company: rec.company });
++  const wageFrom = annualize(rec.wageFrom, rec.wageUnit);
++  const wageTo = annualize(rec.wageTo, rec.wageUnit);
++  const wage = wageFrom == null ? null : wageTo != null && wageTo > wageFrom ? Math.round((wageFrom + wageTo) / 2) : wageFrom;
++  const status = String(rec.status || '').trim().toLowerCase();
++  const fullTime = rec.fullTime == null ? null : /^(y|yes|1|true)$/i.test(String(rec.fullTime).trim());
++  const priced = PAY_STATUSES[program].includes(status) && fullTime !== false && wage != null && wage >= WAGE_BOUNDS.min && wage <= WAGE_BOUNDS.max;
++  return {
++    program, company: rec.company, entity: rec.entity, status, visa: rec.visa || null,
++    title, family: roleFamily(title, { department: rec.socTitle || null }) || 'other',
++    level: displayLevel({ seniority: level.level, seniorityBasis: level.basis }),
++    soc: rec.soc || null, socTitle: rec.socTitle || null,
++    city: placeName(rec.city, rec.state), state: rec.state ? String(rec.state).trim().toUpperCase() : null,
++    fullTime, workers: num(rec.workers), wageFrom, wageTo, wage, priced,
++    pwLevel: rec.pwLevel ? String(rec.pwLevel).trim().toUpperCase() : null,
++    prevailing: annualize(rec.pw, rec.pwUnit),
++    received: date(rec.received), decision: date(rec.decision),
++  };
++}
++
++/* ------------------------------------------------------------- summary */
++
++/** Quantile (linear between closest ranks) of sorted numbers. */
++export function quantile(sorted, p) {
++  if (!sorted.length) return null;
++  const at = (sorted.length - 1) * p;
++  const lo = Math.floor(at);
++  const hi = Math.ceil(at);
++  return sorted[lo] + (sorted[hi] - sorted[lo]) * (at - lo);
++}
++
++const round100 = (n) => (n == null ? null : Math.round(n / 100) * 100);
++const PW_LEVELS = ['I', 'II', 'III', 'IV'];
++
++/** { n, p25, median, p75 } of annual wages, rounded to $100. */
++export function wageStats(values) {
++  const v = values.filter((x) => Number.isFinite(x)).sort((a, b) => a - b);
++  return { n: v.length, p25: round100(quantile(v, 0.25)), median: round100(quantile(v, 0.5)), p75: round100(quantile(v, 0.75)) };
++}
++
++function groupStats(obs, keyOf, { min = 1, limit = Infinity, extra = null } = {}) {
++  const groups = new Map();
++  for (const o of obs) {
++    const k = keyOf(o);
++    if (k == null) continue;
++    let g = groups.get(k);
++    if (!g) groups.set(k, (g = []));
++    g.push(o);
++  }
++  return [...groups].map(([key, list]) => ({ key, ...(extra ? extra(list) : {}), ...wageStats(list.map((o) => o.wage)) }))
++    .filter((g) => g.n >= min).sort((a, b) => b.n - a.n || String(a.key).localeCompare(String(b.key))).slice(0, limit);
++}
++
++const mostCommon = (list, f) => {
++  const c = new Map();
++  for (const o of list) c.set(f(o), (c.get(f(o)) || 0) + 1);
++  return [...c].sort((a, b) => b[1] - a[1])[0][0];
++};
++
++/** The per-program block of one company. */
++export function programSummary(obs, { titleLimit = 40, cityLimit = 30, minGroup = 3 } = {}) {
++  const priced = obs.filter((o) => o.priced);
++  const status = {};
++  for (const o of obs) status[o.status || 'unknown'] = (status[o.status || 'unknown'] || 0) + 1;
++  const order = (list, ids) => list.sort((a, b) => ids.indexOf(a.key) - ids.indexOf(b.key));
++  const families = Object.keys(FAMILY_LABELS).concat('other');
++  return {
++    filings: obs.length,
++    byStatus: status,
++    workerPositions: obs.reduce((s, o) => s + (o.workers || 0), 0) || null,
++    priced: priced.length,
++    decisions: obs.length ? { first: obs.map((o) => o.decision).filter(Boolean).sort()[0] || null, last: obs.map((o) => o.decision).filter(Boolean).sort().at(-1) || null } : null,
++    wage: wageStats(priced.map((o) => o.wage)),
++    wageFrom: wageStats(priced.map((o) => o.wageFrom)),
++    byFamily: order(groupStats(priced, (o) => o.family), families).map(({ key, ...s }) => ({ family: key, label: FAMILY_LABELS[key] || 'Other', ...s })),
++    byLevel: order(groupStats(priced, (o) => o.level), DISPLAY_LEVEL_ORDER).map(({ key, ...s }) => ({ level: key, label: levelLabel(key), ...s })),
++    byPrevailingWageLevel: order(groupStats(priced.filter((o) => PW_LEVELS.includes(o.pwLevel)), (o) => o.pwLevel), PW_LEVELS)
++      .map(({ key, ...s }) => ({ pwLevel: key, ...s })),
++    byTitle: groupStats(priced, (o) => titleKey(o.title), { min: minGroup, limit: titleLimit, extra: (list) => ({ title: mostCommon(list, (o) => o.title), family: mostCommon(list, (o) => o.family), level: mostCommon(list, (o) => o.level) }) })
++      .map(({ key, ...s }) => s),
++    byCity: groupStats(priced.filter((o) => o.city), (o) => o.city, { min: minGroup, limit: cityLimit }).map(({ key, ...s }) => ({ city: key, ...s })),
++  };
++}
++
++/**
++ * The committed summary: per company, the entities matched, and per program the counts and
++ * median offered wages. `sources` describes each file read.
++ */
++export function summarize(observations, { sources = [], nearMisses = [], generatedAt = new Date().toISOString(), ...opts } = {}) {
++  const companies = {};
++  for (const company of ['amazon', 'meta']) {
++    const mine = observations.filter((o) => o.company === company);
++    const entities = new Map();
++    for (const o of mine) {
++      const e = entities.get(o.entity) || { entity: o.entity, lca: 0, perm: 0 };
++      e[o.program]++;
++      entities.set(o.entity, e);
++    }
++    const block = { entities: [...entities.values()].sort((a, b) => b.lca + b.perm - (a.lca + a.perm) || a.entity.localeCompare(b.entity)) };
++    for (const program of ['lca', 'perm']) {
++      const obs = mine.filter((o) => o.program === program);
++      if (obs.length || sources.some((s) => s.program === program)) block[program] = programSummary(obs, opts);
++    }
++    companies[company] = block;
++  }
++  return {
++    schema: 1,
++    title: 'Pay filed with the US Department of Labor: Amazon and Meta',
++    generatedAt,
++    notes: [
++      'Not job postings. Each row is an employer filing with the US Department of Labor: a Labor Condition Application (LCA: H-1B, H-1B1, E-3) or a permanent labor certification (PERM). One filing can cover several workers.',
++      'Wages are the employer\'s offered wage for that position, made annual (hour x 2080, week x 52, bi-weekly x 26, month x 12). "wage" is the middle of the stated range (or its lower end when only one figure is given); "wageFrom" is the lower end.',
++      `Only certified, full-time filings with an annual wage between $${WAGE_BOUNDS.min.toLocaleString('en-US')} and $${WAGE_BOUNDS.max.toLocaleString('en-US')} are priced. Medians and quartiles are rounded to $100; groups smaller than ${opts.minGroup || 3} filings are left out of the title and city lists.`,
++      'Role family and level come from the job title with the site\'s own rules (public/features/roles.js, server/keywords.js). "Prevailing wage level" (I-IV) is the Department of Labor\'s wage level for the occupation and area, not the company\'s level.',
++      'Source: US Department of Labor, Office of Foreign Labor Certification disclosure data (public domain, https://www.dol.gov/general/aboutdol/copyright). Contact, attorney and preparer columns are never read.',
++    ],
++    sources,
++    companies,
++    nearMisses: nearMisses.slice(0, 60),
++  };
++}
++
++/* ----------------------------------------------------------------- csv */
++
++const CSV_COLS = ['program', 'company', 'entity', 'status', 'visa', 'title', 'family', 'level', 'soc', 'socTitle', 'city', 'state', 'fullTime', 'workers', 'wageFrom', 'wageTo', 'wage', 'priced', 'pwLevel', 'prevailing', 'received', 'decision'];
++const csvCell = (v) => { const s = v == null ? '' : String(v); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
++export function toCsv(observations) {
++  return `${CSV_COLS.join(',')}\n${observations.map((o) => CSV_COLS.map((c) => csvCell(o[c])).join(',')).join('\n')}\n`;
++}
++
++/* ----------------------------------------------------------------- cli */
++
++export async function main(argv = process.argv.slice(2)) {
++  const opt = (name) => { const i = argv.indexOf(`--${name}`); return i >= 0 ? argv[i + 1] : null; };
++  const has = (name) => argv.includes(`--${name}`);
++  const files = [];
++  if (has('download')) {
++    const dir = opt('dir') || fs.mkdtempSync(path.join(process.env.RUNNER_TEMP || process.env.TMPDIR || '/tmp', 'dol-'));
++    const got = await downloadLatest(dir);
++    for (const program of ['lca', 'perm']) files.push({ program, ...got[program] });
++  }
++  for (const program of ['lca', 'perm']) {
++    const f = opt(program);
++    if (f) files.push({ program, file: f, ...(fileQuarter(f) || {}), bytes: fs.statSync(f).size });
++  }
++  if (!files.length) {
++    process.stderr.write('usage: dol-disclosure.js --download [--dir DIR] | --lca FILE [--perm FILE] [--out FILE] [--rows FILE.csv] [--print]\n');
++    return 2;
++  }
++  const observations = [];
++  const sources = [];
++  const nearMisses = [];
++  for (const f of files) {
++    const fy = Number(opt('fy')) || f.fy || null;
++    const q = Number(opt('q')) || f.q || null;
++    const got = await extractWorkbook(f.file, { program: f.program });
++    const obs = got.records.map(observe);
++    observations.push(...obs);
++    nearMisses.push(...got.nearMisses.map((n) => ({ program: got.program, ...n })));
++    sources.push({
++      program: got.program, file: path.basename(f.file), url: f.url || null, fiscalYear: fy, quarter: q,
++      reportingPeriod: reportingPeriod(fy, q), lastModified: f.lastModified || null, bytes: f.bytes || null,
++      rowsScanned: got.rowsScanned, amazonMetaRows: got.records.length,
++    });
++  }
++  const summary = summarize(observations, { sources, nearMisses: nearMisses.sort((a, b) => b.filings - a.filings) });
++  const out = opt('out') || DEFAULT_OUT;
++  fs.mkdirSync(path.dirname(out), { recursive: true });
++  fs.writeFileSync(out, `${JSON.stringify(summary, null, 2)}\n`);
++  log(`wrote ${out} (${fs.statSync(out).size} bytes)`);
++  const rows = opt('rows');
++  if (rows) { fs.writeFileSync(rows, toCsv(observations)); log(`wrote ${rows} (${observations.length} rows)`); }
++  if (has('print')) process.stdout.write(`${JSON.stringify(summary, null, 2)}\n`);
++  for (const c of ['amazon', 'meta']) {
++    for (const p of ['lca', 'perm']) {
++      const b = summary.companies[c][p];
++      if (b) log(`${c} ${p}: ${b.filings} filings, ${b.priced} priced, median $${b.wage.median ?? '-'}`);
++    }
++  }
++  return 0;
++}
++
++if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
++  main().then((code) => { process.exitCode = code; }, (err) => { process.stderr.write(`[dol] ${err.stack || err.message}\n`); process.exitCode = 1; });
++}
+diff --git a/scripts/alt-data/employers.js b/scripts/alt-data/employers.js
+new file mode 100644
+index 0000000..19a70e2
+--- /dev/null
++++ b/scripts/alt-data/employers.js
+@@ -0,0 +1,88 @@
++// Which employer names in the US Department of Labor disclosure files are Amazon or Meta
++// (docs/process/amazon-meta-data.md decision 6).
++//
++// Employers file under their legal entity names ("Amazon.com Services LLC", "Meta
++// Platforms, Inc."), written many ways ("AMAZON.COM SERVICES, LLC", "Amazon Web Services,
++// Inc"). A name is normalized (upper case, punctuation to spaces, corporate suffixes off) and
++// then matched against an explicit allow-list per company. Anything else that merely
++// contains a keyword ("AMAZON", "META", "FACEBOOK") is a near miss: it is never counted,
++// but the summary lists it with its filing count, so a person can extend or confirm the list.
++//
++// Separate brands with their own careers sites (Audible, Twitch, Zoox, Whole Foods, Ring,
++// Zappos, IMDb, One Medical; Oculus before it became Meta Platforms Technologies) are not
++// matched: the beta site's Amazon and Meta boards would be www.amazon.jobs and
++// www.metacareers.com.
++
++const SUFFIX_RE = /\s+(?:INC|INCORPORATED|LLC|L L C|CORP|CORPORATION|CO|COMPANY|LTD|LIMITED|LP|LLP|PLLC|PC|NA)$/;
++
++/** "Amazon.com Services, LLC." -> "AMAZON COM SERVICES". */
++export function normalizeEmployer(name) {
++  let s = String(name || '').toUpperCase().replace(/&/g, ' AND ').replace(/[^A-Z0-9]+/g, ' ').trim();
++  // "U S" (from "U.S.") stays two letters; collapse it so "U S" and "US" match alike.
++  s = s.replace(/\bU S\b/g, 'US');
++  for (let prev = null; prev !== s;) { prev = s; s = s.replace(SUFFIX_RE, '').trim(); }
++  return s;
++}
++
++/**
++ * Allow-list: [company, canonical entity label, pattern on the normalized name].
++ * Sources: the entity names Amazon and Meta use in their own filings and careers-site
++ * footers ("© 1996-2026, Amazon.com, Inc. or its affiliates"; "Meta Platforms, Inc."),
++ * and the subsidiaries that recruit through those two sites.
++ */
++export const ENTITIES = Object.freeze([
++  ['amazon', 'Amazon.com Services LLC', /^AMAZON COM SERVICES$/],
++  ['amazon', 'Amazon.com, Inc.', /^AMAZON COM$/],
++  ['amazon', 'Amazon Web Services, Inc.', /^AMAZON WEB SERVICES$/],
++  ['amazon', 'Amazon Development Center U.S., Inc.', /^AMAZON DEVELOPMENT CENTER(?: US)?$/],
++  ['amazon', 'Amazon Data Services, Inc.', /^AMAZON DATA SERVICES$/],
++  ['amazon', 'Amazon Fulfillment Services, Inc.', /^AMAZON FULFILLMENT SERVICES$/],
++  ['amazon', 'Amazon Technologies, Inc.', /^AMAZON TECHNOLOGIES$/],
++  ['amazon', 'Amazon Capital Services, Inc.', /^AMAZON CAPITAL SERVICES$/],
++  ['amazon', 'Amazon Logistics, Inc.', /^AMAZON LOGISTICS$/],
++  ['amazon', 'Amazon Advertising LLC', /^AMAZON ADVERTISING$/],
++  ['amazon', 'Amazon Payments, Inc.', /^AMAZON PAYMENTS$/],
++  ['amazon', 'Amazon Retail LLC', /^AMAZON RETAIL$/],
++  ['amazon', 'Amazon Media Group LLC', /^AMAZON MEDIA GROUP$/],
++  ['amazon', 'Amazon Content Services LLC', /^AMAZON CONTENT SERVICES$/],
++  ['amazon', 'Amazon Studios LLC', /^AMAZON STUDIOS$/],
++  ['amazon', 'Amazon Robotics LLC', /^AMAZON ROBOTICS$/],
++  ['amazon', 'Amazon Lab126', /^(?:AMAZON )?LAB ?126$/],
++  ['amazon', 'Amazon Kuiper (Kuiper Systems LLC)', /^(?:AMAZON KUIPER(?: [A-Z ]+)?|KUIPER (?:SYSTEMS|GOVERNMENT SOLUTIONS))$/],
++  ['amazon', 'Amazon Digital Services LLC', /^AMAZON DIGITAL SERVICES$/],
++  ['amazon', 'Amazon Corporate LLC', /^AMAZON CORPORATE$/],
++  ['amazon', 'Amazon Prime Air', /^AMAZON PRIME AIR$/],
++  ['amazon', 'A9.com, Inc.', /^A9 COM$/],
++  ['meta', 'Meta Platforms, Inc.', /^META PLATFORMS$/],
++  ['meta', 'Meta Platforms Technologies, LLC', /^META PLATFORMS TECHNOLOGIES$/],
++  ['meta', 'Facebook, Inc. (now Meta Platforms, Inc.)', /^FACEBOOK$/],
++  ['meta', 'Facebook Technologies, LLC (now Meta Platforms Technologies)', /^FACEBOOK TECHNOLOGIES$/],
++  ['meta', 'Meta Payments Inc. (formerly Facebook Payments)', /^(?:META|FACEBOOK) PAYMENTS$/],
++  ['meta', 'Instagram, LLC', /^INSTAGRAM$/],
++  ['meta', 'WhatsApp LLC', /^WHATSAPP$/],
++  ['meta', 'Siculus, Inc. (Meta data centers)', /^SICULUS$/],
++]);
++
++const KEYWORD = { amazon: /\bAMAZON|\bKUIPER\b|\bA9\b/, meta: /\bMETA\b|\bFACEBOOK|\bINSTAGRAM\b|\bWHATSAPP\b|\bSICULUS\b/ };
++
++/** { company, entity } for an Amazon or Meta employer name, else null. */
++export function matchEmployer(name) {
++  const n = normalizeEmployer(name);
++  if (!n) return null;
++  for (const [company, entity, re] of ENTITIES) if (re.test(n)) return { company, entity };
++  return null;
++}
++
++/** 'amazon' / 'meta' for a name that has a keyword but is not on the allow-list, else null. */
++export function nearMiss(name) {
++  if (matchEmployer(name)) return null;
++  const n = normalizeEmployer(name);
++  for (const [company, re] of Object.entries(KEYWORD)) if (re.test(n)) return company;
++  return null;
++}
++
++/** True when a name is worth resolving in the first pass (a match or a near miss). */
++export function employerCandidate(name) {
++  const n = normalizeEmployer(name);
++  return KEYWORD.amazon.test(n) || KEYWORD.meta.test(n);
++}
+diff --git a/scripts/alt-data/sample.js b/scripts/alt-data/sample.js
+new file mode 100644
+index 0000000..55b52f7
+--- /dev/null
++++ b/scripts/alt-data/sample.js
+@@ -0,0 +1,124 @@
++// A small, made-up sample in the documented layout of the US Department of Labor's FY2026
++// disclosure files, for tests and dry runs of scripts/alt-data/dol-disclosure.js.
++//
++// Layout sources (fetched 2026-10-11 through the freshness capture probe, run 38136777427):
++//   LCA_Record_Layout_FY2026_Q3.pdf and PERM_Record_Layout_FY2026_Q3.pdf
++//   (https://www.dol.gov/sites/dolgov/files/ETA/oflc/pdfs/FY26Q3/), and the first 512 KB of
++//   LCA_Disclosure_Data_FY2026_Q3.xlsx (run 38137141996): one sheet "A1:CT1032736", the 98
++//   columns below in this order, every text cell a shared string, dates as serial numbers,
++//   wages as numbers (EMPLOYER_NAME is column T, WAGE_RATE_OF_PAY_FROM column BV).
++// Every value below is invented. The people's names are placeholders that tests check never
++// reach the output.
++import { toExcelDate } from './xlsx.js';
++
++export const LCA_COLUMNS_FY2026 = Object.freeze([
++  'CASE_NUMBER', 'CASE_STATUS', 'RECEIVED_DATE', 'DECISION_DATE', 'ORIGINAL_CERT_DATE', 'VISA_CLASS', 'JOB_TITLE', 'SOC_CODE',
++  'SOC_TITLE', 'FULL_TIME_POSITION', 'BEGIN_DATE', 'END_DATE', 'TOTAL_WORKER_POSITIONS', 'NEW_EMPLOYMENT', 'CONTINUED_EMPLOYMENT',
++  'CHANGE_PREVIOUS_EMPLOYMENT', 'NEW_CONCURRENT_EMPLOYMENT', 'CHANGE_EMPLOYER', 'AMENDED_PETITION', 'EMPLOYER_NAME', 'TRADE_NAME_DBA',
++  'EMPLOYER_ADDRESS1', 'EMPLOYER_ADDRESS2', 'EMPLOYER_CITY', 'EMPLOYER_STATE', 'EMPLOYER_POSTAL_CODE', 'EMPLOYER_COUNTRY',
++  'EMPLOYER_PROVINCE', 'EMPLOYER_PHONE', 'EMPLOYER_PHONE_EXT', 'EMPLOYER_FEIN', 'NAICS_CODE', 'EMPLOYER_POC_LAST_NAME',
++  'EMPLOYER_POC_FIRST_NAME', 'EMPLOYER_POC_MIDDLE_NAME', 'EMPLOYER_POC_JOB_TITLE', 'EMPLOYER_POC_ADDRESS1', 'EMPLOYER_POC_ADDRESS2',
++  'EMPLOYER_POC_CITY', 'EMPLOYER_POC_STATE', 'EMPLOYER_POC_POSTAL_CODE', 'EMPLOYER_POC_COUNTRY', 'EMPLOYER_POC_PROVINCE',
++  'EMPLOYER_POC_PHONE', 'EMPLOYER_POC_PHONE_EXT', 'EMPLOYER_POC_EMAIL', 'AGENT_REPRESENTING_EMPLOYER', 'AGENT_ATTORNEY_LAST_NAME',
++  'AGENT_ATTORNEY_FIRST_NAME', 'AGENT_ATTORNEY_MIDDLE_NAME', 'AGENT_ATTORNEY_ADDRESS1', 'AGENT_ATTORNEY_ADDRESS2', 'AGENT_ATTORNEY_CITY',
++  'AGENT_ATTORNEY_STATE', 'AGENT_ATTORNEY_POSTAL_CODE', 'AGENT_ATTORNEY_COUNTRY', 'AGENT_ATTORNEY_PROVINCE', 'AGENT_ATTORNEY_PHONE',
++  'AGENT_ATTORNEY_PHONE_EXT', 'AGENT_ATTORNEY_EMAIL_ADDRESS', 'LAWFIRM_NAME_BUSINESS_NAME', 'LAWFIRM_BUSINESS_FEIN',
++  'STATE_OF_HIGHEST_COURT', 'NAME_OF_HIGHEST_STATE_COURT', 'WORKSITE_WORKERS', 'SECONDARY_ENTITY', 'SECONDARY_ENTITY_BUSINESS_NAME',
++  'WORKSITE_ADDRESS1', 'WORKSITE_ADDRESS2', 'WORKSITE_CITY', 'WORKSITE_COUNTY', 'WORKSITE_STATE', 'WORKSITE_POSTAL_CODE',
++  'WAGE_RATE_OF_PAY_FROM', 'WAGE_RATE_OF_PAY_TO', 'WAGE_UNIT_OF_PAY', 'PREVAILING_WAGE', 'PW_UNIT_OF_PAY', 'PW_TRACKING_NUMBER',
++  'PW_WAGE_LEVEL', 'PW_OES_YEAR', 'PW_OTHER_SOURCE', 'PW_OTHER_YEAR', 'PW_SURVEY_PUBLISHER', 'PW_SURVEY_NAME', 'TOTAL_WORKSITE_LOCATIONS',
++  'AGREE_TO_LC_STATEMENT', 'H-1B_DEPENDENT', 'WILLFUL_VIOLATOR', 'SUPPORT_H1B', 'STATUTORY_BASIS', 'APPENDIX_A_ATTACHED',
++  'PUBLIC_DISCLOSURE', 'PREPARER_LAST_NAME', 'PREPARER_FIRST_NAME', 'PREPARER_MIDDLE_INITIAL', 'PREPARER_BUSINESS_NAME', 'PREPARER_EMAIL',
++]);
++
++/** A subset of the 137 FY2026 PERM columns, in the layout's order (the script reads by name). */
++export const PERM_COLUMNS_FY2026_SUBSET = Object.freeze([
++  'CASE_NUMBER', 'CASE_STATUS', 'RECEIVED_DATE', 'DECISION_DATE', 'OCCUPATION_TYPE', 'EMP_BUSINESS_NAME', 'EMP_TRADE_NAME',
++  'EMP_CITY', 'EMP_STATE', 'EMP_FEIN', 'EMP_NAICS', 'EMP_NUM_PAYROLL', 'EMP_POC_LAST_NAME', 'EMP_POC_FIRST_NAME', 'EMP_POC_EMAIL',
++  'ATTY_AG_LAST_NAME', 'ATTY_AG_FIRST_NAME', 'ATTY_AG_EMAIL', 'ATTY_AG_LAW_FIRM_NAME', 'JOB_OPP_PWD_NUMBER', 'PWD_SOC_CODE',
++  'PWD_SOC_TITLE', 'JOB_TITLE', 'JOB_OPP_PWD_ATTACHED', 'JOB_OPP_WAGE_FROM', 'JOB_OPP_WAGE_TO', 'JOB_OPP_WAGE_PER',
++  'JOB_OPP_WAGE_CONDITIONS', 'PRIMARY_WORKSITE_TYPE', 'PRIMARY_WORKSITE_ADDR1', 'PRIMARY_WORKSITE_CITY', 'PRIMARY_WORKSITE_COUNTY',
++  'PRIMARY_WORKSITE_STATE', 'PRIMARY_WORKSITE_POSTAL_CODE', 'PRIMARY_WORKSITE_BLS_AREA', 'IS_MULTIPLE_LOCATIONS',
++  'OTHER_REQ_IS_FULLTIME_EMP', 'DECL_PREP_LAST_NAME', 'DECL_PREP_FIRST_NAME', 'DECL_PREP_EMAIL',
++]);
++
++/** Placeholder personal values: tests assert none of them reaches a summary or CSV. */
++export const PERSONAL_MARKERS = Object.freeze(['Placeholder-Contact', 'placeholder.contact@example.com', 'Placeholder-Attorney', 'placeholder.attorney@example.com', 'Placeholder-Preparer']);
++
++const d = toExcelDate;
++// [status, visa, title, soc, socTitle, fullTime, workers, employer, city, state, from, to, unit, pw, pwUnit, pwLevel, decision]
++const LCA_ROWS = [
++  ['Certified', 'H-1B', 'Software Development Engineer II', '15-1252.00', 'Software Developers', 'Y', 1, 'Amazon.com Services LLC', 'SEATTLE', 'WA', 165000, 210000, 'Year', 150000, 'Year', 'II', '2026-01-15'],
++  ['Certified', 'H-1B', 'Software Development Engineer II', '15-1252.00', 'Software Developers', 'Y', 1, 'AMAZON.COM SERVICES, LLC', 'Seattle', 'WA', 155000, 200000, 'Year', 150000, 'Year', 'II', '2026-02-02'],
++  ['Certified', 'H-1B', 'SOFTWARE DEVELOPMENT ENGINEER II', '15-1252.00', 'Software Developers', 'Y', 1, 'Amazon.com Services LLC', 'BELLEVUE', 'WA', 160000, 205000, 'Year', 148000, 'Year', 'II', '2026-03-10'],
++  ['Certified', 'H-1B', 'Sr. Software Development Engineer', '15-1252.00', 'Software Developers', 'Y', 2, 'Amazon Web Services, Inc.', 'Arlington', 'VA', 190000, 240000, 'Year', 170000, 'Year', 'III', '2026-04-01'],
++  ['Certified', 'H-1B', 'Software Dev Engineer I', '15-1252.00', 'Software Developers', 'Y', 1, 'Amazon Development Center U.S., Inc.', 'Sunnyvale', 'CA', 135000, 175000, 'Year', 130000, 'Year', 'I', '2026-05-20'],
++  ['Certified', 'H-1B', 'Applied Scientist II', '15-2051.00', 'Data Scientists', 'Y', 1, 'Amazon.com Services LLC', 'Seattle', 'WA', 170000, 230000, 'Year', 140000, 'Year', 'II', '2026-01-28'],
++  ['Certified', 'E-3 Australian', 'Data Engineer', '15-1243.00', 'Database Architects', 'Y', 1, 'Amazon Web Services, Inc.', 'Seattle', 'WA', 64.9, 85, 'Hour', 60, 'Hour', 'II', '2026-06-11'],
++  ['Certified', 'H-1B', 'Solutions Architect', '15-1299.08', 'Computer Systems Engineers/Architects', 'Y', 1, 'Amazon Web Services, Inc.', 'New York', 'NY', 14000, null, 'Month', 12000, 'Month', 'II', '2026-02-14'],
++  ['Withdrawn', 'H-1B', 'Software Development Engineer II', '15-1252.00', 'Software Developers', 'Y', 1, 'Amazon.com Services LLC', 'Seattle', 'WA', 150000, 200000, 'Year', 150000, 'Year', 'II', '2026-03-03'],
++  ['Certified', 'H-1B', 'Software Development Engineer II', '15-1252.00', 'Software Developers', 'N', 1, 'Amazon.com Services LLC', 'Seattle', 'WA', 80000, null, 'Year', 75000, 'Year', 'II', '2026-03-04'],
++  ['Certified', 'H-1B', 'Software Engineer', '15-1252.00', 'Software Developers', 'Y', 1, 'Meta Platforms, Inc.', 'MENLO PARK', 'CA', 180000, 220000, 'Year', 160000, 'Year', 'II', '2026-01-09'],
++  ['Certified', 'H-1B', 'Software Engineer', '15-1252.00', 'Software Developers', 'Y', 1, 'META PLATFORMS, INC.', 'New York', 'NY', 190000, 230000, 'Year', 165000, 'Year', 'III', '2026-02-19'],
++  ['Certified', 'H-1B', 'Software Engineer', '15-1252.00', 'Software Developers', 'Y', 1, 'Meta Platforms, Inc.', 'Menlo Park', 'CA', 200000, 240000, 'Year', 160000, 'Year', 'III', '2026-04-22'],
++  ['Certified', 'H-1B', 'Research Scientist', '15-2051.00', 'Data Scientists', 'Y', 1, 'Meta Platforms Technologies, LLC', 'Redmond', 'WA', 210000, 260000, 'Year', 170000, 'Year', 'IV', '2026-05-05'],
++  ['Denied', 'H-1B', 'Data Scientist', '15-2051.00', 'Data Scientists', 'Y', 1, 'Meta Platforms, Inc.', 'Menlo Park', 'CA', 150000, 190000, 'Year', 140000, 'Year', 'II', '2026-06-01'],
++  ['Certified', 'H-1B', 'Software Engineer', '15-1252.00', 'Software Developers', 'Y', 1, 'Amazon Hose & Rubber Co.', 'Chicago', 'IL', 70000, null, 'Year', 65000, 'Year', 'I', '2026-01-20'],
++  ['Certified', 'H-1B', 'Analyst', '13-1111.00', 'Management Analysts', 'Y', 1, 'Meta Systems Consulting Inc', 'Austin', 'TX', 72000, null, 'Year', 70000, 'Year', 'I', '2026-01-21'],
++  ['Certified', 'H-1B', 'Software Engineer', '15-1252.00', 'Software Developers', 'Y', 1, 'Example Widgets Inc', 'Boston', 'MA', 120000, 150000, 'Year', 110000, 'Year', 'II', '2026-01-22'],
++];
++
++/** LCA sample rows (header first), in the FY2026 column order. */
++export function sampleLcaRows() {
++  const header = [...LCA_COLUMNS_FY2026];
++  const at = (name) => header.indexOf(name);
++  const rows = [header];
++  LCA_ROWS.forEach((r, i) => {
++    const row = new Array(header.length).fill(null);
++    const [status, visa, title, soc, socTitle, fullTime, workers, employer, city, state, from, to, unit, pw, pwUnit, pwLevel, decision] = r;
++    const set = (name, v) => { row[at(name)] = v; };
++    set('CASE_NUMBER', `I-200-26${String(i).padStart(3, '0')}-000000`); set('CASE_STATUS', status);
++    set('RECEIVED_DATE', d('2025-12-01')); set('DECISION_DATE', d(decision)); set('VISA_CLASS', visa);
++    set('JOB_TITLE', title); set('SOC_CODE', soc); set('SOC_TITLE', socTitle); set('FULL_TIME_POSITION', fullTime);
++    set('BEGIN_DATE', d('2026-07-01')); set('END_DATE', d('2029-06-30')); set('TOTAL_WORKER_POSITIONS', workers);
++    set('EMPLOYER_NAME', employer); set('EMPLOYER_CITY', 'SEATTLE'); set('EMPLOYER_STATE', 'WA'); set('EMPLOYER_FEIN', '00-0000000');
++    set('EMPLOYER_POC_LAST_NAME', PERSONAL_MARKERS[0]); set('EMPLOYER_POC_EMAIL', PERSONAL_MARKERS[1]);
++    set('AGENT_ATTORNEY_LAST_NAME', PERSONAL_MARKERS[2]); set('AGENT_ATTORNEY_EMAIL_ADDRESS', PERSONAL_MARKERS[3]);
++    set('PREPARER_LAST_NAME', PERSONAL_MARKERS[4]);
++    set('WORKSITE_WORKERS', workers); set('SECONDARY_ENTITY', 'N'); set('WORKSITE_CITY', city); set('WORKSITE_STATE', state);
++    set('WAGE_RATE_OF_PAY_FROM', from); set('WAGE_RATE_OF_PAY_TO', to); set('WAGE_UNIT_OF_PAY', unit);
++    set('PREVAILING_WAGE', pw); set('PW_UNIT_OF_PAY', pwUnit); set('PW_WAGE_LEVEL', pwLevel); set('TOTAL_WORKSITE_LOCATIONS', 1);
++    rows.push(row);
++  });
++  return rows;
++}
++
++// [status, title, soc, socTitle, employer, city, state, from, to, unit, fullTime, decision]
++const PERM_ROWS = [
++  ['Certified', 'Software Development Engineer II', '15-1252.00', 'Software Developers', 'Amazon.com Services LLC', 'Seattle', 'WA', 150000, 200000, 'Year', 'Y', '2026-02-10'],
++  ['Certified', 'Software Development Engineer II', '15-1252.00', 'Software Developers', 'Amazon.com Services LLC', 'Seattle', 'WA', 160000, 210000, 'Year', 'Y', '2026-03-12'],
++  ['Certified', 'Software Development Engineer II', '15-1252.00', 'Software Developers', 'Amazon.com Services LLC', 'Seattle', 'WA', 155000, 205000, 'Year', 'Y', '2026-04-14'],
++  ['Certified-Expired', 'Software Engineer', '15-1252.00', 'Software Developers', 'Meta Platforms, Inc.', 'Menlo Park', 'CA', 185000, 225000, 'Year', 'Y', '2026-01-30'],
++  ['Denied', 'Software Engineer', '15-1252.00', 'Software Developers', 'Meta Platforms, Inc.', 'Menlo Park', 'CA', 185000, 225000, 'Year', 'Y', '2026-05-30'],
++];
++
++/** PERM sample rows (header first), a subset of the FY2026 columns in order. */
++export function samplePermRows() {
++  const header = [...PERM_COLUMNS_FY2026_SUBSET];
++  const at = (name) => header.indexOf(name);
++  const rows = [header];
++  PERM_ROWS.forEach((r, i) => {
++    const row = new Array(header.length).fill(null);
++    const [status, title, soc, socTitle, employer, city, state, from, to, unit, fullTime, decision] = r;
++    const set = (name, v) => { row[at(name)] = v; };
++    set('CASE_NUMBER', `G-100-26${String(i).padStart(3, '0')}-000000`); set('CASE_STATUS', status);
++    set('RECEIVED_DATE', d('2025-11-03')); set('DECISION_DATE', d(decision)); set('OCCUPATION_TYPE', 'Professional occupation');
++    set('EMP_BUSINESS_NAME', employer); set('EMP_POC_LAST_NAME', PERSONAL_MARKERS[0]); set('EMP_POC_EMAIL', PERSONAL_MARKERS[1]);
++    set('ATTY_AG_LAST_NAME', PERSONAL_MARKERS[2]); set('ATTY_AG_EMAIL', PERSONAL_MARKERS[3]); set('DECL_PREP_LAST_NAME', PERSONAL_MARKERS[4]);
++    set('PWD_SOC_CODE', soc); set('PWD_SOC_TITLE', socTitle); set('JOB_TITLE', title);
++    set('JOB_OPP_WAGE_FROM', from); set('JOB_OPP_WAGE_TO', to); set('JOB_OPP_WAGE_PER', unit);
++    set('PRIMARY_WORKSITE_CITY', city); set('PRIMARY_WORKSITE_STATE', state); set('OTHER_REQ_IS_FULLTIME_EMP', fullTime);
++    rows.push(row);
++  });
++  return rows;
++}
+diff --git a/scripts/alt-data/xlsx.js b/scripts/alt-data/xlsx.js
+index de59537..79845ea 100644
+--- a/scripts/alt-data/xlsx.js
++++ b/scripts/alt-data/xlsx.js
+@@ -336,3 +336,90 @@ export function excelDate(serial) {
+   if (!Number.isFinite(n) || n < 18264 || n > 73051) return null;
+   return new Date(Math.round((n - 25569) * 86400000)).toISOString().slice(0, 10);
+ }
++
++/** 'YYYY-MM-DD' -> Excel serial date (1900 system). */
++export function toExcelDate(iso) {
++  return Math.round(Date.parse(`${iso}T00:00:00Z`) / 86400000 + 25569);
++}
++
++/* --------------------------------------------------------------- writer */
++// For tests and samples: a workbook laid out like the DOL files (one sheet, every text
++// cell a shared string, sharedStrings.xml stored last, dates as serial numbers).
++
++let CRC_TABLE = null;
++function crc32(buf) {
++  if (typeof zlib.crc32 === 'function') return zlib.crc32(buf) >>> 0;
++  if (!CRC_TABLE) {
++    CRC_TABLE = new Uint32Array(256);
++    for (let n = 0; n < 256; n++) {
++      let c = n;
++      for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
++      CRC_TABLE[n] = c >>> 0;
++    }
++  }
++  let c = 0xffffffff;
++  for (const b of buf) c = CRC_TABLE[(c ^ b) & 0xff] ^ (c >>> 8);
++  return (c ^ 0xffffffff) >>> 0;
++}
++
++/** A zip archive (deflated entries) from [{ name, data }]. */
++export function zipBuffer(files) {
++  const locals = [];
++  const central = [];
++  let offset = 0;
++  for (const f of files) {
++    const data = Buffer.isBuffer(f.data) ? f.data : Buffer.from(String(f.data), 'utf8');
++    const comp = zlib.deflateRawSync(data);
++    const name = Buffer.from(f.name, 'utf8');
++    const crc = crc32(data);
++    const lfh = Buffer.alloc(30);
++    lfh.writeUInt32LE(LFH_SIG, 0); lfh.writeUInt16LE(20, 4); lfh.writeUInt16LE(0, 6); lfh.writeUInt16LE(8, 8);
++    lfh.writeUInt32LE(crc, 14); lfh.writeUInt32LE(comp.length, 18); lfh.writeUInt32LE(data.length, 22);
++    lfh.writeUInt16LE(name.length, 26); lfh.writeUInt16LE(0, 28);
++    locals.push(lfh, name, comp);
++    const cdh = Buffer.alloc(46);
++    cdh.writeUInt32LE(CDH_SIG, 0); cdh.writeUInt16LE(20, 4); cdh.writeUInt16LE(20, 6); cdh.writeUInt16LE(0, 8); cdh.writeUInt16LE(8, 10);
++    cdh.writeUInt32LE(crc, 16); cdh.writeUInt32LE(comp.length, 20); cdh.writeUInt32LE(data.length, 24);
++    cdh.writeUInt16LE(name.length, 28); cdh.writeUInt32LE(offset, 42);
++    central.push(cdh, name);
++    offset += 30 + name.length + comp.length;
++  }
++  const cd = Buffer.concat(central);
++  const eocd = Buffer.alloc(22);
++  eocd.writeUInt32LE(EOCD_SIG, 0); eocd.writeUInt16LE(files.length, 8); eocd.writeUInt16LE(files.length, 10);
++  eocd.writeUInt32LE(cd.length, 12); eocd.writeUInt32LE(offset, 16);
++  return Buffer.concat([...locals, cd, eocd]);
++}
++
++const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
++
++/**
++ * An .xlsx buffer from rows (arrays; row 0 is the header). Strings become shared strings,
++ * numbers numeric cells, null/undefined/'' empty cells. `{ inline: true }` writes strings as
++ * inline strings instead (some writers do).
++ */
++export function xlsxBuffer(rows, { inline = false } = {}) {
++  const sst = new Map();
++  const sid = (s) => { if (!sst.has(s)) sst.set(s, sst.size); return sst.get(s); };
++  const rowXml = rows.map((row, r) => {
++    const cells = row.map((v, c) => {
++      if (v == null || v === '') return '';
++      const ref = `${colLetters(c)}${r + 1}`;
++      if (typeof v === 'number') return `<c r="${ref}"><v>${v}</v></c>`;
++      if (inline) return `<c r="${ref}" t="inlineStr"><is><t>${esc(v)}</t></is></c>`;
++      return `<c r="${ref}" t="s"><v>${sid(String(v))}</v></c>`;
++    }).join('');
++    return `<row r="${r + 1}">${cells}</row>`;
++  }).join('');
++  const ns = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main';
++  const rel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
++  const sheet = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<worksheet xmlns="${ns}"><sheetData>${rowXml}</sheetData></worksheet>`;
++  const strings = [...sst.keys()].map((s) => `<si><t xml:space="preserve">${esc(s)}</t></si>`).join('');
++  return zipBuffer([
++    { name: '[Content_Types].xml', data: '<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"/>' },
++    { name: 'xl/workbook.xml', data: `<?xml version="1.0" encoding="UTF-8"?><workbook xmlns="${ns}" xmlns:r="${rel}"><sheets><sheet name="Sheet1" sheetId="1" r:id="rId1"/></sheets></workbook>` },
++    { name: 'xl/_rels/workbook.xml.rels', data: `<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId4" Type="${rel}/sharedStrings" Target="sharedStrings.xml"/><Relationship Id="rId1" Type="${rel}/worksheet" Target="worksheets/sheet1.xml"/></Relationships>` },
++    { name: 'xl/worksheets/sheet1.xml', data: sheet },
++    { name: 'xl/sharedStrings.xml', data: `<?xml version="1.0" encoding="UTF-8"?><sst xmlns="${ns}" count="${sst.size}" uniqueCount="${sst.size}">${strings}</sst>` },
++  ]);
++}
+diff --git a/test/alt-data-dol.test.js b/test/alt-data-dol.test.js
+new file mode 100644
+index 0000000..c94a294
+--- /dev/null
++++ b/test/alt-data-dol.test.js
+@@ -0,0 +1,267 @@
++// scripts/alt-data/: Amazon and Meta pay filed with the US Department of Labor
++// (docs/AMAZON_META.md, docs/process/amazon-meta-data.md). No network: the workbooks are
++// built from scripts/alt-data/sample.js in the documented FY2026 layout, and two small
++// fixtures come from the real LCA_Disclosure_Data_FY2026_Q3.xlsx (its central directory,
++// and its first two rows, which hold only shared-string indices and numbers).
++import { test } from 'node:test';
++import assert from 'node:assert/strict';
++import fs from 'node:fs';
++import os from 'node:os';
++import path from 'node:path';
++import { fileURLToPath } from 'node:url';
++import {
++  centralDirectory, openZip, firstSheet, eachRowXml, rowCells, cellAt, colIndex, colLetters, sharedStrings,
++  xmlText, richText, excelDate, toExcelDate, xlsxBuffer, elementSplitter,
++} from '../scripts/alt-data/xlsx.js';
++import { normalizeEmployer, matchEmployer, nearMiss, employerCandidate } from '../scripts/alt-data/employers.js';
++import {
++  findDisclosureLinks, reportingPeriod, fileQuarter, annualize, displayTitle, placeName, extractWorkbook, observe,
++  summarize, wageStats, quantile, toCsv, detectProgram, main,
++} from '../scripts/alt-data/dol-disclosure.js';
++import { sampleLcaRows, samplePermRows, LCA_COLUMNS_FY2026, PERSONAL_MARKERS } from '../scripts/alt-data/sample.js';
++
++const FIX = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures', 'alt-data');
++const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'alt-data-dol-'));
++const write = (name, rows, opts) => { const f = path.join(tmp, name); fs.writeFileSync(f, xlsxBuffer(rows, opts)); return f; };
++
++/* ------------------------------------------------------------- employers */
++
++test('employer names normalize across punctuation, case and corporate suffixes', () => {
++  assert.equal(normalizeEmployer('Amazon.com Services LLC'), 'AMAZON COM SERVICES');
++  assert.equal(normalizeEmployer('AMAZON.COM SERVICES, L.L.C.'), 'AMAZON COM SERVICES');
++  assert.equal(normalizeEmployer('Amazon Development Center U.S., Inc.'), 'AMAZON DEVELOPMENT CENTER US');
++  assert.equal(normalizeEmployer('Meta Platforms, Inc.'), 'META PLATFORMS');
++  assert.equal(normalizeEmployer('  meta platforms technologies, llc '), 'META PLATFORMS TECHNOLOGIES');
++});
++
++test('the allow-list matches Amazon and Meta entities and nothing that merely shares a word', () => {
++  const yes = {
++    'Amazon.com Services LLC': ['amazon', 'Amazon.com Services LLC'],
++    'AMAZON WEB SERVICES, INC.': ['amazon', 'Amazon Web Services, Inc.'],
++    'Amazon Development Center U.S., Inc.': ['amazon', 'Amazon Development Center U.S., Inc.'],
++    'Amazon Data Services, Inc.': ['amazon', 'Amazon Data Services, Inc.'],
++    'Kuiper Systems LLC': ['amazon', 'Amazon Kuiper (Kuiper Systems LLC)'],
++    'A9.com, Inc.': ['amazon', 'A9.com, Inc.'],
++    'Meta Platforms, Inc.': ['meta', 'Meta Platforms, Inc.'],
++    'Meta Platforms Technologies, LLC': ['meta', 'Meta Platforms Technologies, LLC'],
++    'Facebook, Inc.': ['meta', 'Facebook, Inc. (now Meta Platforms, Inc.)'],
++    'WhatsApp LLC': ['meta', 'WhatsApp LLC'],
++  };
++  for (const [name, [company, entity]] of Object.entries(yes)) assert.deepEqual(matchEmployer(name), { company, entity }, name);
++  for (const name of ['Amazon Hose & Rubber Co.', 'Amazon Consulting Group LLC', 'Amazonia Foods Inc', 'Meta Systems Consulting Inc', 'Metamor Software', 'Meta Financial Group', 'Facebook Fan Club LLC', 'Example Widgets Inc', '']) {
++    assert.equal(matchEmployer(name), null, name);
++  }
++  assert.equal(nearMiss('Amazon Hose & Rubber Co.'), 'amazon');
++  assert.equal(nearMiss('Meta Systems Consulting Inc'), 'meta');
++  assert.equal(nearMiss('Metamor Software'), null, '"Metamor" is not the word "Meta"');
++  assert.equal(nearMiss('Amazon.com Services LLC'), null, 'a match is not a near miss');
++  assert.equal(employerCandidate('Example Widgets Inc'), false);
++  assert.equal(employerCandidate('Amazon Web Services, Inc.'), true);
++});
++
++/* ----------------------------------------------------------------- xlsx */
++
++test('the real FY2026 Q3 LCA workbook: its central directory parses (sheet 228 MB compressed, strings last)', () => {
++  const buf = fs.readFileSync(path.join(FIX, 'lca-fy2026-q3-central-directory.bin'));
++  const cd = centralDirectory(buf);
++  assert.equal(cd.entries.length, 10);
++  assert.equal(cd.cdOffset, 251850229);
++  const sheet = cd.entries.find((e) => e.name === 'xl/worksheets/sheet1.xml');
++  assert.deepEqual([sheet.method, sheet.compressedSize, sheet.offset], [8, 239419295, 3303]);
++  assert.ok(sheet.size > 1.5e9, 'the sheet inflates to about 1.5 GB, so it must be streamed');
++  const ss = cd.entries.find((e) => e.name === 'xl/sharedStrings.xml');
++  assert.ok(ss.offset > sheet.offset, 'shared strings come after the sheet');
++});
++
++test('the real FY2026 Q3 LCA rows: header and first row parse, employer in T and wage in BV', () => {
++  const text = fs.readFileSync(path.join(FIX, 'lca-fy2026-q3-rows-1-2.xml'), 'utf8');
++  assert.match(text, /<dimension ref="A1:CT1032736"\/>/);
++  const rows = text.match(/<row\b[\s\S]*?<\/row>/g);
++  const header = rowCells(rows[0]);
++  assert.equal(header.size, LCA_COLUMNS_FY2026.length, '98 header cells, as in the record layout');
++  assert.ok([...header.values()].every((c) => c.t === 's'), 'header names are shared strings');
++  const row = rowCells(rows[1]);
++  assert.equal(colLetters(LCA_COLUMNS_FY2026.indexOf('EMPLOYER_NAME')), 'T');
++  assert.equal(row.get(colIndex('T')).t, 's', 'the employer is a shared string');
++  assert.equal(cellAt(rows[1], 'T').v, row.get(colIndex('T')).v, 'the fast lookup finds the same cell');
++  assert.deepEqual([row.get(colIndex('BV')).v, row.get(colIndex('BW')).v], ['65', '85'], 'wage range as numbers');
++  assert.equal(excelDate(row.get(colIndex('C')).v), '2025-02-07', 'dates are serial numbers');
++  assert.equal(colLetters(LCA_COLUMNS_FY2026.length - 1), 'CT');
++});
++
++test('xml helpers: entities, Excel escapes, rich text and element splitting across chunks', () => {
++  assert.equal(xmlText('A &amp; B &lt;x&gt; &#233;&#x41;_x000D_'), 'A & B <x> éA\r');
++  assert.equal(richText('<r><t>Senior </t></r><r><rPr/><t xml:space="preserve">Engineer</t></r><rPh><t>ignored</t></rPh>'), 'Senior Engineer');
++  const got = [];
++  const s = elementSplitter('row', (x) => got.push(x));
++  for (const chunk of ['<sheetData><ro', 'w r="1"><c r="A1"><v>1</v></c></r', 'ow><rowBreaks/><row r="2"/>', '<row r="3">x</row></sheetData>']) s.push(chunk);
++  s.end();
++  assert.deepEqual(got, ['<row r="1"><c r="A1"><v>1</v></c></row>', '<row r="2"/>', '<row r="3">x</row>']);
++  assert.equal(colIndex('A'), 0);
++  assert.equal(colIndex('CT'), 97);
++  assert.equal(colLetters(27), 'AB');
++  assert.equal(excelDate(toExcelDate('2026-06-30')), '2026-06-30');
++  assert.equal(excelDate('not a date'), null);
++});
++
++test('a workbook round-trips: shared and inline strings, numbers, the first sheet, wanted strings only', async () => {
++  for (const inline of [false, true]) {
++    const f = write(`rt-${inline}.xlsx`, [['NAME', 'PAY'], ['Amazon & Co <x>', 12.5], [null, 'last']], { inline });
++    const zip = await openZip(f);
++    assert.equal(await firstSheet(zip), 'xl/worksheets/sheet1.xml');
++    const rows = [];
++    await eachRowXml(zip, 'xl/worksheets/sheet1.xml', (x) => rows.push(rowCells(x)));
++    const ss = await sharedStrings(zip, { want: new Set([1]), test: (s) => /amazon/i.test(s) });
++    const v = (c) => (c.t === 's' ? ss.strings.get(Number(c.v)) : c.v);
++    assert.equal(rows.length, 3);
++    assert.equal(rows[1].get(1).v, '12.5');
++    assert.equal(rows[2].has(0), false, 'empty cells are absent');
++    if (inline) assert.equal(rows[1].get(0).v, 'Amazon & Co <x>');
++    else {
++      assert.equal(v(rows[0].get(1)), 'PAY');
++      assert.equal(ss.strings.has(0), false, 'only wanted strings are kept');
++      assert.deepEqual([...ss.matches], [2]);
++    }
++  }
++  // A ranged download of the last bytes still yields absolute entry offsets.
++  const whole = fs.readFileSync(path.join(tmp, 'rt-false.xlsx'));
++  const tail = centralDirectory(whole.subarray(whole.length - 600));
++  const full = centralDirectory(whole, 0);
++  assert.deepEqual(tail.entries.map((e) => e.offset), full.entries.map((e) => e.offset));
++  assert.throws(() => centralDirectory(whole.subarray(whole.length - 100)), /need \d+ more bytes/, 'too short a tail says how much more it needs');
++});
++
++/* -------------------------------------------------------------- dol.gov */
++
++test('disclosure links: newest first, double slashes fixed, relative links resolved', () => {
++  const html = `
++    <a href="https://www.dol.gov//media/LCA_Disclosure_Data_FY2026_Q3.xlsx">LCA_Dislclosure_Data_FY2026_Q3.xlsx</a>
++    <a href="/sites/dolgov/files/ETA/oflc/pdfs/LCA_Disclosure_Data_FY2025_Q4.xlsx">x</a>
++    <a href="https://www.dol.gov/media/PERM_Disclosure_Data_FY2026_Q3.xlsx">y</a>
++    <a href="/sites/dolgov/files/ETA/oflc/pdfs/PERM_Disclosure_Data_FY2025_Q4.xlsx">z</a>
++    <a href="/sites/dolgov/files/ETA/oflc/pdfs/FY26Q3/LCA_Record_Layout_FY2026_Q3.pdf">layout</a>`;
++  const links = findDisclosureLinks(html);
++  assert.deepEqual(links.map((l) => [l.program, l.fy, l.q]), [['lca', 2026, 3], ['perm', 2026, 3], ['lca', 2025, 4], ['perm', 2025, 4]]);
++  assert.equal(links[0].url, 'https://www.dol.gov/media/LCA_Disclosure_Data_FY2026_Q3.xlsx');
++  assert.equal(links[2].url, 'https://www.dol.gov/sites/dolgov/files/ETA/oflc/pdfs/LCA_Disclosure_Data_FY2025_Q4.xlsx');
++  assert.deepEqual(reportingPeriod(2026, 3), { from: '2025-10-01', to: '2026-06-30' });
++  assert.deepEqual(reportingPeriod(2026, 1), { from: '2025-10-01', to: '2025-12-31' });
++  assert.deepEqual(reportingPeriod(2025, 4), { from: '2024-10-01', to: '2025-09-30' });
++  assert.deepEqual(fileQuarter('/x/PERM_Disclosure_Data_FY2026_Q3.xlsx'), { fy: 2026, q: 3 });
++});
++
++test('wages are made annual with the site\'s factors; titles and places are tidied', () => {
++  assert.equal(annualize('65', 'Hour'), 135200);
++  assert.equal(annualize(3000, 'Bi-Weekly'), 78000);
++  assert.equal(annualize(2000, 'Week'), 104000);
++  assert.equal(annualize('14,000.00', 'Month'), 168000);
++  assert.equal(annualize('$150,000', 'Year'), 150000);
++  assert.equal(annualize(150000, 'Fortnight'), null);
++  assert.equal(annualize(null, 'Year'), null);
++  assert.equal(displayTitle('SOFTWARE DEVELOPMENT ENGINEER II'), 'Software Development Engineer II');
++  assert.equal(displayTitle('SR. SOFTWARE DEV ENGINEER, AWS'), 'Senior Software Dev Engineer, AWS');
++  assert.equal(displayTitle('Applied Scientist II'), 'Applied Scientist II');
++  assert.equal(placeName('SEATTLE', 'WA'), 'Seattle, WA');
++  assert.equal(placeName('MENLO PARK', 'CA'), 'Menlo Park, CA');
++  assert.equal(placeName('', 'WA'), 'WA');
++  assert.deepEqual(wageStats([100, 300, 200, 400]), { n: 4, p25: 200, median: 300, p75: 300 });
++  assert.equal(quantile([1, 2, 3, 4], 0.5), 2.5);
++});
++
++/* -------------------------------------------------------- the whole run */
++
++test('LCA sample: only Amazon and Meta rows are kept, near misses listed, people never read', async () => {
++  const f = write('LCA_Disclosure_Data_FY2026_Q3.xlsx', sampleLcaRows());
++  const got = await extractWorkbook(f);
++  assert.equal(got.program, 'lca');
++  assert.equal(got.rowsScanned, sampleLcaRows().length - 1);
++  assert.equal(got.records.length, 15);
++  assert.deepEqual(got.nearMisses.map((n) => [n.company, n.name]), [['amazon', 'Amazon Hose & Rubber Co.'], ['meta', 'Meta Systems Consulting Inc']]);
++  const text = JSON.stringify(got.records);
++  for (const marker of PERSONAL_MARKERS) assert.ok(!text.includes(marker), `${marker} must never be read`);
++  assert.ok(!text.includes('00-0000000'), 'the FEIN column is not kept');
++  const keys = new Set(got.records.flatMap((r) => Object.keys(r)));
++  assert.ok(!keys.has('EMPLOYER_POC_EMAIL') && !keys.has('PREPARER_LAST_NAME'));
++});
++
++test('the columns are found by name, so a reordered or inline-string file reads the same', async () => {
++  const rows = sampleLcaRows();
++  const order = rows[0].map((_, i) => i).reverse();
++  const shuffled = rows.map((r) => order.map((i) => r[i]));
++  const a = await extractWorkbook(write('lca-a.xlsx', rows));
++  const b = await extractWorkbook(write('lca-b.xlsx', shuffled, { inline: true }));
++  const strip = (x) => x.records.map(({ program, ...r }) => r).sort((p, q) => p.caseNumber.localeCompare(q.caseNumber));
++  assert.deepEqual(strip(b), strip(a));
++  assert.equal(detectProgram(samplePermRows()[0]), 'perm');
++  assert.equal(detectProgram(['FOO', 'BAR']), null);
++  await assert.rejects(extractWorkbook(write('bad.xlsx', [['FOO', 'BAR'], ['a', 'b']])), /not an LCA or PERM/);
++});
++
++test('observations: family, level, place, annual wage and which filings are priced', () => {
++  const base = { program: 'lca', company: 'amazon', entity: 'Amazon.com Services LLC', status: 'Certified', fullTime: 'Y', wageUnit: 'Year', city: 'SEATTLE', state: 'WA' };
++  const o = observe({ ...base, title: 'SOFTWARE DEVELOPMENT ENGINEER II', wageFrom: 150000, wageTo: 200000, socTitle: 'Software Developers' });
++  assert.deepEqual([o.title, o.family, o.level, o.city, o.wageFrom, o.wageTo, o.wage, o.priced], ['Software Development Engineer II', 'swe', 'Mid', 'Seattle, WA', 150000, 200000, 175000, true]);
++  assert.equal(observe({ ...base, title: 'Sr. Software Development Engineer', wageFrom: 190000 }).level, 'Senior');
++  assert.equal(observe({ ...base, title: 'Software Engineer', wageFrom: 190000 }).level, 'Not stated', 'no level word: not stated, as on the site');
++  assert.equal(observe({ ...base, title: 'Applied Scientist II', wageFrom: 190000 }).family, 'ml');
++  assert.equal(observe({ ...base, title: 'Economist', wageFrom: 190000 }).family, 'other');
++  assert.equal(observe({ ...base, title: 'Data Engineer', wageFrom: 64.9, wageTo: 85, wageUnit: 'Hour' }).wage, 155896);
++  assert.equal(observe({ ...base, title: 'X', status: 'Withdrawn', wageFrom: 150000 }).priced, false);
++  assert.equal(observe({ ...base, title: 'X', fullTime: 'N', wageFrom: 150000 }).priced, false);
++  assert.equal(observe({ ...base, title: 'X', wageFrom: 15, wageUnit: 'Year' }).priced, false, 'below the bound');
++  assert.equal(observe({ ...base, program: 'perm', title: 'X', status: 'Certified-Expired', wageFrom: 150000 }).priced, true);
++});
++
++test('the summary: counts, medians by family, level, title and city, and nothing personal (CLI end to end)', async () => {
++  const lca = write('LCA_Disclosure_Data_FY2026_Q3.xlsx', sampleLcaRows());
++  const perm = write('PERM_Disclosure_Data_FY2026_Q3.xlsx', samplePermRows());
++  const out = path.join(tmp, 'summary.json');
++  const rows = path.join(tmp, 'rows.csv');
++  const code = await main(['--lca', lca, '--perm', perm, '--out', out, '--rows', rows]);
++  assert.equal(code, 0);
++  const s = JSON.parse(fs.readFileSync(out, 'utf8'));
++  assert.equal(s.schema, 1);
++  assert.match(s.title, /US Department of Labor/);
++  assert.match(s.notes[0], /^Not job postings/);
++  assert.deepEqual(s.sources.map((x) => [x.program, x.fiscalYear, x.quarter, x.reportingPeriod.to]), [['lca', 2026, 3, '2026-06-30'], ['perm', 2026, 3, '2026-06-30']]);
++  const a = s.companies.amazon;
++  assert.deepEqual(a.entities[0], { entity: 'Amazon.com Services LLC', lca: 6, perm: 3 });
++  assert.deepEqual([a.lca.filings, a.lca.priced, a.lca.byStatus], [10, 8, { certified: 9, withdrawn: 1 }]);
++  assert.equal(a.lca.wage.median, 180000);
++  assert.deepEqual(a.lca.byFamily.map((f) => f.family), ['swe', 'ml', 'data', 'solutions'], 'site family order');
++  assert.deepEqual(a.lca.byFamily[0], { family: 'swe', label: 'Software engineering', n: 5, p25: 177500, median: 182500, p75: 187500 });
++  assert.deepEqual(a.lca.byLevel.map((l) => l.level), ['Entry', 'Mid', 'Senior', 'Not stated']);
++  assert.deepEqual(a.lca.byPrevailingWageLevel.map((l) => l.pwLevel), ['I', 'II', 'III']);
++  assert.deepEqual(a.lca.byTitle, [{ title: 'Software Development Engineer II', family: 'swe', level: 'Mid', n: 3, p25: 180000, median: 182500, p75: 185000 }]);
++  assert.deepEqual(a.lca.byCity, [{ city: 'Seattle, WA', n: 4, p25: 172100, median: 182500, p75: 190600 }]);
++  assert.deepEqual([a.perm.filings, a.perm.priced, a.perm.wage.median], [3, 3, 180000]);
++  const m = s.companies.meta;
++  assert.deepEqual([m.lca.filings, m.lca.priced, m.lca.wage.median, m.perm.priced], [5, 4, 215000, 1]);
++  assert.deepEqual(m.lca.byLevel.map((l) => l.label), ['Level not stated']);
++  assert.equal(s.nearMisses.length, 2);
++  const csv = fs.readFileSync(rows, 'utf8');
++  assert.equal(csv.trim().split('\n').length, 1 + 20);
++  for (const text of [JSON.stringify(s), csv]) for (const marker of PERSONAL_MARKERS) assert.ok(!text.includes(marker), marker);
++  assert.ok(fs.statSync(out).size < 64 * 1024, 'a commit-sized summary');
++  assert.equal(toCsv([]).split('\n')[0].split(',')[0], 'program');
++  assert.equal(await main([]), 2, 'no input: usage');
++});
++
++test('the committed summary, when present, has the shape and only Amazon and Meta', () => {
++  const f = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'data', 'alt', 'dol-amazon-meta.json');
++  if (!fs.existsSync(f)) return; // written by the workflow the lead adds (docs/process/patches/amazon-meta-data-workflow.diff)
++  const s = JSON.parse(fs.readFileSync(f, 'utf8'));
++  assert.equal(s.schema, 1);
++  assert.deepEqual(Object.keys(s.companies), ['amazon', 'meta']);
++  for (const c of Object.values(s.companies)) for (const e of c.entities) assert.ok(matchEmployer(e.entity) || /Amazon|Meta|Facebook|Instagram|WhatsApp|Siculus|Kuiper|A9/.test(e.entity));
++  const text = JSON.stringify(s);
++  assert.ok(!/@[a-z0-9-]+\.[a-z]{2,}/i.test(text.replace(/https?:\/\/\S+/g, '')), 'no e-mail addresses');
++  assert.ok(fs.statSync(f).size < 512 * 1024, 'commit-sized');
++});
++
++test('summarize with no rows still reports every program read', () => {
++  const s = summarize([], { sources: [{ program: 'lca' }], generatedAt: '2026-10-11T00:00:00.000Z' });
++  assert.equal(s.companies.amazon.lca.filings, 0);
++  assert.equal(s.companies.amazon.lca.wage.median, null);
++  assert.equal(s.companies.amazon.perm, undefined);
++});
+diff --git a/test/fixtures/alt-data/lca-fy2026-q3-central-directory.bin b/test/fixtures/alt-data/lca-fy2026-q3-central-directory.bin
+new file mode 100644
+index 0000000000000000000000000000000000000000..5e7cb7fad34a9681382acf3a259cb86a7e5f948a
+GIT binary patch
+literal 662
+zcmWIWW@OT35Mf|r;9y{2P-IAYH#Z}Wk%3_X3j>2NPy`i3JLl(>q~?{xhg24%7RTyU
+z<mLpR8L&0fK=}($mk$#I12>B9>C6la@kOaQ#rk?65?y0h6!U@8KqYFN3=I4z8uzd<
+zFjVB|m**E{C*|j7W3#o<Zp!q}Kux=Vwo0LB-ogde46zv52&|4+@u!7tzP&3S^S1bS
+z2^4dl^S~WZoROMZQmhZA46(W9Tf!E{9qbGYf=cLtxW~tp59pPWjMUsz2#M8zJEjIv
+z(ZF!XaA#oPMRCT`5U>HoC6zg;#n|kg=QG*WqiZk25BXLm5frW3aS*K;iAAX?!6ikR
+zdFfb9n0l_$!xxwYLV#f@h+@Lh7fk#q`N;uA`31%L$@xX8*c{MssBP^upmtGUTneCQ
+f*L;nnJ+YtwqMH>My9^9mK-d7Z@atP9VB`Y;O=Ewm
+
+literal 0
+HcmV?d00001
+
+diff --git a/test/fixtures/alt-data/lca-fy2026-q3-rows-1-2.xml b/test/fixtures/alt-data/lca-fy2026-q3-rows-1-2.xml
+new file mode 100644
+index 0000000..807d41d
+--- /dev/null
++++ b/test/fixtures/alt-data/lca-fy2026-q3-rows-1-2.xml
+@@ -0,0 +1,3 @@
++<dimension ref="A1:CT1032736"/>
++<row r="1" spans="1:98" s="8" customFormat="1" x14ac:dyDescent="0.35"><c r="A1" s="8" t="s"><v>0</v></c><c r="B1" s="8" t="s"><v>1</v></c><c r="C1" s="9" t="s"><v>2</v></c><c r="D1" s="9" t="s"><v>3</v></c><c r="E1" s="9" t="s"><v>4</v></c><c r="F1" s="8" t="s"><v>5</v></c><c r="G1" s="8" t="s"><v>6</v></c><c r="H1" s="8" t="s"><v>7</v></c><c r="I1" s="8" t="s"><v>8</v></c><c r="J1" s="8" t="s"><v>9</v></c><c r="K1" s="9" t="s"><v>10</v></c><c r="L1" s="9" t="s"><v>11</v></c><c r="M1" s="8" t="s"><v>12</v></c><c r="N1" s="8" t="s"><v>13</v></c><c r="O1" s="8" t="s"><v>14</v></c><c r="P1" s="8" t="s"><v>15</v></c><c r="Q1" s="8" t="s"><v>16</v></c><c r="R1" s="8" t="s"><v>17</v></c><c r="S1" s="8" t="s"><v>18</v></c><c r="T1" s="8" t="s"><v>19</v></c><c r="U1" s="8" t="s"><v>20</v></c><c r="V1" s="8" t="s"><v>21</v></c><c r="W1" s="8" t="s"><v>22</v></c><c r="X1" s="8" t="s"><v>23</v></c><c r="Y1" s="8" t="s"><v>24</v></c><c r="Z1" s="10" t="s"><v>25</v></c><c r="AA1" s="8" t="s"><v>26</v></c><c r="AB1" s="8" t="s"><v>27</v></c><c r="AC1" s="12" t="s"><v>28</v></c><c r="AD1" s="8" t="s"><v>29</v></c><c r="AE1" s="8" t="s"><v>97</v></c><c r="AF1" s="8" t="s"><v>30</v></c><c r="AG1" s="8" t="s"><v>31</v></c><c r="AH1" s="8" t="s"><v>32</v></c><c r="AI1" s="8" t="s"><v>33</v></c><c r="AJ1" s="8" t="s"><v>34</v></c><c r="AK1" s="8" t="s"><v>35</v></c><c r="AL1" s="8" t="s"><v>36</v></c><c r="AM1" s="8" t="s"><v>37</v></c><c r="AN1" s="8" t="s"><v>38</v></c><c r="AO1" s="10" t="s"><v>39</v></c><c r="AP1" s="8" t="s"><v>40</v></c><c r="AQ1" s="8" t="s"><v>41</v></c><c r="AR1" s="12" t="s"><v>42</v></c><c r="AS1" s="8" t="s"><v>43</v></c><c r="AT1" s="8" t="s"><v>44</v></c><c r="AU1" s="8" t="s"><v>45</v></c><c r="AV1" s="8" t="s"><v>46</v></c><c r="AW1" s="8" t="s"><v>47</v></c><c r="AX1" s="8" t="s"><v>48</v></c><c r="AY1" s="8" t="s"><v>49</v></c><c r="AZ1" s="8" t="s"><v>50</v></c><c r="BA1" s="8" t="s"><v>51</v></c><c r="BB1" s="8" t="s"><v>52</v></c><c r="BC1" s="10" t="s"><v>53</v></c><c r="BD1" s="8" t="s"><v>54</v></c><c r="BE1" s="8" t="s"><v>55</v></c><c r="BF1" s="12" t="s"><v>56</v></c><c r="BG1" s="8" t="s"><v>57</v></c><c r="BH1" s="8" t="s"><v>58</v></c><c r="BI1" s="8" t="s"><v>59</v></c><c r="BJ1" s="8" t="s"><v>60</v></c><c r="BK1" s="8" t="s"><v>61</v></c><c r="BL1" s="8" t="s"><v>62</v></c><c r="BM1" s="8" t="s"><v>63</v></c><c r="BN1" s="8" t="s"><v>64</v></c><c r="BO1" s="8" t="s"><v>65</v></c><c r="BP1" s="8" t="s"><v>66</v></c><c r="BQ1" s="8" t="s"><v>67</v></c><c r="BR1" s="8" t="s"><v>68</v></c><c r="BS1" s="8" t="s"><v>69</v></c><c r="BT1" s="8" t="s"><v>70</v></c><c r="BU1" s="10" t="s"><v>71</v></c><c r="BV1" s="8" t="s"><v>72</v></c><c r="BW1" s="8" t="s"><v>73</v></c><c r="BX1" s="8" t="s"><v>74</v></c><c r="BY1" s="8" t="s"><v>75</v></c><c r="BZ1" s="8" t="s"><v>76</v></c><c r="CA1" s="8" t="s"><v>77</v></c><c r="CB1" s="8" t="s"><v>78</v></c><c r="CC1" s="8" t="s"><v>79</v></c><c r="CD1" s="8" t="s"><v>80</v></c><c r="CE1" s="8" t="s"><v>81</v></c><c r="CF1" s="8" t="s"><v>82</v></c><c r="CG1" s="8" t="s"><v>83</v></c><c r="CH1" s="8" t="s"><v>84</v></c><c r="CI1" s="8" t="s"><v>85</v></c><c r="CJ1" s="8" t="s"><v>86</v></c><c r="CK1" s="8" t="s"><v>87</v></c><c r="CL1" s="8" t="s"><v>88</v></c><c r="CM1" s="8" t="s"><v>89</v></c><c r="CN1" s="8" t="s"><v>90</v></c><c r="CO1" s="8" t="s"><v>91</v></c><c r="CP1" s="8" t="s"><v>92</v></c><c r="CQ1" s="8" t="s"><v>93</v></c><c r="CR1" s="8" t="s"><v>94</v></c><c r="CS1" s="8" t="s"><v>95</v></c><c r="CT1" s="8" t="s"><v>96</v></c></row>
++<row r="2" spans="1:98" x14ac:dyDescent="0.35"><c r="A2" t="s"><v>383439</v></c><c r="B2" t="s"><v>610</v></c><c r="C2" s="1"><v>45695</v></c><c r="D2" s="1"><v>45931</v></c><c r="E2" s="1"><v>45702</v></c><c r="F2" t="s"><v>100</v></c><c r="G2" t="s"><v>1205312</v></c><c r="H2" t="s"><v>927252</v></c><c r="I2" t="s"><v>871</v></c><c r="J2" t="s"><v>102</v></c><c r="K2" s="1"><v>45712</v></c><c r="L2" s="1"><v>46806</v></c><c r="M2"><v>1</v></c><c r="N2"><v>0</v></c><c r="O2"><v>0</v></c><c r="P2"><v>0</v></c><c r="Q2"><v>0</v></c><c r="R2"><v>0</v></c><c r="S2"><v>1</v></c><c r="T2" t="s"><v>75374</v></c><c r="U2" t="s"><v>925387</v></c><c r="V2" t="s"><v>75375</v></c><c r="W2" t="s"><v>130868</v></c><c r="X2" t="s"><v>973</v></c><c r="Y2" t="s"><v>197</v></c><c r="Z2" s="11" t="s"><v>925415</v></c><c r="AA2" t="s"><v>107</v></c><c r="AC2" s="13" t="s"><v>955814</v></c><c r="AE2" t="s"><v>75380</v></c><c r="AF2" t="s"><v>925412</v></c><c r="AG2" t="s"><v>75376</v></c><c r="AH2" t="s"><v>22326</v></c><c r="AJ2" t="s"><v>149</v></c><c r="AK2" t="s"><v>75375</v></c><c r="AL2" t="s"><v>955815</v></c><c r="AM2" t="s"><v>973</v></c><c r="AN2" t="s"><v>197</v></c><c r="AO2" s="11" t="s"><v>925415</v></c><c r="AP2" t="s"><v>107</v></c><c r="AR2" s="13" t="s"><v>955814</v></c><c r="AT2" t="s"><v>75377</v></c><c r="AU2" t="s"><v>116</v></c><c r="AV2" t="s"><v>925387</v></c><c r="AW2" t="s"><v>925387</v></c><c r="AX2" t="s"><v>925387</v></c><c r="AY2" t="s"><v>925387</v></c><c r="AZ2" t="s"><v>925387</v></c><c r="BA2" t="s"><v>925387</v></c><c r="BB2" t="s"><v>925387</v></c><c r="BC2" s="11" t="s"><v>925387</v></c><c r="BD2" t="s"><v>925387</v></c><c r="BE2" t="s"><v>925387</v></c><c r="BF2" s="13" t="s"><v>925387</v></c><c r="BG2" t="s"><v>925387</v></c><c r="BH2" t="s"><v>925387</v></c><c r="BI2" t="s"><v>925387</v></c><c r="BJ2" t="s"><v>925387</v></c><c r="BK2" t="s"><v>925387</v></c><c r="BL2" t="s"><v>925387</v></c><c r="BM2"><v>1</v></c><c r="BN2" t="s"><v>115</v></c><c r="BO2" t="s"><v>943774</v></c><c r="BP2" t="s"><v>369282</v></c><c r="BR2" t="s"><v>17401</v></c><c r="BS2" t="s"><v>2318</v></c><c r="BT2" t="s"><v>223</v></c><c r="BU2" s="11" t="s"><v>929083</v></c><c r="BV2" s="2"><v>65</v></c><c r="BW2" s="2"><v>85</v></c><c r="BX2" t="s"><v>167</v></c><c r="BY2" s="2"><v>40</v></c><c r="BZ2" t="s"><v>167</v></c><c r="CB2" t="s"><v>122</v></c><c r="CC2" t="s"><v>935376</v></c><c r="CH2"><v>2</v></c><c r="CI2" t="s"><v>115</v></c><c r="CJ2" t="s"><v>115</v></c><c r="CK2" t="s"><v>116</v></c><c r="CL2" t="s"><v>115</v></c><c r="CM2" t="s"><v>263</v></c><c r="CN2" t="s"><v>123</v></c><c r="CO2" t="s"><v>124</v></c><c r="CP2" t="s"><v>925387</v></c><c r="CQ2" t="s"><v>925387</v></c><c r="CR2" t="s"><v>925387</v></c><c r="CS2" t="s"><v>925387</v></c></row>
+-- 
+2.43.0
+

@@ -1,0 +1,252 @@
+From a2e6b0c8413be79874a1871f45957af413a9c273 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 16 Oct 2026 20:31:46 +0000
+Subject: [PATCH 4/8] WIP methodology-review-beta-2: doc patches (guide,
+ LIVABILITY, DATA_SOURCES, README, PLAYBOOK, AMAZON_META)
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+---
+ ...ethodology-review-beta-2-data-sources.diff | 74 +++++++++++++++++
+ .../methodology-review-beta-2-guide.diff      | 83 +++++++++++++++++++
+ .../methodology-review-beta-2-readme.diff     | 57 +++++++++++++
+ 3 files changed, 214 insertions(+)
+ create mode 100644 docs/process/patches/methodology-review-beta-2-data-sources.diff
+ create mode 100644 docs/process/patches/methodology-review-beta-2-guide.diff
+ create mode 100644 docs/process/patches/methodology-review-beta-2-readme.diff
+
+diff --git a/docs/process/patches/methodology-review-beta-2-data-sources.diff b/docs/process/patches/methodology-review-beta-2-data-sources.diff
+new file mode 100644
+index 0000000..dcd6732
+--- /dev/null
++++ b/docs/process/patches/methodology-review-beta-2-data-sources.diff
+@@ -0,0 +1,74 @@
++diff --git a/docs/DATA_SOURCES.md b/docs/DATA_SOURCES.md
++index a964953..45b8b8a 100644
++--- a/docs/DATA_SOURCES.md
+++++ b/docs/DATA_SOURCES.md
++@@ -179,7 +179,7 @@ so the browser never fetches them.
++ user's decision ([AMAZON_META.md](AMAZON_META.md), "Decision").** Both were `paused: 'terms'` in
++ `server/companies.js`; deleting that field resumed them, and each appears on `/beta/` after its
++ first crawl. Every posting is published, Amazon's whole board included: its 5,000-posting budget
++-(`maxPostings`) was removed on 2026-10-11, when the user asked: "Why are you capping the no of posting we must present them as they are and not cut anything". The 2026-10-11 crawl (run 38143991379) still kept 5,000 of 22,352; the next crawl publishes the whole board.
+++(`maxPostings`) was removed on 2026-10-11, when the user asked: "Why are you capping the no of posting we must present them as they are and not cut anything". The 2026-10-11 crawl (run 38143991379) still kept 5,000 of 22,352; every crawl since publishes the whole board (2026-10-16: 22,179 postings, all of them on `/beta/`).
++ 
++ Why they were paused (re-checked on the live pages on 2026-10-11, freshness-probe runs
++ 38136448486 and 38136777427; quotes, URLs and hashes in
++@@ -223,18 +223,18 @@ run ([process/amazon-meta-backend.md](process/amazon-meta-backend.md), "The resu
++ - **robots.txt is fetched and checked at the start of every crawl**: a disallowed
++   path aborts that company (`code: 'robots'`).
++ 
++-| Company | Slug | Status | Endpoint (front-end's own) | Postings (run 38143991379) | With pay | Snapshot | Posting URL host |
+++| Company | Slug | Status | Endpoint (front-end's own) | Postings (2026-10-16 crawl) | With pay | Snapshot | Posting URL host |
++ |---|---|---|---|---:|---:|---:|---|
++-| Google | `google` | works | jobs sitemap + `batchexecute` `sf9Qmf` | 3,415 | 2,221 (65.0%) | 23.7 MB | `www.google.com` |
++-| Microsoft | `microsoft` | works | Eightfold PCSX `apply.careers.microsoft.com/api/pcsx/*` | 2,285 | 1,497 (65.5%) | 30.0 MB | `apply.careers.microsoft.com` |
++-| Meta | `meta` | works (resumed 2026-10-11) | jobs sitemap + job pages (`public_compensation`) | 1,139 | 903 (79.3%) | 10.5 MB | `www.metacareers.com` |
++-| Apple | `apple` | works | `jobs.apple.com/api/v1/search` + `jobDetails` | 4,874 | 2,818 (57.8%) | 29.9 MB | `jobs.apple.com` |
++-| Netflix | `netflix` | works | Eightfold classic `explore.jobs.netflix.net/api/apply/v2/jobs` | 457 | 288 (63.0%) | 4.7 MB | `explore.jobs.netflix.net` |
++-| Amazon | `amazon` | works (resumed 2026-10-11; whole board from the next crawl) | `www.amazon.jobs/en/search.json` | 22,352 listed, 5,000 kept | 14,092 of 22,352 (63.0%); 5,000 of 5,000 kept | 38.5 MB | `www.amazon.jobs` |
++-| NVIDIA | `nvidia` | works | Eightfold PCSX `jobs.nvidia.com/api/pcsx/*` | 2,662 | 1,395 (52.4%) | 18.4 MB | `jobs.nvidia.com` |
+++| Google | `google` | works | jobs sitemap + `batchexecute` `sf9Qmf` | 3,821 | 2,512 (65.7%) | 27.7 MB | `www.google.com` |
+++| Microsoft | `microsoft` | works | Eightfold PCSX `apply.careers.microsoft.com/api/pcsx/*` | 2,435 (search listed 2,435 of the 2,454 it counts) | 1,566 (64.3%) | 33.3 MB | `apply.careers.microsoft.com` |
+++| Meta | `meta` | works (resumed 2026-10-11) | jobs sitemap + job pages (`public_compensation`) | 1,208 | 948 (78.5%) | 11.6 MB | `www.metacareers.com` |
+++| Apple | `apple` | works | `jobs.apple.com/api/v1/search` + `jobDetails` | 4,851 requisitions (6,093 listings) | 2,781 (57.3%) | 31.2 MB | `jobs.apple.com` |
+++| Netflix | `netflix` | works | Eightfold classic `explore.jobs.netflix.net/api/apply/v2/jobs` | 414 | 259 (62.6%) | 4.5 MB | `explore.jobs.netflix.net` |
+++| Amazon | `amazon` | works (resumed 2026-10-11; the whole board, no budget) | `www.amazon.jobs/en/search.json` | 22,179 | 13,980 (63.0%) | 97.8 MB | `www.amazon.jobs` |
+++| NVIDIA | `nvidia` | works | Eightfold PCSX `jobs.nvidia.com/api/pcsx/*` | 2,711 | 1,462 (53.9%) | 19.6 MB | `jobs.nvidia.com` |
++ | Tesla | — | **blocked, left out** | `www.tesla.com/cua-api/apps/careers/state` | — | — | — | — |
++ 
++-Counts are from `snapshot.yml` run 38143991379 (2026-10-11, crawls 14:57-16:27 UTC, the first with Amazon and Meta; the job logs and `data/beta/snapshots/<slug>.json` agree; docs/process/data-check-beta-3.md). "With pay" is as the build serves it (norm-9): the crawl logs, written by norm-8, say Google 2,217, Microsoft 1,488 and Netflix 290; norm-9 reads Google's 4 lei ranges and Microsoft's 12 (2 of them quarantined as outliers, data-check-beta-3 DQ-6 residue), drops 1 Brazil-only U.S. range at Microsoft (VT-1) and Netflix's 2 internship bands (VT-3). Amazon keeps 5,000 of the 22,352 postings it lists (all salaried: the budget keeps priced postings first), so its /beta/ pay share is 100% against 63.0% for the whole board; the snapshot predates MR-14, so its `jobsCapped` has no `salaried` count yet. Crawl cost: Amazon 425 s (302 requests, 301 list pages), Netflix 505 s (504), Meta 1,220 s (1,141 requests, 520 MB of job pages), Microsoft 2,540 s (2,515), NVIDIA 2,938 s (2,930; search listed 2,662 of 2,664), Google 3,434 s (3,425), Apple 5,415 s (4,705 requests, 4,397 detail pages; 6,100 listings are 4,874 requisitions). The previous table (run 38118242488, 06:30-07:59 UTC) read Google 3,417 (2,217 with pay), Microsoft 2,279 (1,490), Apple 4,875 (2,818), Netflix 457 (290) and NVIDIA 2,663 (1,396). Before that, the run 38118242488 note: counts from `snapshot.yml` run 38118242488 (2026-10-11, crawls 06:30-07:59 UTC; the job logs, the
+++Counts are from the 2026-10-16 crawl (snapshots fetched 11:58-12:17 UTC, every board whole; `data/beta/snapshots/<slug>.json` as the build serves it, norm-11; docs/process/methodology-review-beta-2.md). "Snapshot" is the crawl's JSON file in MB (10^6 bytes). The table before it was from `snapshot.yml` run 38143991379 (2026-10-11, crawls 14:57-16:27 UTC, the first with Amazon and Meta; the job logs and `data/beta/snapshots/<slug>.json` agree; docs/process/data-check-beta-3.md): Google 3,415 (2,221 with pay), Microsoft 2,285 (1,497), Meta 1,139 (903), Apple 4,874 (2,818), Netflix 457 (288), NVIDIA 2,662 (1,395) and Amazon 22,352 listed with 5,000 kept (all with pay; 14,092 of 22,352, 63.0%, on the whole board). The notes below are that run's. "With pay" is as the build serves it (norm-9): the crawl logs, written by norm-8, say Google 2,217, Microsoft 1,488 and Netflix 290; norm-9 reads Google's 4 lei ranges and Microsoft's 12 (2 of them quarantined as outliers, data-check-beta-3 DQ-6 residue), drops 1 Brazil-only U.S. range at Microsoft (VT-1) and Netflix's 2 internship bands (VT-3). Amazon keeps 5,000 of the 22,352 postings it lists (all salaried: the budget keeps priced postings first), so its /beta/ pay share is 100% against 63.0% for the whole board; the snapshot predates MR-14, so its `jobsCapped` has no `salaried` count yet. Crawl cost: Amazon 425 s (302 requests, 301 list pages), Netflix 505 s (504), Meta 1,220 s (1,141 requests, 520 MB of job pages), Microsoft 2,540 s (2,515), NVIDIA 2,938 s (2,930; search listed 2,662 of 2,664), Google 3,434 s (3,425), Apple 5,415 s (4,705 requests, 4,397 detail pages; 6,100 listings are 4,874 requisitions). The previous table (run 38118242488, 06:30-07:59 UTC) read Google 3,417 (2,217 with pay), Microsoft 2,279 (1,490), Apple 4,875 (2,818), Netflix 457 (290) and NVIDIA 2,663 (1,396). Before that, the run 38118242488 note: counts from `snapshot.yml` run 38118242488 (2026-10-11, crawls 06:30-07:59 UTC; the job logs, the
++ beta gate lines and `data/beta/snapshots/<slug>.json` agree exactly; docs/process/data-check-beta-2.md). "With pay" is
++ postings with a published base range after the vetting gate (Netflix: 2 more quarantined, "Pay unclear"). "Snapshot"
++ is the crawl's JSON file. Crawl cost per board: Netflix 505 s (504 requests), Microsoft 2,533 s (2,510), NVIDIA
++@@ -263,7 +263,7 @@ pay table). Every result then passes the vetting gate (`server/vet.js`); see
++ | **Several ranges by location** | The first or national range. Microsoft states the U.S. range first and the SF Bay Area / NYC range second: the U.S. one is used, except for a job whose US locations are **all** in the SF Bay Area (75 km around the bay) or the New York City metro (60 km around Manhattan), which uses the SF Bay Area / NYC range (norm-7, decided by the lead for DQ-13: 31 postings, median 18% higher). Amazon has no national figure, only a per-location table, so the row for the posting's own primary city is used (city and state compared whole, so "York, PA" is not "New York, NY"), else the first row for one of the posting's own places, else the first row in the posting's country, else the first row. Every row is kept in `salary.ranges`, each with the posting's places it names (`ranges[].locations`, fix wave 5, DQ-33), so Juice and the Location filter use each place's own range; identical rows are one range and one zone; a "Virtual Location" row for a state the posting lists no place in is dropped (DQ-41) |
++ | **Every posted row is kept** (norm-11, [salary-audit-backend](process/salary-audit-backend.md)) | No cap on rows: Amazon's table and `salary.ranges` keep every posted row (SB-3; it was 12). A stored row that a trimmed description no longer shows is put back from `salary.ranges` (SB-1), and trimming keeps every pay-table row and the sentence above it (SB-2, VT-22). Amazon row names are matched to the posting's places, including "New York City", "N.Reading", "Westboro", "Hazle Township" and "San Franscisco" (SB-4). A posting that lists a Remote place keeps its "Virtual Location - <state>" rows, which are its remote pay (SB-6; DQ-41 still drops them when no place is remote). Microsoft's SF Bay Area / NYC range is kept as a second `salary.ranges` entry with its own places, and the headline stays the U.S. range (SB-5). **Lead decision (2026-10-16):** a place the posting lists but prices with no row of its own gets no posted pay there: no Juice for that place, and it is never scored on another place's row. The card still shows the posting's range (7 Amazon postings on the 2026-10-16 crawl; the fix is due in the round-3 fix wave) |
++ | **Several ranges by level** | Lowest listed min to highest listed max, with the levels named in `salary.text`: NVIDIA "168,000 USD - 264,500 USD for Level 4, and 196,000 USD - 310,500 USD for Level 5"; Microsoft "IC4: USD $119,800 - $234,700 per year; IC5: USD $142,800 - $274,800 per year". Each level's own range is kept in `salary.levels` (`[{ label: "Level 4", min, max }, …]`, annual, norm-7). The span is capped at 4× (the gate's ratio bound). Microsoft also prices one level per **country** ("across Ireland is €…", "across Germany is €…"). Those are not levels: the job's own country is used, and countries are never mixed |
++-| **One line per country** (Google) | "US: $171000 - $247000 (USD) + 20% bonus target + equity + benefits", "Ireland: €142000 - €145000 (EUR) …": the line for the job's country, the US one when the job has a US location, else the line for its first location's country. Lines for different countries are never spanned; one country's degree lines are ("[Bachelor's degree] Poland: zł156000 (PLN)", "[Master's degree] …"). The code in parentheses is the currency, so a Canadian line is CAD (norm-7, DQ-15, D-22) |
+++| **One line per country** (Google) | "US: $171000 - $247000 (USD) + 20% bonus target + equity + benefits", "Ireland: €142000 - €145000 (EUR) …": the line for the job's country, the US one when the job has a US location, else the line for its first location's country. Lines for different countries are never spanned; one country's degree lines are ("[Bachelor's degree] Poland: zł156000 (PLN)", "[Master's degree] …"), and since norm-11 each degree line is also kept as a level (`salary.levels`, SA-4: "Pay by level: Bachelor's degree CA$99K · Master's degree CA$102K"). The code in parentheses is the currency, so a Canadian line is CAD (norm-7, DQ-15, D-22) |
++ | **Fixed-term pay** (norm-8) | The programme's length is `salary.termWeeks` (information only). How the pay was stated decides what it is: a yearly rate on an internship (Google "Ireland: €72000 (EUR)" with "a minimum 13 week full-time internship", Microsoft "CAD $43,800 - CAD $50,000 per year" for a 6-month one; 27 postings on 2026-10-11) gets `originalInterval: "year"`; week, month or whole-term pay keeps its own interval |
++ | **Part-time hourly pay** (norm-8) | Apple's part-time retail roles ("$22.00 and $28.88/hr", 52 postings) get `salary.partTime: true`; the yearly figure is the 2,080-hour equivalent, and Juice needs the posting's stated weekly hours ("work 16 hours per week", 1 posting) |
++ | **The pay line's country** (norm-8) | The country a Google line or a Microsoft national range names is `salary.country`; Juice is never worked out for another country's office from it. Since norm-9 also NVIDIA's "Italy: The base salary range is …" and "For Poland: …" sentences (VT-6), and the places the pay applies to (`payLocations`: map, Location filter, comparisons) are only that country's (VT-5) |
++@@ -297,7 +297,7 @@ Parser changes made for these formats (`server/salary.js`):
++ | List | `GET https://www.google.com/about/careers/applications/jobs/sitemap.xml`: the jobs sitemap (~620 KB, one `<loc>https://careers.google.com/jobs/results/<id>-<slug>/</loc>` per posting with `lastmod`). careers.google.com 301s to www.google.com |
++ | Detail | `POST https://www.google.com/about/careers/applications/_/HiringCportalFrontendUi/data/batchexecute`, form body `f.req=[[["sf9Qmf","[\"<id>\"]",null,"generic"]]]`, `Content-Type: application/x-www-form-urlencoded;charset=UTF-8`. No cookie or token. The response is XSSI-guarded (`)]}'`): the `wrb.fr` row's JSON string holds `[record]`. About 5 KB per posting, against ~1.3 MB for the HTML job page |
++ | Record (positional) | 0 id, 1 title, 3 responsibilities `[_, html]`, 4 qualifications `[_, html]`, 7 brand (Google, DeepMind, YouTube, Verily…), 9 locations `[[display, addresses, city, zip, state, country]…]`, 10 about the job `[_, html]` (holds the pay line), 12 created `[s, ns]`, 13 updated, 16 remote flag |
++-| Mapping | sourceId = id; title = slot 1 with HTML entities decoded ("Databases &amp;amp; Analytics" was shown as written); department = team = brand (slot 7). **The record has no department, team or job-category field**, and the sitemap has only id, slug and lastmod, so the brand (Google 3,174, YouTube 144, DeepMind 95, Waymo, Wing, GFiber, Verily: 1 each) is the only grouping. Slot 11 is a list of small integers ([2] on both Technical Program Manager fixtures, null on a general application), probably a category code; it is not mapped until a probe run maps the codes; locations = slot 9 display names; url = `https://www.google.com/about/careers/applications/jobs/results/<id>-<slug>`; postedAt = slot 12; updatedAt = slot 13; html = about + responsibilities + qualifications |
+++| Mapping | sourceId = id; title = slot 1 with HTML entities decoded ("Databases &amp;amp; Analytics" was shown as written); **The record has no department, team or job-category field**, and the sitemap has only id, slug and lastmod. So department = a job family read from the title (`server/families.js`, google-grouping: 27 families named after Google's careers categories, `departmentBasis: 'title'`; on 2026-10-16 it read 3,700 of 3,821 titles, and 92 of 100 held-out titles were right; a title it cannot read gets no department, shown as "No department"), and the site says "Grouped by job title: Google doesn't publish departments" in the Department filter. team = brand (slot 7), which is also `brand`, with its own "Company" group and filter (2026-10-16: Google 3,546, YouTube 162, DeepMind 111, Waymo 1, Wing 1). Slot 11 is a list of small integers ([2] on both Technical Program Manager fixtures, null on a general application), probably a category code; it is not mapped until a probe run maps the codes; locations = slot 9 display names; url = `https://www.google.com/about/careers/applications/jobs/results/<id>-<slug>`; postedAt = slot 12; updatedAt = slot 13; html = about + responsibilities + qualifications |
++ | Pay | Text, in two phrasings: "The US base salary range for this full-time position is $141,000-$202,000 + bonus + equity + benefits." and "US: $300000 - $333000 (USD) + 25% bonus target + equity + benefits". EU postings carry "€190000 - €194000" style lines. DeepMind lists "Base Salary Range" and "Total Compensation Range"; only base is used |
++ | Requests | 1 (sitemap) + 1 per posting. Run 6: 3 × HTTP 502, all recovered on retry |
++ | Levels (norm-9, DQ-29) | Google numbers each family on its own band: "Product Manager I/II" read one rung up (II is Mid, at the TPM III band, $200K), "Leadership Technical Program Manager I/II" ($235K) is Senior, and any other numbered "… Manager <numeral>" family is a people manager ("Facilities Manager II", like "Software Engineering Manager II"). Program, Technical Program and Account Manager titles keep the ladder |
++@@ -337,12 +337,12 @@ Parser changes made for these formats (`server/salary.js`):
++ | List | `GET https://www.amazon.jobs/en/search.json?offset=N&result_limit=100&sort=recent[&normalized_country_code[]=USA][&business_category[]=aws][&facets[]=normalized_country_code&facets[]=business_category]`. `result_limit` up to 100. **`hits` is capped at 10,000** per query (offset 9,900 works, beyond returns nothing). `facets[]=…` returns `normalized_country_code_facet: [{USA: n}, …]` (58 countries) and `business_category_facet` (62 categories). `job_schedule_type[]` is ignored |
++ | Partitioning | Country by country; a country at the cap (the US) is split by business category. Each partition stops on its own `hits`. Postings are deduped on `id_icims`. Facet total: **22,415 postings** (run 6); the whole-board probe (run 7) listed all 22,415 in 301 list pages, about 5 minutes at 1 request/s |
++ | Completeness | A crawl that lists under 95% of the facet total, or a capped board with no country facets, is refused (`code: 'incomplete'`): a partial board would make the history ledger close every posting it missed, so the previous snapshot stays. A capped country's coverage through its categories is noted ("USA: n of m postings listed through k business categories"), as is a category still at the cap |
++-| Size on /beta/ | The whole board, every posting (about 22,415). Until 2026-10-11 `maxPostings: 5000` kept 5,000; the user removed it: "Why are you capping the no of posting we must present them as they are and not cut anything". `scripts/snapshot.js#fitSnapshot` never drops a posting: over the 40 MB target it trims descriptions to 800 characters (+ pay paragraphs; the posting page has the rest), and a board still over writes the file over the target (Amazon about 80 MB). The phone cost of the whole board is handled in the browser: [process/perf-mobile-beta-2.md](process/perf-mobile-beta-2.md). Older archived snapshots may carry `jobsCapped`; the ledger and the archive still treat those runs as partial. Earlier measurements: [process/amazon-meta-backend.md](process/amazon-meta-backend.md) |
+++| Size on /beta/ | The whole board, every posting (22,179 on 2026-10-16). Until 2026-10-11 `maxPostings: 5000` kept 5,000; the user removed it: "Why are you capping the no of posting we must present them as they are and not cut anything". `scripts/snapshot.js#fitSnapshot` never drops a posting: over the 40 MB target it trims descriptions to 800 characters (+ pay paragraphs; the posting page has the rest), and a board still over writes the file over the target (Amazon 97.8 MB on 2026-10-16). The phone cost of the whole board is handled in the browser: [process/perf-mobile-beta-2.md](process/perf-mobile-beta-2.md). Older archived snapshots may carry `jobsCapped`; the ledger and the archive still treat those runs as partial. Earlier measurements: [process/amazon-meta-backend.md](process/amazon-meta-backend.md) |
++ | Row fields | The whole posting is in the row: `id_icims`, `title`, `job_path`, `description`, `basic_qualifications`, `preferred_qualifications` (HTML with `<br/>` and "- " bullets), `job_category`, `job_family`, `business_category`, `job_schedule_type`, `city`, `state`, `country_code`, `normalized_location`, `locations[]` (JSON strings: `normalizedLocation`, `type: ONSITE`…), `posted_date` ("October 10, 2026"), `updated_time` ("about 5 hours"). No detail request |
++ | Mapping | sourceId = reqId = id_icims; department = job_category; team = job_family (when different); locations = each `locations[].normalizedLocation`; url = `https://www.amazon.jobs<job_path>`; postedAt = posted_date (UTC date); the "- " lines become `<ul>` lists |
++ | Pay | After "The base salary range for this position is listed below.", a **per-location table**, one line each: "USA, CA, East Palo Alto - 165,200.00 - 223,600.00 USD annually", "Seattle, WA, USA - 80,200.00 USD Annually", "USA, VA, Aldie - 27.98 - 48.99 USD hourly", "CAN, ON, Toronto - 84,600.00 - 126,800.00 CAD annually". Parsed by the adapter (`amazonPayTable`: structured). Older postings use the national sentence "ranges from $129,300/year in our lowest geographic market up to $223,600/year in our highest geographic market", which the text parser reads |
++ 
++-| Pay words (fix wave 5) | The sentence above the table says what the figures are, and the salary keeps it (lead decisions under "we must present them as they are and not cut anything"): "The minimum gross base pay salary for this position is listed below" / "See below the minimum gross base salary" (EU, Poland) is `kind: 'minimum'`, shown as "from €X" (VT-17; a posting that also says "The base pay for this position is PLN 6000 monthly" is the pay); "including the base pay rate plus the highest available shift differential" (US hourly) keeps the posted figure with `includesShiftDifferential` and a stated lower base ("Pay starts at $18.35 per hour") as `statedBase` (VT-18); "The minimum basic salary for this position is EUR 47'000 gross annually" (Austria, 14 payments) makes that annual figure the salary (`statedAnnual`, VT-19). A bare "$" in a Mexico-only posting ("Monthly Salary: $12,569") is MXN (DQ-35). Places written with an ISO-3 code ("Bratislava, Bratislavský kraj, SVK") resolve to their country (DQ-40). Stored snapshots get all of this at read time (`server/sources/upgrade.js#upgradeAmazonJobs`) from the stored table, or from `salary.ranges` when trimming cut rows (VT-22) |
+++| Pay words (fix wave 5) | The sentence above the table says what the figures are, and the salary keeps it (lead decisions under "we must present them as they are and not cut anything"): "The minimum gross base pay salary for this position is listed below" / "See below the minimum gross base salary" (EU, Poland) is `kind: 'minimum'`, shown as "from €X" (VT-17; a posting that also says "The base pay for this position is PLN 6000 monthly" is the pay); "including the base pay rate plus the highest available shift differential" (US hourly) keeps the posted figure with `includesShiftDifferential` and a stated lower base ("Pay starts at $18.35 per hour") as `statedBase` (VT-18); "The minimum basic salary for this position is EUR 47'000 gross annually" (Austria, 14 payments) makes that annual figure the salary (`statedAnnual`, VT-19). A bare "$" in a Mexico-only posting ("Monthly Salary: $12,569") is MXN (DQ-35, `server/salary.js` `DOLLAR_COUNTRY`), and Mexico's legal minimum wage (`LEGAL_MIN_ANNUAL`: MXN 315.04 a day in 2026, CONASAMI resolution of 2025-12-03, × 365 = MXN 114,990) lets such pay pass the US$10,000 parser floor and the gate's $15K floor ([VETTING.md](VETTING.md) §2); it changes every 1 January. The 2026-10-16 crawl has 354 Mexico postings and none states pay. Places written with an ISO-3 code ("Bratislava, Bratislavský kraj, SVK") resolve to their country (DQ-40). Stored snapshots get all of this at read time (`server/sources/upgrade.js#upgradeAmazonJobs`) from the stored table, or from `salary.ranges` when trimming cut rows (VT-22) |
++ 
++ ### 7f. Apple (`server/sources/apple.js`)
++ 
+diff --git a/docs/process/patches/methodology-review-beta-2-guide.diff b/docs/process/patches/methodology-review-beta-2-guide.diff
+new file mode 100644
+index 0000000..f15e3a7
+--- /dev/null
++++ b/docs/process/patches/methodology-review-beta-2-guide.diff
+@@ -0,0 +1,83 @@
++diff --git a/docs/METHODOLOGY_GUIDE.md b/docs/METHODOLOGY_GUIDE.md
++index e2655e3..1418d1c 100644
++--- a/docs/METHODOLOGY_GUIDE.md
+++++ b/docs/METHODOLOGY_GUIDE.md
++@@ -19,7 +19,7 @@ For example, one person on {{value:example.gross}} a year in {{value:example.cit
++ 
++ Every amount is for a full year (the drawer can also show it per month), in US dollars, so jobs in different countries sit on the same scale.
++ 
++-- **Gross pay** is the middle of the job's posted base-pay range. Pay quoted by the hour or the month is turned into a yearly figure first, then converted to US dollars. When one posting gives a range for each of several places or levels, the middle is taken across all of them, from the lowest to the highest (the drawer lists each one). Part-time hourly pay is counted on the hours a week the posting states; with no hours stated there is no score. Pay for an internship or another fixed-term programme counts for that term only, so the drawer shows it per month and for the whole term. Pay posted for one country is never used for an office in another country.
+++- **Gross pay** is the middle of the job's posted base-pay range. Pay quoted by the hour or the month is turned into a yearly figure first, then converted to US dollars. When one posting gives a range for each of several places, each place is scored on its own range (the drawer lists them under **Pay by place**); when it gives a range for each of several levels, the middle is taken across all of them, from the lowest to the highest (listed under **Pay by level**). A posted minimum ("from €46K") counts as that minimum, and an hourly rate that the posting says includes the highest shift differential counts as posted. Part-time hourly pay is counted on the hours a week the posting states; with no hours stated there is no score. Pay for an internship or another fixed-term programme counts for that term only when the posting says how long it lasts, so the drawer shows it per month and for the whole term; with no length stated, it is turned into a yearly figure like a salary. Pay posted for one country is never used for an office in another country.
++ - **Tax** is income tax at every level that has one (national, state or province, and city), plus the compulsory social insurance an employee pays, such as Social Security and Medicare in the US. It comes from each country's official tax rules and is worked out in the local currency, so a salary of £100,000 in London is taxed as £100,000.
++ - **Rent** is twelve months of rent for a home in the city centre, sized for your household. Most one-bedroom rents come from Numbeo, a crowd-sourced cost-of-living website. Two- and three-bedroom rents are usually estimated from the one-bedroom rent, using official data on how much rents rise with each extra bedroom in that city or country. So they carry two dates: the one-bedroom rents are from {{value:rent.asOf}}, and the bedroom data is from {{value:rent.bedrooms.us}} in US cities and {{value:rent.bedrooms.other}} elsewhere.
++ - **Living costs** are everyday spending other than rent: groceries, transport, utilities, eating out and leisure. They come from Numbeo's estimate of monthly costs for one person in that city, scaled up for couples and families.
++@@ -99,8 +99,9 @@ The Juice Score leaves some things out to stay simple and comparable. Keep them
++ - **Tax** uses standard allowances. It ignores the deductions and credits you might claim, special schemes for people moving from abroad, and church tax. For typical salaries it is usually within a few percentage points of your real tax rate; it is less accurate for very high or very low pay, or a move partway through the year.
++ - **Rent** is for a city-centre home sized by household. Sharing, owning, living further out or a bigger family can change it a lot. Rents for small cities rest on few reports. Two- and three-bedroom rents are mostly estimates, and for some countries the bedroom data is borrowed from other countries.
++ - **Living costs** are a lean everyday basket, scaled up for bigger households. Some suburbs use the nearest big city's figure.
++-- **Pay ranges for several places or levels** are scored on their middle across all of them, not on the range for one place or one level.
++-- **Exchange rates** are a dated snapshot, so a big currency move takes a while to show. Pay in a currency we have no rate for (Romanian lei, for example) can't be converted, so it gets no score.
+++- **Pay ranges for several levels** are scored on their middle across all of them, not on the range for one level. A place with its own posted range is scored on that range.
+++- **Minimums and shift pay** are scored as posted: a stated minimum is the lowest the offer can be, and some hourly rates include the highest shift differential, so both can differ from the base pay you are offered.
+++- **Exchange rates** are a dated snapshot, so a big currency move takes a while to show. Pay in a currency we have no rate for can't be converted, so it gets no score; today every currency the postings use has a rate.
++ - **Coverage**: {{value:cities.count}} cities in {{value:countries.count}} countries. Remote-only jobs and locations outside the list get no score.
++ 
++ More detail: [limitations](reference/#5-limitations).
++@@ -120,7 +121,7 @@ More detail: [confidence rules](reference/#guardrails-inputs-confidence-rent-ove
++ 
++ {{figure:sources}}
++ 
++-Job postings and this page are rebuilt every day, so the examples and charts here always use the current numbers. On the beta site, the big-tech careers sites are re-read every 6 hours, and each job's drawer and the data badge say when its board was last read. Exchange rates are meant to be refreshed automatically each month; the table above gives their date and says when an update is due. The Numbeo figures are re-read by hand. Tax rules change when a country publishes a new tax year's rules: January in most countries, April or July where the tax year starts then.
+++Job postings come from each company's own careers site or job board: the site's crawler reads the same public lists and pages the site itself shows, follows its robots.txt and asks about once a second. Job postings and this page are rebuilt every day, so the examples and charts here always use the current numbers. On the beta site, the big-tech careers sites are re-read every 6 hours, and each job's drawer and the data badge say when its board was last read. Exchange rates are meant to be refreshed automatically each month; the table above gives their date and says when an update is due. The Numbeo figures are re-read by hand. Tax rules change when a country publishes a new tax year's rules: January in most countries, April or July where the tax year starts then.
++ 
++ More detail: [data sources](reference/#sources) and [refreshing](reference/#6-refreshing).
++ 
++@@ -148,7 +149,15 @@ Every $100 a month less than our figure adds $1,200 a year to Juice left, and ev
++ 
++ ### How is the posted pay read?
++ 
++-From the posting itself, or from the careers site's own pay field where there is one. Only base pay counts: a range that includes bonus, commission or equity is shown as such or left out. When a posting gives a range per level (Microsoft's "IC4" and "IC5", NVIDIA's "Level 4" and "Level 5", the company's own level names), the drawer lists each level's range under **Pay by level**, and the headline range runs from the lowest to the highest. Part-time hourly pay is also shown as a full-time year of 2,080 hours, for comparison only.
+++From the posting itself, or from the careers site's own pay field where there is one. Only base pay counts: a range that includes bonus, commission or equity is shown as such or left out. When a posting gives a range per level (Microsoft's "IC4" and "IC5", NVIDIA's "Level 4" and "Level 5", the company's own level names), the drawer lists each level's range under **Pay by level**, the card says "· 2 levels", and the headline range runs from the lowest to the highest. When it gives a range for each place (Amazon's pay table, Apple's and Microsoft's ranges for some areas), the drawer lists each place's own range under **Pay by place** and the card says "· N places". A posting that states only a minimum shows it as "from €46K"; an hourly rate that includes the highest shift differential says so ("Incl. top shift pay"), with the stated base beside it when the posting gives one; where a posting states a yearly figure (Austria's minimum, paid in 14 instalments) that figure is used. Part-time hourly pay is also shown as a full-time year of 2,080 hours, for comparison only.
+++
+++### How are levels read?
+++
+++Every role gets one of seven levels: Intern, Entry, Mid, Senior, Staff+ (staff, principal and above), Manager, and Director+ (director, head of, vice president and above). Most come from the title's own words ("Senior", "Principal", "Director", "Intern"). Where a company numbers its levels, its own ladder decides: Microsoft IC1–IC2 are Entry, IC3 Mid, IC4 Senior and IC5 and up Staff+, and M1–M5 Manager (M6 and up Director+); NVIDIA Level 1 is Entry, 2 Mid, 3 to 5 Senior and 6 and up Staff+; Google's numerals I–II are Entry, III Mid, IV Senior and V and up Staff+; Amazon's I is Entry, II Mid, III and IV Senior and V and up Staff+; L-levels such as Netflix's are Entry to L3, L4 Mid, L5 Senior and L6 and up Staff+; Meta's "(Technical Leadership)" roles are Staff+. A title with no level word shows **Level not stated**, and comparisons "at Senior level" use only postings that state one.
+++
+++### How are Google's departments read?
+++
+++Google's postings name no department, so the site sorts each Google job title into one of 27 job families named after Google's own careers categories (Software Engineering, Technical Program Management, Data Center Operations and so on); a title it can't read is "No department". It reads 97% of Google's titles, and on a hand-checked sample of 100 postings it put 92 in the right family. The Department filter says "Grouped by job title" on a board whose departments are read this way.
++ 
++ ### Where does a pay estimate come from?
++ 
++diff --git a/docs/LIVABILITY.md b/docs/LIVABILITY.md
++index 4d4cbca..98c396d 100644
++--- a/docs/LIVABILITY.md
+++++ b/docs/LIVABILITY.md
++@@ -259,15 +259,23 @@ Rules:
++ 
++ - **Salary:** `salary.mid` (annualized by `server/salary.js`; hourly × 2080). `salary.kind`
++   is not used to filter; interns and hourly roles get a score like anyone else. A range spanned
++-  over several places (`salary.ranges`, Apple requisitions) or levels (`salary.levels`, NVIDIA and
++-  Microsoft) is scored on the span's midpoint.
+++  over several levels (`salary.levels`, NVIDIA and Microsoft) is scored on the span's midpoint. A
+++  place with its own posted range (`salary.ranges[].locations`: Apple requisitions, Amazon's pay
+++  table, Microsoft's SF Bay Area / NYC range) is scored on that range's midpoint (`attachJuice`
+++  `placeUSD`, DQ-28, DQ-33, SB-5), and only the places the pay was posted for are scored
+++  (`salary.places`, else the ranges' places; DQ-27). A stated minimum (`kind: 'minimum'`, VT-17) is
+++  scored on the minimum, and an hourly rate with `includesShiftDifferential` (VT-18) on the posted
+++  rate, which includes the highest shift differential; Austria's stated annual figure
+++  (`statedAnnual`, VT-19) is the salary. An internship whose posting gives no length (no
+++  `termWeeks`) is annualized and scored for a year like any salary.
++ - **Fixed-term pay:** with `salary.termWeeks` (an internship or programme length), the drawer shows
++   Juice per month and for the whole term only ("Juice covers only that term"), and tax is worked
++   out as if the pay lasted a year, so it may be lower (`public/app.js` `postedTerm`).
++ - **FX:** `FX_TO_USD` is copied verbatim from `public/viz/palette.js`, so juice is in the same
++   "approx USD" unit the salary chart plots. A currency the palette lacks would use the city's
++-  `fxPerUSD`; today the palette has every city currency. RON (Romanian lei) has no rate anywhere, so
++-  lei pay is not read (`server/salary.js`). Tax is computed in the
+++  `fxPerUSD`; today the palette has every city currency and every currency the postings use. RON
+++  (Romanian lei) has had a rate since fix wave 4 (MR-1: 4.58165 per USD, from the same Big Mac source
+++  data release as every other rate), so lei pay is read and converted. Tax is computed in the
++   city's currency at the same rate, so a £100K salary in London is taxed on exactly £100K.
++ - **Currency scoping:** only matched locations that use the salary's currency are scored (a USD
++   range posted for "San Francisco | London" is not applied to London), and when the pay line names
+diff --git a/docs/process/patches/methodology-review-beta-2-readme.diff b/docs/process/patches/methodology-review-beta-2-readme.diff
+new file mode 100644
+index 0000000..0c6581a
+--- /dev/null
++++ b/docs/process/patches/methodology-review-beta-2-readme.diff
+@@ -0,0 +1,57 @@
++diff --git a/README.md b/README.md
++index a14a755..2e96374 100644
++--- a/README.md
+++++ b/README.md
++@@ -374,9 +374,10 @@ caches HTML. Details, verification commands and other platforms are in
++ ### Beta site
++ 
++ <https://alvations.github.io/melon-seek/beta/> is a full second copy of the
++-app: the stable companies plus the big-tech career sites (Google, Microsoft, Apple,
++-Netflix and NVIDIA; Amazon and Meta were resumed on 2026-10-11 and appear after their first
++-crawl. Amazon shows all of its roughly 22,000 postings: no board is cut to a posting budget).
+++app: the stable companies plus seven big-tech career sites (Google, Microsoft, Apple, Netflix,
+++NVIDIA, Amazon and Meta; Amazon and Meta were paused for terms of use on 2026-10-10 and resumed
+++on 2026-10-11, docs/AMAZON_META.md). Amazon shows its whole board, 22,179 postings on
+++2026-10-16: no board is cut to a posting budget.
++ Tesla is left out because its site blocks plain requests; see
++ [docs/DATA_SOURCES.md](docs/DATA_SOURCES.md) §7.
++ The main site at `/melon-seek/` doesn't change and doesn't link to it.
++@@ -392,7 +393,8 @@ Contract: [docs/CONTRACT.md](docs/CONTRACT.md) "v3 additions"; build log:
++   `<meta name="melon-channel" content="beta">` next to the build marker. Market
++   comps ("Same role elsewhere", Insights), share pages `c/<slug>/` and CSV cover the beta
++   companies. The methodology page is the same as the main site's: it explains the Juice Score,
++-  not how the big-tech pay is read (that is in [docs/DATA_SOURCES.md](docs/DATA_SOURCES.md) §7a).
+++  and its questions say how the posted pay and levels are read ("How is the posted pay read?");
+++  the full pay rules for the big-tech boards are in [docs/DATA_SOURCES.md](docs/DATA_SOURCES.md) §7a.
++ - **Data:** `node scripts/snapshot.js --channel beta` (or one slug, e.g.
++   `node scripts/snapshot.js amazon`) fetches the big-tech boards. The workflows
++   keep them in `data/beta/snapshots/` (and their ledger in `data/beta/history/`),
++diff --git a/docs/process/PLAYBOOK.md b/docs/process/PLAYBOOK.md
++index 8df9720..d15d832 100644
++--- a/docs/process/PLAYBOOK.md
+++++ b/docs/process/PLAYBOOK.md
++@@ -226,7 +226,8 @@ don't lose that much." So:
++   with Playwright in `<scratchpad>/pw/node_modules`.
++ - The Long Tasks API misses work after `fetch()` resolves. Read long tasks from a Chrome trace.
++ - Beta-specific: a company with `paused` in server/companies.js is never crawled or tested (its adapter
++-  refuses to start). Amazon is capped at 5,000 postings on /beta/ (`maxPostings`). Apple's full
+++  refuses to start). No board is capped: Amazon's 5,000-posting budget (`maxPostings`) was removed on
+++  2026-10-11, and its whole board (22,179 postings on 2026-10-16) is the heavy case. Apple's full
++   crawl took 89 minutes on 2026-10-11 (4,704 requests); an incremental run takes about 13.
++ 
++ ## Adding a board to the incremental crawl
++diff --git a/docs/AMAZON_META.md b/docs/AMAZON_META.md
++index 427e264..a214f24 100644
++--- a/docs/AMAZON_META.md
+++++ b/docs/AMAZON_META.md
++@@ -6,8 +6,8 @@ quotes below come from the live pages, fetched on 2026-10-11. Their URLs, times
++ 
++ > [!NOTE]
++ > **Superseded by the [Decision](#decision-2026-10-11) below (2026-10-11).** The user chose to
++-> resume both; `paused` is gone from `server/companies.js`, and each board appears on `/beta/`
++-> after its first crawl. Since 2026-10-11 every Amazon posting is published, the whole board: the
+++> resume both; `paused` is gone from `server/companies.js`, and both boards are on `/beta/`
+++> since their first crawl on 2026-10-11 (2026-10-16: Amazon 22,179 postings, Meta 1,208). Since 2026-10-11 every Amazon posting is published, the whole board: the
++ > 5,000-posting budget (`maxPostings`) was removed when the user asked: "Why are you capping the no of posting we must present them as they are and not cut anything". The brief below is kept as it was written, before
++ > the decision.
++ 
+-- 
+2.43.0
+

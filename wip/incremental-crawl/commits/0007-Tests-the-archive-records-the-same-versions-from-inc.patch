@@ -1,0 +1,160 @@
+From 10b5dfb9ea19663af6339ee631aa1ea43d1d4e3c Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sun, 11 Oct 2026 14:03:25 +0000
+Subject: [PATCH 07/10] Tests: the archive records the same versions from
+ incremental and full crawls; patch for the archive to treat a short list as
+ partial
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+---
+ .../incremental-crawl-archive-partial.diff    | 14 ++++++
+ test/incremental-closures.test.js             |  6 ++-
+ test/incremental-equivalence.test.js          | 47 ++++++++++++++++++-
+ test/incremental-unit.test.js                 |  6 ++-
+ 4 files changed, 67 insertions(+), 6 deletions(-)
+ create mode 100644 docs/process/patches/incremental-crawl-archive-partial.diff
+
+diff --git a/docs/process/patches/incremental-crawl-archive-partial.diff b/docs/process/patches/incremental-crawl-archive-partial.diff
+new file mode 100644
+index 0000000..91ad176
+--- /dev/null
++++ b/docs/process/patches/incremental-crawl-archive-partial.diff
+@@ -0,0 +1,14 @@
++--- a/scripts/archive/ingest.js	2026-10-11 14:02:27.117289677 +0000
+++++ b/scripts/archive/ingest.js	2026-10-11 14:02:34.678181523 +0000
++@@ -207,7 +207,10 @@
++   const state = loadCompany(ctx.dir, slug);
++   const capped = payload.jobsCapped && typeof payload.jobsCapped === 'object' ? payload.jobsCapped : null;
++   const suspect = !capped && suspectDrop([...state.open.values()].filter((r) => r.validTo == null).length, rows.length);
++-  const partial = !!capped || suspect;
+++  // A crawl whose list came back short (crawl.list.complete === false, scripts/snapshot.js)
+++  // is partial like a capped one: what it did not list is not closed (docs/DATA_ARCHIVE.md §9).
+++  const shortList = !!(payload.crawl && payload.crawl.list && payload.crawl.list.complete === false);
+++  const partial = !!capped || suspect || shortList;
++   const { status, closedRows, stats } = foldObservation(state, meta, { observedAt, rows, partial }, { company: slug });
++   if (status !== 'folded') return null;
++ 
+diff --git a/test/incremental-closures.test.js b/test/incremental-closures.test.js
+index 8e6de79..650839c 100644
+--- a/test/incremental-closures.test.js
++++ b/test/incremental-closures.test.js
+@@ -6,7 +6,7 @@
+ //   - a closure probe (one request to the posting's own detail) closes on 404/410/redirect
+ //     only (x: gone); a 200 keeps it open;
+ //   - a posting listed but not published (a failed detail, the cap) stays open.
+-import { test, afterEach } from 'node:test';
++import { test, after, afterEach } from 'node:test';
+ import assert from 'node:assert/strict';
+ import fs from 'node:fs';
+ import os from 'node:os';
+@@ -25,7 +25,9 @@ afterEach(() => { setMinInterval(null); resetRateLimits(); resetRobots(); });
+ const T0 = Date.parse('2026-10-11T06:00:00Z');
+ const at = (h) => new Date(T0 + h * 3600e3).toISOString();
+ const day = (d) => at(d * 24);
+-const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'melon-close-'));
++const made = [];
++const tmp = () => { const d = fs.mkdtempSync(path.join(os.tmpdir(), 'melon-close-')); made.push(d); return d; };
++after(() => { for (const d of made) fs.rmSync(d, { recursive: true, force: true }); });
+ const read = (f) => JSON.parse(fs.readFileSync(f, 'utf8'));
+ const job = (id) => ({ id: `acme:${id}`, title: `Role ${id}`, department: 'Eng', locations: [{ name: 'Paris' }], postedAt: null, reqId: null });
+ 
+diff --git a/test/incremental-equivalence.test.js b/test/incremental-equivalence.test.js
+index 5f366ac..315b60a 100644
+--- a/test/incremental-equivalence.test.js
++++ b/test/incremental-equivalence.test.js
+@@ -6,7 +6,7 @@
+ //   run 3  a full crawl of the same board with no state.
+ // Run 2's snapshot equals run 3's (every field but fetchedAt and the crawl summary), the
+ // ledgers agree, every posting is accounted for, and run 2 makes fewer detail requests.
+-import { test, afterEach } from 'node:test';
++import { test, after, afterEach } from 'node:test';
+ import assert from 'node:assert/strict';
+ import fs from 'node:fs';
+ import os from 'node:os';
+@@ -18,7 +18,9 @@ afterEach(() => { setMinInterval(null); resetRateLimits(); resetRobots(); });
+ 
+ const T0 = Date.parse('2026-10-11T06:00:00Z');
+ const at = (h) => new Date(T0 + h * 3600e3).toISOString();
+-const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'melon-incr-'));
++const made = [];
++const tmp = () => { const d = fs.mkdtempSync(path.join(os.tmpdir(), 'melon-incr-')); made.push(d); return d; };
++after(() => { for (const d of made) fs.rmSync(d, { recursive: true, force: true }); });
+ 
+ const strip = ({ fetchedAt, crawl, ...rest }) => rest;
+ const N = 24;
+@@ -112,6 +114,47 @@ for (const slug of DETAIL_BOARDS) {
+   });
+ }
+ 
++test('the archive records the same job versions from incremental and full crawls, and rebuilds each snapshot losslessly', async () => {
++  setMinInterval(0);
++  const { openArchive, closeArchive, ingestArtifact } = await import('../scripts/archive/ingest.js');
++  const { reconstruct, compareSnapshots } = await import('../scripts/archive/reconstruct.js');
++  const board = BOARDS.nvidia(16);
++  const net = serve(board);
++  try {
++    const inc = tmp();
++    const full = tmp();
++    const state = path.join(inc, 'state');
++    const runs = { inc: [], full: [] };
++    const step = async (h) => {
++      runs.inc.push((await crawlOnce('nvidia', { dir: inc, stateDir: state, when: at(h) })).snap);
++      runs.full.push((await crawlOnce('nvidia', { dir: full, stateDir: null, when: at(h) })).snap);
++    };
++    await step(0);
++    const ids = board.ids();
++    board.editVisible(ids[0]); board.close(ids[2]); board.add();
++    await step(6);
++    board.editVisible(ids[4]); board.add();
++    await step(12);
++    const archives = {};
++    for (const kind of ['inc', 'full']) {
++      const archive = path.join(tmp(), 'archive');
++      for (const [i, snap] of runs[kind].entries()) {
++        const d = path.join(tmp(), `art${i}`);
++        fs.mkdirSync(d, { recursive: true });
++        fs.writeFileSync(path.join(d, 'nvidia.json'), JSON.stringify(snap));
++        const ctx = await openArchive(archive, { now: at(i * 6 + 1) });
++        await ingestArtifact(ctx, { name: 'beta-crawl-nvidia', dir: d, artifact: { id: i + 1, runId: (i + 1) * 10, createdAt: at(i * 6 + 1) } });
++        closeArchive(ctx);
++        const { payload } = reconstruct(archive, { company: 'nvidia', at: snap.fetchedAt });
++        assert.deepEqual(compareSnapshots(snap, payload), [], `${kind} run ${i}: rebuilt losslessly (crawl field included)`);
++      }
++      const jobsDir = path.join(archive, 'jobs', 'nvidia');
++      archives[kind] = fs.readdirSync(jobsDir).sort().map((f) => [f, fs.readFileSync(path.join(jobsDir, f), 'utf8')]);
++    }
++    assert.deepEqual(archives.inc, archives.full, 'the same job versions, opened, changed and closed at the same times');
++  } finally { net.restore(); }
++});
++
+ test('full_crawl (MELON_FULL_CRAWL) ignores the state once; a state from another adapter version means a full crawl', async () => {
+   setMinInterval(0);
+   const board = BOARDS.microsoft(10);
+diff --git a/test/incremental-unit.test.js b/test/incremental-unit.test.js
+index a900fb4..03f1526 100644
+--- a/test/incremental-unit.test.js
++++ b/test/incremental-unit.test.js
+@@ -1,7 +1,7 @@
+ // The shared incremental module (server/sources/incremental.js): change signals, the delta
+ // plan, conditional requests (ETag / Last-Modified, 304), the failed-detail fallback limit,
+ // per-posting accounting, and that the politeness settings are untouched.
+-import { test, afterEach } from 'node:test';
++import { test, after, afterEach } from 'node:test';
+ import assert from 'node:assert/strict';
+ import fs from 'node:fs';
+ import os from 'node:os';
+@@ -17,7 +17,9 @@ import { BOARDS, serve, crawlOnce } from './incremental-boards.js';
+ afterEach(() => { setMinInterval(null); resetRateLimits(); resetRobots(); });
+ const T0 = Date.parse('2026-10-11T06:00:00Z');
+ const at = (h) => new Date(T0 + h * 3600e3).toISOString();
+-const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'melon-unit-'));
++const made = [];
++const tmp = () => { const d = fs.mkdtempSync(path.join(os.tmpdir(), 'melon-unit-')); made.push(d); return d; };
++after(() => { for (const d of made) fs.rmSync(d, { recursive: true, force: true }); });
+ 
+ test('politeness is unchanged: 1 request/s per host, the same honest User-Agent', () => {
+   assert.equal(MIN_INTERVAL_MS, 1000);
+-- 
+2.43.0
+

@@ -1,0 +1,1238 @@
+From 192d8fa7da39b03762140da758024be38ac72f71 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sun, 11 Oct 2026 15:52:30 +0000
+Subject: [PATCH 1/3] fix4-viz: chart and map findings V-16 to V-29, D-31,
+ UX-17/19/24/36, MR-2/13
+
+Fixed pay scale and Pay legend on the map, pins priced from too few postings, approximate
+(centroid) places, no names or merges for off-screen pins; chart rows by location use only
+their place's pay, rows compare one country's pay, part-time and multi-level spans labelled,
+3:1 marks and a colour-blind-safe categorical palette, axis ticks, edge chips in gutters,
+departments past 7 folded into one row.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+---
+ docs/process/prompts/fix4-viz.md |  38 ++++
+ public/viz/chart.js              | 325 +++++++++++++++++++++++++++----
+ public/viz/comps.js              |  21 +-
+ public/viz/map.js                | 124 +++++++++---
+ public/viz/palette.js            |  83 +++++---
+ public/viz/viz.css               |  73 ++++---
+ 6 files changed, 545 insertions(+), 119 deletions(-)
+ create mode 100644 docs/process/prompts/fix4-viz.md
+
+diff --git a/docs/process/prompts/fix4-viz.md b/docs/process/prompts/fix4-viz.md
+new file mode 100644
+index 0000000..1834d8b
+--- /dev/null
++++ b/docs/process/prompts/fix4-viz.md
+@@ -0,0 +1,38 @@
++You are fix lane **fix4-viz** for melon-seek (/home/user/melon-seek, "the Zillow of job postings"). Save this prompt verbatim to docs/process/prompts/fix4-viz.md and write your log to docs/process/fix4-viz.md following docs/process/TEMPLATE.md. Follow docs/process/prompts/cycle/fix-lane.md, docs/process/PLAYBOOK.md, docs/strategy/ROADMAP.md §8 (keep it simple: no new visible control unless a finding can't be fixed otherwise) and the dataviz conventions already in public/viz/.
++
++**Base.** In your worktree run `git checkout --detach b4d4c0f`. Symlink node_modules, data/snapshots and data/beta/snapshots from /home/user/melon-seek. Commit locally at milestones, never push, and report your SHAs.
++
++**Your findings.** Read each in its source (cause, numbers, owner, suggested fix). The failing e2e tests are your gate.
++- docs/process/viz-review-beta.md, V-16 to V-29 and V-31. Tests: test/e2e/beta-viz-review.e2e.js.
++  - V-16: Pay pin colours on one fixed scale, plus a Pay legend.
++  - V-17: a pin's pay figure says how many postings it's based on, or isn't shown from too few. Its US-pay-on-a-UAE-role part is `payLocations`, which the data lane fixes.
++  - V-18: Group by Location uses only pay posted for that place.
++  - V-19: part-time hourly pay is labelled "if full-time" or shown as hourly, following shared decision 4 in docs/process/lead.md.
++  - V-20: two-level and multi-place spans are drawn and labelled differently from a single posted range.
++  - V-21: level and department rows don't mix countries; say which country, or compare within one.
++  - V-22: marks at 3:1 or better.
++  - V-23: company colours readable in dark mode.
++  - V-25: colour-blind-safe categories.
++  - V-26: a pin at a state or country centre says so.
++  - V-24: no floating names without a basemap.
++  - V-27: axis label rounding.
++  - V-28: the grey-vs-white legend.
++  - V-29: the edge-bin overlap.
++  - V-31: performance; log only.
++- docs/QA.md "Full QA pass (desktop, beta) 2026-10-11", D-31: without a basemap, a pin click folds off-screen pins into one. Test in test/e2e/beta-desktop-qa-2.e2e.js. Same root as V-24.
++- docs/process/ux-review-beta.md: UX-17 (chart edge chips off the phone screen; test in test/e2e/beta-ux-review.e2e.js), UX-19 (map tap targets: zoom 30x30, Pay/Juice 52x26), UX-24 (fold departments past the 8 largest into one "N more" row), UX-36 (Ranges' "Group: None" vs its legend).
++- docs/process/methodology-review-beta.md: MR-2 (the chart footnote and the map's Pay pins show the exchange rate's date and source next to converted pay, not only in a tooltip) and MR-13 (the map's Pay legend says what the figures are: median base pay, approx US dollars, rate date, posting count).
++- The mobile QA's remaining M-8 items: map zoom 30x30, Pay|Juice 52x26, Remote badge 32 px tall.
++
++**You own:** public/viz/chart.js, public/viz/map.js, public/viz/comps.js, public/viz/viz.css, and the colour parts of public/viz/palette.js (not its FX tables, which the data lane owns: don't touch `FX_PER_USD`, `FX_AS_OF` or `COUNTRY_CURRENCY`), plus the test files above.
++**Not yours:** public/app.js, public/styles.css and public/features/* belong to fix4-app; server/** and `payLocations` belong to fix4-data. All three lanes run now. If you need app.js to pass something new to the chart or map, write a patch to docs/process/patches/fix4-viz-<name>.diff and make your side work without it, defaulting to today's behaviour.
++
++**Gate:**
++- the tests above pass;
++- `npm test` passes with MELON_BETA_SNAPSHOT_DIR set to an empty folder and no data links;
++- the full e2e suite has no new failures (build with `node scripts/build-static.js --out <scratch>/dist` and set BETA_QA_DIST);
++- measured contrast ratios before and after, in your log;
++- colour-blind simulations as screenshots;
++- before/after screenshots, shrunk with scripts/cycle/shrink-screenshots.sh;
++- drawing time on Apple no worse than before.
++Check `df -h /` and delete your scratch build at the end. Use pid files; never `pkill -f`; never `playwright install` (Playwright: NODE_PATH=/tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92f3-f582ebca24d9/scratchpad/pw/node_modules; Chromium /opt/pw-browsers/chromium-1194/chrome-linux/chrome). Report: each finding fixed or not, test counts before and after, patches, and SHAs.
+diff --git a/public/viz/chart.js b/public/viz/chart.js
+index 62c6ea0..d80d4c3 100644
+--- a/public/viz/chart.js
++++ b/public/viz/chart.js
+@@ -39,6 +39,7 @@
+ import {
+   colorFor, assignColors, otherColor, slotColor, inkOn, OTHER_KEY, SLOT_COUNT, formatMoney,
+   formatCurrency, toUSD, isForeign, hasFx, niceTicks, median, onThemeChange, prefersReducedMotion, isDark, FX_AS_OF,
++  FX_SOURCE, COUNTRY_CURRENCY,
+ } from './palette.js';
+ import { levelLabel, displayLevel, DISPLAY_LEVEL_ORDER } from '../features/roles.js';
+ import { payLocations, OTE_LABEL } from '../features/shared.js';
+@@ -100,6 +101,123 @@ export function shortCount(n) {
+   return a < 999500 ? fmt(a / 1000, 'K') : fmt(a / 1e6, 'M');
+ }
+ 
++/**
++ * V-27: an axis tick's label names the gridline's own value. formatMoney keeps one decimal of
++ * millions (1.25M read "$1.3M", $50K off its gridline); a tick keeps up to two, without trailing
++ * zeros: $1.25M, $1.5M, $2M, $12.5K, $250K.
++ */
++export function formatTick(v) {
++  if (v == null || !isFinite(v)) return '—';
++  const a = Math.abs(v), sign = v < 0 ? '-' : '';
++  const trim = (n) => String(+n.toFixed(2));
++  if (a >= 1e6) return `${sign}$${trim(a / 1e6)}M`;
++  if (a >= 1000) return `${sign}$${trim(a / 1000)}K`;
++  return `${sign}$${Math.round(a)}`;
++}
++
++/** "Jul 2026": the month of the fixed exchange rates (FX_AS_OF), for words next to converted pay (MR-2). */
++export const FX_MONTH = (() => { const m = /^(\d{4})-(\d{2})/.exec(String(FX_AS_OF || '')); return m ? `${['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][+m[2] - 1]} ${m[1]}` : String(FX_AS_OF || ''); })();
++/** Where the app explains its exchange rates (the methodology page, relative to the app's page). */
++export const FX_DOC = 'methodology/#7-how-often-its-updated';
++/** The rates' source in a few words ("The Economist Big Mac index source data v2"), for titles. */
++export const FX_SOURCE_SHORT = String(FX_SOURCE || '').split(',')[0];
++
++/**
++ * V-19, shared decision 4 (app.js): part-time pay posted by the hour. salary.min/max are a full-time
++ * year (2,080 hours), so every yearly figure for it says "a year if full-time".
++ */
++export const isPartTimeHourly = (job) => job?.salary?.partTime === true && job.salary.originalInterval === 'hour';
++
++/**
++ * V-20: a range that is not one posted range: several levels priced in one posting (salary.levels,
++ * NVIDIA "Level 4" and "Level 5") or one requisition's ranges for several places (salary.ranges,
++ * Apple). -> { kind: 'levels'|'places', tiers: [{ label, min, max }] } or null.
++ */
++export function spanTiers(job) {
++  const s = job?.salary;
++  if (!s) return null;
++  if (Array.isArray(s.levels) && s.levels.length >= 2) return { kind: 'levels', tiers: s.levels };
++  if (Array.isArray(s.ranges) && s.ranges.length >= 2) return { kind: 'places', tiers: s.ranges };
++  return null;
++}
++
++/**
++ * V-21: the pay basis of a posting: its currency (pay in one currency is for one country or the
++ * euro area, so rows compare like with like), USD when none is given. (public/features/shared.js
++ * payCountry would name the country, but it inherits payLocations' fallback to every location.)
++ */
++export const payBasis = (job) => String(job?.salary?.currency || 'USD').toUpperCase();
++const BASIS_HOME = (() => {
++  const by = {};
++  for (const [cc, cur] of Object.entries(COUNTRY_CURRENCY || {})) if (cc !== 'UK') (by[cur] ||= []).push(cc);
++  return by;
++})();
++const COUNTRY_WORD = { US: 'the US', GB: 'the UK', CA: 'Canada', CH: 'Switzerland', JP: 'Japan', KR: 'South Korea', IN: 'India', SG: 'Singapore', AU: 'Australia', NZ: 'New Zealand', IL: 'Israel', AE: 'the UAE', PL: 'Poland', SE: 'Sweden', NO: 'Norway', DK: 'Denmark', CZ: 'Czechia', HK: 'Hong Kong', TW: 'Taiwan', CN: 'China', BR: 'Brazil', MX: 'Mexico', ZA: 'South Africa', SA: 'Saudi Arabia', QA: 'Qatar' };
++/** "in the US", "in the euro area", "in Poland": where the pay a row compares is for ("median $127K in the US"). */
++export function payBasisPlace(cur) {
++  const c = String(cur || 'USD').toUpperCase();
++  if (c === 'EUR') return 'in the euro area';
++  const home = BASIS_HOME[c];
++  return home && home.length === 1 ? `in ${COUNTRY_WORD[home[0]] || home[0]}` : `paid in ${c}`;
++}
++/** The short form for a narrow label: "US", "UK", "EUR", "PLN". */
++const basisShort = (cur) => ({ USD: 'US', GBP: 'UK' }[cur] || cur);
++
++/**
++ * V-18: the Location row a posting belongs to: its first on-site place (the first one the Location
++ * filter takes in, under a filter: NVIDIA's Munich-paid role is a Munich row, not "Italy"), else
++ * Remote, else Unknown.
++ */
++export function locationRowKey(job, test = null) {
++  const locs = job?.locations || [];
++  const onsite = locs.find((l) => l && !l.remote && (!test || test(job, l)));
++  if (onsite) return onsite.city || onsite.name || 'Unknown';
++  if (test && locs.some((l) => l?.remote && test(job, l))) return 'Remote';
++  return primaryLocation(job);
++}
++const rowKeyOfLoc = (l) => (l.remote ? 'Remote' : l.city || l.name || 'Unknown');
++/**
++ * V-18: true when the posting's pay is posted for the place its Location row is named for: one of
++ * its payLocations is that place, and the pay is in that place's currency (payLocations falls back
++ * to every location when none matches the currency; a US range on a London-only posting is not
++ * London pay).
++ */
++export function payCoversRow(job, key) {
++  const locs = job?.locations || [];
++  if (key === 'Unknown' && !locs.some((l) => l && !l.remote)) return true;
++  if (key === 'Remote' && !locs.length) return true;
++  const cur = payBasis(job);
++  return payLocations(job).some((l) => {
++    if (!l || rowKeyOfLoc(l) !== key) return false;
++    const home = l.country ? COUNTRY_CURRENCY[String(l.country).toUpperCase()] : null;
++    return !home || home === cur;
++  });
++}
++
++/**
++ * V-21: medians that compare like with like. When the plotted pay is in more than one currency,
++ * each row's median, band and tick use the board's main currency (the most postings), or the row's
++ * one currency when it has none of the main one; a row of several other currencies says so.
++ * -> { stats (basePayStats), basis: currency|null, left: items not in the median }
++ */
++function basisStats(items, main) {
++  if (!main) return { stats: basePayStats(items), basis: null, left: 0 };
++  const own = items.filter((p) => payBasis(p.job) === main);
++  if (own.length) return { stats: basePayStats(own), basis: main, left: items.length - own.length };
++  const bases = new Set(items.map((p) => payBasis(p.job)));
++  return { stats: basePayStats(items), basis: bases.size === 1 ? [...bases][0] : (items.length ? 'mixed' : null), left: 0 };
++}
++/** The most common pay currency of the plotted postings when there is more than one, else null. */
++function mainBasis(items) {
++  const n = new Map();
++  for (const p of items) { const b = payBasis(p.job); n.set(b, (n.get(b) || 0) + 1); }
++  if (n.size < 2) return null;
++  return [...n].sort((a, b) => b[1] - a[1] || (a[0] === 'USD' ? -1 : 1))[0][0];
++}
++/** " in the US" after a median, "" when the row has no basis; "mixed" names its currencies. */
++const basisWords = (r) => (r.basis === 'mixed' ? ', several countries’ pay' : r.basis ? ` ${payBasisPlace(r.basis)}` : '');
++const basisWordsShort = (r) => (r.basis === 'mixed' ? ' mixed' : r.basis ? ` ${basisShort(r.basis)}` : '');
++
+ /**
+  * Where a ranges row's pay label goes (P-16): right of the bar, else left of it, else on the bar
+  * inside the plot, so it never runs into the title column. `w` is the label's width in px.
+@@ -253,6 +371,8 @@ function textWidth(text, font) {
+     return Math.ceil(measureCtx.measureText(String(text)).width);
+   } catch { return String(text).length * 7; }
+ } // pad the robust span by 4% on each side before snapping to ticks
++/** UX-17: the width of an axis-edge chip ("›19": its text plus 5px padding a side, at least 18px). */
++const chipWidth = (n, font) => Math.max(18, textWidth(n > 1 ? `›${n}` : '›', font) + 10);
+ 
+ export function createChart(container, { onSelect, onHover, onClusterSelect } = {}) {
+   container.classList.add('ms-chart');
+@@ -310,6 +430,9 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } =
+   let cActive = null;        // { r, i } (i = -1: the row label)
+   let cHover = null;         // bin element
+   let selectedKey = null;    // "rowKey\0binStart" or "rowKey\0*"
++  let chipFont = '700 12px system-ui, sans-serif'; // the edge chips' font (renderClusters)
++  let foldOpen = false;      // UX-24: the "N more departments" row is opened
++  let rowNotes = { offRow: 0, basis: null, basisLeft: 0, spans: 0, partTime: 0 }; // notes-line counts from the rows (V-18 to V-21)
+ 
+   // ---------- data prep ----------
+   function prepare() {
+@@ -400,6 +523,7 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } =
+     activeIdx = -1; cActive = null; hoverIdx = -1; cHover = null;
+     body.removeAttribute('aria-activedescendant');
+     idxByJob = new Map(); rowY = []; itemByRow = []; binByJob = new Map(); cRows = []; outCount = 0;
++    rowNotes = { offRow: 0, basis: null, basisLeft: 0, spans: 0, partTime: 0 };
+     vReset();
+     hideTip();
+ 
+@@ -453,24 +577,42 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } =
+     // BP-2: with a Location filter, the plotted pay is for those places, and the rest is counted.
+     if (plotted.length) parts.push(`${plural(plotted.length, 'posting')} with ${where ? `pay for ${where}` : 'salary'}`);
+     if (elsewhere && plotted.length) parts.push(`${elsewhere.toLocaleString()} with pay for another country only, left out`);
++    // V-18: Group by Location rows hold only the pay posted for their place.
++    if (rowNotes.offRow) parts.push(`${rowNotes.offRow.toLocaleString()} with pay for another place than their row's, not in the rows`);
++    // V-21: rows compare one country's pay when the board mixes currencies.
++    if (rowNotes.basis && rowNotes.basisLeft) parts.push(`row medians: pay ${payBasisPlace(rowNotes.basis)} (${rowNotes.basisLeft.toLocaleString()} paid elsewhere ${narrow ? 'left out' : 'are in the circles, not the medians'})`);
+     // BP-13: on-target earnings are plotted but not in the medians (the stats line's rule).
+     // Phones keep the line short (the tooltip and the ranges' own tips say what on-target means).
+     if (pay?.oteLeftOut) parts.push(`${pay.oteLeftOut.toLocaleString()} ${narrow ? 'on-target earnings' : 'with on-target earnings (base plus commission)'}, not in the medians`);
+     else if (pay?.oteOnly) parts.push(narrow ? 'all on-target earnings' : 'all on-target earnings (base plus commission at target)');
++    // V-20 / V-19: what the Ranges bars that are not one posted yearly range look like.
++    if (rowNotes.spans) parts.push(`${rowNotes.spans.toLocaleString()} striped: one posting’s range over several levels or places`);
++    if (rowNotes.partTime) parts.push(`${rowNotes.partTime.toLocaleString()} part-time hourly, shown as a year if full-time`);
+     if (noSalary) parts.push(`${noSalary.toLocaleString()} with no salary posted`);
+-    if (fxCount) parts.push(`${fxCount.toLocaleString()} converted from another currency`);
+     if (unknownFx.length) parts.push(`${unknownFx.join(', ')} pay shown unconverted`);
+     if (outCount) parts.push(`${plural(outCount, 'posting')} past the edge of the chart (›)`);
+     if (narrow && plotted.length) parts.push('yearly pay');
+     foot.textContent = parts.join(' · ');
++    // MR-2: the exchange rates' date in the text itself (a hover title is out of reach on a phone),
++    // linked to the methodology section that names their source.
++    if (fxCount) { foot.append(parts.length ? ' · ' : '', `${fxCount.toLocaleString()} converted from another currency at `, fxLink(FX_AS_OF)); parts.push('fx'); }
+     foot.title = [
+-      fxCount ? `Pay in other currencies is converted to US dollars with fixed exchange rates (as of ${formatMonth(FX_AS_OF)}), so it is approximate.` : '',
++      fxCount ? `Pay in other currencies is converted to US dollars with fixed exchange rates (as of ${FX_MONTH}; ${FX_SOURCE_SHORT}), so it is approximate.` : '',
+       pay?.oteLeftOut || pay?.oteOnly ? `${OTE_LABEL}: shown on the chart, but the medians are base pay${pay?.oteOnly ? ' unless nothing else is left' : ''}.` : '',
+       elsewhere && where ? `Pay posted for another country says nothing about pay in ${where}, so it is left out.` : '',
+     ].filter(Boolean).join(' ');
+     foot.hidden = !parts.length;
+   }
+ 
++  /** MR-2: "Jul 2026 exchange rates" for the rates of `asOf`, a link to the section that names their source. */
++  function fxLink(asOf) {
++    const month = formatMonth(asOf);
++    const a = el('a', 'ms-chart__fx', `${month} exchange rates`);
++    a.href = FX_DOC;
++    a.title = `Fixed rates as of ${month}: ${FX_SOURCE_SHORT}`;
++    return a;
++  }
++
+   /** BP-13: what the median caption says ("Median base pay", or on-target earnings when that is all). */
+   function medianCaption(pay) {
+     return pay?.oteOnly ? 'Median on-target earnings ' : 'Median base pay ';
+@@ -534,7 +676,7 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } =
+       const px = x(t);
+       if (px - lastX < minGap) return;
+       lastX = px;
+-      const tk = el('div', 'ms-axis__tick', formatMoney(t));
++      const tk = el('div', 'ms-axis__tick', formatTick(t));
+       tk.style.left = px + 'px';
+       // DES-6: keep edge labels inside the chart (they were clipped at phone width).
+       if (px < 24) tk.classList.add('ms-axis__tick--start');
+@@ -556,22 +698,54 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } =
+     // Rows first (names, counts, medians), so the label column can be sized to fit them.
+     const dim = opts.groupBy;
+     const m = new Map();
+-    const rowOf = k => { if (!m.has(k)) m.set(k, { key: k, name: groupName(dim, k), all: [], items: [] }); return m.get(k); };
+-    for (const job of jobs) rowOf(dim === 'none' ? ALL_ROLES : keyOf(job, dim)).all.push(job);
+-    for (const p of plotted) rowOf(dim === 'none' ? ALL_ROLES : keyOf(p.job, dim)).items.push(p);
++    const rowOf = k => { if (!m.has(k)) m.set(k, { key: k, name: groupName(dim, k), all: [], items: [], offPay: 0 }); return m.get(k); };
++    // V-18: a Location row holds the roles listed there first, but only the pay posted for there.
++    const locTest = dim === 'location' ? placeMatcher(opts.places, opts.placeTest) : null;
++    const rowKey = (job) => (dim === 'none' ? ALL_ROLES : dim === 'location' ? locationRowKey(job, locTest) : keyOf(job, dim));
++    const keyById = new Map();
++    for (const job of jobs) { const k = rowKey(job); keyById.set(job.id, k); rowOf(k).all.push(job); }
++    let offRow = 0;
++    for (const p of plotted) {
++      const k = keyById.get(p.job.id) ?? rowKey(p.job);
++      if (dim === 'location' && !payCoversRow(p.job, k)) { rowOf(k).offPay++; offRow++; continue; }
++      rowOf(k).items.push(p);
++    }
+     cRows = [...m.values()];
++    // UX-24: more departments than colours: the 7 with the most postings with pay keep their rows
++    // (and colours); the rest fold into one "N more departments" row, which opens on a click.
++    let foldRow = null, folded = [];
++    if (dim === 'department' && cRows.length > SLOT_COUNT) {
++      const rank = cRows.slice().sort((a, b) => b.items.length - a.items.length || b.all.length - a.all.length || String(a.key).localeCompare(String(b.key)));
++      const keep = new Set(rank.slice(0, SLOT_COUNT - 1));
++      folded = cRows.filter((r) => !keep.has(r));
++      foldRow = { key: '\u0001more', name: `${folded.length.toLocaleString()} more departments`, all: folded.flatMap((r) => r.all), items: folded.flatMap((r) => r.items), offPay: 0, fold: true };
++      cRows = [...cRows.filter((r) => keep.has(r)), foldRow, ...(foldOpen ? folded : [])];
++      for (const r of folded) r.inFold = true;
++    } else if (dim !== 'department') foldOpen = false;
++    // V-21: rows grouped by department or seniority compare one country's pay when the board mixes currencies.
++    const main = dim === 'department' || dim === 'seniority' ? mainBasis(plotted) : null;
++    let basisLeft = 0;
+     for (const r of cRows) {
+       // BP-13: the row's median, quartiles and band are base pay (on-target earnings only when
+       // that is all the row has, and then it says so).
+-      const ps = basePayStats(r.items);
++      const b = basisStats(r.items, main);
++      const ps = b.stats;
++      r.basis = main ? b.basis : null; r.basisLeft = b.left;
++      if (!r.inFold) basisLeft += b.left;
+       r.median = ps.median; r.p25 = ps.p25; r.p75 = ps.p75;
+       const onTarget = ps.oteOnly && !stats.pay?.oteOnly ? 'on-target ' : '';
+       // BP-2: a row whose ranges are all for another country has no salary posted for here.
+-      const none = stats.elsewhere && r.all.some((j) => stats.elsewhereIds.has(j.id)) ? ['no salary posted for here', 'no salary here'] : ['no published salary', 'no salary'];
++      const none = r.offPay || (stats.elsewhere && r.all.some((j) => stats.elsewhereIds.has(j.id))) ? ['no salary posted for here', 'no salary here'] : ['no published salary', 'no salary'];
+       r.noneText = r.items.length ? '' : none[0];
+-      r.subFull = r.items.length ? `${plural(r.all.length, 'role')} · ${onTarget}median ${formatMoney(r.median)}` : `${plural(r.all.length, 'role')} · ${none[0]}`;
+-      r.subShort = r.items.length ? `${r.all.length.toLocaleString()} · ${onTarget}${formatMoney(r.median)}` : `${r.all.length.toLocaleString()} · ${none[1]}`;
++      r.subFull = r.items.length ? `${plural(r.all.length, 'role')} · ${onTarget}median ${formatMoney(r.median)}${basisWords(r)}` : `${plural(r.all.length, 'role')} · ${none[0]}`;
++      r.subShort = r.items.length ? `${r.all.length.toLocaleString()} · ${onTarget}${formatMoney(r.median)}${basisWordsShort(r)}` : `${r.all.length.toLocaleString()} · ${none[1]}`;
++      const why = [];
++      if (r.basisLeft) why.push(`The median is pay ${payBasisPlace(r.basis)} only: ${plural(r.basisLeft, 'posting')} with pay for other countries ${r.basisLeft === 1 ? 'is' : 'are'} in the circles, not in the median.`);
++      else if (r.basis === 'mixed') why.push('This row has pay for several countries only, converted to US dollars: its median mixes them.');
++      if (r.offPay) why.push(`${plural(r.offPay, 'posting')} here ${r.offPay === 1 ? 'lists' : 'list'} pay for another place only, so ${r.offPay === 1 ? 'it is' : 'they are'} not in this row's pay.`);
++      r.why = why.join(' ');
+     }
++    rowNotes = { ...rowNotes, offRow, basis: main, basisLeft };
+ 
+     // Label column: wide enough that "N roles · median $XK" always shows in full and the
+     // group name fits on at most two lines; capped at 36% of the width (then the subtitle
+@@ -593,9 +767,6 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } =
+     } else {
+       for (const r of cRows) r.useShort = true; // stacked label line: the short form never truncates
+     }
+-    const plotL = narrow ? 16 : labelW + 16;
+-    const padR = narrow ? 16 : 32;
+-    const plotW = Math.max(80, width - plotL - padR);
+     // Robust domain: P1..P99 of midpoints, padded, snapped to $50K/$100K/$250K ticks.
+     const [lo, hi] = robustBounds(plotted.map(p => p.mid));
+     const span = Math.max(1, hi - lo);
+@@ -604,6 +775,28 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } =
+     const d0 = Math.max(0, Math.floor((lo - pad) / step) * step);
+     let d1 = Math.ceil((hi + pad) / step) * step;
+     if (d1 <= d0) d1 = d0 + step;
++    // UX-17: the "‹12" / "›19" chips sit in their own gutters outside the plot, sized to the widest
++    // chip, so they never run off a phone screen or into the row labels.
++    const CHIP_FONT = chipFont = `700 12px ${fam}`;
++    let chipLo = 0, chipHi = 0;
++    for (const r of cRows) {
++      let nb = 0, na = 0;
++      for (const p of r.items) { if (p.mid < d0) nb++; else if (p.mid > d1) na++; }
++      if (nb) chipLo = Math.max(chipLo, chipWidth(nb, CHIP_FONT));
++      if (na) chipHi = Math.max(chipHi, chipWidth(na, CHIP_FONT));
++    }
++    const plotL = (narrow ? 16 : labelW + 16) + (chipLo ? chipLo + 6 : 0);
++    const padR = Math.max(narrow ? 16 : 32, chipHi ? chipHi + 6 + (narrow ? 8 : 10) : 0);
++    const plotW = Math.max(80, width - plotL - padR);
++    // A lone row ("All roles", or a single group) gets more height and bigger circles.
++    const solo = cRows.length === 1;
++    // Bin width: the smallest standard step that leaves room for a readable circle. V-29: bins are
++    // aligned to the axis (a whole number of bins from its start, and the axis ends on a bin edge),
++    // so no circle is centred on the axis end, past the last gridline.
++    const minBinPx = solo ? 46 : MIN_BIN_PX;
++    const steps = BIN_STEPS.filter(b => step % b === 0 || b % step === 0);
++    const binW = steps.find(b => b * (plotW / (d1 - d0)) >= minBinPx) || steps[steps.length - 1];
++    if ((d1 - d0) % binW) d1 = d0 + Math.ceil((d1 - d0) / binW) * binW;
+     const x = v => plotL + ((v - d0) / (d1 - d0)) * plotW;
+     const xc = v => x(Math.min(d1, Math.max(d0, v)));
+     const ticks = [];
+@@ -614,12 +807,7 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } =
+     renderHist(x, d0, d1, plotL, plotW, labelW, stats.pay);
+     renderAxis(ticks, x, stats.fxCount > 0, labelW, narrow);
+ 
+-    // A lone row ("All roles", or a single group) gets more height and bigger circles.
+-    const solo = cRows.length === 1;
+-    // Bin width: the smallest standard step that leaves room for a readable circle.
+     const pxPer = plotW / (d1 - d0);
+-    const minBinPx = solo ? 46 : MIN_BIN_PX;
+-    const binW = BIN_STEPS.find(b => b * pxPer >= minBinPx) || BIN_STEPS[BIN_STEPS.length - 1];
+     const binPx = binW * pxPer;
+     container.style.setProperty('--ms-bin-slop', Math.round(Math.min(44, binPx)) + 'px'); // touch slop never reaches a neighbour (M-8)
+     for (const r of cRows) {
+@@ -628,7 +816,7 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } =
+       for (const p of r.items) {
+         if (p.mid < d0) { below.push(p); continue; }
+         if (p.mid > d1) { above.push(p); continue; }
+-        const start = Math.floor(p.mid / binW) * binW;
++        const start = d0 + Math.min(Math.floor((p.mid - d0) / binW), Math.round((d1 - d0) / binW) - 1) * binW;
+         if (!bm.has(start)) bm.set(start, []);
+         bm.get(start).push(p);
+       }
+@@ -640,29 +828,34 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } =
+       outCount += below.length + above.length;
+     }
+     // D-9 / P-3: grouped by seniority, rows follow the ladder, "Level not stated" last.
+-    cRows.sort((a, b) => (dim === 'seniority' ? senRank(a.key) - senRank(b.key) : 0)
++    // UX-24: the "N more departments" row comes after the kept rows, its departments (when open) after it.
++    const tier = (r) => (r.fold ? 1 : r.inFold ? 2 : 0);
++    cRows.sort((a, b) => tier(a) - tier(b) || (dim === 'seniority' ? senRank(a.key) - senRank(b.key) : 0)
+       || (b.items.length ? 1 : 0) - (a.items.length ? 1 : 0)
+       || (b.median ?? 0) - (a.median ?? 0) || b.all.length - a.all.length);
+ 
+     // Color: the row's category color (identity is named by the row label).
+     if (dim === 'none') {
+       for (const r of cRows) r.color = slotColor(0);
++    } else if (foldRow) {
++      const top = cRows.filter((r) => tier(r) === 0).map((r) => r.key);
++      assignColors(top);
++      for (const r of cRows) { r.other = tier(r) > 0; r.color = r.other ? otherColor() : colorFor(r.key); }
+     } else {
+       // DES-2: rank by salaried (plotted) count, the same rule as the ranges legend and the
+       // app's filter/card dots (app.js computeColorKeys), so a department has one color everywhere.
+       const byCount = cRows.filter(r => r.items.length).sort((a, b) => b.items.length - a.items.length || String(a.key).localeCompare(String(b.key))).map(r => r.key);
+       const top = new Set(byCount.length > SLOT_COUNT ? byCount.slice(0, SLOT_COUNT - 1) : byCount);
+       assignColors([...top]);
+-      for (const r of cRows) { r.other = !top.has(r.key); r.color = r.other ? (isDark() ? '#8d8c86' : otherColor()) : colorFor(r.key); }
++      for (const r of cRows) { r.other = !top.has(r.key); r.color = r.other ? otherColor() : colorFor(r.key); }
+     }
+     for (const r of cRows) r.ink = inkOn(r.color);
+     // A11Y-1: count labels sit on the row color mixed into the surface (viz.css --_bin-mix);
+     // pick their ink from that actual mix so they always clear 4.5:1 (dark "Other" rows were 3.43:1).
+     {
+       const surf = parseColor(getComputedStyle(container).backgroundColor) || (isDark() ? [22, 26, 33] : [252, 252, 251]);
+-      const dark = isDark();
+       for (const r of cRows) {
+-        const pct = r.other ? (dark ? 0.6 : 0.42) : (dark ? 0.52 : 0.30); // = viz.css --_bin-mix
++        const pct = 1; // = viz.css --_bin-mix: V-22, circles are the row colour itself (>= 3:1 on the surface)
+         const c = parseColor(r.color) || surf;
+         r.restInk = inkOn(toHex(c.map((v, k) => v * pct + surf[k] * (1 - pct))));
+       }
+@@ -701,9 +894,14 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } =
+       if (!narrow) lab.style.width = labelW + 'px';
+       const sw = el('span', 'ms-crow__swatch');
+       const txt = el('span', 'ms-crow__text');
+-      txt.append(el('span', 'ms-crow__name', r.name), el('span', 'ms-crow__sub', sub));
++      const nameEl = el('span', 'ms-crow__name', r.name);
++      if (r.fold) nameEl.append(el('span', 'ms-crow__fold', foldOpen ? ' \u25B4' : ' \u25BE')); // UX-24: ▾ opens, ▴ folds
++      txt.append(nameEl, el('span', 'ms-crow__sub', sub));
+       lab.append(sw, txt);
+-      lab.title = `${r.name}: ${r.subFull}. Click to show all ${plural(r.all.length, 'role')}`;
++      lab.title = r.fold
++        ? `${r.name}: ${r.subFull}. Click to ${foldOpen ? 'fold them into one row again' : 'show each department'}${r.why ? `. ${r.why}` : ''}`
++        : `${r.name}: ${r.subFull}.${r.why ? ` ${r.why}` : ''} Click to show all ${plural(r.all.length, 'role')}`;
++      if (r.fold) lab.setAttribute('aria-expanded', foldOpen ? 'true' : 'false');
+       r.labelEl = lab;
+       row.append(lab);
+ 
+@@ -794,11 +992,12 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } =
+     bin.setAttribute('aria-label', `${plural(n, 'role')} ${hi ? 'above' : 'below'} ${formatMoney(b.end)}: ${vals}, ${b.row.name}`);
+     bin.id = `${uid}-${ri}-${bi}`;
+     bin.dataset.r = ri; bin.dataset.i = bi;
+-    const w = 24;
+-    const cx = hi ? plotL + plotW + (narrow ? 8 : 14) : plotL - (narrow ? 8 : 12);
+-    bin.style.left = (cx - w / 2) + 'px';
++    // UX-17: the chip sits in its gutter, 6px outside the plot, never centred on the edge.
++    const w = chipWidth(n, chipFont);
++    const left = hi ? plotL + plotW + 6 : plotL - 6 - w;
++    bin.style.left = left + 'px';
+     bin.style.width = w + 'px';
+-    bin.style.height = w + 'px';
++    bin.style.height = '24px';
+     const chip = el('span', 'ms-bin__dot ms-bin__chip', (hi ? '›' : '‹') + (n > 1 ? n : ''));
+     bin.append(chip);
+     b.el = bin;
+@@ -831,6 +1030,8 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } =
+   function activateCluster(r, i) {
+     const row = cRows[r];
+     if (!row) return;
++    // UX-24: the "N more departments" label opens (and folds) the row instead of selecting 600 roles.
++    if (i < 0 && row.fold) { foldOpen = !foldOpen; selectedKey = null; render(); setCActive(cRows.findIndex((x) => x.fold), -1, true); return; }
+     rowsEl.querySelectorAll('.is-selected').forEach(n => n.classList.remove('is-selected'));
+     selectedKey = cKeyOf(r, i);
+     const list = i < 0 ? row.all : row.bins[i].items.map(p => p.job);
+@@ -955,11 +1156,16 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } =
+       if (!m.has(k)) m.set(k, []);
+       m.get(k).push(p);
+     }
+-    // BP-13: a group's median is base pay, like the stats line's.
++    // BP-13: a group's median is base pay, like the stats line's. V-21: by department or seniority
++    // it compares one country's pay when the board mixes currencies (as the Clusters rows do).
++    const main = opts.groupBy === 'department' || opts.groupBy === 'seniority' ? mainBasis(plotted) : null;
++    let left = 0;
+     const out = [...m].map(([key, items]) => {
+-      const ps = basePayStats(items);
+-      return { key, name: groupName(opts.groupBy, key), items: items.sort((a, b) => b.mid - a.mid), median: ps.median, onTarget: ps.oteOnly };
++      const b = basisStats(items, main);
++      left += b.left;
++      return { key, name: groupName(opts.groupBy, key), items: items.sort((a, b) => b.mid - a.mid), median: b.stats.median, onTarget: b.stats.oteOnly, basis: b.basis, basisLeft: b.left };
+     });
++    rowNotes = { ...rowNotes, basis: main, basisLeft: left };
+     if (opts.groupBy === 'seniority') {
+       out.sort((a, b) => senRank(a.key) - senRank(b.key) || b.median - a.median);
+     } else {
+@@ -972,7 +1178,11 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } =
+     const { top, counts, ordered } = colorKeys();
+     const topSet = new Set(top);
+     const colorOf = p => opts.colorBy === 'none' ? null : (topSet.has(p.key) ? colorFor(p.key) : otherColor());
+-    renderLegend(top, counts, ordered);
++    // V-20 / V-19: bars that are not one posted yearly range, counted for the legend and the notes.
++    let spans = 0, partTime = 0;
++    for (const p of plotted) { p.span = spanTiers(p.job); if (p.span) spans++; p.partTime = isPartTimeHourly(p.job); if (p.partTime) partTime++; }
++    rowNotes = { ...rowNotes, spans, partTime };
++    renderLegend(top, counts, ordered, spans);
+     head.hidden = legend.hidden;
+ 
+     // Narrow (phones): the full-width title sits above its bar, so titles stay readable (M-17).
+@@ -1041,9 +1251,11 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } =
+         name.title = `${g.name} · ${plural(g.items.length, 'posting')}`;
+         h.append(name);
+         const mx = xc(g.median);
+-        const ml = el('div', 'ms-group__median', `${g.onTarget && !stats.pay?.oteOnly ? 'on-target ' : ''}median ${formatMoney(g.median)}`);
++        const mtext = `${g.onTarget && !stats.pay?.oteOnly ? 'on-target ' : ''}median ${formatMoney(g.median)}${narrow ? basisWordsShort(g) : basisWords(g)}`;
++        const ml = el('div', 'ms-group__median', mtext);
++        if (g.basisLeft) ml.title = `Pay ${payBasisPlace(g.basis)} only: ${plural(g.basisLeft, 'posting')} with pay for other countries ${g.basisLeft === 1 ? 'is' : 'are'} not in this median`;
+         ml.style.left = mx + 'px';
+-        if (mx > width - 110) ml.classList.add('ms-group__median--left');
++        if (mx > width - textWidth(mtext, `12px ${(typeof getComputedStyle === 'function' && getComputedStyle(container).fontFamily) || 'system-ui, sans-serif'}`) - 16) ml.classList.add('ms-group__median--left');
+         h.append(ml);
+         return h;
+       }
+@@ -1060,7 +1272,8 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } =
+         const lab = el('div', 'ms-row__label', p.job.title || 'Untitled');
+         if (!narrow) lab.style.width = labelW + 'px';
+         const bx0 = xc(p.lo), bx1 = xc(p.hi);
+-        const bar = el('div', 'ms-row__bar');
++        // V-20: a range over several levels or places is striped, on-target earnings dashed.
++        const bar = el('div', p.span ? 'ms-row__bar ms-row__bar--span' : p.ote ? 'ms-row__bar ms-row__bar--ote' : 'ms-row__bar');
+         bar.style.left = bx0 + 'px';
+         bar.style.width = Math.max(0, bx1 - bx0) + 'px';
+         const dot = el('div', 'ms-row__dot');
+@@ -1069,7 +1282,7 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } =
+         if (p.lo >= d1) bar.hidden = true;  // entirely beyond: the marker alone shows it
+         if (p.hi <= d0) bar.hidden = true;
+         const c = colorOf(p);
+-        if (c) { bar.style.background = c; dot.style.background = c; }
++        if (c) { bar.style.backgroundColor = c; dot.style.backgroundColor = c; }
+         const text = rangeText(p);
+         const val = el('div', 'ms-row__val', text);
+         // P-16: never over the title column (it ran into "…Discove$350K–$850K").
+@@ -1097,7 +1310,10 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } =
+     const range = Math.round(p.lo / 1000) === Math.round(p.hi / 1000)
+       ? formatMoney(p.lo) : `${formatMoney(p.lo)} to ${formatMoney(p.hi)}`;
+     const where = [p.job.department, primaryLocation(p.job)].filter(Boolean).join(', ');
+-    return `${p.job.title || 'Untitled'}, ${range}${approx ? ' in US dollars, converted' : ''}${p.ote ? ', on-target earnings' : ''}${where ? ', ' + where : ''}`;
++    const sp = spanTiers(p.job);
++    const kind = sp ? `, spans ${sp.tiers.length} ${sp.kind === 'levels' ? 'levels' : 'places\u2019 ranges'}` : '';
++    const pt = isPartTimeHourly(p.job) ? ', part-time hourly pay shown as a year if full-time' : '';
++    return `${p.job.title || 'Untitled'}, ${range}${approx ? ' in US dollars, converted' : ''}${p.ote ? ', on-target earnings' : ''}${kind}${pt}${where ? ', ' + where : ''}`;
+   }
+ 
+   function rangeText(p) {
+@@ -1106,11 +1322,12 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } =
+     return pre + moneyRange(p.lo, p.hi);
+   }
+ 
+-  function renderLegend(top, counts, ordered) {
++  function renderLegend(top, counts, ordered, spans = 0) {
+     legend.replaceChildren();
+     legend.hidden = opts.colorBy === 'none';
+     if (legend.hidden) return;
+-    legend.append(el('span', 'ms-legend__title', `By ${DIM_LABEL[opts.colorBy] || opts.colorBy}`));
++    // UX-36: with Group "None" the bars are still coloured by department; the legend says it is colour.
++    legend.append(el('span', 'ms-legend__title', `Colour: ${DIM_LABEL[opts.colorBy] || opts.colorBy}`));
+     const add = (key, n, color) => {
+       const item = el('span', 'ms-legend__item');
+       const sw = el('span', 'ms-legend__swatch');
+@@ -1122,6 +1339,13 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } =
+     for (const k of top) add(groupName(opts.colorBy, k), counts.get(k), colorFor(k));
+     const rest = ordered.slice(top.length);
+     if (rest.length) add(`${OTHER_KEY} (${rest.length})`, rest.reduce((s, k) => s + counts.get(k), 0), otherColor());
++    // V-20: the striped bar's key, beside the colours (only when there are such bars).
++    if (spans) {
++      const item = el('span', 'ms-legend__span');
++      item.append(el('span', 'ms-legend__spansw'), el('span', 'ms-legend__spankey', 'Striped: several levels or places'), el('span', 'ms-legend__n', spans.toLocaleString()));
++      item.title = `${plural(spans, 'posting')} whose range runs over several levels (NVIDIA "Level 4" and "Level 5") or several places' ranges: hover a bar for each`;
++      legend.append(item);
++    }
+   }
+ 
+   function setHover(i, evt) {
+@@ -1144,10 +1368,24 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } =
+     const native = s.min === s.max || s.max == null || s.min == null
+       ? formatCurrency(s.min ?? s.max, cur)
+       : `${formatCurrency(s.min, cur)} – ${formatCurrency(s.max, cur)}`;
+-    tip.append(el('div', 'ms-tip__value', withCurrencyCode(native, cur)));
+-    if (isForeign(cur) && hasFx(cur)) tip.append(el('div', 'ms-tip__sub', `about ${formatMoney(p.lo)} – ${formatMoney(p.hi)} in US dollars`));
++    const pt = isPartTimeHourly(j);
++    // V-19 (shared decision 4): part-time hourly pay shows the hourly rate it was posted at; the bar
++    // is a year if full-time.
++    if (pt) {
++      const hourly = (v) => `${cur === 'USD' ? '$' : ''}${(v / 2080).toFixed(2)}`;
++      tip.append(el('div', 'ms-tip__value', withCurrencyCode(`${hourly(s.min ?? s.max)}${s.max != null && s.max !== s.min ? ` – ${hourly(s.max)}` : ''} an hour`, cur)));
++      tip.append(el('div', 'ms-tip__sub', `Part-time. The bar is ${withCurrencyCode(native, cur)} a year if full-time (2,080 hours)`));
++    } else tip.append(el('div', 'ms-tip__value', withCurrencyCode(native, cur)));
++    // V-20: a range over several levels or places lists each.
++    const sp = spanTiers(j);
++    if (sp) {
++      tip.append(el('div', 'ms-tip__sub', sp.kind === 'levels' ? `One range over ${sp.tiers.length} levels:` : `One range over ${sp.tiers.length} places' ranges:`));
++      for (const t of sp.tiers.slice(0, 4)) tip.append(el('div', 'ms-tip__sub', `${t.label || 'Range'}: ${formatCurrency(t.min, t.currency || cur)} – ${formatCurrency(t.max, t.currency || cur)}`));
++      if (sp.tiers.length > 4) tip.append(el('div', 'ms-tip__sub', `+${sp.tiers.length - 4} more`));
++    }
++    if (isForeign(cur) && hasFx(cur)) tip.append(el('div', 'ms-tip__sub', `about ${formatMoney(p.lo)} – ${formatMoney(p.hi)} in US dollars (${FX_MONTH} rates)`));
+     const orig = s.originalInterval || (s.interval && s.interval !== 'year' ? s.interval : null);
+-    if (orig && orig !== 'year') tip.append(el('div', 'ms-tip__sub', `A yearly figure worked out from ${INTERVAL_ADJ[orig] || orig} pay`));
++    if (orig && orig !== 'year' && !pt) tip.append(el('div', 'ms-tip__sub', `A yearly figure worked out from ${INTERVAL_ADJ[orig] || orig} pay`));
+     if (p.ote) tip.append(el('div', 'ms-tip__sub', `${OTE_LABEL}, not in the medians`)); // BP-13
+     if (p.clipped) tip.append(el('div', 'ms-tip__sub', 'Runs past the edge of the chart (›)'));
+     tip.append(el('div', 'ms-tip__title', j.title || 'Untitled'));
+@@ -1293,6 +1531,7 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } =
+       jobs = Array.isArray(nextJobs) ? nextJobs : [];
+       const view = VIEWS.includes(o.view) ? o.view : DEFAULT_VIEW;
+       if (view !== opts.view) { selectedKey = null; activeIdx = -1; cActive = null; }
++      if ((o.groupBy || (view === 'clusters' ? 'department' : 'none')) !== opts.groupBy) foldOpen = false; // UX-24
+       opts = {
+         view,
+         groupBy: o.groupBy || (view === 'clusters' ? 'department' : 'none'),
+diff --git a/public/viz/comps.js b/public/viz/comps.js
+index a40fd35..09437b6 100644
+--- a/public/viz/comps.js
++++ b/public/viz/comps.js
+@@ -11,8 +11,8 @@
+ // is emphasized. Keyboard: the chart is a listbox (arrows, Home/End, Enter).
+ // Rows are sorted by median (high first) unless `sort: false`.
+ 
+-import { colorFor, formatMoney, niceTicks, onThemeChange } from './palette.js';
+-import { robustBounds } from './chart.js';
++import { colorFor, formatMoney, niceTicks, onThemeChange, readableOn, isDark } from './palette.js';
++import { robustBounds, formatTick } from './chart.js';
+ 
+ const ROW_H = 28;
+ // Plain words (persona review 2026-10-10, I-9): no "middle 50%", no "percentile".
+@@ -31,6 +31,18 @@ function el(tag, cls, text) {
+ const plural = (n, one, many = one + 's') => `${Number(n).toLocaleString()} ${n === 1 ? one : many}`;
+ const ok = v => v != null && Number.isFinite(+v);
+ 
++/**
++ * V-23: the colour behind the chart (the first opaque background up the tree, e.g. the drawer), as
++ * #rrggbb, so a company colour can be lifted to 3:1 on it (Anduril's #1f2a37 was 1.09:1 in dark mode).
++ */
++function backdropHex(node) {
++  for (let n = node; n && n.nodeType === 1; n = n.parentElement) {
++    const m = /rgba?\(\s*([\d.]+)[ ,]+([\d.]+)[ ,]+([\d.]+)(?:[ ,/]+([\d.]+))?/.exec(getComputedStyle(n).backgroundColor || '');
++    if (m && (m[4] == null || +m[4] > 0.99)) return '#' + [m[1], m[2], m[3]].map((v) => Math.round(+v).toString(16).padStart(2, '0')).join('');
++  }
++  return isDark() ? '#161a21' : '#ffffff';
++}
++
+ export function createCompsChart(container, { onSelect } = {}) {
+   container.classList.add('ms-comps');
+   container.replaceChildren();
+@@ -76,6 +88,7 @@ export function createCompsChart(container, { onSelect } = {}) {
+     const labelW = Math.round(Math.max(88, Math.min(180, width * (narrow ? 0.34 : 0.32))));
+     const valW = narrow ? 46 : 52;
+     const plotL = labelW + 8, plotW = Math.max(60, width - plotL - valW - 8);
++    const backdrop = backdropHex(container);
+     const vals = items.filter(has).flatMap(r => [r.p25 ?? r.median, r.p75 ?? r.median, r.median].map(Number));
+     list.replaceChildren(grid);
+     axis.replaceChildren();
+@@ -96,7 +109,7 @@ export function createCompsChart(container, { onSelect } = {}) {
+     for (const t of nt.ticks) {
+       if (t < d0 || t > d1) continue;
+       if (x(t) - lastX >= 42) { // skip labels that would collide; gridlines stay
+-        const tk = el('div', 'ms-comps__tick', formatMoney(t));
++        const tk = el('div', 'ms-comps__tick', formatTick(t)); // V-27: the gridline's own value
+         tk.style.left = x(t) + 'px';
+         axis.append(tk);
+         lastX = x(t);
+@@ -113,7 +126,7 @@ export function createCompsChart(container, { onSelect } = {}) {
+       row.dataset.i = i;
+       row.setAttribute('role', 'option');
+       row.setAttribute('aria-selected', 'false');
+-      const color = r.color || colorFor(r.slug || r.name);
++      const color = readableOn(r.color || colorFor(r.slug || r.name), backdrop, 3); // V-23: a mark of 3:1 in either theme
+       row.style.setProperty('--c', color);
+       const name = el('div', 'ms-comps__name');
+       name.style.width = labelW + 'px';
+diff --git a/public/viz/map.js b/public/viz/map.js
+index 9196884..45b3125 100644
+--- a/public/viz/map.js
++++ b/public/viz/map.js
+@@ -36,12 +36,12 @@
+ // keeps a styled background, a graticule and labelled pins.
+ 
+ import {
+-  formatMoney, toUSD, median, salaryColor, inkOn, onThemeChange, isDark, prefersReducedMotion,
+-  juiceColor, juiceGrade, juiceNetForScore, JUICE_BREAKS,
++  formatMoney, toUSD, median, payColor, paySteps, inkOn, onThemeChange, isDark, prefersReducedMotion,
++  juiceColor, juiceGrade, juiceNetForScore, JUICE_BREAKS, isForeign, hasFx, FX_AS_OF,
+ } from './palette.js';
+ import { payLocations } from '../features/shared.js';
+ // M-23: pin counts as "4.5K", like the chart's circles; the exact count is in pinName().
+-import { shortCount, placeMatcher } from './chart.js';
++import { shortCount, placeMatcher, FX_DOC, FX_SOURCE_SHORT } from './chart.js';
+ 
+ export const COLOR_MODES = Object.freeze(['pay', 'juice']);
+ /** I-10: how full a Juice pin (and its legend swatch) is drawn, by grade. */
+@@ -59,6 +59,14 @@ const CLUSTER_W = 76;  // px: pill width + gap
+ const CLUSTER_H = 34;  // px: pill height + gap (labels add more when offline)
+ const LABEL_GAP = 5;   // px between a pin and a place name moved above it (viz.css .ms-pin__label--above)
+ const MERGE_PASSES = 6; // draw(): at most this many merges of pins whose names find no room
++/**
++ * V-17: a pin shows a pay median only when at least this many of its postings post pay for its
++ * places; with fewer it reads "48 jobs" and its tooltip gives the one or two figures. Any pin whose
++ * median rests on part of its postings says how many ("median $101K from 28 with pay for here").
++ */
++export const MIN_PIN_PAY = 3;
++const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
++const fxMonth = (iso) => { const m = /^(\d{4})-(\d{2})/.exec(String(iso || '')); return m ? `${MONTHS[+m[2] - 1]} ${m[1]}` : String(iso || ''); };
+ 
+ let measureCtx = null;
+ /** Text width in px for a CSS font (canvas, no layout). */
+@@ -134,7 +142,7 @@ export function aggregate(jobs, { places: filter = null, placeTest = null } = {}
+   const at = (job, l, payAt, key, seen) => {
+     let p = places.get(key);
+     if (!p) {
+-      p = { key, lat: +l.lat, lng: +l.lng, label: locLabel(l), city: l.city || null, country: up(l.country), region: up(l.region),
++      p = { key, lat: +l.lat, lng: +l.lng, label: locLabel(l), city: l.city || null, country: up(l.country), region: up(l.region), loc: l,
+         jobs: [], locNames: new Map(), paid: new Set(), also: new Set(), wide: new Set() };
+       places.set(key, p);
+     }
+@@ -187,14 +195,20 @@ const up = (s) => (s ? String(s).toUpperCase() : '');
+  * another country. Without `paid` every salary counts.
+  */
+ export function summarize(jobs, paid = null) {
+-  const mids = [];
+-  let elsewhere = 0;
++  const base = [], ote = [];
++  let elsewhere = 0, fx = 0;
+   for (const j of jobs) {
+     const v = midUSD(j);
+     if (v == null) continue;
+-    if (!paid || paid.has(j.id)) mids.push(v); else elsewhere++;
++    if (paid && !paid.has(j.id)) { elsewhere++; continue; }
++    (j.salary.kind === 'ote' ? ote : base).push(v); // BP-13: base pay, as the stats line and the chart
++    if (isForeign(j.salary.currency) && hasFx(j.salary.currency)) fx++;
+   }
+-  return { n: jobs.length, salaried: mids.length, elsewhere, median: median(mids) };
++  const mids = base.length ? base : ote;
++  const salaried = base.length + ote.length;
++  // V-17: `few` when too few postings post pay here for the pin to show a price (pinPrice).
++  const few = mids.length > 0 && mids.length < MIN_PIN_PAY;
++  return { n: jobs.length, salaried, elsewhere, fx, few, only: few ? mids.slice().sort((x, y) => x - y) : null, median: median(mids) };
+ }
+ 
+ const shortPlace = (p) => p.city || String(p.label || '').split(',')[0].trim() || 'Unknown';
+@@ -458,6 +472,10 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
+       }
+       const legend = L.DomUtil.create('div', 'ms-modes__legend', box);
+       legend.setAttribute('aria-label', 'Juice Score legend');
++      // V-16 / MR-13: the Pay legend (one fixed dollar scale), shown in Pay mode.
++      const payLegend = L.DomUtil.create('div', 'ms-modes__pay', box);
++      payLegend.setAttribute('role', 'group');
++      payLegend.setAttribute('aria-label', 'Pay legend');
+       return box;
+     },
+   });
+@@ -488,13 +506,42 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
+       const net = L.DomUtil.create('span', 'ms-modes__net', row);
+       net.append(range, el('span', 'ms-modes__unit', ' left a year')); // phones: the dollars only
+     }
+-    L.DomUtil.create('div', 'ms-modes__none', legend).textContent = 'Gray: no Juice data';
++    // V-28: the no-data pins are gray (viz.css), as this line and its swatch say.
++    const none = L.DomUtil.create('div', 'ms-modes__none ms-modes__none--sw', legend);
++    none.append(el('span', 'ms-modes__sw ms-modes__sw--none'), 'Gray: no Juice data');
+     if (juiceNote) {
+       const n = L.DomUtil.create('div', 'ms-modes__none ms-modes__asof', legend);
+       n.textContent = juiceNote;
+       n.title = juiceNote; // phones show it on one line
+     }
+   }
++  /**
++   * V-16 / MR-13: what a Pay pin's colour and figures are. Five fixed steps of approx US dollars
++   * (palette.js PAY_BREAKS), then one line: median posted base pay, the exchange rates' month
++   * (linked to the methodology, MR-2) and what the small number is.
++   */
++  function renderPayLegend() {
++    const box = modeBox.querySelector('.ms-modes__pay');
++    if (!box) return;
++    box.replaceChildren();
++    const scale = el('div', 'ms-modes__scale');
++    for (const st of paySteps()) {
++      const k = el('span', 'ms-modes__step');
++      const sw = el('span', 'ms-modes__chip');
++      sw.style.background = st.color;
++      const txt = st.lo == null ? `< ${formatMoney(st.hi)}` : st.hi == null ? `${formatMoney(st.lo)}+` : `${formatMoney(st.lo)}`;
++      k.title = st.lo == null ? `Median under ${formatMoney(st.hi)}` : st.hi == null ? `Median ${formatMoney(st.lo)} or more` : `Median ${formatMoney(st.lo)} to ${formatMoney(st.hi)}`;
++      k.append(sw, el('span', 'ms-modes__stepv', txt));
++      scale.append(k);
++    }
++    const what = el('div', 'ms-modes__none ms-modes__paywhat');
++    const a = el('a', 'ms-modes__fx', `${fxMonth(FX_AS_OF)} exchange rates`);
++    a.href = FX_DOC;
++    a.title = `Fixed rates as of ${fxMonth(FX_AS_OF)}: ${FX_SOURCE_SHORT}`;
++    what.append('Median posted base pay a year, approx US dollars (', a, ') · small number: postings');
++    what.title = `${what.textContent}. A pin shows a median only when ${MIN_PIN_PAY} or more of its postings post pay for its places.`;
++    box.append(scale, what);
++  }
+   function setJuiceScale(src) {
+     const sc = toJuiceScale(src);
+     if (!sc) return false;
+@@ -510,6 +557,17 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
+       .catch(() => { /* no juice.js here (e.g. the viz demo): keep the palette mirror */ });
+   }
+   let destroyed = false;
++  // V-26: which places the gazetteer only knows by their state or country (server/geo.js
++  // locationPrecision 'centroid', served as lib/geo.js): their pins say they are approximate.
++  let precisionOf = null;
++  import(new URL('../lib/geo.js', import.meta.url).href)
++    .then(mod => { if (!destroyed && typeof mod.locationPrecision === 'function') { precisionOf = mod.locationPrecision; if (places.length) draw(); } })
++    .catch(() => { /* no geo.js here (the viz demo): no approximate marks */ });
++  const isApprox = (m) => {
++    if (!precisionOf || !m.loc) return false;
++    if (m.approx == null) { try { m.approx = precisionOf(m.loc) === 'centroid'; } catch { m.approx = false; } }
++    return m.approx;
++  };
+ 
+   function paintModeControl() {
+     for (const b of modeBox.querySelectorAll('.ms-modes__btn')) {
+@@ -519,6 +577,7 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
+       b.classList.toggle('is-on', on);
+     }
+     modeBox.classList.toggle('ms-modes--juice', colorMode === 'juice');
++    modeBox.classList.toggle('ms-modes--pay', colorMode === 'pay');
+     for (const sw of modeBox.querySelectorAll('.ms-modes__sw')) sw.style.setProperty('--pin-hue', juiceHue());
+   }
+   function setColorMode(mode, fromUser) {
+@@ -531,6 +590,7 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
+   }
+   container.classList.toggle('ms-map--juice', colorMode === 'juice');
+   renderJuiceLegend();
++  renderPayLegend();
+   paintModeControl();
+ 
+   // Offline note control
+@@ -600,6 +660,7 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
+       const label = clusterLabel(c.members);
+       const res = {
+         lat: c.lead.lat, lng: c.lead.lng, pt: c.pt, members: c.members, jobs, ids, label, short: shortLabel(c.members), also: also.size, wide: wide.size,
++        approx: c.members.filter(isApprox),
+         ...summarize(jobs, paid), juice: summarizeJuice(jobs, c.members, jScale),
+       };
+       cache?.set(sig, res);
+@@ -630,14 +691,23 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
+       root.append(el('div', 'ms-tip__meta', `${plural(c.n, 'posting')} · ${(J?.n || 0).toLocaleString()} with Juice${c.median != null ? ` · pay median ${formatMoney(c.median)}` : ''}`));
+       for (const t of filterLines(c)) root.append(el('div', 'ms-tip__meta', t));
+     } else {
+-      root.append(el('div', 'ms-tip__value', c.median != null ? `${formatMoney(c.median)} median` : jobsText(c.n)));
++      const priced = hasPrice(c);
++      root.append(el('div', 'ms-tip__value', priced ? `${formatMoney(c.median)} median` : jobsText(c.n)));
+       root.append(el('div', 'ms-tip__title', c.label));
+-      root.append(el('div', 'ms-tip__meta', c.median != null
++      root.append(el('div', 'ms-tip__meta', priced
+         ? `${plural(c.n, 'posting')} · ${c.salaried.toLocaleString()} with salary for here`
+-        : `${plural(c.n, 'posting')} · ${c.elsewhere ? 'no salary posted for here' : 'no published salary'}`));
++        : c.few
++          ? `${plural(c.n, 'posting')} · ${c.salaried.toLocaleString()} with salary for here (${c.only.map((v) => formatMoney(v)).join(', ')}), too few for a median`
++          : `${plural(c.n, 'posting')} · ${c.elsewhere ? 'no salary posted for here' : 'no published salary'}`));
++      if (priced && c.salaried < c.n) root.append(el('div', 'ms-tip__meta', `The median is of those ${c.salaried.toLocaleString()}, not of all ${c.n.toLocaleString()}`));
+       if (c.elsewhere) root.append(el('div', 'ms-tip__meta', `${plural(c.elsewhere, 'posting')} ${c.elsewhere === 1 ? 'lists' : 'list'} pay for another country only, so not in the median`));
++      if (c.fx && (priced || c.few)) root.append(el('div', 'ms-tip__meta', `Pay in other currencies converted at ${fxMonth(FX_AS_OF)} exchange rates`)); // MR-2
+       for (const t of filterLines(c)) root.append(el('div', 'ms-tip__meta', t));
+     }
++    // V-26: a place the gazetteer only knows by its state or country is pinned at that centre.
++    if (c.approx?.length) root.append(el('div', 'ms-tip__meta', c.members.length === 1
++      ? `Approximate: pinned at the centre of ${c.approx[0].region ? 'its state or region' : 'its country'}, not at the town itself`
++      : `${c.approx.length === 1 ? '1 of these places is' : `${c.approx.length} of these places are`} approximate: pinned at the centre of ${c.approx.length === 1 ? 'its' : 'their'} state or country`));
+     const counts = new Map();
+     for (const j of c.jobs) counts.set(j.title, (counts.get(j.title) || 0) + 1);
+     const top = [...counts].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+@@ -655,7 +725,9 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
+   /** One melon hue for every grade (the Juicy step); the fill level tells the grades apart. */
+   function juiceHue() { return juiceColor(jScale.breaks[1], jScale.breaks); }
+ 
+-  function pinElement(c, t) {
++  /** V-17: the pin shows a price only when its median rests on MIN_PIN_PAY or more postings. */
++  const hasPrice = (c) => c.median != null && !c.few;
++  function pinElement(c) {
+     const pin = el('div', 'ms-pin');
+     if (colorMode === 'juice') {
+       const J = c.juice;
+@@ -677,8 +749,8 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
+       pin.append(el('span', 'ms-pin__label', c.label));
+       return pin;
+     }
+-    if (c.median != null) {
+-      const bg = salaryColor(t);
++    if (hasPrice(c)) {
++      const bg = payColor(c.median); // V-16: one fixed dollar scale (palette.js PAY_BREAKS), not the pins on screen
+       pin.style.setProperty('--pin-bg', bg);
+       pin.style.setProperty('--pin-fg', inkOn(bg));
+       pin.append(el('span', 'ms-pin__price', formatMoney(c.median)));
+@@ -696,7 +768,11 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
+       const J = c.juice;
+       return `${c.label}: ${plural(c.n, 'posting')}, ${J ? `Juice ${J.score}, ${J.grade}, median ${formatMoney(J.net)} a year left` : 'no Juice data'}`;
+     }
+-    return `${c.label}: ${plural(c.n, 'posting')}${c.median != null ? `, median ${formatMoney(c.median)}` : c.elsewhere ? ', no salary posted for here' : ', no published salary'}`;
++    const approx = c.approx?.length ? (c.members.length === 1 ? ', approximate place' : `, ${c.approx.length} approximate ${c.approx.length === 1 ? 'place' : 'places'}`) : '';
++    const pay = hasPrice(c)
++      ? `, median ${formatMoney(c.median)}${c.salaried < c.n ? ` from ${c.salaried.toLocaleString()} with pay for here` : ''}`
++      : c.few ? `, ${c.salaried.toLocaleString()} with pay for here, too few for a median` : c.elsewhere ? ', no salary posted for here' : ', no published salary';
++    return `${c.label}: ${plural(c.n, 'posting')}${pay}${approx}`;
+   }
+ 
+   function draw() {
+@@ -730,7 +806,7 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
+       let best = null, bd = Infinity;
+       for (const t of clusters) {
+         const tk = t.members[0].key;
+-        if (t === h || gone.has(tk)) continue;
++        if (t === h || gone.has(tk) || t.off) continue; // D-31: never into a pin off the map
+         const d = (t.pt.x - h.pt.x) ** 2 + (t.pt.y - h.pt.y) ** 2;
+         if (d < bd) { bd = d; best = t; }
+       }
+@@ -740,14 +816,11 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
+ 
+   /** One marker per cluster; returns the pin to refocus (see draw). */
+   function drawMarkers(focusedKeys, focusedLead) {
+-    const meds = clusters.map(c => c.median).filter(v => v != null);
+-    const lo = Math.min(...meds), hi = Math.max(...meds);
+     let refocus = null;
+     // Draw small clusters first so big ones sit on top.
+     const order = clusters.slice().sort((a, b) => a.n - b.n);
+     order.forEach((c, i) => {
+-      const t = c.median == null ? 0 : (hi > lo ? (c.median - lo) / (hi - lo) : 0.6);
+-      const pinEl = pinElement(c, t);
++      const pinEl = pinElement(c);
+       pinEl.setAttribute('aria-hidden', 'true'); // name comes from the button's aria-label
+       c.pinEl = pinEl;
+       const icon = L.divIcon({ className: 'ms-pin-icon', html: pinEl, iconSize: [0, 0], iconAnchor: [0, 0] });
+@@ -821,13 +894,17 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
+     for (const it of items) {
+       it.pin = it.c.pinEl.getBoundingClientRect();
+       it.box = it.lab.getBoundingClientRect();
++      // V-24 / D-31: a pin off the map has no name on it, and is never merged for want of room.
++      it.off = it.pin.right <= host.left || it.pin.left >= host.right || it.pin.bottom <= host.top || it.pin.top >= host.bottom;
+       // The short form's width: its text width plus the name's own padding (measured on the full form).
+       const extra = (it.box.right - it.box.left) - textWidth(it.c.label, font);
+       it.short = it.c.short && it.c.short !== it.c.label ? textWidth(it.c.short, font) + extra : it.box.right - it.box.left;
+     }
+-    const spots = layoutLabels(items, host);
++    for (const it of items) { it.c.off = it.off; if (it.off) it.lab.classList.add('ms-pin__label--hidden'); }
++    const on = items.filter((it) => !it.off);
++    const spots = layoutLabels(on, host);
+     const hidden = [];
+-    items.forEach((it, i) => {
++    on.forEach((it, i) => {
+       const s = spots[i];
+       if (s.where === 'hidden') { it.lab.classList.add('ms-pin__label--hidden'); hidden.push(it.c); return; }
+       if (s.short) it.lab.textContent = it.c.short;
+@@ -887,6 +964,7 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
+   ro.observe(container);
+   const offTheme = onThemeChange(dark => {
+     applyDark(dark);
++    renderPayLegend(); // the steps have their own dark colours
+     paintModeControl();
+     if (darkUrl) tiles.setUrl(urlFor(dark));
+     draw();
+diff --git a/public/viz/palette.js b/public/viz/palette.js
+index 4a67c15..97392c7 100644
+--- a/public/viz/palette.js
++++ b/public/viz/palette.js
+@@ -1,14 +1,18 @@
+ // melon-seek viz palette: categorical identity colors, sequential salary scale,
+ // money formatting and a static approximate FX table.
+ //
+-// Categorical hues are the validated 8-slot reference palette (dataviz skill,
+-// run through validate_palette.js in light + dark). A 9th+ key is never given a
+-// generated hue: it folds into OTHER (neutral gray).
+-
+-const CAT_LIGHT = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#008300', '#4a3aa7', '#e34948'];
+-const CAT_DARK  = ['#3987e5', '#d95926', '#199e70', '#c98500', '#d55181', '#008300', '#9085e9', '#e66767'];
+-const OTHER_LIGHT = '#a8a69f';
+-const OTHER_DARK = '#6b6a65';
++// Categorical hues: 8 slots plus the neutral OTHER (fix4-viz, V-22 and V-25). Every slot, Other
++// included, is a mark of at least 3:1 on its surface (light #ffffff; dark #161a21, and #1b2028 in
++// the drawer), and every pair of the nine (not only neighbours: a legend shows them all at once)
++// stays apart under deuteranopia, protanopia and tritanopia (Machado 2009 simulation, CIELAB
++// delta E >= 12.6 light / 12.7 dark; >= 24.7 with normal vision). Found by a search over OKLCH
++// around the old hue order (blue, orange, aqua, yellow, magenta, green, violet, red); the numbers
++// and the script are in docs/process/fix4-viz.md. A 9th+ key is never given a generated hue: it
++// folds into OTHER.
++const CAT_LIGHT = ['#4a7de8', '#a33806', '#17a478', '#ba7f14', '#903081', '#296f16', '#7d44b2', '#e45d58'];
++const CAT_DARK  = ['#698dfd', '#ef7926', '#00d097', '#efa30f', '#d765b6', '#47ab4f', '#9654c1', '#c44323'];
++const OTHER_LIGHT = '#706f6c';
++const OTHER_DARK = '#807f7c';
+ 
+ export const OTHER_KEY = 'Other';
+ export const SLOT_COUNT = CAT_LIGHT.length;
+@@ -181,27 +185,58 @@ export const COUNTRY_CURRENCY = Object.freeze({
+   ...Object.fromEntries('IE DE FR NL ES IT BE AT FI PT LU GR EE LV LT SK SI HR MT CY BG'.split(' ').map((c) => [c, 'EUR'])),
+ });
+ 
+-// ---------- sequential salary scale (one hue: rind green, light -> dark) ----------
++// ---------- pay scale for the map (one hue: rind green, stepped, fixed dollars) ----------
+ 
+-// DES-1 (design audit wave 1): pay is the app's "rind green" (--ms-accent #0b7a5c, the green
+-// salary pills on cards), so map pins, cards and the chart tell one money story; Juice keeps
+-// the melon ramp. Validated with validate_palette.js --ordinal: light end 2.06:1 on #fcfcfb,
+-// dark end 2.14:1 on the app's dark surface #161a21; one hue (spread 2–5°), monotone L.
+-const SEQ_LIGHT = ['#77c1a2', '#4fae8a', '#2a956f', '#13805b', '#0b6b4c', '#064d37'];
+-// Dark mode: same ramp, stepped so the low end still clears the dark surface.
+-const SEQ_DARK  = ['#145a43', '#1b7a5a', '#25996f', '#3ccf9a', '#7fe0bd', '#b5efd8'];
++// V-16 (fix4-viz): one colour means one pay level everywhere. The map's Pay pins were coloured
++// relative to the pins on screen (a lone $473K pin and a lone $75K pin were the same green); now
++// a pin takes the step of its median on these fixed approx-USD breaks, and the map shows them in a
++// Pay legend. V-22: every step is >= 3:1 on the map background (light #f8fafc: 3.33 to 13.6;
++// dark #121820: 3.06 to 13.4) and its price text (inkOn) >= 5.5:1. Light runs light -> dark,
++// dark runs dark -> light (more pay = more contrast with the map in both).
++export const PAY_BREAKS = Object.freeze([100000, 150000, 200000, 300000]);
++const PAY_LIGHT = ['#209c69', '#00784d', '#005c3a', '#00462a', '#00321d'];
++const PAY_DARK  = ['#05744b', '#209c69', '#4abc87', '#69d9a2', '#86f5bd'];
+ 
+ function hexToRgb(h) { const n = parseInt(h.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; }
+-function rgbToHex([r, g, b]) { return '#' + [r, g, b].map(v => Math.round(v).toString(16).padStart(2, '0')).join(''); }
++function rgbToHex([r, g, b]) { return '#' + [r, g, b].map(v => Math.round(Math.max(0, Math.min(255, v))).toString(16).padStart(2, '0')).join(''); }
+ 
+-/** Sequential salary color for t in [0,1] (0 = lowest median, 1 = highest). */
++/** The pay step (0 .. PAY_BREAKS.length) of a yearly approx-USD amount. */
++export function payStep(usd) {
++  let i = 0;
++  while (i < PAY_BREAKS.length && usd >= PAY_BREAKS[i]) i++;
++  return i;
++}
++/** The fixed-scale fill for a yearly approx-USD pay (V-16). */
++export function payColor(usd) { return (isDark() ? PAY_DARK : PAY_LIGHT)[payStep(+usd || 0)]; }
++/** The steps for a legend: [{ color, lo, hi }] (lo/hi in USD, null at the open ends). */
++export function paySteps() {
++  const ramp = isDark() ? PAY_DARK : PAY_LIGHT;
++  return ramp.map((color, i) => ({ color, lo: i ? PAY_BREAKS[i - 1] : null, hi: i < PAY_BREAKS.length ? PAY_BREAKS[i] : null }));
++}
++/** Sequential pay colour for t in [0,1] (kept for callers that scale by rank): the nearest step. */
+ export function salaryColor(t) {
+-  const ramp = isDark() ? SEQ_DARK : SEQ_LIGHT;
+-  const x = Math.max(0, Math.min(1, +t || 0)) * (ramp.length - 1);
+-  const i = Math.min(ramp.length - 2, Math.floor(x));
+-  const f = x - i;
+-  const a = hexToRgb(ramp[i]), b = hexToRgb(ramp[i + 1]);
+-  return rgbToHex(a.map((v, k) => v + (b[k] - v) * f));
++  const ramp = isDark() ? PAY_DARK : PAY_LIGHT;
++  return ramp[Math.round(Math.max(0, Math.min(1, +t || 0)) * (ramp.length - 1))];
++}
++
++const relLum = (hex) => { const [r, g, b] = hexToRgb(hex).map(v => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
++/** WCAG contrast of two hex colours. */
++export function contrast(a, b) { const x = relLum(a), y = relLum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); }
++/**
++ * V-23: `hex` moved toward white (on a dark background) or black (on a light one) just far enough
++ * to be a mark of `min`:1 on `bg`; unchanged when it already is. For colours the viz does not pick
++ * (companies.json brand colours: Anduril #1f2a37 on the dark drawer was 1.09:1).
++ */
++export function readableOn(hex, bg, min = 3) {
++  if (!/^#[0-9a-f]{6}$/i.test(hex || '') || !/^#[0-9a-f]{6}$/i.test(bg || '')) return hex;
++  if (contrast(hex, bg) >= min) return hex;
++  const toward = relLum(bg) < 0.18 ? [255, 255, 255] : [0, 0, 0];
++  const c = hexToRgb(hex);
++  for (let f = 0.05; f <= 1.0001; f += 0.05) {
++    const out = rgbToHex(c.map((v, k) => v + (toward[k] - v) * f));
++    if (contrast(out, bg) >= min) return out;
++  }
++  return rgbToHex(toward);
+ }
+ 
+ /** Ink (near-black or white) that clears contrast on the given hex fill. */
+diff --git a/public/viz/viz.css b/public/viz/viz.css
+index 95ec168..d86b1a1 100644
+--- a/public/viz/viz.css
++++ b/public/viz/viz.css
+@@ -23,12 +23,14 @@
+   --_tip-bg: var(--ms-raised, var(--ms-surface, light-dark(#ffffff, #242423)));
+   --_shadow: var(--ms-shadow-lg, 0 1px 2px light-dark(rgba(11, 11, 11, .06), rgba(0, 0, 0, .4)), 0 6px 22px light-dark(rgba(11, 11, 11, .10), rgba(0, 0, 0, .45)));
+   --_map-bg: color-mix(in srgb, var(--_bg) calc(88% - 3% * var(--_d)), light-dark(#c9d6e3, #22303d));
++  --_nodata: color-mix(in srgb, var(--_muted) 40%, var(--_surface)); /* V-28: gray no-Juice pins and their legend swatch */
+   --_map-line: color-mix(in srgb, var(--_border) calc(80% - 10% * var(--_d)), light-dark(#9fb2c6, #3a4b5c));
+-  /* non-color dark tweaks: translucent fills go muddy on dark, so lift them */
+-  --_bar-o: calc(.5 + .22 * var(--_d));
+-  --_hist-o: calc(.42 + .2 * var(--_d));
+-  --_hist-o-c: calc(.26 + .16 * var(--_d));
+-  --_bin-mix: calc(30% + 22% * var(--_d));
++  /* V-22 (fix4-viz): data marks are their colour itself, at least 3:1 on the surface (palette.js
++     picks every category colour for that); the strip's bins and the median ticks likewise. */
++  --_bar-o: 1;
++  --_hist-o: calc(.74 + .06 * var(--_d));
++  --_hist-o-c: calc(.74 + .06 * var(--_d));
++  --_bin-mix: 100%;
+   --_band-mix: calc(9% + 7% * var(--_d));
+   --_font: var(--ms-font, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif);
+ }
+@@ -124,7 +126,7 @@
+   cursor: default;
+   transition: opacity .12s;
+ }
+-.ms-hist__bin.is-hover { opacity: .9; }
++.ms-hist__bin.is-hover { opacity: 1; }
+ .ms-hist__bin::after { content: ""; position: absolute; inset: -12px -1px 0; } /* bigger hit target */
+ .ms-hist__median {
+   position: absolute; top: 4px; bottom: 0; width: 0;
+@@ -233,7 +235,16 @@
+   background: var(--_accent);
+   box-shadow: 0 0 0 2px var(--_surface);
+ }
+-.ms-row.is-hover .ms-row__bar, .ms-row.is-highlighted .ms-row__bar { opacity: .95; }
++.ms-row.is-hover .ms-row__bar, .ms-row.is-highlighted .ms-row__bar { box-shadow: 0 0 0 1.5px var(--_surface), 0 0 0 3px var(--_text); }
++/* V-20: one posting's range over several levels or places is striped; on-target earnings are dashed.
++   The colour stays the row's (3:1); the surface stripes say "not one posted range" without colour. */
++.ms-row__bar--span { background-image: repeating-linear-gradient(135deg, transparent 0 3px, color-mix(in srgb, var(--_surface) 70%, transparent) 3px 5px); }
++.ms-row__bar--ote { background-image: repeating-linear-gradient(90deg, transparent 0 7px, var(--_surface) 7px 9px); }
++.ms-legend__span { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; color: var(--_text); }
++.ms-legend__spansw { flex: none; width: 18px; height: 8px; border-radius: 4px; background-color: var(--_muted); background-image: repeating-linear-gradient(135deg, transparent 0 3px, color-mix(in srgb, var(--_surface) 70%, transparent) 3px 5px); }
++/* MR-2: the exchange-rate date in the notes line links to where its source is named. */
++.ms-chart__fx { color: inherit; text-decoration: underline; text-decoration-color: var(--_axis); text-underline-offset: 2px; }
++.ms-chart__fx:hover { color: var(--_text); }
+ .ms-row__val {
+   position: absolute; top: 0; line-height: 22px;
+   font-weight: 600;
+@@ -273,7 +284,7 @@
+ /* ---------- clusters view ---------- */
+ .ms-chart--clusters .ms-chart__sticky { border-bottom-color: var(--_grid); }
+ .ms-chart--clusters .ms-hist__bin { opacity: var(--_hist-o-c, .26); }
+-.ms-chart--clusters .ms-hist__bin.is-hover { opacity: .7; }
++.ms-chart--clusters .ms-hist__bin.is-hover { opacity: 1; }
+ .ms-chart--clusters .ms-chart__body { padding-bottom: 4px; }
+ 
+ .ms-crow {
+@@ -283,8 +294,9 @@
+   border-bottom: 1px solid var(--_grid);
+ }
+ .ms-crow--last { border-bottom: 0; }
+-/* Rows beyond the 8 palette slots are neutral; lift their tint so circles never read as holes. */
+-.ms-crow--other { --_bin-mix: calc(42% + 18% * var(--_d)); --_band-mix: calc(7% + 4% * var(--_d)); }
++/* Rows beyond the 8 palette slots are neutral (palette.js OTHER, 3:1 like the slots). */
++.ms-crow--other { --_band-mix: calc(9% + 5% * var(--_d)); }
++.ms-crow__fold { color: var(--_muted); font-weight: 600; } /* UX-24: the "N more departments" row's ▾ / ▴ */
+ .ms-crow.is-selected { background: color-mix(in srgb, var(--c) 6%, transparent); }
+ 
+ .ms-crow__label {
+@@ -339,7 +351,8 @@
+   width: 2px; margin-left: -1px;
+   border-radius: 1px;
+   background: var(--_text);
+-  opacity: .38;
++  opacity: .8; /* V-22: 3:1 or better over the band */
++  box-shadow: 0 0 0 1px var(--_surface);
+   pointer-events: none;
+ }
+ .ms-crow__none {
+@@ -386,7 +399,7 @@
+ .ms-bin.is-hover .ms-bin__dot,
+ .ms-bin.is-selected .ms-bin__dot,
+ .ms-bin.is-highlighted .ms-bin__dot { background: var(--c); color: var(--c-ink); }
+-.ms-bin.is-hover .ms-bin__dot { transform: scale(1.06); }
++.ms-bin.is-hover .ms-bin__dot { transform: scale(1.06); box-shadow: 0 0 0 2px var(--ring), 0 0 0 3.5px var(--_text); }
+ .ms-bin.is-selected .ms-bin__dot { box-shadow: 0 0 0 2px var(--ring), 0 0 0 3.5px var(--c); }
+ .ms-bin.is-highlighted .ms-bin__dot { box-shadow: 0 0 0 2px var(--ring), 0 0 0 4px var(--_text); }
+ .ms-bin.is-active .ms-bin__dot { box-shadow: 0 0 0 2px var(--ring), 0 0 0 4px var(--_accent); }
+@@ -574,6 +587,19 @@
+ .ms-modes__grade { font-weight: 600; white-space: nowrap; }
+ .ms-modes__net { color: var(--_muted); font-variant-numeric: tabular-nums; white-space: nowrap; text-align: right; }
+ .ms-modes__none { color: var(--_muted); font-size: 12px; }
++.ms-modes__none--sw { display: flex; align-items: center; gap: 6px; }
++.ms-modes__sw--none { flex: none; background: var(--_nodata); box-shadow: inset 0 0 0 1px var(--_axis); }
++/* V-16 / MR-13: the Pay legend: five fixed dollar steps and what the pin's figures are. */
++.ms-modes__pay { display: none; padding: 2px 6px 4px; }
++.ms-modes--pay .ms-modes__pay { display: grid; gap: 4px; }
++.ms-modes__scale { display: flex; gap: 2px; }
++.ms-modes__step { flex: 1; display: grid; gap: 2px; min-width: 40px; }
++.ms-modes__chip { height: 10px; border-radius: 2px; }
++.ms-modes__step:first-child .ms-modes__chip { border-radius: 5px 2px 2px 5px; }
++.ms-modes__step:last-child .ms-modes__chip { border-radius: 2px 5px 5px 2px; }
++.ms-modes__stepv { color: var(--_muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
++.ms-modes__paywhat { max-width: 300px; line-height: 1.35; }
++.ms-modes__fx { color: inherit; text-decoration: underline; text-decoration-color: var(--_axis); text-underline-offset: 2px; }
+ .ms-pin--juice .ms-pin__price { letter-spacing: .01em; }
+ 
+ /* I-10: Juice grades without colour (ROADMAP §8: no new colours). One melon hue (--pin-hue, the
+@@ -584,6 +610,7 @@
+ .ms-pin[data-fill="half"] { --pin-bg: color-mix(in srgb, var(--pin-hue) 24%, var(--_surface)); --pin-fg: var(--_text); }
+ .ms-pin[data-fill="none"] { --pin-bg: var(--_surface); --pin-fg: var(--_text); border-style: dashed; }
+ .ms-pin[data-grade="Rind"] { border-style: dotted; }
++.ms-pin--juice.ms-pin--nosalary { --pin-bg: var(--_nodata); --pin-fg: var(--_text); } /* V-28: "Gray: no Juice data" */
+ .ms-pin[data-fill="half"] .ms-pin__count, .ms-pin[data-fill="none"] .ms-pin__count { background: color-mix(in srgb, var(--_text) 9%, var(--_surface)); }
+ .ms-modes__sw[data-fill] { border: 2px solid var(--pin-hue); }
+ .ms-modes__sw[data-fill="full"] { background: var(--pin-hue); }
+@@ -706,19 +733,14 @@
+   /* Cluster circles: a 44px-tall slop, as wide as the bin spacing allows (--ms-bin-slop, chart.js). */
+   .ms-bin::before { content: ""; position: absolute; left: 50%; top: 50%; width: max(100%, var(--ms-bin-slop, 34px)); height: max(100%, 44px); transform: translate(-50%, -50%); }
+ 
+-  /* Map controls: zoom ± 30px and Pay|Juice 26px tall look the same, but take a 44px tap. */
+-  .ms-map .leaflet-bar { overflow: visible; }
+-  .ms-map .leaflet-bar a { position: relative; }
+-  .ms-map .leaflet-bar a:first-child { border-radius: var(--_radius-sm) var(--_radius-sm) 0 0; }
+-  .ms-map .leaflet-bar a:last-child { border-radius: 0 0 var(--_radius-sm) var(--_radius-sm); }
+-  .ms-map .leaflet-bar a::after { content: ""; position: absolute; inset: 0 -7px; }
+-  .ms-map .leaflet-bar a:first-child::after { top: -14px; }
+-  .ms-map .leaflet-bar a:last-child::after { bottom: -14px; }
+-  .ms-map .leaflet-top .leaflet-control-zoom { margin-top: 14px; }
+-  .ms-map .ms-modes__btn { position: relative; }
+-  .ms-map .ms-modes__btn::after { content: ""; position: absolute; inset: -9px 0; }
+-  .ms-map .ms-remote { position: relative; }
+-  .ms-map .ms-remote::after { content: ""; position: absolute; inset: -7px -1px; }   /* from the padding box: 30 + 14 */
++  /* UX-19 / M-8: map controls are 44px tap targets themselves (zoom ±, Pay|Juice, Remote). */
++  .ms-map .leaflet-bar a { width: 44px; height: 44px; line-height: 44px; font-size: 20px; }
++  .ms-map .ms-modes__btn { height: 44px; min-width: 56px; }
++  .ms-map .ms-remote { height: 44px; border-radius: 22px; padding: 0 14px; }
++  /* The Pay legend on a phone: the five steps and a one-line note (full text in its title). */
++  .ms-modes--pay .ms-modes__pay { padding: 0 4px 2px; gap: 2px; }
++  .ms-modes__step { min-width: 34px; }
++  .ms-modes__paywhat { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: min(260px, calc(100vw - 96px)); }
+ 
+   /* Same role elsewhere: 44px rows (comps.js sets --ms-comps-row). */
+   .ms-comps__over, .ms-comps__nodata { line-height: var(--ms-comps-row, 28px); }
+@@ -738,6 +760,7 @@
+   .ms-modes__net { grid-column: 1 / -1; text-align: left; }
+   .ms-modes__key .ms-modes__net { padding-left: 0; }
+   .ms-modes__none, .ms-modes__unit { display: none; }
++  .ms-modes__none.ms-modes__paywhat { display: block; }
+   .ms-modes__none.ms-modes__asof { display: block; grid-column: 1 / -1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+ 
+   /* M-10: landscape notch: Leaflet controls stay inside the safe area (the map itself stays full-bleed). */
+-- 
+2.43.0
+

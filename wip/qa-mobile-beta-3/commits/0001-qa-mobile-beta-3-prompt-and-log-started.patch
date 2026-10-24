@@ -1,0 +1,94 @@
+From a3da4821c13ba4c7f118d6e7666ecff2995e71a6 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 16 Oct 2026 21:30:30 +0000
+Subject: [PATCH 1/7] qa-mobile-beta-3: prompt and log started
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+---
+ docs/process/prompts/qa-mobile-beta-3.md | 53 ++++++++++++++++++++++++
+ docs/process/qa-mobile-beta-3.md         | 12 ++++++
+ 2 files changed, 65 insertions(+)
+ create mode 100644 docs/process/prompts/qa-mobile-beta-3.md
+ create mode 100644 docs/process/qa-mobile-beta-3.md
+
+diff --git a/docs/process/prompts/qa-mobile-beta-3.md b/docs/process/prompts/qa-mobile-beta-3.md
+new file mode 100644
+index 0000000..634fda4
+--- /dev/null
++++ b/docs/process/prompts/qa-mobile-beta-3.md
+@@ -0,0 +1,53 @@
++**The lead's note for this run (beta round 3, 2026-10-16).** You run in your own git worktree. First run `git fetch origin claude/stoic-ride-54ddxp && git checkout --detach origin/claude/stoic-ride-54ddxp`. Symlink today's crawl into it: `ln -s /tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92f3-f582ebca24d9/scratchpad/wt-data2/data/snapshots data/snapshots; mkdir -p data/beta; ln -s /tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92f3-f582ebca24d9/scratchpad/wt-data2/data/beta/snapshots data/beta/snapshots` (never commit them). The data is the 2026-10-16 crawl with every board whole, no cap: Amazon 22,179 postings, Apple 4,851, Google 3,821, NVIDIA 2,711, Microsoft 2,435, Meta 1,208, Netflix 414; main site Anduril 2,537. The lead's reviewer build is /tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92f3-f582ebca24d9/scratchpad/cycle-beta6-dist; serve it and don't rebuild it. What changed since the last review: one-line notes with a Details disclosure (fix-density), Google grouped by job family with a Company filter (google-grouping), the salary audit fixes ("· 2 levels", per-place pay, no cut rows), first-page preview and a faster first render (perf-mobile-beta-2), and fix6-fresh-data. Read those sections of docs/process/lead.md first. Resume safety (the user, 2026-10-16: "if we get stop again due to limits, we're able to resume without losing much progress"): commit your files small and often in your worktree with explicit paths, keep a `## State` section at the top of your log, and send the lead your findings as you confirm them by SendMessage to "main". The lead checkpoints your worktree every 15 minutes; never push. Where the template says "don't commit", commit in your worktree anyway; the lead integrates. Give every server, browser or test command a timeout, so nothing can hang for hours. Other agents may run at the same time on a 4-CPU machine: note `uptime` with any timing. Check especially what changed since round 2: Amazon's whole board (22,179 postings) and Meta; the first-page preview on Amazon (real cards under "Loading 22,179 roles…", then the list replaces them); Google's job-family departments with the Company group-by and filter; the one-line notes with one Details disclosure (fix-density); "· 2 levels" and "· N places" cards, "from €X" minimums and shift-pay labels; the clusters chart, whose circles now sit at their postings' median pay, and the Ranges view, where identical posted bands are stacked into one row with ×N (viz-even). Also re-check that earlier findings stay fixed. Known open items you need not re-report, but may add evidence to: MR-23 (FX rates from 2026-07-01, waiting on the user), MR-26, MR-28, MR-29 (the on-screen label), MR-33 to MR-35, MR-37 to MR-42 in docs/process/methodology-review-beta-2.md, and the Insights tab on Amazon being one 4.3 s task (docs/process/perf-mobile-beta-2.md). The text-density check is a hard check: measure every secondary line on 390x844 and 360x740. You work in your own worktree, so do NOT edit docs/QA.md (another QA agent writes the same file at the same time): put your whole QA section, in docs/QA.md's format, at the end of your own log docs/process/qa-mobile-beta-3.md under a heading "## Section for docs/QA.md", and the lead copies it in when integrating.
++
++You are the mobile QA engineer for melon-seek (/home/user/melon-seek), "the Zillow of job postings". It is a zero-build vanilla-JS app that runs as a static site on GitHub Pages. Read README.md, docs/CONTRACT.md, docs/QA.md (especially the newest sections of docs/process/lead.md (from "Beta round 3" on: fix wave 5, fix-density, google-grouping, the salary audit, perf-mobile-beta-2, fix6-fresh-data), docs/process/methodology-review-beta.md, docs/process/ux-review-beta.md, docs/process/viz-review-beta.md and the 2026-10-11 beta sections of docs/QA.md), docs/process/mobile.md, docs/process/PLAYBOOK.md and docs/process/TEMPLATE.md first.
++
++**Your job:** a thorough functional QA pass of the MOBILE site for target `beta` (`/melon-seek/beta/` in a local build). Do not edit product code. You own:
++- a "Full QA pass (mobile, beta) 2026-10-16" section, appended to docs/QA.md;
++- docs/process/qa-mobile-beta-3.md, your process log;
++- docs/process/prompts/qa-mobile-beta-3.md (paste this prompt verbatim);
++- a NEW test file, test/e2e/beta-mobile-qa-3.e2e.js, registered the way scripts/e2e.js registers the others. Each bug you can reproduce gets a test that fails now, named with its ID, e.g. `[M-4]`.
++A desktop QA agent writes to docs/QA.md at the same time. Append only your own section, and re-read the file just before writing. Don't commit and never push.
++
++**Setup:**
++- The data is already in `data/beta/snapshots/`.
++- Build into your own folder, `node scripts/build-static.js --out /tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92f3-f582ebca24d9/scratchpad/qa-mobile-beta-3/dist`, then `node scripts/cycle/serve.mjs --dist /tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92f3-f582ebca24d9/scratchpad/qa-mobile-beta-3/dist --pid /tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92f3-f582ebca24d9/scratchpad/qa-mobile-beta-3/serve.pid`. Never write the shared dist/; the lead built it for the e2e suite.
++- Playwright: NODE_PATH=/tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92f3-f582ebca24d9/scratchpad/pw/node_modules. Chromium is /opt/pw-browsers/chromium-1194/chrome-linux/chrome. Never run `playwright install`.
++- Emulation:
++  - isMobile, hasTouch and deviceScaleFactor 3;
++  - 360x740, 390x844, 430x932 and 844x390 landscape, in light and dark;
++  - an iPhone user agent on some runs.
++- Use real touch gestures: touchscreen.tap, plus CDP Input.dispatchTouchEvent for drags, swipes and pinch.
++- Use pid files. Never `pkill -f` or `pgrep -f`.
++
++**Test EVERY feature on mobile, on all seven big-tech boards (Amazon, Apple, Google, Meta, Microsoft, NVIDIA and Netflix), plus Anduril from the main site for comparison:**
++- **Top bar:** company menu (full-width popover), the data badge and its popover, theme toggle, the Chart/Map/Insights switch.
++- **Quick-filter chips:** horizontal scroll, and each popover.
++- **Filter sheet:**
++  - every section (salary drag, inputs, toggles, checklists, keyword chips);
++  - "Show N roles" (the count is correct);
++  - Reset; closing with ✕ and with Back.
++- **Results sheet:**
++  - drag between peek, half and full, plus a flick;
++  - list scroll with lazy loading; card tap; sort;
++  - collapsing when the view changes.
++- **Chart:** Clusters/Ranges; tapping a cluster or row label gives a chip; no hover-only information.
++- **Map:** one-finger pan and pinch zoom don't scroll the page; tapping a pin selects the area; Pay|Juice; Remote.
++- **Insights:** Compstimate fields don't zoom on input; Compare companies.
++- **Job page:**
++  - back button and hardware Back; next/prev; Apply;
++  - the Juice breakdown with the household choice;
++  - "Same role elsewhere"; the methodology link.
++- **Other features:** Save and "N new"; the CSV link.
++- **Text density:** every note, caption, footer and stats line fits one line on the phone and states at most two facts; anything longer is a bug (see ux-review.md, check 6).
++- **Device behaviour:**
++  - landscape; the safe area; the keyboard covering inputs;
++  - text ≥12px; tap targets ≥44px (or an equivalent hit area);
++  - no horizontal scroll; focus handling; no console errors.
++- **Beta only:**
++  - the beta label fits the top bar at 360 px;
++  - the company menu with the big-tech boards;
++  - Apple's or Microsoft's thousands of roles on a phone: list scroll stays smooth, and filters and sort answer within a second;
++  - memory stays bounded when switching between the big boards.
++
++For each bug, write: an ID (M-n, numbered after the highest ID in the newest sections of docs/process/lead.md (from "Beta round 3" on: fix wave 5, fix-density, google-grouping, the salary audit, perf-mobile-beta-2, fix6-fresh-data), docs/process/methodology-review-beta.md, docs/process/ux-review-beta.md, docs/process/viz-review-beta.md and the 2026-10-11 beta sections of docs/QA.md), a severity, the device and orientation, exact repro steps, expected vs actual, a screenshot under docs/screenshots/qa-mobile-beta-3/, and the likely owning file and function. Say what works as well. Report back with the full bug list ordered by severity, one line each, and the suite results.
+diff --git a/docs/process/qa-mobile-beta-3.md b/docs/process/qa-mobile-beta-3.md
+new file mode 100644
+index 0000000..d7a0e1f
+--- /dev/null
++++ b/docs/process/qa-mobile-beta-3.md
+@@ -0,0 +1,12 @@
++# Process log: qa-mobile-beta-3 (third mobile QA pass on beta)
++
++## State
++- 2026-10-16 21:32: started at d98a9f0 (detached at origin/claude/stoic-ride-54ddxp); crawl symlinked; prompt saved.
++  Next: read lead.md "Beta round 3" sections, then probe.
++
++## 1. Brief
++Prompt: [prompts/qa-mobile-beta-3.md](prompts/qa-mobile-beta-3.md). A functional QA pass of the phone beta site
++(`/melon-seek/beta/`) on the 2026-10-16 whole-board crawl (Amazon 22,179 postings), after fix wave 5, fix-density,
++google-grouping, the salary audit, perf-mobile-beta-2, fix6-fresh-data and viz-even. No product code is edited.
++Files owned: this log, the prompt, test/e2e/beta-mobile-qa-3.e2e.js (and its registration in scripts/e2e.js),
++docs/screenshots/qa-mobile-beta-3/, and the "Section for docs/QA.md" at the end of this log (the lead copies it in).
+-- 
+2.43.0
+

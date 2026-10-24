@@ -1,0 +1,969 @@
+From 6845135a33d846e00c8303151fe01b4f4de9de2c Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sun, 11 Oct 2026 14:04:54 +0000
+Subject: [PATCH 4/4] fix-company-scroll: M-29 no search focus on phones, M-30
+ in-place saved counts, M-31 empty chart message; adopt QA's beta-mobile-qa-2
+ tests and webkit-phone.yml (replaces mobile-webkit.yml)
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+---
+ .github/workflows/mobile-webkit.yml           |  56 ----
+ .github/workflows/webkit-phone.yml            | 139 ++++++++
+ docs/process/fix-company-scroll.md            |  39 ++-
+ .../patches/fix-company-scroll-mobile-md.diff |  13 +
+ public/app.js                                 |  24 +-
+ public/styles.css                             |   2 +
+ scripts/e2e.js                                |   2 +
+ test/e2e/beta-mobile-qa-2.e2e.js              | 311 ++++++++++++++++++
+ test/e2e/fix-company-scroll.e2e.js            |   2 +-
+ test/e2e/webkit/ios-sim-menu.mjs              | 152 +++++++++
+ test/e2e/webkit/qa-probe.js                   |  52 +++
+ 11 files changed, 722 insertions(+), 70 deletions(-)
+ delete mode 100644 .github/workflows/mobile-webkit.yml
+ create mode 100644 .github/workflows/webkit-phone.yml
+ create mode 100644 docs/process/patches/fix-company-scroll-mobile-md.diff
+ create mode 100644 test/e2e/beta-mobile-qa-2.e2e.js
+ create mode 100644 test/e2e/webkit/ios-sim-menu.mjs
+ create mode 100644 test/e2e/webkit/qa-probe.js
+
+diff --git a/.github/workflows/mobile-webkit.yml b/.github/workflows/mobile-webkit.yml
+deleted file mode 100644
+index 10eb894..0000000
+--- a/.github/workflows/mobile-webkit.yml
++++ /dev/null
+@@ -1,56 +0,0 @@
+-# Phone checks under real WebKit (the engine of iPhone Safari), on demand.
+-# The dev sandbox has only Chromium, so the company-sheet scroll fix (docs/process/fix-company-scroll.md)
+-# runs here under Playwright WebKit with an iPhone profile (isMobile, hasTouch, iPhone user agent;
+-# 320x568, 390x844, 430x932 and 844x390). The Chromium-only touch-swipe case skips under WebKit.
+-name: Mobile WebKit
+-
+-on:
+-  workflow_dispatch:
+-    inputs:
+-      grep:
+-        description: Only run tests whose name matches this regex (empty = all)
+-        required: false
+-        default: ''
+-
+-permissions:
+-  contents: read
+-
+-jobs:
+-  webkit:
+-    name: Company sheet under WebKit (iPhone)
+-    runs-on: ubuntu-latest
+-    timeout-minutes: 30
+-    steps:
+-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+-
+-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+-        with:
+-          node-version: 22
+-          cache: npm
+-
+-      - name: Install
+-        run: npm ci
+-
+-      # Playwright is not a repo dependency (scripts/e2e.js): install it without touching package.json.
+-      - name: Install Playwright WebKit
+-        run: |
+-          npm i playwright --no-save
+-          npx playwright install --with-deps webkit
+-
+-      # A CI build has no snapshots, so its lists are demo data; the beta copy is built alongside
+-      # (dist/beta/). The tests only need the app shell and the company list.
+-      - name: Static build
+-        run: |
+-          npm run build
+-          test -f dist/beta/index.html
+-
+-      - name: Company sheet tests (WebKit, iPhone profile)
+-        env:
+-          BETA_QA_DIST: dist
+-          GREP: ${{ inputs.grep }}
+-        run: |
+-          if [ -n "$GREP" ]; then
+-            node test/e2e/fix-company-scroll.e2e.js --browser=webkit "--grep=$GREP"
+-          else
+-            node test/e2e/fix-company-scroll.e2e.js --browser=webkit
+-          fi
+diff --git a/.github/workflows/webkit-phone.yml b/.github/workflows/webkit-phone.yml
+new file mode 100644
+index 0000000..d459f98
+--- /dev/null
++++ b/.github/workflows/webkit-phone.yml
+@@ -0,0 +1,139 @@
++name: WebKit phone checks
++
++# docs/process/qa-mobile-beta-2.md (the second mobile QA pass on beta, 2026-10-11). The sandbox the QA agents use
++# has only Chromium, so the phone checks of the company list (M-28 to M-30) and the other scroll areas are run here
++# on WebKit, where installing a browser is fine.
++#   - webkit: test/e2e/beta-mobile-qa-2.e2e.js on Playwright WebKit with an iPhone profile (BETA_QA2_ENGINE=webkit).
++#     Playwright has no touch-drag outside Chromium, so the swipes are wheel scrolls at the same point; the scroll
++#     chaining rules (overscroll-behavior, nested scroll boxes) are the same for both.
++#   - ios-simulator: Safari in the iOS Simulator. Real swipes on the company list with `idb ui swipe`, a real
++#     on-screen keyboard, screenshots before and after (test/e2e/webkit/ios-sim-menu.mjs).
++# Manual only: it needs the data-archive branch for real data, and the macOS job is slow.
++
++on:
++  workflow_dispatch:
++    inputs:
++      ios_devices:
++        description: 'Simulator devices, comma separated (names from `xcrun simctl list devicetypes`)'
++        default: 'iPhone 16,iPhone SE (3rd generation)'
++
++permissions:
++  contents: read
++
++concurrency:
++  group: webkit-phone-${{ github.ref }}
++  cancel-in-progress: true
++
++jobs:
++  build:
++    name: Build the site with real data
++    runs-on: ubuntu-latest
++    steps:
++      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
++      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
++        with:
++          node-version: 22
++          cache: npm
++      - run: npm ci
++      - name: Latest archived crawl (data/snapshots, data/beta/snapshots)
++        run: node scripts/cycle/local-data.js
++      - name: Build
++        run: |
++          node scripts/build-static.js --out dist
++          test -f dist/beta/index.html && test -f dist/beta/api/jobs/apple.json
++      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
++        with:
++          name: site-dist
++          path: dist
++          retention-days: 3
++
++  webkit:
++    name: Playwright WebKit, iPhone profile
++    needs: build
++    runs-on: ubuntu-latest
++    steps:
++      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
++      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
++        with:
++          node-version: 22
++          cache: npm
++      - run: npm ci
++      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
++        with:
++          name: site-dist
++          path: dist
++      - name: Playwright (not a repo dependency) and its browsers
++        run: |
++          npm i --no-save playwright@1.63.0
++          npx playwright install --with-deps webkit chromium
++      - name: Phone tests on WebKit
++        env:
++          BETA_QA2_ENGINE: webkit
++          BETA_QA2_DIST: dist
++        run: node scripts/e2e.js --grep='^Beta mobile QA 2' | tee webkit-e2e.log
++        continue-on-error: true # the [M-n] tests fail until the fix lane lands; the log and screenshots are the result
++      # The fix lane's geometry tests (docs/process/fix-company-scroll.md): one scroller in every phone sheet, the
++      # sheet inside the (keyboard-shortened) visual viewport, the last company fully visible. 320x568, 390x844,
++      # 430x932, 844x390 with an iPhone profile. The CDP touch-swipe case skips on WebKit.
++      - name: Company sheet geometry on WebKit (fix-company-scroll)
++        env:
++          BETA_QA_DIST: dist
++        run: |
++          set -o pipefail
++          node test/e2e/fix-company-scroll.e2e.js --browser=webkit | tee webkit-fix-company-scroll.log
++      - name: Same tests on Chromium, for comparison
++        env:
++          BETA_QA2_DIST: dist
++        run: node scripts/e2e.js --grep='^Beta mobile QA 2' | tee chromium-e2e.log
++        continue-on-error: true
++      - name: Summary
++        if: always()
++        run: |
++          {
++            echo '### Beta mobile QA 2 on WebKit'; echo '```'; grep -E '^\s+(✓|✗|-) |^e2e:' webkit-e2e.log || true; echo '```'
++            echo '### Company sheet geometry on WebKit (fix-company-scroll)'; echo '```'; grep -E '^\s+(✓|✗|-) |passed' webkit-fix-company-scroll.log || true; echo '```'
++            echo '### The same on Chromium'; echo '```'; grep -E '^\s+(✓|✗|-) |^e2e:' chromium-e2e.log || true; echo '```'
++          } >> "$GITHUB_STEP_SUMMARY"
++      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
++        if: always()
++        with:
++          name: webkit-phone-results
++          path: |
++            webkit-e2e.log
++            chromium-e2e.log
++            webkit-fix-company-scroll.log
++            docs/screenshots/qa-mobile-beta-2/e2e-*.png
++
++  ios-simulator:
++    name: Safari in the iOS Simulator (real swipes)
++    needs: build
++    runs-on: macos-15
++    timeout-minutes: 40
++    steps:
++      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
++      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
++        with:
++          node-version: 22
++      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
++        with:
++          name: site-dist
++          path: dist
++      - name: idb (Facebook's iOS Development Bridge) for touch input
++        run: |
++          brew tap facebook/fb
++          brew install facebook/fb/idb-companion
++          python3 -m pip install --break-system-packages fb-idb
++          idb --help > /dev/null
++      - name: Swipe the company list in Simulator Safari
++        env:
++          IOS_DEVICES: ${{ inputs.ios_devices }}
++        run: node test/e2e/webkit/ios-sim-menu.mjs --dist dist --out ios-sim
++      - name: Summary
++        if: always()
++        run: |
++          { echo '### iOS Simulator Safari: company menu'; echo '```'; cat ios-sim/result.txt 2>/dev/null || echo 'no result'; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
++      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
++        if: always()
++        with:
++          name: ios-simulator-results
++          path: ios-sim
+diff --git a/docs/process/fix-company-scroll.md b/docs/process/fix-company-scroll.md
+index 8cc8397..4bc4491 100644
+--- a/docs/process/fix-company-scroll.md
++++ b/docs/process/fix-company-scroll.md
+@@ -6,7 +6,8 @@ The user, on their phone (2026-10-11, /beta/): "I'm still not able to scroll dow
+ drop down!!". Goal: on every phone browser (iPhone Safari first), the company bottom sheet scrolls to its
+ last company, robustly, without changing desktop.
+ Files owned: `public/styles.css`, the company-menu / popover / keyboard-inset code in `public/app.js`,
+-`test/e2e/fix-company-scroll.e2e.js` (registered in `scripts/e2e.js`), `.github/workflows/mobile-webkit.yml`,
++`test/e2e/fix-company-scroll.e2e.js` (registered in `scripts/e2e.js`), `.github/workflows/webkit-phone.yml` (the QA lane's workflow, applied from
++`docs/process/patches/qa-mobile-beta-2-webkit.diff`, plus a step for this file),
+ this log, `docs/screenshots/fix-company-scroll/`.
+ 
+ ## 2. Inputs and sources
+@@ -55,8 +56,18 @@ this log, `docs/screenshots/fix-company-scroll/`.
+    iOS's visual-viewport pan, so its top is never above the screen.
+ 5. **No repaint of identical rows.** `sync()` rebuilt every row on each `syncPopover()` (every render, a beta
+    live check settling, a saved board loading). It now keys the painted state (current company, companies,
+-   saved searches and their "N new" counts, query) and returns when unchanged, so rows under a finger are
+-   not replaced mid-swipe.
++   saved searches, query) and returns when unchanged, so rows under a finger are not replaced mid-swipe
++   (M-30). A saved board loading only updates its "N new" badge in place (rows carry `data-saved`).
++7. **M-29: no search focus on phones.** `togglePopover('company')` focused the search box on open, which on
++   Android opens the keyboard over the list on every open. On phones the current company (else the first row)
++   takes focus (`preventScroll`); desktop still focuses the search.
++8. **M-31: the chart's empty message** sits near the chart's top on phones (`#chartHost .ms-chart__empty
++   { justify-content: flex-start; padding-top: 28px }` in styles.css), not centred under the half sheet.
++9. **M-28 alternative (QA's)** was `.company-list { max-height: none; overflow: visible }` with `.pop-body` as the
++   scroller. Kept the list as the scroller instead (the lead's recommended direction): the search stays pinned
++   while scrolling, and `reveal()` keeps working on the list unchanged. Both pass the QA's M-28 test.
++10. **docs/process/mobile.md:62** ("every scroller gets contain") is not this lane's file: the clarification
++   (a sheet has exactly one scroll box) is `docs/process/patches/fix-company-scroll-mobile-md.diff`.
+ 6. **Desktop unchanged**: all new rules are inside the phone media query; desktop keeps the 340 px list box
+    under the search (asserted by a test).
+ 
+@@ -74,7 +85,7 @@ BETA_QA_DIST=$SCRATCH/dist-before NODE_PATH=$PW node test/e2e/fix-company-scroll
+ BETA_QA_DIST=$SCRATCH/dist-after  NODE_PATH=$PW node test/e2e/fix-company-scroll.e2e.js   # after: 23 passed
+ MELON_BETA_SNAPSHOT_DIR=$SCRATCH/empty-beta npm test
+ BETA_QA_DIST=$SCRATCH/dist-after NODE_PATH=$PW node scripts/e2e.js
+-# WebKit (GitHub runner only): Actions > Mobile WebKit > Run workflow
++# WebKit (GitHub runner only): Actions > WebKit phone checks > Run workflow
+ #   node test/e2e/fix-company-scroll.e2e.js --browser=webkit
+ bash scripts/cycle/shrink-screenshots.sh docs/screenshots/fix-company-scroll
+ ```
+@@ -88,19 +99,25 @@ bash scripts/cycle/shrink-screenshots.sh docs/screenshots/fix-company-scroll
+   not move, and swiping alone brings the last company fully on screen. Geometry checks run in any engine:
+   exactly one scroll box, nothing else clipping, no nested max-height, sheet inside the visual viewport,
+   list at least 80 px, the end of the list and the last company fully visible when scrolled to the end.
+-- Before (dist-before): 0 passed, 22 failed (+1 crash-related; the desktop, badge, More and 390x844 touch
+-  cases pass before, as expected). After (dist-after): **23 passed, 0 failed** (Chromium 141).
++- This file before the fix (dist-before): 4 passed, 19 failed (desktop, badge, More and the 390x844 touch
++  case pass before, as expected: the list fits there). After (dist-after): **23 passed, 0 failed** (Chromium 141).
++- QA's `test/e2e/beta-mobile-qa-2.e2e.js` (copied with its registration), group "^Beta mobile QA 2": before
++  the follow-up, M-29 and M-31 failed (M-28 and M-30 already passed with the first fix); after,
++  **6/6 passed**. Together with this file: `node scripts/e2e.js --grep="^Beta mobile QA 2|^Fix company scroll"`
++  29/29 passed.
+ - `npm test` (MELON_BETA_SNAPSHOT_DIR empty): 870 pass, 19 todo, 2 fail: `test/perf.test.js` event-loop
+   timing (231 ms and 251 ms vs. a 100 ms goal) while the full e2e suite ran alongside (load average 15);
+-  server code, untouched here. Re-run alone: see the change log.
+-- Full e2e: see the change log.
++  server code, untouched here. Re-run alone (`node --test test/perf.test.js`): 3 pass, 0 fail.
++- Full e2e (`BETA_QA_DIST=dist-after node scripts/e2e.js`, after the first fix): 212/253 passed, 40 skipped
++  (the suites that read `dist/` directly), 1 failed: "Compstimate: T21 cold server" (app not ready after 30 s
++  on a cold server). It fails the same way with the base commit's app.js and styles.css, so it is not this lane.
+ - Screenshots (list scrolled to its end), `docs/screenshots/fix-company-scroll/`: `before-beta-844x390.png`
+   (stops at xAI, three companies and the Add button unreachable) vs. `after-beta-844x390.png` (Shield AI and
+   Add visible); same pairs at 320x568 and 390x844.
+ 
+ ## 6. Known gaps and follow-ups
+ - **Not verified in real WebKit or on an iPhone here** (the sandbox has Chromium only; `playwright install`
+-  is not allowed). `.github/workflows/mobile-webkit.yml` (workflow_dispatch) runs the same file under
++  is not allowed). `.github/workflows/webkit-phone.yml` (workflow_dispatch; its webkit job) runs the same file under
+   Playwright WebKit with the iPhone profile; the touch-swipe case skips there (no CDP; Playwright has no
+   touch-move API, and `mouse.wheel` is unsupported on mobile WebKit). A CI build has demo lists, so the
+   "saved searches overflow" case only notes when the list fits.
+@@ -112,4 +129,6 @@ bash scripts/cycle/shrink-screenshots.sh docs/screenshots/fix-company-scroll
+ ## 7. Change log
+ - 2026-10-11: prompt saved; failing tests committed first (e19d823).
+ - 2026-10-11: fix (0f1cb70): one scroller in phone sheets, `--vvt`, keyboard rules, no identical repaint.
+-- 2026-10-11: workflow, screenshots, this log.
++- 2026-10-11: workflow, screenshots, this log (075da3d).
++- 2026-10-11: lead follow-up (QA pass 2): M-29 focus, M-30 in-place "N new", M-31 empty message; QA's
++  beta-mobile-qa-2 tests and webkit-phone.yml adopted (my mobile-webkit.yml removed); mobile.md patch.
+diff --git a/docs/process/patches/fix-company-scroll-mobile-md.diff b/docs/process/patches/fix-company-scroll-mobile-md.diff
+new file mode 100644
+index 0000000..5666f7a
+--- /dev/null
++++ b/docs/process/patches/fix-company-scroll-mobile-md.diff
+@@ -0,0 +1,13 @@
++diff --git a/docs/process/mobile.md b/docs/process/mobile.md
++index 6b4f6ce..acb9505 100644
++--- a/docs/process/mobile.md
+++++ b/docs/process/mobile.md
++@@ -59,7 +59,7 @@ Files owned (mobile paths only):
++    - `body` is `100vh` with a `100dvh` fallback chain. The sheet is `top/bottom`-anchored, so it needs no vh.
++    - The half snap and popovers use dvh with a vh fallback.
++    - `env(safe-area-inset-*)` applies to the top bar, the left and right gutters (landscape notch), the sheet, the filters footer and the drawer footer.
++-   - `html { overscroll-behavior: none }` stops pull-to-refresh and bounce while dragging. Every scroller (cards, filters, popovers, drawer, Insights) gets `overscroll-behavior: contain` plus `-webkit-overflow-scrolling: touch`.
+++   - `html { overscroll-behavior: none }` stops pull-to-refresh and bounce while dragging. Every scroller (cards, filters, popovers, drawer, Insights) gets `overscroll-behavior: contain` plus `-webkit-overflow-scrolling: touch`, so a sheet must have exactly ONE scroll box: a contained inner box never hands a swipe to its scrolling parent, and its end is lost below a short sheet (fix-company-scroll: the company list fills the sheet under its pinned search; no inner `max-height` box on phones).
++ 10. **Keyboard.** iOS keeps the layout viewport when the keyboard opens, so fixed footers and bottom sheets end up under it. `visualViewport` sets `body.kb-open` and `--vvh`:
++     - bottom-sheet popovers move to the top and are capped at `--vvh`;
++     - the filters footer hides;
+diff --git a/public/app.js b/public/app.js
+index d340bd1..8a945c4 100644
+--- a/public/app.js
++++ b/public/app.js
+@@ -1513,8 +1513,20 @@ function makeCompanyMenu() {
+     // fix-company-scroll: syncPopover runs on every render (a beta board's live check settling, a saved
+     // board loading); rebuilding identical rows under a finger can cut a touch scroll short, so only a
+     // change repaints.
+-    const key = JSON.stringify([S.c, all.map((c) => [c.slug, c.name, c.custom, c.live, companyColor(c)]), saved.map((x) => [x.id, x.name, savedNewCount(x)])]);
+-    if (key === painted && list.childElementCount) return;
++    // M-30: a saved board loading changes only its "N new" badge, which is updated in place.
++    const key = JSON.stringify([S.c, all.map((c) => [c.slug, c.name, c.custom, c.live, companyColor(c)]), saved.map((x) => [x.id, x.name])]);
++    if (key === painted && list.childElementCount) {
++      for (const x of saved) {
++        const row = list.querySelector(`.saved-row[data-saved="${CSS.escape(String(x.id))}"] .company-item`);
++        if (!row) continue;
++        const n = savedNewCount(x);
++        let badge = row.querySelector('.saved-new');
++        if (!n) { badge?.remove(); continue; }
++        if (!badge) { badge = h('span', { class: 'saved-new' }); row.append(badge); }
++        if (badge.textContent !== `${n} new`) badge.textContent = `${n} new`;
++      }
++      return;
++    }
+     painted = key;
+     // D-25 / M-21: the beta site's big-tech boards (static `live: false`: their own careers sites) come
+     // first, under their own heading, instead of last below the fold; the main site keeps one list.
+@@ -1538,7 +1550,7 @@ function makeCompanyMenu() {
+     if (saved.length) {
+       list.prepend(group('Saved searches', saved.map((x) => {
+         const n = savedNewCount(x);
+-        return h('div', { class: 'saved-row' },
++        return h('div', { class: 'saved-row', dataset: { saved: String(x.id) } },
+           h('button', { type: 'button', class: 'company-item', title: x.name, onclick: () => openSaved(x) },
+             h('span', { class: 'saved-ico', html: ICON.bookmark }), h('span', { class: 'company-item-name' }, x.name),
+             n ? h('span', { class: 'saved-new' }, `${n} new`) : null),
+@@ -2344,6 +2356,12 @@ function togglePopover(id, anchor) {
+   syncPopover();
+   positionPopover();
+   for (const p of popover.parts) p.reveal?.();
++  // M-29: on a phone, focusing the company search would open the keyboard over the list on every open
++  // (Android); the current company (else the first row) takes focus instead.
++  if (id === 'company' && isMobile()) {
++    requestAnimationFrame(() => (el.querySelector('.company-list .company-item[aria-current="true"]') || el.querySelector('.company-list .company-item'))?.focus({ preventScroll: true }));
++    return;
++  }
+   requestAnimationFrame(() => [...el.querySelectorAll('.pop-body input:not([type=range]), .pop-body button.kw, .pop-body select, .pop-body .range, .pop-body button:not(.icon-btn), .pop-body label.check input')]
+     .find((x) => x.getClientRects().length && !x.closest('[hidden]'))?.focus({ preventScroll: true }));
+ }
+diff --git a/public/styles.css b/public/styles.css
+index 606fbeb..a9c66cd 100644
+--- a/public/styles.css
++++ b/public/styles.css
+@@ -1104,6 +1104,8 @@ html[data-mode="insights"] .viz-controls { display: none; }
+   .quiet-select { font-size: 14px; }
+   .quiet-select select { font-size: 16px; min-height: var(--m-row); padding: 0 22px 0 6px; }
+   .viz { border: 0; border-radius: 0; border-top: 1px solid var(--ms-border); }
++  /* M-31: the results sheet covers the chart's lower half at "half"; an empty chart says so near its top. */
++  #chartHost .ms-chart__empty { justify-content: flex-start; padding-top: 28px; }
+   #mapHost { touch-action: none; }                  /* one-finger pan and pinch belong to the map, never the page */
+   .insights-host { padding: 12px var(--m-gutter-r) 16px var(--m-gutter-l); overscroll-behavior: contain; }
+   html[data-mode="insights"] .viz-toolbar { display: none; }
+diff --git a/scripts/e2e.js b/scripts/e2e.js
+index c54b256..a2fbffb 100644
+--- a/scripts/e2e.js
++++ b/scripts/e2e.js
+@@ -16,6 +16,7 @@ import { registerFixEstimatesTests } from '../test/e2e/fix-estimates.e2e.js';
+ import { registerFixAppTests } from '../test/e2e/fix-app.e2e.js';
+ import { registerBetaDesktopQaTests } from '../test/e2e/beta-desktop-qa.e2e.js';
+ import { registerBetaMobileQaTests } from '../test/e2e/beta-mobile-qa.e2e.js';
++import { registerBetaMobileQa2Tests } from '../test/e2e/beta-mobile-qa-2.e2e.js';
+ import { registerFixPayDataTests } from '../test/e2e/fix-pay-data.e2e.js';
+ import { registerFixBetaAppTests } from '../test/e2e/fix-beta-app.e2e.js';
+ import { registerFix3AppTests } from '../test/e2e/fix3-app.e2e.js';
+@@ -64,6 +65,7 @@ if (!apiOnly) {
+   registerFixAppTests(suite);
+   registerBetaDesktopQaTests(suite);
+   registerBetaMobileQaTests(suite);
++  registerBetaMobileQa2Tests(suite);
+   registerFixPayDataTests(suite);
+   registerFixBetaAppTests(suite);
+   registerFix3AppTests(suite);
+diff --git a/test/e2e/beta-mobile-qa-2.e2e.js b/test/e2e/beta-mobile-qa-2.e2e.js
+new file mode 100644
+index 0000000..12ab71f
+--- /dev/null
++++ b/test/e2e/beta-mobile-qa-2.e2e.js
+@@ -0,0 +1,311 @@
++// Second mobile QA pass on the beta site (docs/QA.md "Full QA pass (mobile, beta) 2026-10-11",
++// docs/process/qa-mobile-beta-2.md). Top item: the user's report that the company list doesn't scroll properly on
++// the phone beta site, and the audit of every scrolling area that followed.
++//
++// The beta site is static only, so these tests serve a build (BETA_QA2_DIST, else BETA_QA_DIST, else dist/; `npm run
++// build` writes dist/beta/) under /melon-seek/ the way GitHub Pages does, and open /melon-seek/beta/. Every request
++// to another host is aborted.
++//
++// Engines. By default the tests use the suite's Chromium (ctx.browser). BETA_QA2_ENGINE=webkit makes each test
++// launch Playwright's WebKit itself (ctx.pw.webkit) with the same phone profile, for the WebKit workflow in
++// docs/process/patches/qa-mobile-beta-2-webkit.diff. Gestures:
++//   - Chromium: real touch, page.touchscreen.tap and CDP Input.dispatchTouchEvent for swipes;
++//   - WebKit: page.touchscreen.tap, and mouse.wheel at the same point in place of a swipe (Playwright has no
++//     touch-drag API outside Chromium). A wheel scrolls the innermost scroll box under the pointer and chains by the
++//     same overscroll-behavior rules as a touch pan, so the reachability checks mean the same thing; a real iOS
++//     swipe is the iOS Simulator job in that workflow.
++// Tests tagged "[M-n]" encode an open bug from that report and fail until it is fixed; the rest guard flows that
++// work today. Under WebKit, every test runs; none needs CDP. BETA_QA2_WHEEL=1 uses the WebKit gestures (wheel) in
++// Chromium too, to check that fallback here.
++import http from 'node:http';
++import fs from 'node:fs';
++import path from 'node:path';
++import zlib from 'node:zlib';
++import { ROOT, assert, assertEq, skip } from './harness.js';
++
++const SHOTS = path.join(ROOT, 'docs', 'screenshots', 'qa-mobile-beta-2');
++const ENGINE = (process.env.BETA_QA2_ENGINE || 'chromium').toLowerCase();
++const IOS = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1';
++const ANDROID = 'Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Mobile Safari/537.36';
++// Viewports. Emulated phones in Chromium have no browser toolbars, so a "390x844" phone shows 844 CSS px. Safari on an
++// iPhone 14 shows about 390x664 (bottom tab bar), an iPhone SE about 375x548.
++const PHONE = { width: 390, height: 844 };
++const SAFARI_14 = { width: 390, height: 664 };
++const SAFARI_SE = { width: 375, height: 548 };
++const LANDSCAPE = { width: 844, height: 390 };
++const SMALL = { width: 360, height: 640 };
++const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
++
++const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.csv': 'text/csv', '.txt': 'text/plain', '.woff2': 'font/woff2' };
++/** Serve the build under /melon-seek/ (gzip, like Pages); null when there is no beta build. */
++async function serveBeta() {
++  const dist = path.resolve(process.env.BETA_QA2_DIST || process.env.BETA_QA_DIST || path.join(ROOT, 'dist'));
++  if (!fs.existsSync(path.join(dist, 'beta', 'index.html')) || !fs.existsSync(path.join(dist, 'beta', 'api', 'jobs', 'apple.json'))) return null;
++  const server = http.createServer((req, res) => {
++    const u = new URL(req.url, 'http://x');
++    if (!u.pathname.startsWith('/melon-seek/')) { res.writeHead(302, { location: '/melon-seek/' }); return res.end(); }
++    let p = path.join(dist, decodeURIComponent(u.pathname.slice('/melon-seek/'.length)));
++    if (p !== dist && !p.startsWith(dist + path.sep)) { res.writeHead(403); return res.end(); }
++    if (fs.existsSync(p) && fs.statSync(p).isDirectory()) p = path.join(p, 'index.html');
++    if (!fs.existsSync(p)) { res.writeHead(404); return res.end(); }
++    const type = MIME[path.extname(p)] || 'application/octet-stream';
++    const body = fs.readFileSync(p);
++    if (/text|javascript|json|svg|csv/.test(type) && /gzip/.test(req.headers['accept-encoding'] || '')) {
++      res.writeHead(200, { 'content-type': type, 'content-encoding': 'gzip' });
++      return res.end(zlib.gzipSync(body));
++    }
++    res.writeHead(200, { 'content-type': type });
++    res.end(body);
++  });
++  await new Promise((r) => server.listen(0, '127.0.0.1', r));
++  const origin = `http://127.0.0.1:${server.address().port}`;
++  return { origin, base: `${origin}/melon-seek/`, close: () => new Promise((r) => server.close(r)) };
++}
++
++/** Simulated on-screen keyboard (the first pass's method): visualViewport.height shrinks while a text field has focus. */
++const KEYBOARD_INIT = (kb) => {
++  const desc = Object.getOwnPropertyDescriptor(VisualViewport.prototype, 'height');
++  Object.defineProperty(VisualViewport.prototype, 'height', {
++    configurable: true,
++    get() {
++      const a = document.activeElement;
++      const typing = a && a.matches && a.matches('input:not([type=checkbox]):not([type=radio]):not([type=range]), textarea');
++      return typing ? innerHeight - kb : desc.get.call(this);
++    },
++  });
++  const fire = () => setTimeout(() => visualViewport.dispatchEvent(new Event('resize')), 30);
++  document.addEventListener('focusin', fire);
++  document.addEventListener('focusout', fire);
++};
++/** Saved searches in this browser (the format app.js saveSearch() writes), so the menu lists them above the companies. */
++const SAVED_INIT = (n) => {
++  try {
++    const now = new Date(Date.now() - 3 * 864e5).toISOString();
++    const pick = [['Google · Software engineering', 'c=google&rf=swe'], ['NVIDIA · Senior', 'c=nvidia&s=Senior'], ['Microsoft · Remote', 'c=microsoft&r=remote'], ['Netflix', 'c=netflix'], ['Apple · Hardware', 'c=apple&d=Hardware']];
++    localStorage.setItem('melon.saved', JSON.stringify(Array.from({ length: n }, (_, i) => ({ id: `qa${i}`, name: pick[i % pick.length][0], hash: pick[i % pick.length][1], channel: 'beta', createdAt: now, lastSeenAt: now }))));
++  } catch { /* storage blocked */ }
++};
++
++async function newBrowser(ctx) {
++  if (ENGINE !== 'webkit') return ctx.browser;
++  if (!ctx.pw?.webkit) skip('BETA_QA2_ENGINE=webkit but Playwright has no WebKit');
++  const b = await ctx.pw.webkit.launch();
++  ctx.cleanup.push(() => b.close());
++  return b;
++}
++
++async function openBeta(ctx, { hash = 'c=apple', site = 'beta/', viewport = PHONE, ua = IOS, colorScheme = 'light', keyboard = 0, saved = 0, wait = true, slowOthers = 0 } = {}) {
++  const st = await serveBeta();
++  if (!st) skip('no beta build (npm run build writes dist/beta/)');
++  ctx.cleanup.push(() => st.close());
++  const browser = await newBrowser(ctx);
++  const context = await browser.newContext({ viewport, userAgent: ua, isMobile: true, hasTouch: true, deviceScaleFactor: 3, colorScheme });
++  ctx.cleanup.push(() => context.close());
++  await context.route((u) => u.origin !== st.origin, (r) => r.abort('blockedbyclient'));
++  // slowOthers: other boards' job lists arrive this many ms late, as on a phone's 4G (the open board is not slowed).
++  const own = new URLSearchParams(hash).get('c');
++  if (slowOthers) await context.route((u) => /\/api\/jobs\/[^/]+\.json$/.test(u.pathname) && !u.pathname.endsWith(`/${own}.json`), async (r) => { await sleep(slowOthers); return r.continue(); });
++  if (keyboard) await context.addInitScript(KEYBOARD_INIT, keyboard);
++  if (saved) await context.addInitScript(SAVED_INIT, saved);
++  const page = await context.newPage();
++  const errors = [];
++  page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
++  let cdp = null;
++  if (ENGINE !== 'webkit' && !process.env.BETA_QA2_WHEEL) { try { cdp = await context.newCDPSession(page); } catch { cdp = null; } }
++  await page.goto(`${st.base}${site}${hash ? `#${hash}` : ''}`);
++  if (wait) {
++    await page.waitForSelector('#resultsList .card[data-id]', { timeout: 90000 });
++    await sleep(800);
++  }
++  return { page, cdp, errors };
++}
++
++/** A vertical swipe from y0 to y1 at x: real touch in Chromium, a wheel at the start point elsewhere. */
++async function swipe(page, cdp, x, y0, y1, { steps = 10, stepMs = 16, rest = 120 } = {}) {
++  if (cdp) {
++    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y: y0, id: 1 }] });
++    for (let i = 1; i <= steps; i++) {
++      await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x, y: y0 + ((y1 - y0) * i) / steps, id: 1 }] });
++      if (stepMs) await sleep(stepMs);
++    }
++    if (rest) await sleep(rest);
++    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
++  } else {
++    await page.mouse.move(x, y0);
++    for (let i = 0; i < steps; i++) { await page.mouse.wheel(0, (y0 - y1) / steps); await sleep(stepMs); }
++  }
++  await sleep(450);
++}
++async function tapBox(page, b, wait = 450) {
++  await page.touchscreen.tap(b.x + b.width / 2, b.y + b.height / 2);
++  await sleep(wait);
++}
++async function tapSel(page, sel, wait = 450) {
++  const b = await page.locator(sel).first().boundingBox();
++  assert(b, `${sel} has no box`);
++  await tapBox(page, b, wait);
++}
++async function shot(page, name) {
++  fs.mkdirSync(SHOTS, { recursive: true });
++  try { await page.screenshot({ path: path.join(SHOTS, `${name}.png`), timeout: 15000 }); } catch { /* evidence only */ }
++}
++const drawKeyboard = (page, h) => page.evaluate((h) => {
++  const k = document.createElement('div');
++  k.style.cssText = `position:fixed;left:0;right:0;bottom:0;height:${h}px;background:rgba(60,60,67,.82);z-index:99999;pointer-events:none`;
++  document.body.append(k);
++}, h);
++
++/** The company menu sheet: its body, its list, both scroll offsets, and how much of the last company is visible. */
++const menuGeom = (page) => page.evaluate(() => {
++  const pop = document.querySelector('#popover'), body = pop.querySelector('.pop-body'), list = pop.querySelector('.company-list');
++  const items = [...list.querySelectorAll('.company-item')];
++  const last = items[items.length - 1];
++  const bottomEdge = visualViewport.height;
++  const seen = (e) => {
++    const r = e.getBoundingClientRect(), lr = list.getBoundingClientRect(), br = body.getBoundingClientRect();
++    const top = Math.max(r.top, lr.top, br.top, 0), bottom = Math.min(r.bottom, lr.bottom, br.bottom, bottomEdge);
++    return Math.max(0, bottom - top) / r.height;
++  };
++  const R = (e) => { const r = e.getBoundingClientRect(); return [Math.round(r.top), Math.round(r.bottom)]; };
++  return {
++    body: R(body), list: R(list), vvh: Math.round(bottomEdge),
++    bodyScroll: [Math.round(body.scrollTop), body.scrollHeight - body.clientHeight],
++    listScroll: [Math.round(list.scrollTop), list.scrollHeight - list.clientHeight],
++    last: last?.querySelector('.company-item-name')?.textContent, lastSeen: last ? Math.round(seen(last) * 100) / 100 : 0,
++    fullRows: items.filter((i) => seen(i) > 0.99).length, rows: items.length,
++  };
++});
++/** Swipe up on the visible part of the company rows until nothing moves (at most `max` swipes). */
++async function swipeMenuToEnd(page, cdp, max = 8) {
++  let g = await menuGeom(page);
++  const x = page.viewportSize().width / 2;
++  for (let i = 0; i < max; i++) {
++    const top = Math.max(g.list[0], g.body[0]), bottom = Math.min(g.list[1], g.body[1], g.vvh);
++    if (bottom - top < 24) break;
++    await swipe(page, cdp, x, top + (bottom - top) * 0.85, top + (bottom - top) * 0.15);
++    const n = await menuGeom(page);
++    const same = n.listScroll[0] === g.listScroll[0] && n.bodyScroll[0] === g.bodyScroll[0];
++    g = n;
++    if (same) break;
++  }
++  return g;
++}
++
++export function registerBetaMobileQa2Tests(suite) {
++  /* ------------------------------------------------------------------ guards (pass today) */
++
++  suite.test('Beta mobile QA 2: portrait phones (390x844, Safari 390x664): a swipe on the company rows brings the last company fully into view, and nothing behind the sheet moves', async (ctx) => {
++    const problems = [];
++    for (const viewport of [PHONE, SAFARI_14]) {
++      const { page, cdp } = await openBeta(ctx, { viewport });
++      await tapSel(page, '#companyMenuBtn', 900);
++      const g = await swipeMenuToEnd(page, cdp);
++      const behind = await page.evaluate(() => [scrollX, scrollY, Math.round(document.querySelector('#chartHost .ms-chart__scroll')?.scrollTop || 0)]);
++      if (g.lastSeen < 0.99) problems.push(`${viewport.width}x${viewport.height}: ${g.last} ${Math.round(g.lastSeen * 100)}% visible after swiping (list ${g.listScroll}, sheet body ${g.bodyScroll})`);
++      if (behind.some(Boolean)) problems.push(`${viewport.width}x${viewport.height}: the page or the chart behind moved (${behind})`);
++      await page.context().close();
++    }
++    assertEq(problems.join('; '), '', 'company list in portrait');
++  });
++
++  suite.test('Beta mobile QA 2: every other phone scroll area reaches its end with the page still (results list at full, filter sheet, More sheet, job page, Insights)', async (ctx) => {
++    const { page, cdp } = await openBeta(ctx, { hash: 'c=apple' });
++    const x = 195;
++    const run = async (label, sel, open, close) => {
++      await open();
++      await sleep(400);
++      const el = page.locator(sel).first();
++      const b = await el.boundingBox();
++      assert(b, `${label}: ${sel} not on screen`);
++      const top = Math.max(0, b.y), bottom = Math.min(b.y + b.height, 844);
++      let prev = -1;
++      for (let i = 0; i < 14; i++) {
++        await swipe(page, cdp, x, top + (bottom - top) * 0.8, top + (bottom - top) * 0.2, { steps: 8, stepMs: 12, rest: 60 });
++        const s = await el.evaluate((e) => [Math.round(e.scrollTop), e.scrollHeight - e.clientHeight]);
++        if (s[0] >= s[1] - 1 || s[0] === prev) break;
++        prev = s[0];
++      }
++      const s = await el.evaluate((e) => [Math.round(e.scrollTop), e.scrollHeight - e.clientHeight]);
++      const pageAt = await page.evaluate(() => [scrollX, scrollY]);
++      assert(s[0] > 0, `${label}: did not scroll (${s})`);
++      assertEq(JSON.stringify(pageAt), '[0,0]', `${label}: page scroll`);
++      await close();
++    };
++    await run('filter sheet', '#filterBody', () => tapSel(page, '#filtersToggle', 900), () => tapSel(page, '#filtersClose', 600));
++    await run('More sheet', '#popover .pop-body', async () => {
++      await page.evaluate(() => document.querySelector('#quickChips [data-pop=more]').scrollIntoView({ inline: 'center' }));
++      await sleep(300);
++      await tapSel(page, '#quickChips [data-pop=more]', 900);
++    }, () => tapSel(page, '#popover .pop-head .icon-btn', 500));
++    await run('job page', '#drawer .drawer-scroll', async () => {
++      await tapSel(page, '#sheetHandle', 600);
++      await tapSel(page, '#resultsList .card[data-id]', 1500);
++    }, () => tapSel(page, '#drawerClose', 700));
++    await run('results list (full sheet)', '#resultsList', async () => {
++      for (let i = 0; i < 3 && (await page.evaluate(() => document.body.dataset.sheet)) !== 'full'; i++) await tapSel(page, '#sheetHandle', 500);
++    }, () => tapSel(page, '#sheetHandle', 600));
++    await run('Insights', '#insightsHost', () => tapSel(page, '.topbar .seg [data-mode=insights]', 3000), () => tapSel(page, '.topbar .seg [data-mode=chart]', 1000));
++  });
++
++  /* ------------------------------------------------------------- open bugs (fail today) */
++
++  suite.test('Beta mobile QA 2: [M-28] where the sheet is shorter than the company list (landscape, iPhone SE Safari, keyboard up), a swipe on the rows still reaches the last company', async (ctx) => {
++    const cases = [
++      { name: 'landscape 844x390', viewport: LANDSCAPE },
++      { name: 'iPhone SE Safari 375x548', viewport: SAFARI_SE },
++      { name: '360x640 with the keyboard up (300 px)', viewport: SMALL, ua: ANDROID, keyboard: 300 },
++      { name: 'landscape 844x390 with 5 saved searches', viewport: LANDSCAPE, saved: 5 },
++    ];
++    const problems = [];
++    for (const c of cases) {
++      const { page, cdp } = await openBeta(ctx, { viewport: c.viewport, ua: c.ua || IOS, keyboard: c.keyboard || 0, saved: c.saved || 0 });
++      await tapSel(page, '#companyMenuBtn', 900);
++      if (c.keyboard) { await tapSel(page, '#popover input.fsearch', 900); }
++      const g = await swipeMenuToEnd(page, cdp);
++      if (c.keyboard) await drawKeyboard(page, c.keyboard);
++      await shot(page, `e2e-M-28-${c.name.replace(/\W+/g, '-')}`);
++      if (g.lastSeen < 0.99) problems.push(`${c.name}: after swiping the rows to the end, ${g.last} is ${Math.round(g.lastSeen * 100)}% visible (list ${g.listScroll[0]}/${g.listScroll[1]} px, sheet body ${g.bodyScroll[0]}/${g.bodyScroll[1]} px, list box ${g.list} under a sheet body ${g.body})`);
++      await page.context().close();
++    }
++    assertEq(problems.join(' | '), '', 'company list reachability');
++  });
++
++  suite.test('Beta mobile QA 2: [M-29] opening the company menu on a phone does not put focus in its search box (no keyboard over the list)', async (ctx) => {
++    const { page } = await openBeta(ctx, { ua: ANDROID });
++    await tapSel(page, '#companyMenuBtn', 900);
++    const a = await page.evaluate(() => { const e = document.activeElement; return { tag: e.tagName, type: e.type || '', cls: e.className, label: e.getAttribute('aria-label') || '' }; });
++    await shot(page, 'e2e-M-29-company-menu-focus');
++    assert(!(a.tag === 'INPUT' && /^(search|text)$/.test(a.type)), `focus went to the ${a.type} field "${a.label}" (.${a.cls}); on Android Chrome that opens the keyboard over the list on every open`);
++  });
++
++  suite.test('Beta mobile QA 2: [M-30] the open company menu keeps its rows while saved searches load (no rebuild under the finger)', async (ctx) => {
++    // Each saved search's board loads when the menu opens (app.js prefetchSaved); on a phone's 4G that takes seconds.
++    const { page } = await openBeta(ctx, { saved: 4, slowOthers: 1500 });
++    await tapSel(page, '#companyMenuBtn', 0);
++    await page.waitForSelector('#popover .company-item');
++    await page.evaluate(() => {
++      window.__qaRows = [...document.querySelectorAll('#popover .company-list .company-item')];
++      window.__qaRebuilds = 0;
++      new MutationObserver(() => { window.__qaRebuilds++; }).observe(document.querySelector('#popover .company-list'), { childList: true });
++    });
++    await sleep(6000);
++    await shot(page, 'e2e-M-30-saved-searches-loaded');
++    const r = await page.evaluate(() => ({ rebuilds: window.__qaRebuilds, replaced: window.__qaRows.filter((e) => !e.isConnected).length, rows: window.__qaRows.length, saved: document.querySelectorAll('#popover .saved-row').length }));
++    assert(r.saved >= 4, `the menu lists ${r.saved} saved searches (expected 4)`);
++    assertEq(r.replaced, 0, `${r.replaced} of ${r.rows} company rows were replaced by new nodes while the menu stayed open (${r.rebuilds} list rebuilds); a tap that began on an old row can be lost (iOS Safari cancels a tap whose node left the page)`);
++  });
++
++  suite.test('Beta mobile QA 2: [M-31] with the results sheet at half, the chart\'s empty message ("No pay posted for Zurich") stays in the visible part of the chart', async (ctx) => {
++    const { page } = await openBeta(ctx, { hash: 'c=google&l=Zurich' });
++    await page.waitForSelector('#chartHost .ms-chart__empty:not([hidden])', { timeout: 30000 });
++    await tapSel(page, '#sheetHandle', 900);
++    const g = await page.evaluate(() => {
++      const t = document.querySelector('#chartHost .ms-chart__empty-title');
++      const r = t.getBoundingClientRect(), s = document.querySelector('#results').getBoundingClientRect();
++      return { text: t.textContent, bottom: Math.round(r.bottom), sheetTop: Math.round(s.top), sheet: document.body.dataset.sheet };
++    });
++    await shot(page, 'e2e-M-31-empty-message-half-sheet');
++    assertEq(g.sheet, 'half', 'sheet state');
++    assert(g.bottom <= g.sheetTop, `"${g.text}" ends at ${g.bottom}px, under the half sheet (top ${g.sheetTop}px): the visible chart is blank`);
++  });
++}
+diff --git a/test/e2e/fix-company-scroll.e2e.js b/test/e2e/fix-company-scroll.e2e.js
+index 48c2568..22b239a 100644
+--- a/test/e2e/fix-company-scroll.e2e.js
++++ b/test/e2e/fix-company-scroll.e2e.js
+@@ -10,7 +10,7 @@
+ //
+ // These tests serve the static build (BETA_QA_DIST or dist/) under /melon-seek/ and skip without a beta
+ // build. Every case uses only standard Playwright APIs and runs under any engine, except the touch-swipe
+-// test, which needs Chromium's CDP. Run alone under WebKit (the mobile-webkit workflow):
++// test, which needs Chromium's CDP. Run alone under WebKit (the webkit job of .github/workflows/webkit-phone.yml):
+ //   node test/e2e/fix-company-scroll.e2e.js --browser=webkit
+ import http from 'node:http';
+ import fs from 'node:fs';
+diff --git a/test/e2e/webkit/ios-sim-menu.mjs b/test/e2e/webkit/ios-sim-menu.mjs
+new file mode 100644
+index 0000000..730ee80
+--- /dev/null
++++ b/test/e2e/webkit/ios-sim-menu.mjs
+@@ -0,0 +1,152 @@
++#!/usr/bin/env node
++// iOS Simulator Safari check of the phone company menu (docs/process/qa-mobile-beta-2.md, M-28 to M-30), for the
++// macOS job of .github/workflows/webkit-phone.yml. Needs Xcode (xcrun simctl) and idb (`idb ui tap|swipe`).
++//
++//   node test/e2e/webkit/ios-sim-menu.mjs --dist dist --out ios-sim [--devices "iPhone 16,iPhone SE (3rd generation)"]
++//
++// For each device it boots a simulator, opens /melon-seek/beta/#c=apple in Safari and then, with real touch input:
++//   1. taps the company menu button (a real tap, so it also shows whether opening it brings up the keyboard: M-29);
++//   2. swipes up on the company rows 6 times;
++//   3. taps the search box (the real on-screen keyboard opens) and swipes the rows 6 times again.
++// Screenshots go to <out>/<device>-<step>.png, every measurement to <out>/<device>.json, and one line per step to
++// <out>/result.txt. A step fails when the last company ("Shield AI") is not fully visible after the swipes, or when
++// the sheet sits outside the visible area with the keyboard up. The page itself is the build, unchanged; the
++// server adds test/e2e/webkit/qa-probe.js to beta/index.html so the page can report its geometry.
++import http from 'node:http';
++import fs from 'node:fs';
++import path from 'node:path';
++import { execFileSync } from 'node:child_process';
++import { fileURLToPath } from 'node:url';
++
++const HERE = path.dirname(fileURLToPath(import.meta.url));
++const arg = (n, d) => { const i = process.argv.indexOf(`--${n}`); return i > 0 ? process.argv[i + 1] : d; };
++const DIST = path.resolve(arg('dist', 'dist'));
++const OUT = path.resolve(arg('out', 'ios-sim'));
++const DEVICES = (arg('devices', process.env.IOS_DEVICES || 'iPhone 16,iPhone SE (3rd generation)')).split(',').map((s) => s.trim()).filter(Boolean);
++const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
++fs.mkdirSync(OUT, { recursive: true });
++const results = [];
++const say = (line) => { console.log(line); results.push(line); fs.writeFileSync(path.join(OUT, 'result.txt'), results.join('\n') + '\n'); };
++
++/* ---------------------------------------------------------------- server: the build plus the probe */
++const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.csv': 'text/csv', '.woff2': 'font/woff2' };
++let log = [];
++let cmd = { id: 0 };
++const server = http.createServer((req, res) => {
++  const u = new URL(req.url, 'http://x');
++  if (u.pathname === '/qa-log' && req.method === 'POST') {
++    let b = ''; req.on('data', (c) => { b += c; }); req.on('end', () => { try { log.push(JSON.parse(b)); } catch { /* ignore */ } res.end('ok'); });
++    return;
++  }
++  if (u.pathname === '/qa-cmd') { res.setHeader('content-type', 'application/json'); return res.end(JSON.stringify(cmd.id > Number(u.searchParams.get('after') || 0) ? cmd : {})); }
++  if (u.pathname === '/melon-seek/qa-probe.js') { res.setHeader('content-type', 'text/javascript'); return res.end(fs.readFileSync(path.join(HERE, 'qa-probe.js'))); }
++  if (!u.pathname.startsWith('/melon-seek/')) { res.writeHead(302, { location: '/melon-seek/' }); return res.end(); }
++  let p = path.join(DIST, decodeURIComponent(u.pathname.slice('/melon-seek/'.length)));
++  if (!p.startsWith(DIST)) { res.writeHead(403); return res.end(); }
++  if (fs.existsSync(p) && fs.statSync(p).isDirectory()) p = path.join(p, 'index.html');
++  if (!fs.existsSync(p)) { res.writeHead(404); return res.end(); }
++  let body = fs.readFileSync(p);
++  if (p === path.join(DIST, 'beta', 'index.html')) body = Buffer.from(String(body).replace('</body>', '<script src="/melon-seek/qa-probe.js"></script></body>'));
++  res.writeHead(200, { 'content-type': MIME[path.extname(p)] || 'application/octet-stream', 'cache-control': 'no-store' });
++  res.end(body);
++});
++await new Promise((r) => server.listen(0, '127.0.0.1', r));
++const ORIGIN = `http://127.0.0.1:${server.address().port}`;
++console.log(`serving ${DIST} at ${ORIGIN}/melon-seek/`);
++
++const sh = (cmdName, args) => execFileSync(cmdName, args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] });
++const waitFor = async (pred, ms = 30000) => { const t0 = Date.now(); for (;;) { const hit = log.slice().reverse().find(pred); if (hit) return hit; if (Date.now() - t0 > ms) return null; await sleep(250); } };
++const send = (name) => { cmd = { id: cmd.id + 1, name }; };
++
++function udidFor(name) {
++  const all = JSON.parse(sh('xcrun', ['simctl', 'list', 'devices', 'available', '-j'])).devices;
++  for (const list of Object.values(all)) for (const d of list) if (d.name === name) return d.udid;
++  const type = JSON.parse(sh('xcrun', ['simctl', 'list', 'devicetypes', '-j'])).devicetypes.find((t) => t.name === name);
++  if (!type) throw new Error(`no simulator device type "${name}"`);
++  const runtime = JSON.parse(sh('xcrun', ['simctl', 'list', 'runtimes', '-j'])).runtimes.filter((r) => r.isAvailable && /iOS/.test(r.name)).pop();
++  return sh('xcrun', ['simctl', 'create', `qa-${name}`, type.identifier, runtime.identifier]).trim();
++}
++
++let failed = 0;
++for (const device of DEVICES) {
++  const tag = device.replace(/\W+/g, '-').replace(/-+$/, '');
++  const measures = [];
++  let udid;
++  try {
++    udid = udidFor(device);
++    try { sh('xcrun', ['simctl', 'boot', udid]); } catch { /* already booted */ }
++    sh('xcrun', ['simctl', 'bootstatus', udid, '-b']);
++    const idb = (...a) => sh('idb', ['ui', ...a, '--udid', udid]);
++    const snap = (step) => { try { sh('xcrun', ['simctl', 'io', udid, 'screenshot', path.join(OUT, `${tag}-${step}.png`)]); } catch (e) { console.log('screenshot failed', e.message); } };
++    log = [];
++    sh('xcrun', ['simctl', 'openurl', udid, `${ORIGIN}/melon-seek/beta/#c=apple`]);
++    const ready = await waitFor((e) => e.kind === 'ready', 120000);
++    if (!ready) throw new Error('the page never showed a card (no "ready" from the probe)');
++    measures.push(ready);
++    await sleep(1500);
++    snap('1-landing');
++    // 1. a real tap on the company menu button. The page fills the screen (viewport-fit=cover), so CSS px are points;
++    // the probe's touchstart gives the exact offset, and the tap is repeated once if it missed.
++    const [bl, bt, br, bb] = ready.data.btn;
++    let off = { x: 0, y: 0 };
++    let tapAt = { x: (bl + br) / 2, y: (bt + bb) / 2 };
++    for (let attempt = 0; attempt < 2; attempt++) {
++      log = log.filter((e) => e.kind !== 'touch' && e.kind !== 'geom');
++      idb('tap', String(Math.round(tapAt.x)), String(Math.round(tapAt.y)));
++      const t = await waitFor((e) => e.kind === 'touch', 5000);
++      if (t) off = { x: tapAt.x - t.data.x, y: tapAt.y - t.data.y };
++      const g0 = await waitFor((e) => e.kind === 'geom', 5000);
++      if (g0?.data?.open) break;
++      // Missed: aim again with the offset the probe measured from this tap.
++      tapAt = { x: (bl + br) / 2 + off.x, y: (bt + bb) / 2 + off.y };
++      await sleep(800);
++    }
++    let g = (await waitFor((e) => e.kind === 'geom', 5000))?.data;
++    if (!g?.open) { send('open-menu'); await sleep(1500); g = (await waitFor((e) => e.kind === 'geom' && e.data.open, 5000))?.data; say(`${device}: the real tap missed the menu button; opened it from the page instead`); }
++    measures.push({ step: 'menu-open', off, g });
++    snap('2-menu-open');
++    say(`${device}: menu open: focus "${g?.focus}", keyboard ${g?.kbOpen ? 'UP' : 'down'} (visual viewport ${g?.vv}), ${g?.fullRows?.length} rows fully visible`);
++    // 2. and 3.: swipe the rows, before and after the keyboard opens
++    const swipeRows = async (label) => {
++      let cur = g;
++      for (let i = 0; i < 6; i++) {
++        const top = Math.max(cur.list[1], cur.body[1], cur.vv ? cur.vv[0] : 0), bottom = Math.min(cur.list[3], cur.body[3], cur.vv ? cur.vv[0] + cur.vv[1] : 9999);
++        if (bottom - top < 24) break;
++        const x = (cur.list[0] + cur.list[2]) / 2 + off.x;
++        log = log.filter((e) => e.kind !== 'geom');
++        idb('swipe', String(Math.round(x)), String(Math.round(top + (bottom - top) * 0.85 + off.y)), String(Math.round(x)), String(Math.round(top + (bottom - top) * 0.15 + off.y)), '--duration', '0.35');
++        cur = (await waitFor((e) => e.kind === 'geom', 5000))?.data || cur;
++        measures.push({ step: `${label}-swipe-${i + 1}`, g: cur });
++      }
++      return cur;
++    };
++    const a = await swipeRows('rows');
++    snap('3-menu-swiped');
++    const passA = a.lastSeen >= 0.99;
++    if (!passA) failed++;
++    say(`${device}: ${passA ? 'PASS' : 'FAIL'} swipes on the rows: ${a.last} ${Math.round(a.lastSeen * 100)}% visible (list ${a.listScroll}, sheet body ${a.bodyScroll}, page ${a.page})`);
++    // the keyboard: a real tap on the search box
++    log = log.filter((e) => e.kind !== 'geom');
++    idb('tap', String(Math.round((a.search[0] + a.search[2]) / 2 + off.x)), String(Math.round((a.search[1] + a.search[3]) / 2 + off.y)));
++    await sleep(2000);
++    g = (await waitFor((e) => e.kind === 'geom', 5000))?.data || a;
++    measures.push({ step: 'keyboard', g });
++    snap('4-keyboard');
++    const sheetVisible = !g.vv || (g.pop[1] >= g.vv[0] - 1 && g.pop[3] <= g.vv[0] + g.vv[1] + 1);
++    if (!sheetVisible) failed++;
++    say(`${device}: ${sheetVisible ? 'PASS' : 'FAIL'} keyboard up: sheet ${g.pop[1]}-${g.pop[3]} in a visual viewport from ${g.vv?.[0]} tall ${g.vv?.[1]}, ${g.fullRows?.length} rows fully visible`);
++    const b = await swipeRows('keyboard');
++    snap('5-keyboard-swiped');
++    const passB = b.lastSeen >= 0.99;
++    if (!passB) failed++;
++    say(`${device}: ${passB ? 'PASS' : 'FAIL'} keyboard up, swipes on the rows: ${b.last} ${Math.round(b.lastSeen * 100)}% visible (list ${b.listScroll}, sheet body ${b.bodyScroll})`);
++  } catch (e) {
++    failed++;
++    say(`${device}: ERROR ${e.message}`);
++  } finally {
++    fs.writeFileSync(path.join(OUT, `${tag}.json`), JSON.stringify({ device, udid, measures, log }, null, 1));
++    if (udid) { try { sh('xcrun', ['simctl', 'shutdown', udid]); } catch { /* ignore */ } }
++  }
++}
++server.close();
++process.exit(failed ? 1 : 0);
+diff --git a/test/e2e/webkit/qa-probe.js b/test/e2e/webkit/qa-probe.js
+new file mode 100644
+index 0000000..d3e71d0
+--- /dev/null
++++ b/test/e2e/webkit/qa-probe.js
+@@ -0,0 +1,52 @@
++// In-page probe for the iOS Simulator job (test/e2e/webkit/ios-sim-menu.mjs). The driver's server adds it to
++// /melon-seek/beta/index.html only; it is never part of a build. It reports to the driver with same-origin fetches:
++//   - every touchstart's client point (the driver calibrates screen points to CSS px with one tap);
++//   - after each touch ends, the company menu's geometry (as test/e2e/beta-mobile-qa-2.e2e.js menuGeom measures it);
++//   - it runs the driver's commands ("open-menu", "close-menu", "reset") polled from /qa-cmd.
++(function () {
++  const post = (kind, data) => fetch('/qa-log', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ kind, data, t: Date.now() }) }).catch(() => {});
++  const geom = () => {
++    const pop = document.querySelector('#popover');
++    if (!pop || pop.hidden) return { open: false };
++    const body = pop.querySelector('.pop-body'), list = pop.querySelector('.company-list');
++    if (!list) return { open: true, list: null };
++    const items = [...list.querySelectorAll('.company-item')];
++    const last = items[items.length - 1];
++    const vv = window.visualViewport;
++    const edge = vv ? vv.height + vv.offsetTop : innerHeight;
++    const seen = (e) => {
++      const r = e.getBoundingClientRect(), lr = list.getBoundingClientRect(), br = body.getBoundingClientRect();
++      const top = Math.max(r.top, lr.top, br.top, vv ? vv.offsetTop : 0), bottom = Math.min(r.bottom, lr.bottom, br.bottom, edge);
++      return Math.max(0, bottom - top) / r.height;
++    };
++    const R = (e) => { const r = e.getBoundingClientRect(); return [Math.round(r.left), Math.round(r.top), Math.round(r.right), Math.round(r.bottom)]; };
++    return {
++      open: true, pop: R(pop), body: R(body), list: R(list), search: R(pop.querySelector('input.fsearch')),
++      vv: vv ? [Math.round(vv.offsetTop), Math.round(vv.height)] : null, inner: [innerWidth, innerHeight], page: [scrollX, scrollY],
++      bodyScroll: [Math.round(body.scrollTop), body.scrollHeight - body.clientHeight],
++      listScroll: [Math.round(list.scrollTop), list.scrollHeight - list.clientHeight],
++      last: last && last.querySelector('.company-item-name').textContent, lastSeen: last ? Math.round(seen(last) * 100) / 100 : 0,
++      fullRows: items.filter((i) => seen(i) > 0.99).map((i) => i.querySelector('.company-item-name').textContent),
++      focus: document.activeElement && (document.activeElement.className || document.activeElement.tagName),
++      kbOpen: document.body.classList.contains('kb-open'),
++    };
++  };
++  addEventListener('touchstart', (e) => { const t = e.touches[0]; post('touch', { x: t.clientX, y: t.clientY }); }, { passive: true, capture: true });
++  addEventListener('touchend', () => setTimeout(() => post('geom', geom()), 900), { passive: true, capture: true });
++  const ready = setInterval(() => {
++    if (document.querySelector('#resultsList .card[data-id]')) { clearInterval(ready); const b = document.querySelector('#companyMenuBtn').getBoundingClientRect(); post('ready', { btn: [b.left, b.top, b.right, b.bottom].map(Math.round), ua: navigator.userAgent, inner: [innerWidth, innerHeight], dpr: devicePixelRatio, screen: [screen.width, screen.height] }); }
++  }, 300);
++  let seq = 0;
++  setInterval(async () => {
++    try {
++      const r = await fetch(`/qa-cmd?after=${seq}`);
++      const cmd = await r.json();
++      if (!cmd || !cmd.id) return;
++      seq = cmd.id;
++      if (cmd.name === 'open-menu') { if (document.querySelector('#popover').hidden) document.querySelector('#companyMenuBtn').click(); }
++      if (cmd.name === 'close-menu') { const x = document.querySelector('#popover .pop-head .icon-btn'); if (x) x.click(); }
++      if (cmd.name === 'blur') document.activeElement && document.activeElement.blur();
++      setTimeout(() => post('geom', geom()), 900);
++    } catch { /* driver gone */ }
++  }, 400);
++})();
+-- 
+2.43.0
+

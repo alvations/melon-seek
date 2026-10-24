@@ -1,0 +1,446 @@
+From 875537322966480ac03be027c68e646a9679a1a2 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sun, 11 Oct 2026 13:55:57 +0000
+Subject: [PATCH 04/10] Tests: an incremental crawl equals a full crawl for
+ every adapter
+
+Synthetic boards from the recorded fixtures for Apple, Google, Microsoft, NVIDIA, Netflix,
+Meta, Amazon, Greenhouse, Ashby and Lever: unchanged, edited, new and closed postings give
+the same snapshot and ledger, every posting is accounted for, detail requests drop to the
+new and changed ones; silent edits are caught by the spread refresh age.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+---
+ test/incremental-boards.js           | 264 +++++++++++++++++++++++++++
+ test/incremental-equivalence.test.js | 147 +++++++++++++++
+ 2 files changed, 411 insertions(+)
+ create mode 100644 test/incremental-boards.js
+ create mode 100644 test/incremental-equivalence.test.js
+
+diff --git a/test/incremental-boards.js b/test/incremental-boards.js
+new file mode 100644
+index 0000000..dd52d8b
+--- /dev/null
++++ b/test/incremental-boards.js
+@@ -0,0 +1,264 @@
++// Synthetic boards for the incremental-crawl tests (test/incremental-*.test.js): one mutable
++// model per adapter, built from the recorded fixtures (test/fixtures/bigtech-*.json and the
++// stable boards' fixtures), served by a fetch stand-in that counts list and detail requests.
++// No network: installFetch throws on any URL no board serves.
++//
++//   const b = BOARDS.microsoft(20);   b.add(); b.editVisible(id); b.editSilent(id); b.close(id)
++//   b.handler(url, init) -> Response | null;  b.counts = { list, detail, probe }
++//   b.shortList = n   lists n fewer postings than the board's count (a partial list)
++import fs from 'node:fs';
++import path from 'node:path';
++import { fileURLToPath } from 'node:url';
++import { amazonRows, amazonSite, metaRecords, metaPageHtml } from './amazon-meta-synth.js';
++
++const FIX = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures');
++const fixture = (name) => JSON.parse(fs.readFileSync(path.join(FIX, name), 'utf8'));
++const clone = (o) => JSON.parse(JSON.stringify(o));
++const json = (obj, status = 200, headers = {}) => new Response(JSON.stringify(obj), { status, headers: { 'content-type': 'application/json', ...headers } });
++const text = (s, status = 200, type = 'text/plain', headers = {}) => new Response(s, { status, headers: { 'content-type': type, ...headers } });
++const EIGHTFOLD_ROBOTS = 'User-agent: *\nDisallow: /\nAllow: /careers\nAllow: /api/apply\nAllow: /api/pcsx\n';
++
++/** The shared model: ordered ids -> { row, detail }, edits and closures. */
++function model(make, { visible, silent }) {
++  const items = new Map();
++  let next = 0;
++  const m = {
++    items, counts: { list: 0, detail: 0, probe: 0 }, shortList: 0, absentButOpen: new Set(),
++    add() { const i = next++; const it = make(i); items.set(String(it.id), it); return String(it.id); },
++    editVisible(id) { visible(items.get(String(id)), next++); },
++    editSilent(id) { silent(items.get(String(id)), next++); },
++    close(id) { items.delete(String(id)); },
++    ids() { return [...items.keys()]; },
++    /** Listed items: all, minus `shortList` from the end and minus absentButOpen (still served). */
++    listed() { const l = [...items.values()].filter((it) => !m.absentButOpen.has(String(it.id))); return m.shortList ? l.slice(0, Math.max(0, l.length - m.shortList)) : l; },
++    reset() { m.counts = { list: 0, detail: 0, probe: 0 }; },
++  };
++  return m;
++}
++
++/* -------------------------------------------------------------- Eightfold */
++
++function eightfold(host, rec, api, n) {
++  const pcsx = api === 'pcsx';
++  const DETAIL_KEYS = pcsx ? ['jobDescription', 'publicUrl', 'efcustomTextWorkSite', 'efcustomTextRequiredTravel', 'efcustomTextCurrentProfession', 'efcustomTextTaDisciplineName', 'efcustomTextRoletype', 'efcustomTextEmploymentType'] : ['job_description', 'custom_JD'];
++  const base = clone(rec);
++  const desc = pcsx ? 'jobDescription' : 'job_description';
++  const make = (i) => {
++    const id = 7000000 + i;
++    const row = { ...base, id, name: `${base.name} ${i}`, ...(pcsx ? { postedTs: 1791500000 + i, displayJobId: String(500000 + i) } : { t_update: 1791500000 + i, display_job_id: `JR${500000 + i}` }) };
++    for (const k of DETAIL_KEYS) delete row[k];
++    if (!pcsx) row[desc] = '';
++    const detail = { ...base, id, name: row.name, [desc]: `<p>Role ${i}.</p>${base[desc]}` };
++    return { id, row, detail };
++  };
++  const m = model(make, {
++    visible: (it, k) => { it.row.name += ` v${k}`; it.detail.name = it.row.name; if (pcsx) it.row.postedTs += 1000; else it.row.t_update += 1000; it.detail[desc] = `<p>Edited ${k}.</p>${it.detail[desc]}`; },
++    silent: (it, k) => { it.detail[desc] = `<p>Silently edited ${k}.</p>${it.detail[desc]}`; },
++  });
++  for (let i = 0; i < n; i++) m.add();
++  m.handler = (url) => {
++    const u = new URL(url);
++    if (u.host !== host) return null;
++    if (u.pathname === '/robots.txt') return text(EIGHTFOLD_ROBOTS);
++    const listPath = pcsx ? '/api/pcsx/search' : '/api/apply/v2/jobs';
++    if (u.pathname === listPath) {
++      m.counts.list++;
++      const start = Number(u.searchParams.get('start')) || 0;
++      const rows = m.listed().slice(start, start + 10).map((it) => clone(it.row));
++      const count = m.items.size;
++      return json(pcsx ? { status: 200, data: { count, positions: rows } } : { count, positions: rows });
++    }
++    const id = pcsx && u.pathname === '/api/pcsx/position_details' ? u.searchParams.get('position_id') : (/^\/api\/apply\/v2\/jobs\/(\d+)$/.exec(u.pathname) || [])[1];
++    if (id) {
++      const it = m.items.get(String(id));
++      if (m.probing) m.counts.probe++; else m.counts.detail++;
++      if (!it) return json({ status: 404, error: 'not found' }, 404);
++      return json(pcsx ? { status: 200, data: clone(it.detail) } : clone(it.detail));
++    }
++    return text('no', 404);
++  };
++  return m;
++}
++
++/* ------------------------------------------------------------------ Apple */
++
++function apple(n) {
++  const recs = fixture('bigtech-apple.json').records;
++  const us = recs.find((r) => r.detail && /between \$/.test(JSON.stringify(r.detail.postingFooters || '')));
++  const make = (i) => {
++    const req = String(200700000 + i);
++    const id = `${req}-0157`;
++    const row = { ...clone(us.row), id, positionId: req, postingTitle: `${us.row.postingTitle} ${i}`, transformedPostingTitle: `role-${i}` };
++    const detail = { ...clone(us.detail), id, jobNumber: req, postingTitle: row.postingTitle, description: `Role ${i}. ${us.detail.description || ''}` };
++    return { id, row, detail };
++  };
++  const m = model(make, {
++    visible: (it, k) => { it.row.postingTitle += ` v${k}`; it.detail.postingTitle = it.row.postingTitle; it.detail.description = `Edited ${k}. ${it.detail.description}`; },
++    silent: (it, k) => { it.detail.description = `Silently edited ${k}. ${it.detail.description}`; },
++  });
++  for (let i = 0; i < n; i++) m.add();
++  m.handler = (url, init) => {
++    const u = new URL(url);
++    if (u.host === 'jobs.apple.com' && u.pathname === '/robots.txt') return new Response('Moved', { status: 301, headers: { location: 'https://apple.com/pagenotfound' } });
++    if (u.host === 'apple.com') return text('<html>not found</html>', 404, 'text/html');
++    if (u.host !== 'jobs.apple.com') return null;
++    if (u.pathname === '/api/v1/search') {
++      m.counts.list++;
++      const page = JSON.parse(init.body).page;
++      const rows = m.listed().slice((page - 1) * 20, page * 20).map((it) => clone(it.row));
++      return json({ res: { searchResults: rows, totalRecords: m.items.size } });
++    }
++    if (u.pathname.startsWith('/api/v1/jobDetails/')) {
++      const id = decodeURIComponent(u.pathname.split('/').pop());
++      if (m.probing) m.counts.probe++; else m.counts.detail++;
++      const it = m.items.get(id);
++      return it ? json({ res: clone(it.detail) }) : json({ error: 'not found' }, 404);
++    }
++    return text('no', 404);
++  };
++  return m;
++}
++
++/* ----------------------------------------------------------------- Google */
++
++function google(n) {
++  const { records } = fixture('bigtech-google.json');
++  const tpl = records.find((r) => /salary range|\$\d/.test(JSON.stringify(r[10] || ''))) || records[0];
++  const slugOf = (t) => t.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
++  const make = (i) => {
++    const id = String(90000000000000000n + BigInt(i));
++    const rec = clone(tpl);
++    rec[0] = id;
++    rec[1] = `${tpl[1]} ${i}`;
++    return { id, row: { lastmod: '2026-10-01' }, detail: rec };
++  };
++  const m = model(make, {
++    visible: (it, k) => { it.row.lastmod = `2026-10-${String(10 + (k % 18)).padStart(2, '0')}`; it.detail[1] += ` v${k}`; },
++    silent: (it, k) => { it.detail[10] = [null, `<p>Silently edited ${k}.</p>${(it.detail[10] || [])[1] || ''}`]; },
++  });
++  for (let i = 0; i < n; i++) m.add();
++  m.handler = (url, init) => {
++    const u = new URL(url);
++    if (u.host !== 'www.google.com') return null;
++    if (u.pathname === '/robots.txt') return text('User-agent: *\nDisallow: /about/careers/applications/jobs/results/?page=\n');
++    if (u.pathname.endsWith('/jobs/sitemap.xml')) {
++      m.counts.list++;
++      const urls = m.listed().map((it) => `<url><loc>https://careers.google.com/jobs/results/${it.id}-${slugOf(it.detail[1])}/</loc><lastmod>${it.row.lastmod}</lastmod></url>`).join('');
++      return text(`<?xml version="1.0"?><urlset>${urls}</urlset>`, 200, 'text/xml');
++    }
++    if (u.pathname.endsWith('/batchexecute')) {
++      m.counts.detail++;
++      const id = JSON.parse(JSON.parse(decodeURIComponent(String(init.body).slice(6)))[0][0][1])[0];
++      const it = m.items.get(id);
++      return text(`)]}'\n\n${JSON.stringify([['wrb.fr', 'sf9Qmf', JSON.stringify(it ? [clone(it.detail)] : [null]), null, null, null, 'generic']])}`, 200, 'application/json');
++    }
++    return text('no', 404);
++  };
++  return m;
++}
++
++/* ------------------------------------------------------------------- Meta */
++
++function meta(n) {
++  const recs = metaRecords({ total: n + 200, seed: 3, ldOnly: 0 });
++  let k0 = 0;
++  const make = () => {
++    const p = clone(recs[k0++]);
++    return { id: p.id, row: { lastmod: '2026-10-01T00:00:00Z' }, detail: p };
++  };
++  const m = model(make, {
++    visible: (it, k) => { it.row.lastmod = `2026-10-${String(10 + (k % 18)).padStart(2, '0')}T00:00:00Z`; it.detail.title += ` v${k}`; it.detail.ld.title = it.detail.title; },
++    silent: (it, k) => { it.detail.description_html = `<p>Silently edited ${k}.</p>${it.detail.description_html}`; },
++  });
++  for (let i = 0; i < n; i++) m.add();
++  m.withLastmod = true;
++  m.handler = (url) => {
++    const u = new URL(url);
++    if (u.host !== 'www.metacareers.com') return null;
++    if (u.pathname === '/robots.txt') return text('User-agent: *\nDisallow: /ajax/\nDisallow: /login/\n');
++    if (u.pathname === '/jobsearch/sitemap.xml') {
++      m.counts.list++;
++      const urls = m.listed().map((it) => `<url><loc>https://www.metacareers.com/profile/job_details/${it.id}/</loc>${m.withLastmod ? `<lastmod>${it.row.lastmod}</lastmod>` : ''}</url>`).join('');
++      return text(`<urlset>${urls}</urlset>`, 200, 'text/xml');
++    }
++    const id = (/^\/profile\/job_details\/(\d+)\/$/.exec(u.pathname) || [])[1];
++    if (id) {
++      m.counts.detail++;
++      const it = m.items.get(id);
++      return it ? text(metaPageHtml(it.detail), 200, 'text/html') : text('<html>gone</html>', 404, 'text/html');
++    }
++    return text('no', 404);
++  };
++  return m;
++}
++
++/* ----------------------------------------------------------------- Amazon */
++
++function amazon(n) {
++  const all = amazonRows({ total: n + 100, seed: 4 });
++  const rows = all.slice(0, n);
++  const spare = all.slice(n);
++  const site = amazonSite(rows);
++  const m = {
++    rows, counts: { list: 0, detail: 0, probe: 0 },
++    add() { const r = spare.shift(); rows.push(r); return String(r.id_icims); },
++    editVisible(id) { const r = rows.find((x) => String(x.id_icims) === String(id)); r.title += ' II'; r.description = `Edited. ${r.description}`; },
++    editSilent(id) { m.editVisible(id); },
++    close(id) { const i = rows.findIndex((x) => String(x.id_icims) === String(id)); rows.splice(i, 1); },
++    ids() { return rows.map((r) => String(r.id_icims)); },
++    reset() { m.counts = { list: 0, detail: 0, probe: 0 }; },
++    handler(url, init) {
++      const u = new URL(url);
++      if (u.host === 'www.amazon.jobs' && u.pathname.startsWith('/en/jobs/')) {
++        m.counts.probe++;
++        const id = u.pathname.split('/').pop();
++        return rows.some((r) => String(r.id_icims) === id) ? text('', 200, 'text/html') : text('', 404, 'text/html');
++      }
++      const r = site(url, init);
++      if (r && u.pathname === '/en/search.json') m.counts.list++;
++      return r;
++    },
++  };
++  return m;
++}
++
++/* ------------------------------------------------------- stable (list-only) */
++
++function listOnly({ host, pathRe, file, pick, wrap, idKey, edit }) {
++  const tpl = pick(fixture(file));
++  const make = (i) => { const r = clone(tpl[i % tpl.length]); r[idKey] = typeof r[idKey] === 'number' ? 4000000 + i : `${String(r[idKey]).slice(0, -6)}${String(100000 + i)}`; if ('isListed' in r) r.isListed = true; return { id: r[idKey], row: r, detail: null }; };
++  const m = model(make, { visible: (it, k) => edit(it.row, k), silent: (it, k) => edit(it.row, k) });
++  m.handler = (url) => {
++    const u = new URL(url);
++    if (u.host !== host || !pathRe.test(u.pathname)) return null;
++    m.counts.list++;
++    return json(wrap(m.listed().map((it) => clone(it.row))));
++  };
++  return m;
++}
++
++export const BOARDS = {
++  microsoft: (n) => eightfold('apply.careers.microsoft.com', fixture('bigtech-microsoft.json').records[0], 'pcsx', n),
++  nvidia: (n) => eightfold('jobs.nvidia.com', fixture('bigtech-nvidia.json').records[0], 'pcsx', n),
++  netflix: (n) => eightfold('explore.jobs.netflix.net', fixture('bigtech-netflix.json').records[0], 'classic', n),
++  apple,
++  google,
++  meta,
++  amazon,
++  anthropic: (n) => { const m = listOnly({ host: 'boards-api.greenhouse.io', pathRe: /\/v1\/boards\/anthropic\/jobs$/, file: 'greenhouse-jobs.json', pick: (f) => f.jobs, wrap: (jobs) => ({ jobs, meta: { total: jobs.length } }), idKey: 'id', edit: (r, k) => { r.title += ` v${k}`; r.updated_at = `2026-10-${String(10 + (k % 18)).padStart(2, '0')}T00:00:00Z`; } }); for (let i = 0; i < n; i++) m.add(); return m; },
++  openai: (n) => { const m = listOnly({ host: 'api.ashbyhq.com', pathRe: /\/posting-api\/job-board\/openai$/, file: 'ashby-board.json', pick: (f) => f.jobs, wrap: (jobs) => ({ apiVersion: '1', jobs }), idKey: 'id', edit: (r, k) => { r.title += ` v${k}`; } }); for (let i = 0; i < n; i++) m.add(); return m; },
++  palantir: (n) => { const m = listOnly({ host: 'api.lever.co', pathRe: /\/v0\/postings\/palantir$/, file: 'lever-postings.json', pick: (f) => f, wrap: (jobs) => jobs, idKey: 'id', edit: (r, k) => { r.text += ` v${k}`; } }); for (let i = 0; i < n; i++) m.add(); return m; },
++};
++
++/** Detail boards (the delta applies); the rest are list-only. */
++export const DETAIL_BOARDS = ['apple', 'google', 'microsoft', 'nvidia', 'netflix', 'meta'];
++
++/** Replace globalThis.fetch with these boards. Returns { restore() }. */
++export function serve(...boards) {
++  const real = globalThis.fetch;
++  globalThis.fetch = async (url, init) => {
++    for (const b of boards) { const r = b.handler(String(url), init); if (r) return r; }
++    throw new TypeError(`fetch failed: no network in this test (${url})`);
++  };
++  return { restore: () => { globalThis.fetch = real; } };
++}
+diff --git a/test/incremental-equivalence.test.js b/test/incremental-equivalence.test.js
+new file mode 100644
+index 0000000..bb857b6
+--- /dev/null
++++ b/test/incremental-equivalence.test.js
+@@ -0,0 +1,147 @@
++// Incremental crawl == full crawl, for EVERY adapter (docs/ARCHITECTURE.md "Incremental crawl").
++// On a synthetic board built from the recorded fixtures (test/incremental-boards.js):
++//   run 1  a full crawl (no state) writes the snapshot and the crawl state;
++//   then   the board changes: postings edited (visibly in the list), added and closed;
++//   run 2  an incremental crawl with run 1's state;
++//   run 3  a full crawl of the same board with no state.
++// Run 2's snapshot equals run 3's (every field but fetchedAt and the crawl summary), the
++// ledgers agree, every posting is accounted for, and run 2 makes fewer detail requests.
++import { test, afterEach } from 'node:test';
++import assert from 'node:assert/strict';
++import fs from 'node:fs';
++import os from 'node:os';
++import path from 'node:path';
++import { runSnapshot } from '../scripts/snapshot.js';
++import { setMinInterval, resetRateLimits, resetRobots } from '../server/sources/polite.js';
++import { BOARDS, DETAIL_BOARDS, serve } from './incremental-boards.js';
++
++afterEach(() => { setMinInterval(null); resetRateLimits(); resetRobots(); });
++
++const T0 = Date.parse('2026-10-11T06:00:00Z');
++const at = (h) => new Date(T0 + h * 3600e3).toISOString();
++const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'melon-incr-'));
++const read = (f) => JSON.parse(fs.readFileSync(f, 'utf8'));
++
++/** One crawl of `slug` into its own folders; returns { snap, ledger, result }. */
++export async function crawlOnce(slug, { dir, stateDir, when, full = false, refreshDays, probeLimit }) {
++  const outDir = path.join(dir, 'snap');
++  const historyDir = path.join(dir, 'hist');
++  const errors = [];
++  const crawl = { ...(full ? { full } : {}), ...(refreshDays != null ? { refreshDays } : {}), ...(probeLimit != null ? { probeLimit } : {}) };
++  const r = await runSnapshot([slug], { outDir, historyDir, crawlStateDir: stateDir, crawl, now: () => when, log: () => {}, error: (m) => errors.push(m), parallelBeta: false });
++  assert.equal(r.failed, 0, `${slug}: ${errors.join('; ')} ${JSON.stringify(r.results)}`);
++  return { snap: read(path.join(outDir, `${slug}.json`)), ledger: read(path.join(historyDir, `${slug}.json`)), result: r.results[0] };
++}
++
++const strip = ({ fetchedAt, crawl, ...rest }) => rest;
++const N = 24;
++
++for (const slug of Object.keys(BOARDS)) {
++  test(`${slug}: an incremental crawl gives the same snapshot and ledger as a full crawl (unchanged, edited, new, closed)`, async () => {
++    setMinInterval(0);
++    const board = BOARDS[slug](N);
++    const net = serve(board);
++    try {
++      const inc = tmp();
++      const full = tmp();
++      const stateInc = path.join(inc, 'state');
++      // Run 1 (both folders see the same first run, so the ledgers start equal).
++      const first = await crawlOnce(slug, { dir: inc, stateDir: stateInc, when: at(0) });
++      await crawlOnce(slug, { dir: full, stateDir: null, when: at(0) });
++      assert.deepEqual(first.snap.crawl.postings, { new: N, changed: 0, unchanged: 0, absent: 0 }, 'first run: every posting new');
++      assert.ok(fs.existsSync(path.join(stateInc, `${slug}.json.gz`)), 'crawl state written');
++      // The board changes.
++      const ids = board.ids();
++      board.editVisible(ids[1]);
++      board.editVisible(ids[5]);
++      board.close(ids[3]);
++      board.close(ids[8]);
++      const added = [board.add(), board.add(), board.add()];
++      // Run 2: incremental. Run 3: full, same board, same time.
++      board.reset();
++      const two = await crawlOnce(slug, { dir: inc, stateDir: stateInc, when: at(6) });
++      const incCounts = { ...board.counts };
++      board.reset();
++      const three = await crawlOnce(slug, { dir: full, stateDir: null, when: at(6) });
++      const fullCounts = { ...board.counts };
++
++      assert.deepEqual(strip(two.snap), strip(three.snap), 'incremental snapshot == full crawl snapshot');
++      assert.deepEqual(two.ledger, three.ledger, 'the ledgers record the same');
++      // Every posting accounted for.
++      const pc = two.snap.crawl.postings;
++      assert.equal(pc.new, added.length, `new: ${JSON.stringify(pc)}`);
++      assert.equal(pc.absent, 2, 'closed postings are absent');
++      assert.ok(pc.changed >= 2, 'edited postings changed');
++      assert.equal(pc.new + pc.changed + pc.unchanged, N + added.length - 2);
++      for (const id of [ids[3], ids[8]]) {
++        const e = two.ledger.jobs[`${slug}:${id}`];
++        assert.ok(e && e.c === at(6) && e.x === 'absent', `${id} closed as absent from a complete list: ${JSON.stringify(e)}`);
++      }
++      if (DETAIL_BOARDS.includes(slug)) {
++        assert.equal(two.snap.crawl.mode, 'incremental');
++        assert.equal(three.snap.crawl.mode, 'full');
++        // Only the new and the visibly edited postings cost a detail request.
++        assert.equal(incCounts.detail, added.length + 2, `incremental detail requests: ${incCounts.detail} (full: ${fullCounts.detail})`);
++        assert.equal(fullCounts.detail, N + added.length - 2);
++        assert.equal(two.snap.crawl.reused, N - 2 - 2);
++        assert.ok(two.snap.crawl.detailsVerifiedSince <= at(6));
++      } else {
++        assert.equal(two.snap.crawl.mode, 'list-only', 'a list-only board is fetched in full, and says so');
++        assert.match(two.snap.crawl.why, /list-only board/);
++        assert.equal(incCounts.list, fullCounts.list);
++      }
++    } finally { net.restore(); }
++  });
++}
++
++for (const slug of DETAIL_BOARDS) {
++  test(`${slug}: a silent edit (detail only) is caught by the refresh age, then the crawls agree again`, async () => {
++    setMinInterval(0);
++    const board = BOARDS[slug](12);
++    const net = serve(board);
++    try {
++      const inc = tmp();
++      const full = tmp();
++      const state = path.join(inc, 'state');
++      await crawlOnce(slug, { dir: inc, stateDir: state, when: at(0), refreshDays: 4 });
++      await crawlOnce(slug, { dir: full, stateDir: null, when: at(0) });
++      board.editSilent(board.ids()[2]);
++      // Within the refresh age: the list cannot show it, so nothing is fetched.
++      board.reset();
++      const soon = await crawlOnce(slug, { dir: inc, stateDir: state, when: at(6), refreshDays: 4 });
++      assert.equal(board.counts.detail, 0, 'nothing to fetch within the refresh age');
++      assert.equal(soon.snap.crawl.reused, 12);
++      // Past the refresh age (4 days at most): every detail re-fetched, the edit is in.
++      board.reset();
++      const later = await crawlOnce(slug, { dir: inc, stateDir: state, when: at(4 * 24 + 1), refreshDays: 4 });
++      assert.equal(board.counts.detail, 12);
++      const ref = await crawlOnce(slug, { dir: full, stateDir: null, when: at(4 * 24 + 1) });
++      assert.deepEqual(later.snap.jobs, ref.snap.jobs);
++      // Spread: within [days/2, days] some, not all, are due.
++      board.reset();
++      await crawlOnce(slug, { dir: inc, stateDir: state, when: at(4 * 24 + 1 + 3 * 24), refreshDays: 4 });
++      assert.ok(board.counts.detail > 0 && board.counts.detail < 12, `refreshes spread over the window (${board.counts.detail} of 12 due)`);
++    } finally { net.restore(); }
++  });
++}
++
++test('full_crawl (MELON_FULL_CRAWL) ignores the state once; a state from another adapter version means a full crawl', async () => {
++  setMinInterval(0);
++  const board = BOARDS.microsoft(10);
++  const net = serve(board);
++  try {
++    const dir = tmp();
++    const state = path.join(dir, 'state');
++    await crawlOnce('microsoft', { dir, stateDir: state, when: at(0) });
++    board.reset();
++    const forced = await crawlOnce('microsoft', { dir, stateDir: state, when: at(1), full: true });
++    assert.equal(board.counts.detail, 10);
++    assert.equal(forced.snap.crawl.mode, 'full');
++    assert.match(forced.snap.crawl.why, /full crawl requested/);
++    // No state at all (an expired artifact): full, and says why.
++    board.reset();
++    const none = await crawlOnce('microsoft', { dir, stateDir: path.join(dir, 'empty'), when: at(2) });
++    assert.equal(board.counts.detail, 10);
++    assert.match(none.snap.crawl.why, /no previous crawl state/);
++  } finally { net.restore(); }
++});
+-- 
+2.43.0
+

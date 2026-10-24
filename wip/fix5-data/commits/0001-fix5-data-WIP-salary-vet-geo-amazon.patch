@@ -1,0 +1,527 @@
+From 8bada3dc50258dbe702431fe1ae23162a70fcfa0 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sun, 11 Oct 2026 22:01:26 +0000
+Subject: [PATCH 1/4] fix5-data: WIP salary, vet, geo, amazon
+
+---
+ server/geo.js            |  11 +++
+ server/salary.js         |  78 +++++++++++++++----
+ server/sources/amazon.js | 158 ++++++++++++++++++++++++++++++++++-----
+ server/vet.js            |  29 +++++--
+ 4 files changed, 237 insertions(+), 39 deletions(-)
+
+diff --git a/server/geo.js b/server/geo.js
+index ed6f613..1c7381b 100644
+--- a/server/geo.js
++++ b/server/geo.js
+@@ -147,6 +147,8 @@ RO|Romania|45.94|24.97|RO
+ BG|Bulgaria|42.73|25.49|BG
+ RS|Serbia|44.02|21.01|RS
+ HR|Croatia|45.10|15.20|
++SK|Slovakia|48.67|19.70|Slovak Republic
++SI|Slovenia|46.15|14.99|
+ GR|Greece|39.07|21.82|GR
+ TR|Turkey|38.96|35.24|Türkiye;Turkiye;TR
+ UA|Ukraine|48.38|31.17|UA
+@@ -423,6 +425,7 @@ Naples||IT|40.8518|14.2681|Napoli;Marcianise;Campania, Italy
+ Vienna||AT|48.2082|16.3738|Wien
+ Linz||AT|48.3069|14.2858|
+ Prague||CZ|50.0755|14.4378|Praha
++Bratislava||SK|48.1486|17.1077|
+ Warsaw||PL|52.2297|21.0122|Warszawa
+ Krakow||PL|50.0647|19.9450|Kraków
+ Stockholm||SE|59.3293|18.0686|
+@@ -562,6 +565,10 @@ for (const line of OTHER_REGIONS_RAW.trim().split('\n')) {
+ 
+ const COUNTRIES = new Map(); // key -> country
+ const COUNTRY_BY_CODE = new Map();
++// DQ-40 (fix wave 5): ISO 3166 alpha-3 codes as Amazon writes them at the end of a place
++// ("Bratislava, Bratislavský kraj, SVK", "Enns, Upper Austria, AUT"). Read only when written in
++// capitals (a lower-case "can" or "per" is a word, not a country).
++const ISO3_TO_ISO2 = Object.freeze(Object.fromEntries(`USA US|CAN CA|MEX MX|CRI CR|BRA BR|ARG AR|CHL CL|COL CO|PER PE|URY UY|GBR GB|IRL IE|FRA FR|DEU DE|NLD NL|BEL BE|LUX LU|CHE CH|AUT AT|ITA IT|ESP ES|PRT PT|SWE SE|NOR NO|DNK DK|FIN FI|ISL IS|EST EE|LVA LV|LTU LT|POL PL|CZE CZ|HUN HU|ROU RO|BGR BG|SRB RS|HRV HR|SVK SK|SVN SI|GRC GR|TUR TR|UKR UA|ARM AM|ISR IL|KWT KW|ARE AE|SAU SA|QAT QA|EGY EG|NGA NG|GHA GH|KEN KE|ZAF ZA|IND IN|PAK PK|JPN JP|KOR KR|CHN CN|HKG HK|MAC MO|TWN TW|SGP SG|MYS MY|IDN ID|PHL PH|THA TH|VNM VN|AUS AU|NZL NZ`.split('|').map((x) => x.split(' '))));
+ for (const line of COUNTRIES_RAW.trim().split('\n')) {
+   const [code, name, lat, lng, aliases] = line.split('|');
+   const c = { code, name, lat: +lat, lng: +lng };
+@@ -619,6 +626,10 @@ function regionInfo(token) {
+     const s = STATES.get(key);
+     return { kind: 'state', region: s.abbr, country: 'US', lat: s.lat, lng: s.lng };
+   }
++  if (/^[A-Z]{3}$/.test(compact) && ISO3_TO_ISO2[compact] && COUNTRY_BY_CODE.has(ISO3_TO_ISO2[compact])) {
++    const c = COUNTRY_BY_CODE.get(ISO3_TO_ISO2[compact]);
++    return { kind: 'country', region: null, country: c.code, lat: c.lat, lng: c.lng };
++  }
+   if (COUNTRIES.has(key)) {
+     // A bare 2-letter alias like "us" only counts when written in caps.
+     if (key.length === 2 && !/^[A-Z]{2}$/.test(compact)) return null;
+diff --git a/server/salary.js b/server/salary.js
+index 8a462b2..7fcdf7e 100644
+--- a/server/salary.js
++++ b/server/salary.js
+@@ -42,7 +42,24 @@
+ export const SALES_CONDITIONAL_RE = /\b(?:for|in|on)\s+(?:sales|commissioned|quota[- ]carrying|commission[- ]eligible)\s+roles\b/i;
+ 
+ export const MIN_ANNUAL = 10000;            // annualized floor for any salary
+-export const MAX_ANNUAL = 1_200_000;        // text candidates above this are not pay (= vet.js bound)
++// Fix wave 5 (VT-10, lead decision under "present them as they are"): real posted ranges such as
++// Netflix's L7 "$737,000.00 - $1,430,000.00" are shown; the gate study (data/vetting/2026-10-11-beta-2,
++// gate-study.mjs) still catches the $4.6M, $5M and $1.56M misreads at $1.5M.
++export const MAX_ANNUAL = 1_500_000;        // text candidates above this are not pay (= vet.js bound)
++/**
++ * VT-14 (fix wave 5): the legal full-time minimum, per year in the local currency, for a currency
++ * whose national minimum wage is below MIN_ANNUAL (US$10,000). A salary at or above it is real pay
++ * even though it is under MIN_ANNUAL in dollars. Mexico: the 2026 general-zone minimum wage,
++ * MXN 315.04 a day (CONASAMI resolution of 2025-12-03, in force 2026-01-01; EY Law Flash
++ * "Incremento salarios mínimos 2026"), x 365 = MXN 114,990 (about US$6,600).
++ */
++export const LEGAL_MIN_ANNUAL = Object.freeze({ MXN: 114_990 });
++/** True when an annual amount in `cur` is at or above the parser's floor (MIN_ANNUAL in USD, or the legal minimum). */
++export function meetsAnnualFloor(annual, cur) {
++  const c = String(cur || 'USD').toUpperCase();
++  if (usdOr(annual, c) >= MIN_ANNUAL) return true;
++  return LEGAL_MIN_ANNUAL[c] > 0 && Number(annual) >= LEGAL_MIN_ANNUAL[c];
++}
+ export const HARD_MAX_ANNUAL = 5_000_000;   // toJobSalary refuses above this; between the two the vetting gate quarantines
+ const PLAUSIBLE_ANNUAL_MIN = 15000;
+ const TIER_GAP = 130;                       // max chars between tiers of one list
+@@ -110,7 +127,7 @@ export function toUSD(amount, currency) {
+   const r = USD_PER[String(currency || 'USD').toUpperCase()];
+   return r && Number.isFinite(amount) ? amount * r : null;
+ }
+-const usdOr = (n, cur) => toUSD(n, cur) ?? n;
++function usdOr(n, cur) { return toUSD(n, cur) ?? n; }
+ 
+ export const COUNTRY_CURRENCY = Object.freeze({
+   US: 'USD', CA: 'CAD', GB: 'GBP', UK: 'GBP', CH: 'CHF', JP: 'JPY', KR: 'KRW', IN: 'INR', SG: 'SGD', AU: 'AUD',
+@@ -234,22 +251,27 @@ const US_RANGE_RE = /\b(?:US|U\.S\.)\s+(?:base\s+)?(?:salary|pay|compensation|wa
+  * A symbol several currencies share, with no code next to it, takes the job's currency:
+  *   - "$" in a posting whose locations are all in Canada is CAD unless the text says USD
+  *     (D-22, DQ-14: Google "$150000 - $153000" in Waterloo, Netflix "$135,000.00 -
+- *     185,000.00" in Toronto). Everywhere else a bare "$" stays USD.
++ *     185,000.00" in Toronto). Fix wave 5 (DQ-35, VT-14): the same for the other dollar and
++ *     peso countries, DOLLAR_COUNTRY (Mexico MXN: Amazon's "Monthly Salary: $12,569" in a
++ *     Remote, Mexico posting; Australia, New Zealand, Singapore, Hong Kong). Everywhere else a
++ *     bare "$" stays USD (xAI's "$" in Dublin is USD, as the vetting reviewed it).
+  *   - "kr" / "kr." is SEK, NOK or DKK by the job's country ("kr" SEK and "kr." DKK when
+  *     no Nordic country is listed).
+  */
++export const DOLLAR_COUNTRY = Object.freeze({ CA: 'CAD', MX: 'MXN', AU: 'AUD', NZ: 'NZD', SG: 'SGD', HK: 'HKD' });
+ function resolveWeakCurrencies(toks, text, countries) {
+   const cs = (countries || []).map((c) => String(c || '').toUpperCase()).filter(Boolean);
+-  const canadaOnly = cs.length > 0 && cs.every((c) => c === 'CA');
++  // The one dollar (or peso) country every location is in, or null.
++  const only = cs.length > 0 && cs.every((c) => c === cs[0]) ? DOLLAR_COUNTRY[cs[0]] || null : null;
+   for (const t of toks) {
+     if (!t.sym) continue;
+     if (t.sym === '$') {
+       // "The text says USD" in the amount's own sentence or heading, or on a "US:" line
+       // (a posting's "USD technology" or "Pixar's USD" elsewhere is not about pay).
+-      if (canadaOnly) {
++      if (only) {
+         const cl = clauseSpan(text, t.start, t.end);
+         const near = `${cl.heading}\n${text.slice(Math.max(cl.start, t.start - CLAUSE_REACH), Math.min(cl.end, t.end + CLAUSE_REACH))}`;
+-        if (!USD_MENTION_RE.test(near) && !US_RANGE_RE.test(near) && lineCountry(text, t.start) !== 'US') t.currency = 'CAD';
++        if (!USD_MENTION_RE.test(near) && !US_RANGE_RE.test(near) && lineCountry(text, t.start) !== 'US') t.currency = only;
+       }
+       continue;
+     }
+@@ -337,6 +359,22 @@ function totalCompBefore(before) {
+   const i = before.search(TOTAL_COMP_RE);
+   return i >= 0 && !/\bbase\s+(?:pay|salary)\b/i.test(before.slice(i));
+ }
++/**
++ * VT-7 (fix wave 5, lead decision): NVIDIA's sales postings say "Your cash compensation will be
++ * determined … with 85% paid through base salary and 15% variable compensation. The cash
++ * compensation range is 200,000 USD - 300,000 USD." That range is base plus variable pay at
++ * target: on-target earnings (kind 'ote'), shown and labelled, no longer hidden. A "total
++ * compensation" range (bonus, equity) is still not pay.
++ */
++export const CASH_COMP_SPLIT_RE = /\b\d{1,3}\s?%\s+paid\s+through\s+base\s+salary\s+and\s+\d{1,3}\s?%\s+variable\s+comp(?:ensation)?\b/i;
++const CASH_COMP_ONLY_RE = /\b(?:target\s+)?cash\s+comp(?:ensation)?\b/i;
++/** The phrase before the amount is a cash compensation range that the posting splits into base and variable (VT-7). */
++function cashCompOteBefore(before, text) {
++  const i = before.search(TOTAL_COMP_RE);
++  if (i < 0) return false;
++  const phrase = TOTAL_COMP_RE.exec(before.slice(i));
++  return !!phrase && CASH_COMP_ONLY_RE.test(phrase[0]) && !/\btotal\b/i.test(phrase[0]) && CASH_COMP_SPLIT_RE.test(text);
++}
+ // "$141,000-$202,000 + bonus + equity + benefits" (Google, Meta), "US: $300000 -
+ // $333000 (USD) + 25% bonus target + equity + benefits": a base range with the
+ // extras named after it. This is pay context, and the bonus is not the amount.
+@@ -622,7 +660,8 @@ export function isPartTimeRole({ title = '', employmentType = '' } = {}) {
+ // Weekly hours a posting states for the role: "work 16 hours per week (8 hours per day)", "a
+ // part-time opportunity (20 hours per week)", "28 hrs pw", "20-25 hours a week". Never "8 hours
+ // per day" alone; 35 hours or more is full-time, so it is not read as part-time hours.
+-const WEEKLY_HOURS_RE = /\b(\d{1,2})(?:\s*(?:-|–|—|to)\s*(\d{1,2}))?\s*(?:hrs?|hours)\s*(?:pw|p\/w|per\s+week|a\s+week|\/\s*(?:wk|week)|weekly|each\s+week|every\s+week)\b/i;
++// Fix wave 5 (VT-23): "Student position for 20h per week" (Amazon) is the same statement.
++const WEEKLY_HOURS_RE = /\b(\d{1,2})(?:\s*(?:-|–|—|to)\s*(\d{1,2}))?\s*(?:hrs?|hours|h)\s*(?:pw|p\/w|per\s+week|a\s+week|\/\s*(?:wk|week)|weekly|each\s+week|every\s+week)\b/i;
+ /** { hours, hoursMax? } a posting states per week (1–34; a range's upper end up to 40), or null. */
+ export function statedWeeklyHours(text) {
+   const m = WEEKLY_HOURS_RE.exec(String(text || '').replace(/\s+/g, ' '));
+@@ -650,8 +689,8 @@ export function payTerms(salary, { text = '', title = '', employmentType = '', s
+   const fixedTerm = isFixedTermRole({ title, employmentType });
+   // A stipend is never commission pay; an hourly sales range can be OTE (originalInterval
+   // still says it was posted per hour).
+-  if (out.kind !== 'ote' && out.kind !== 'stipend'
+-    && (hasOte(out.text) || oteStatement(text, { salesRole: salesRole && !fixedTerm }))) out.kind = 'ote';
++  if (out.kind !== 'ote' && out.kind !== 'stipend' && out.kind !== 'minimum'
++    && (hasOte(out.text) || oteStatement(text, { salesRole: salesRole && !fixedTerm }) || cashCompOte(out, text))) out.kind = 'ote';
+   if (fixedTerm && !out.termWeeks) {
+     const t = programTerm(text);
+     if (t) {
+@@ -678,6 +717,12 @@ export function payTerms(salary, { text = '', title = '', employmentType = '', s
+   return out;
+ }
+ 
++/** VT-7: the salary is a text range read after "cash compensation range", in a posting that splits it into base and variable pay. */
++function cashCompOte(salary, text) {
++  if (!salary || salary.source === 'structured' || !CASH_COMP_SPLIT_RE.test(text)) return false;
++  return /\bcash\s+compensation\s+range\b/i.test(text);
++}
++
+ /* ------------------------------------------------------------ candidates */
+ 
+ /** Ranges and singles, then multi-currency alternative groups collapsed to one member. */
+@@ -747,7 +792,7 @@ function contextOf(text, gs, ge, { unit = null, single = false } = {}) {
+   // DQ-14: "will be no less than $62.74 an hour" is a floor, not the posted pay.
+   else if (single && FLOOR_BEFORE_RE.test(before)) reject = 'pay_floor';
+   // Base pay only: a total-compensation range includes bonus/equity/sign-on.
+-  else if (totalCompBefore(before) || TOTAL_COMP_AFTER_RE.test(text.slice(ge, ge + 160))) reject = 'total_compensation';
++  else if ((totalCompBefore(before) && !cashCompOteBefore(before, text)) || TOTAL_COMP_AFTER_RE.test(text.slice(ge, ge + 160))) reject = 'total_compensation';
+   // Netflix sales: "The overall market range for roles in this area of Netflix is typically
+   // $X - $Y. A portion of this compensation is variable." A band for an area, not this role
+   // (docs/DATA_SOURCES.md §7a).
+@@ -794,7 +839,7 @@ function evaluate(text, u, countries) {
+   if (!FX_PER_USD[u.currency]) return null;
+   if (!b && !u.explicit) return null;
+   // S-3: an amount below a year's pay floor even at an hourly rate ("$1") needs no context.
+-  if (!(usdOr(Math.max(lo, hi) * FACTORS.hour, u.currency) >= MIN_ANNUAL)) return null;
++  if (!meetsAnnualFloor(Math.max(lo, hi) * FACTORS.hour, u.currency)) return null;
+ 
+   const gs = u.groupStart ?? u.start;
+   const ge = u.groupEnd ?? u.end;
+@@ -833,7 +878,7 @@ function evaluate(text, u, countries) {
+   // is read so that the vetting gate quarantines it visibly ("Pay unclear, see posting")
+   // instead of the posting silently showing no pay. It never beats a plausible amount.
+   const over = !(annHi <= MAX_ANNUAL) && !!b && u.explicit && kwInClause && !a.mult && !b.mult && annHi <= HARD_MAX_ANNUAL;
+-  if (!(annLo >= MIN_ANNUAL && (annHi <= MAX_ANNUAL || over))) return null;
++  if (!(meetsAnnualFloor(lo * factor, cur) && (annHi <= MAX_ANNUAL || over))) return null;
+ 
+   const stipend = /\bstipend/i.test(kwClause) || /\bstipend/i.test(kwHeading) || payStipendAfter;
+   // P-1: "OTE: $X–$Y", "$X–$Y OTE" (no other amount in between).
+@@ -1113,7 +1158,7 @@ export function toJobSalary(sal, { source } = {}) {
+   }
+   const aMin = termFactor ? Math.round(min * termFactor) : annualize(min, interval);
+   const aMax = termFactor ? Math.round(max * termFactor) : annualize(max, interval);
+-  if (!(usdOr(aMin, cur) >= MIN_ANNUAL && usdOr(aMax, cur) <= HARD_MAX_ANNUAL)) return null;
++  if (!(meetsAnnualFloor(aMin, cur) && usdOr(aMax, cur) <= HARD_MAX_ANNUAL)) return null;
+   const kind = sal.kind || (interval === 'hour' ? 'hourly' : 'salary');
+   const out = {
+     min: aMin, max: aMax, mid: Math.round((aMin + aMax) / 2),
+@@ -1136,6 +1181,13 @@ export function toJobSalary(sal, { source } = {}) {
+   if (intervalCorrected) { out.intervalCorrected = true; out.statedInterval = statedInterval; }
+   if (typeof sal.country === 'string' && /^[A-Z]{2}$/.test(sal.country)) out.country = sal.country;
+   if (Array.isArray(sal.ranges) && sal.ranges.length > 1) out.ranges = sal.ranges;
++  // Fix wave 5 (VT-18, VT-19): what the posting says about the figure, kept beside it.
++  if (sal.includesShiftDifferential === true) out.includesShiftDifferential = true;
++  if (sal.statedBase && typeof sal.statedBase === 'object') {
++    const b = toJobSalary({ ...sal.statedBase, statedBase: null, ranges: null, levels: null }, {});
++    if (b) out.statedBase = { min: b.min, max: b.max, currency: b.currency, ...(b.originalInterval ? { originalInterval: b.originalInterval } : {}), text: sal.statedBase.text || null };
++  }
++  if (sal.statedAnnual && typeof sal.statedAnnual === 'object') out.statedAnnual = { ...sal.statedAnnual };
+   // DQ-8: pay by level, annualized like min/max, in the salary's currency.
+   const toAnnual = (v) => (termFactor ? Math.round(v * termFactor) : annualize(v, interval));
+   const levels = Array.isArray(sal.levels)
+diff --git a/server/sources/amazon.js b/server/sources/amazon.js
+index 62d26d8..a4b51a9 100644
+--- a/server/sources/amazon.js
++++ b/server/sources/amazon.js
+@@ -19,6 +19,8 @@ import { UpstreamError, htmlToText, str } from './util.js';
+ import { politeJson, checkRobots, cookieJar, newStats } from './polite.js';
+ import { deltaPlan, crawlOptions, probeAbsent, probeRequest, LIST_ONLY } from './incremental.js';
+ import { crawlBlock } from '../companies.js';
++import { geocode } from '../geo.js';
++import { annualize } from '../salary.js';
+ 
+ export const AMAZON_ORIGIN = 'https://www.amazon.jobs';
+ const PAGE = 100;
+@@ -116,10 +118,13 @@ export function amazonPayTable(...blocks) {
+ 
+ const norm = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+ const ISO3 = /^[A-Z]{3}$/;
++const ISO3_ISO2 = Object.freeze({ USA: 'US', CAN: 'CA', MEX: 'MX', GBR: 'GB', IRL: 'IE', DEU: 'DE', FRA: 'FR', ITA: 'IT', ESP: 'ES', NLD: 'NL', POL: 'PL', AUT: 'AT', SVK: 'SK', CZE: 'CZ', LUX: 'LU', BEL: 'BE', SWE: 'SE', AUS: 'AU', NZL: 'NZ', JPN: 'JP', IND: 'IN', SGP: 'SG', BRA: 'BR', CRI: 'CR', ROU: 'RO', ISR: 'IL', ARE: 'AE', SAU: 'SA', ZAF: 'ZA', CHN: 'CN', KOR: 'KR', CHE: 'CH', DNK: 'DK', NOR: 'NO', FIN: 'FI', PRT: 'PT', GRC: 'GR', HUN: 'HU', TUR: 'TR', EGY: 'EG' });
++const VIRTUAL_RE = /^virtual location\b/;
+ /**
+  * A pay-table row's place: "USA, CA, East Palo Alto" (country first), "Seattle, WA, USA" (country
+- * last), "GBR, London", "JPN, 13, Tokyo" -> { country: 'USA', state: 'ca', city: 'east palo alto' }
+- * (country an ISO 3166 alpha-3 code like the row's country_code; state and city normalised).
++ * last), "GBR, London", "JPN, 13, Tokyo" -> { country: 'USA', state: 'ca', city: 'east palo alto',
++ * cityText: 'East Palo Alto', virtual } (country an ISO 3166 alpha-3 code like the row's
++ * country_code; state and city normalised; virtual for "Virtual Location - S Carolina" rows).
+  */
+ export function amazonPlace(label) {
+   const parts = String(label || '').split(',').map((x) => x.trim()).filter(Boolean);
+@@ -127,33 +132,150 @@ export function amazonPlace(label) {
+   if (parts.length > 1 && ISO3.test(parts[0])) country = parts.shift();
+   else if (parts.length > 1 && ISO3.test(parts[parts.length - 1])) { country = parts.pop(); parts.reverse(); }
+   const state = parts.length > 1 ? norm(parts[0]) : null;
+-  const city = norm(parts.length > 1 ? parts.slice(1).join(' ') : parts[0]);
+-  return { country, state: state || null, city: city || null };
++  const cityText = parts.length > 1 ? parts.slice(1).join(', ') : parts[0] || '';
++  const city = norm(cityText);
++  return { country, state: state || null, city: city || null, cityText, virtual: VIRTUAL_RE.test(city || '') };
+ }
+ 
++/** A posting place for row matching: { key (the location string), city, region, country, remote }, normalised. */
++function placeOf(l) {
++  if (!l) return null;
++  if (typeof l === 'string') {
++    const g = (geocode(l) || [])[0] || {};
++    const first = norm(l.split(',')[0]);
++    return { key: l, city: norm(g.city) || first, region: norm(g.region) || null, country: g.country || null, remote: g.remote === true || /^remote\b/i.test(l) };
++  }
++  const key = l.rawName || l.name;
++  if (!key) return null;
++  return { key, city: norm(l.city) || norm(String(key).split(',')[0]), region: norm(l.region) || null, country: l.country || null, remote: l.remote === true };
++}
++
++/** Does pay-table row place p name the posting place q? Cities and states compared whole. */
++function rowNames(p, q) {
++  if (!p || !q || q.remote || p.virtual || !p.city || p.city !== q.city) return false;
++  if (p.country && q.country && ISO3_ISO2[p.country] && ISO3_ISO2[p.country] !== q.country) return false;
++  return !p.state || !q.region || p.state === q.region;
++}
++
++// The sentence above an Amazon pay table (fix wave 5): what the figures are.
++// VT-17: "The minimum gross base pay salary for this position is listed below", "See below the
++// minimum gross base salary for this position:", Austria's "The minimum basic salary for this
++// position is EUR 47'000 gross annually". A stated minimum is kept and labelled (kind 'minimum',
++// "from €X"), never hidden (lead decision, "Beta round 3"). Polish internships that ALSO say
++// "The base pay for this position is PLN 6000 monthly" state the pay itself (vetting: correct).
++const MINIMUM_RE = /\bminimum\s+(?:gross\s+)?(?:basic\s+|base\s+)?(?:pay\s+)?salary\b/i;
++const STATED_PAY_RE = /\bThe\s+base\s+pay\s+for\s+this\s+position\s+is\s+(?:[A-Z]{3}\s*)?[\d$€£]/i;
++// VT-18: "The starting pay for this position is listed below, including the base pay rate plus
++// the highest available shift differential".
++const SHIFT_RE = /\bhighest\s+(?:available\s+)?shift\s+differential\b/i;
++// VT-18: a lower base the posting states in words: "Pay starts at $18.35 per hour", "The starting
++// pay for this role in Washington State is up to $32/hour".
++const STATED_BASE_RE = /\b(?:Pay\s+starts\s+at|starting\s+pay\s+for\s+this\s+(?:role|position)(?:\s+in\s+[A-Z][A-Za-z ]{1,30})?\s+is\s+(?:up\s+to\s+)?)\s*\$\s?(\d{1,3}(?:\.\d{1,2})?)\s*(?:\/\s*|per\s+)(?:hour|hr)\b/i;
++// VT-19: "The minimum basic salary for this position is EUR 47'000 gross annually" (Austria pays
++// 14 monthly salaries, so 12 x the monthly row understates the year by 14%).
++const STATED_ANNUAL_RE = /\b(?:salary|pay)\s+for\s+this\s+position\s+is\s+(?:(EUR|PLN|CZK|GBP|USD|CAD|€)\s*)?(\d{1,3}(?:['’.,\s]\d{3})+|\d{4,7})(?:\s*(EUR|PLN|CZK|GBP|€))?\s+(?:gross\s+)?(?:annually|per\s+year|a\s+year|yearly)\b/i;
++
++/** What the posting says about its table: { minimum, shift, statedBase: { rate, text } | null, statedAnnual: { amount, currency, text } | null }. */
++export function amazonPayWords(text) {
++  const t = String(text || '').replace(/\s+/g, ' ');
++  const sentence = (re) => { const m = re.exec(t); if (!m) return null; const a = t.lastIndexOf('. ', m.index) + 1; const b = t.indexOf('.', m.index + m[0].length); return t.slice(a, b < 0 ? undefined : b + 1).trim().slice(0, 240); };
++  const minimum = MINIMUM_RE.test(t) && !STATED_PAY_RE.test(t);
++  const b = STATED_BASE_RE.exec(t);
++  const a = STATED_ANNUAL_RE.exec(t);
++  let statedAnnual = null;
++  if (a) {
++    const amount = Number(a[2].replace(/['’.,\s]/g, ''));
++    const cur = (a[1] || a[3] || '').replace('€', 'EUR').toUpperCase() || null;
++    if (amount > 0) statedAnnual = { amount, currency: cur, text: sentence(STATED_ANNUAL_RE) };
++  }
++  return { minimum, shift: SHIFT_RE.test(t), statedBase: b ? { rate: Number(b[1]), text: sentence(STATED_BASE_RE) } : null, statedAnnual };
++}
++
++const short = (s, n = 60) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
++
+ /**
+  * Pay rule (docs/DATA_SOURCES.md §7a, §7e): the row for the posting's primary location (the
+- * row's own city, with the same state when both name one), else the first row in the posting's
+- * country, else the first row. Cities and states are compared whole ("York, PA" is not
+- * "New York, NY"; "Arlington, TX" is not "Arlington, VA"). Every row is kept as payRanges
+- * (salary.ranges); their distinct ranges are the zone count.
++ * row's own city, with the same state when both name one), else the first row for one of the
++ * posting's own places, else the first row in the posting's country, else the first row.
++ * Cities and states are compared whole ("York, PA" is not "New York, NY"; "Arlington, TX" is not
++ * "Arlington, VA"). Fix wave 5:
++ *   - DQ-33 / VT-15: each row is tied to the posting's location strings it names, as Apple's
++ *     mapCopies does (payRanges[].locations, yearly like the salary), so Juice, payLocations and
++ *     the Location filter use each place's own range;
++ *   - DQ-41: a "Virtual Location - S Carolina" row for a state the posting does not list is
++ *     dropped when the posting lists places with a state (a remote-only posting keeps them all);
++ *   - identical rows are one range with all their places, and zones counts the distinct ranges;
++ *   - VT-17 kind 'minimum', VT-18 includesShiftDifferential and statedBase, VT-19 the annual
++ *     figure the posting states (amazonPayWords).
++ * `places`: the posting's location strings (or stored Locations); `primary`: the row line a stored
++ * salary was read from (upgradeAmazonJobs), which stands in for the search row's own city.
+  */
+-export function amazonSalary(j, table = amazonPayTable(j.description, j.basic_qualifications, j.preferred_qualifications)) {
++export function amazonSalary(j, table = amazonPayTable(j.description, j.basic_qualifications, j.preferred_qualifications), { places: given = null, primary = null, text = null } = {}) {
+   if (!table.length) return { salary: null, payRanges: [] };
+   const city = norm(j.city);
+   const state = norm(j.state);
+   const country = ISO3.test(String(j.country_code || '')) ? String(j.country_code) : null;
+-  const places = table.map((r) => amazonPlace(r.location));
++  const posting = (Array.isArray(given) ? given : parseLocations(j).locs).map(placeOf).filter(Boolean);
++  const listedStates = new Set(posting.filter((q) => !q.remote && q.region).map((q) => q.region));
++  const remoteKeys = posting.filter((q) => q.remote).map((q) => q.key);
++  let rows = table.map((r) => ({ ...r, place: amazonPlace(r.location) }));
++  // DQ-41: a virtual row for a state the posting lists no place in (only when it lists states).
++  if (listedStates.size) {
++    const kept = rows.filter((r) => !r.place.virtual || !r.place.state || listedStates.has(r.place.state));
++    if (kept.length) rows = kept;
++  }
++  for (const r of rows) {
++    r.locations = r.place.virtual ? (r.place.state && listedStates.has(r.place.state) ? [] : remoteKeys) : posting.filter((q) => rowNames(r.place, q)).map((q) => q.key);
++  }
+   const sameCountry = (p) => !country || !p.country || p.country === country;
+-  const row = (test) => { const i = places.findIndex(test); return i >= 0 ? table[i] : null; };
+-  const pick = (city && (row((p) => p.city === city && sameCountry(p) && !!state && p.state === state)
++  const row = (test) => rows.find((r) => test(r.place, r)) || null;
++  const pick = (primary && rows.find((r) => r.line === primary && (!r.place.virtual || r.locations.length)))
++    || (city && (row((p) => p.city === city && sameCountry(p) && !!state && p.state === state)
+     || row((p) => p.city === city && sameCountry(p) && (!state || !p.state))))
+-    || (country && row((p) => p.country === country))
+-    || table[0];
+-  const distinct = new Set(table.map((r) => `${r.min}|${r.max}|${r.currency}|${r.interval}`)).size;
+-  const salary = { min: pick.min, max: pick.max, currency: pick.currency, interval: pick.interval, text: pick.line, zones: distinct };
+-  const payRanges = table.slice(0, 12).map((r) => ({ min: r.min, max: r.max, currency: r.currency, interval: r.interval, label: r.location.slice(0, 60) }));
+-  return { salary, payRanges };
++    || row((p, r) => r.locations.length > 0 && !p.virtual)
++    || (country && (row((p) => p.country === country && !p.virtual) || row((p) => p.country === country)))
++    || rows[0];
++  // Identical rows are one range with all their places (DQ-33).
++  const groups = [];
++  for (const r of rows) {
++    const k = `${r.min}|${r.max}|${r.currency}|${r.interval}`;
++    const g = groups.find((x) => x.k === k);
++    if (g) { g.rows.push(r); for (const l of r.locations) if (!g.locations.includes(l)) g.locations.push(l); } else groups.push({ k, rows: [r], locations: [...r.locations], min: r.min, max: r.max, currency: r.currency, interval: r.interval });
++  }
++  const words = amazonPayWords(text != null ? text : htmlToText(String(j.description || '')));
++  let salary = { min: pick.min, max: pick.max, currency: pick.currency, interval: pick.interval, text: pick.line, zones: groups.length };
++  // VT-19: the annual figure the posting states wins over 12 x a monthly row (Austria pays 14).
++  let factor = null;
++  if (words.statedAnnual && pick.interval === 'month' && (!words.statedAnnual.currency || words.statedAnnual.currency === pick.currency)) {
++    const f = words.statedAnnual.amount / pick.min;
++    if (f >= 11.5 && f <= 14.5) {
++      factor = f;
++      salary = { ...salary, min: words.statedAnnual.amount, max: Math.round(pick.max * f), interval: 'year', text: `${words.statedAnnual.text} (${pick.line})`, statedAnnual: { amount: words.statedAnnual.amount, currency: pick.currency, monthly: pick.min, paymentsPerYear: Math.round(f * 100) / 100 } };
++    }
++  }
++  if (words.minimum) salary.kind = 'minimum';
++  if (words.shift && pick.interval === 'hour') {
++    salary.includesShiftDifferential = true;
++    const b = words.statedBase;
++    if (b && b.rate > 0 && b.rate < pick.max && pick.currency === 'USD') salary.statedBase = { min: b.rate, max: b.rate, currency: 'USD', interval: 'hour', text: b.text };
++  }
++  const yearly = (v, iv) => (factor && iv === 'month' ? Math.round(v * factor) : annualize(v, iv));
++  const label = (g) => {
++    if (g.locations.length) return short([...new Set(g.locations.map((l) => (/^remote\b/i.test(l) ? 'Remote' : String(l).split(',')[0].trim())))].join(', '));
++    return short([...new Set(g.rows.map((r) => (r.place.virtual ? `Remote${r.place.state ? ` (${r.place.state.toUpperCase()})` : ''}` : r.place.cityText || r.location)))].join(', '));
++  };
++  const payRanges = groups.length > 1 ? groups.slice(0, 12).map((g) => ({
++    min: yearly(g.min, g.interval), max: yearly(g.max, g.interval), currency: g.currency, interval: 'year', label: label(g),
++    ...(g.locations.length ? { locations: g.locations } : {}),
++  })) : [];
++  // One range for some of the posting's places only (every other place has no row): those places.
++  let payPlaces = null;
++  if (groups.length === 1 && groups[0].locations.length) {
++    const own = new Set(groups[0].locations);
++    if (posting.some((q) => !q.remote && !own.has(q.key))) payPlaces = groups[0].locations.filter((l) => !remoteKeys.includes(l));
++    if (payPlaces && !payPlaces.length) payPlaces = null;
++  }
++  return { salary, payRanges, ...(payPlaces ? { payPlaces } : {}) };
+ }
+ 
+ /** job_schedule_type values -> employmentType (anything else is kept as written). */
+diff --git a/server/vet.js b/server/vet.js
+index 2355eb4..a5a35de 100644
+--- a/server/vet.js
++++ b/server/vet.js
+@@ -9,7 +9,7 @@
+ //   job.salaryFlag =  { codes: [...], reason: "human readable" }
+ //
+ // Checks (thresholds in VET; their justification is in docs/VETTING.md):
+-//   above_max         annual max > $1.2M (critical)
++//   above_max         annual max > $1.5M (critical; $1.2M until fix wave 5, VT-10)
+ //   below_min         annual min < $15K on a full-time role (critical)
+ //   min_gt_max        min > max
+ //   range_ratio       max/min > VET.RATIO_QUARANTINE
+@@ -20,15 +20,18 @@
+ //   stat_outlier      log(mid) is an outlier company-wide (robust z on median/MAD:
+ //                     z > 3.5 or above the Tukey fence (k = 3); low side
+ //                     z < -4.5 and below the fence) AND within
+-//                     every comparison group (department, role family, pay kind)
+-//                     that has at least VET.MIN_GROUP members. Low-side
++//                     every comparison group (department, role family, pay kind,
++//                     and since fix wave 5 the pay's currency, VT-16) that has at
++//                     least VET.MIN_GROUP members. A low-side flag needs a currency
++//                     group that large when the pay is not in the company's main
++//                     currency: lei pay is not compared with US pay (DQ-6 residue). Low-side
+ //                     statistical flags only apply to full-time salaried roles
+ //                     (hourly/stipend/contract/intern pay is legitimately low).
+ // Amounts are compared in USD with rough FX (USD_PER) so a GBP role is not an
+ // outlier against USD ones; FX only has to be right to within ~20%.
+ 
+ export const VET = Object.freeze({
+-  MAX_ANNUAL: 1_200_000,
++  MAX_ANNUAL: 1_500_000,  // fix wave 5 (VT-10): Netflix L7 $737K–$1.43M is a real posted range
+   MIN_ANNUAL_FULLTIME: 15_000,
+   RATIO_FLAG: 3,          // scan flag (human/LLM review), not a quarantine
+   RATIO_QUARANTINE: 4,    // gate; legit real ranges reach 3.4x (docs/VETTING.md)
+@@ -51,7 +54,7 @@ export const VET = Object.freeze({
+ export const CRITICAL_CODES = Object.freeze(['above_max', 'below_min', 'hourly_high']);
+ 
+ // Rough FX lives in salary.js (one table for parser bounds and this gate).
+-import { USD_PER, toUSD } from './salary.js';
++import { USD_PER, toUSD, LEGAL_MIN_ANNUAL } from './salary.js';
+ export { USD_PER, toUSD };
+ 
+ const PART_TIME_RE = /part[- ]?time|intern|co-?op|contract|temporary|seasonal|casual|per diem/i;
+@@ -95,7 +98,7 @@ export function roleFamily(title) {
+   return 'other';
+ }
+ 
+-/** Pay kind of a Job salary ('salary' | 'hourly' | 'stipend' | 'ote'): explicit kind, else hourly when the source interval was hourly. */
++/** Pay kind of a Job salary ('salary' | 'hourly' | 'stipend' | 'ote' | 'minimum'): explicit kind, else hourly when the source interval was hourly. */
+ export function payKind(salary) {
+   if (!salary) return null;
+   if (salary.kind) return salary.kind;
+@@ -128,7 +131,9 @@ export function salaryChecks(job, salary = job && job.salary) {
+     return out;
+   }
+   if (usd(max) > VET.MAX_ANNUAL) out.push({ code: 'above_max', reason: `annual max ${fmt(usd(max))}${tag} is above the ${fmt(VET.MAX_ANNUAL)} plausibility bound` });
+-  if (usd(min) < VET.MIN_ANNUAL_FULLTIME && isFullTime(job)) out.push({ code: 'below_min', reason: `annual min ${fmt(usd(min))} is below ${fmt(VET.MIN_ANNUAL_FULLTIME)} for a full-time role` });
++  // VT-14: at or above the country's legal full-time minimum (Mexico) is real pay, not a misread.
++  const legal = LEGAL_MIN_ANNUAL[cur] > 0 && min >= LEGAL_MIN_ANNUAL[cur];
++  if (usd(min) < VET.MIN_ANNUAL_FULLTIME && isFullTime(job) && !legal) out.push({ code: 'below_min', reason: `annual min ${fmt(usd(min))} is below ${fmt(VET.MIN_ANNUAL_FULLTIME)} for a full-time role` });
+   if (min > max) out.push({ code: 'min_gt_max', reason: 'min is greater than max' });
+   else if (min > 0 && max / min > VET.RATIO_QUARANTINE) out.push({ code: 'range_ratio', reason: `range ${fmt(min)}–${fmt(max)} spans ${(max / min).toFixed(1)}x (more than ${VET.RATIO_QUARANTINE}x)` });
+   // Hourly rates (Job salary keeps the source interval in originalInterval).
+@@ -205,7 +210,8 @@ export function statOutliers(jobs, { exclude = new Set() } = {}) {
+     if (!j || !j.salary || exclude.has(i)) return;
+     const x = logMidUSD(j.salary);
+     if (!Number.isFinite(x)) return;
+-    pts.push({ i, x, groups: [`dept:${j.department || '-'}`, `family:${roleFamily(j.title)}`, `kind:${payKind(j.salary)}`] });
++    const cur = String(j.salary.currency || 'USD').toUpperCase();
++    pts.push({ i, x, cur, groups: [`dept:${j.department || '-'}`, `family:${roleFamily(j.title)}`, `kind:${payKind(j.salary)}`, `cur:${cur}`] });
+   });
+   const result = new Map();
+   if (pts.length < VET.MIN_GROUP) return result;
+@@ -214,6 +220,9 @@ export function statOutliers(jobs, { exclude = new Set() } = {}) {
+   for (const p of pts) for (const g of p.groups) { if (!byGroup.has(g)) byGroup.set(g, []); byGroup.get(g).push(p.x); }
+   const groupStats = new Map();
+   for (const [g, xs] of byGroup) if (xs.length >= VET.MIN_GROUP) groupStats.set(g, robustStats(xs));
++  // The company's main currency (most salaries).
++  let mainCur = null;
++  for (const [g, xs] of byGroup) if (g.startsWith('cur:') && (!mainCur || xs.length > byGroup.get(`cur:${mainCur}`).length)) mainCur = g.slice(4);
+   for (const p of pts) {
+     const c = outlierScore(p.x, all);
+     if (!c.outlier) continue;
+@@ -221,6 +230,10 @@ export function statOutliers(jobs, { exclude = new Set() } = {}) {
+     // on-target earnings (kind 'ote', P-1) are full-time pay too.
+     const pk = payKind(jobs[p.i].salary);
+     if (c.z < 0 && (!isFullTime(jobs[p.i]) || (pk !== 'salary' && pk !== 'ote'))) continue;
++    // VT-16 / DQ-6 residue: low pay in another currency than the company's main one is only
++    // judged among salaries in that currency (a cur:<code> group of MIN_GROUP or more); a lei
++    // range is not low against US pay, it is Romanian pay.
++    if (c.z < 0 && p.cur !== mainCur && !groupStats.has(`cur:${p.cur}`)) continue;
+     let agree = true;
+     const detail = [`company z=${c.z.toFixed(1)}${c.fence ? `, ${c.fence} fence` : ''}`];
+     for (const g of p.groups) {
+-- 
+2.43.0
+

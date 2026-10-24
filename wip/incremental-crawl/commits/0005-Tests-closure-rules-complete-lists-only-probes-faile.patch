@@ -1,0 +1,398 @@
+From ed271c0f4cbcba1c2c87784ec7d6e9d07d06cda1 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sun, 11 Oct 2026 13:58:00 +0000
+Subject: [PATCH 05/10] Tests: closure rules (complete lists only, probes,
+ failed and capped lists) and the shared module (304s, fallback limit,
+ accounting)
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+---
+ test/incremental-boards.js           |  16 +++
+ test/incremental-closures.test.js    | 182 +++++++++++++++++++++++++++
+ test/incremental-equivalence.test.js |  15 +--
+ test/incremental-unit.test.js        | 118 +++++++++++++++++
+ 4 files changed, 317 insertions(+), 14 deletions(-)
+ create mode 100644 test/incremental-closures.test.js
+ create mode 100644 test/incremental-unit.test.js
+
+diff --git a/test/incremental-boards.js b/test/incremental-boards.js
+index dd52d8b..ba85f88 100644
+--- a/test/incremental-boards.js
++++ b/test/incremental-boards.js
+@@ -9,7 +9,9 @@
+ import fs from 'node:fs';
+ import path from 'node:path';
+ import { fileURLToPath } from 'node:url';
++import assert from 'node:assert/strict';
+ import { amazonRows, amazonSite, metaRecords, metaPageHtml } from './amazon-meta-synth.js';
++import { runSnapshot } from '../scripts/snapshot.js';
+ 
+ const FIX = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures');
+ const fixture = (name) => JSON.parse(fs.readFileSync(path.join(FIX, name), 'utf8'));
+@@ -262,3 +264,17 @@ export function serve(...boards) {
+   };
+   return { restore: () => { globalThis.fetch = real; } };
+ }
++
++const read = (f) => JSON.parse(fs.readFileSync(f, 'utf8'));
++
++/** One crawl of `slug` into its own folders; returns { snap, ledger, result }. */
++export async function crawlOnce(slug, { dir, stateDir, when, full = false, refreshDays, probeLimit }) {
++  const outDir = path.join(dir, 'snap');
++  const historyDir = path.join(dir, 'hist');
++  const errors = [];
++  const crawl = { ...(full ? { full } : {}), ...(refreshDays != null ? { refreshDays } : {}), ...(probeLimit != null ? { probeLimit } : {}) };
++  const r = await runSnapshot([slug], { outDir, historyDir, crawlStateDir: stateDir, crawl, now: () => when, log: () => {}, error: (m) => errors.push(m), parallelBeta: false });
++  assert.equal(r.failed, 0, `${slug}: ${errors.join('; ')} ${JSON.stringify(r.results)}`);
++  return { snap: read(path.join(outDir, `${slug}.json`)), ledger: read(path.join(historyDir, `${slug}.json`)), result: r.results[0] };
++}
++
+diff --git a/test/incremental-closures.test.js b/test/incremental-closures.test.js
+new file mode 100644
+index 0000000..8e6de79
+--- /dev/null
++++ b/test/incremental-closures.test.js
+@@ -0,0 +1,182 @@
++// Closure rules (server/history.js, server/sources/incremental.js, docs/DATA_ARCHIVE.md §9):
++//   - a posting is closed when it is absent from a COMPLETE list (x: absent);
++//   - a partial list (shorter than the board's own count, or capped) closes nothing for being
++//     absent; such postings stay open while seen within UNSEEN_OPEN_DAYS, then close (x: unseen);
++//   - a failed list writes nothing: no snapshot change, no ledger change, no state change;
++//   - a closure probe (one request to the posting's own detail) closes on 404/410/redirect
++//     only (x: gone); a 200 keeps it open;
++//   - a posting listed but not published (a failed detail, the cap) stays open.
++import { test, afterEach } from 'node:test';
++import assert from 'node:assert/strict';
++import fs from 'node:fs';
++import os from 'node:os';
++import path from 'node:path';
++import { execFileSync } from 'node:child_process';
++import { fileURLToPath } from 'node:url';
++import { runSnapshot } from '../scripts/snapshot.js';
++import { updateLedger, closureOptions, UNSEEN_OPEN_DAYS } from '../server/history.js';
++import { classifyProbe } from '../server/sources/incremental.js';
++import { setMinInterval, resetRateLimits, resetRobots } from '../server/sources/polite.js';
++import { COMPANIES } from '../server/companies.js';
++import { BOARDS, serve, crawlOnce } from './incremental-boards.js';
++
++const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
++afterEach(() => { setMinInterval(null); resetRateLimits(); resetRobots(); });
++const T0 = Date.parse('2026-10-11T06:00:00Z');
++const at = (h) => new Date(T0 + h * 3600e3).toISOString();
++const day = (d) => at(d * 24);
++const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'melon-close-'));
++const read = (f) => JSON.parse(fs.readFileSync(f, 'utf8'));
++const job = (id) => ({ id: `acme:${id}`, title: `Role ${id}`, department: 'Eng', locations: [{ name: 'Paris' }], postedAt: null, reqId: null });
++
++test('updateLedger: absent from a complete list closes (absent); from a partial list stays open, then unseen; gone closes; listed stays open', () => {
++  const all = [1, 2, 3, 4, 5].map(job);
++  let l = updateLedger(null, all, day(0));
++  // Partial: 4 and 5 missing, nothing closes.
++  l = updateLedger(l, all.slice(0, 3), day(1), { complete: false });
++  assert.ok(!l.jobs['acme:4'].c && !l.jobs['acme:5'].c, 'a partial list closes nothing');
++  // Partial, 5 confirmed gone by a probe; 4 listed but not published (a failed detail).
++  l = updateLedger(l, all.slice(0, 3), day(2), { complete: false, gone: ['acme:5'], listed: ['acme:4'] });
++  assert.equal(l.jobs['acme:5'].x, 'gone');
++  assert.equal(l.jobs['acme:5'].c, day(2));
++  assert.ok(!l.jobs['acme:4'].c);
++  assert.equal(l.jobs['acme:4'].l, day(2), 'listed: seen now');
++  // Partial for longer than UNSEEN_OPEN_DAYS: 4 closes as unseen.
++  l = updateLedger(l, all.slice(0, 3), day(3 + UNSEEN_OPEN_DAYS), { complete: false });
++  assert.equal(l.jobs['acme:4'].x, 'unseen');
++  // Complete list without 3: closed as absent. A reopen clears the reason.
++  l = updateLedger(l, all.slice(0, 2), day(20));
++  assert.equal(l.jobs['acme:3'].x, 'absent');
++  l = updateLedger(l, all.slice(0, 3), day(21));
++  assert.equal(l.jobs['acme:3'].c, undefined);
++  assert.equal(l.jobs['acme:3'].x, undefined, 'reopened: no close reason');
++  // closureOptions from a snapshot.
++  assert.deepEqual(closureOptions({ capped: { kept: 1, total: 2 } }).complete, false);
++  assert.deepEqual(closureOptions({ crawl: { list: { complete: false } } }).complete, false);
++  assert.deepEqual(closureOptions({ crawl: { list: { complete: true }, gone: ['a:1'], unpublished: ['a:2'] }, listed: ['a:3'] }), { complete: true, listed: ['a:2', 'a:3'], gone: ['a:1'] });
++});
++
++test('classifyProbe: 404/410/redirect away = gone; 2xx = alive; anything else unknown', () => {
++  const u = 'https://jobs.example.com/careers/job/12';
++  assert.equal(classifyProbe(404, null, u), 'gone');
++  assert.equal(classifyProbe(410, null, u), 'gone');
++  assert.equal(classifyProbe(302, '/careers?error=closed', u), 'gone');
++  assert.equal(classifyProbe(301, '/careers/job/12/', u), 'unknown', 'a redirect to the same posting');
++  assert.equal(classifyProbe(200, null, u), 'alive');
++  for (const s of [403, 429, 500, 503]) assert.equal(classifyProbe(s, null, u), 'unknown');
++});
++
++test('a short list (Microsoft lists fewer than it counts) closes nothing for being absent; probes close only confirmed ones', async () => {
++  setMinInterval(0);
++  const board = BOARDS.microsoft(20);
++  const net = serve(board);
++  try {
++    const dir = tmp();
++    const state = path.join(dir, 'state');
++    await crawlOnce('microsoft', { dir, stateDir: state, when: at(0) });
++    const ids = board.ids();
++    // Two postings drop out of the list but still exist; one more is really closed.
++    board.absentButOpen.add(ids[4]);
++    board.absentButOpen.add(ids[6]);
++    board.close(ids[9]);
++    const two = await crawlOnce('microsoft', { dir, stateDir: state, when: at(6) });
++    assert.equal(two.snap.crawl.list.complete, false, 'listed 17 of the 19 counted');
++    assert.deepEqual(two.snap.crawl.gone, [`microsoft:${ids[9]}`], 'the closed one: its detail is a 404');
++    const e = (id) => two.ledger.jobs[`microsoft:${id}`];
++    assert.ok(!e(ids[4]).c && !e(ids[6]).c, 'still open (probe 200), missing from a short list');
++    assert.equal(e(ids[9]).x, 'gone');
++    assert.equal(two.result.history.unseen, 2);
++    // Probes off: nothing closes even when gone, until UNSEEN_OPEN_DAYS.
++    board.close(ids[4]);
++    const three = await crawlOnce('microsoft', { dir, stateDir: state, when: at(12), probeLimit: 0 });
++    assert.ok(!three.ledger.jobs[`microsoft:${ids[4]}`].c, 'no probe, partial list: kept open');
++    const late = await crawlOnce('microsoft', { dir, stateDir: state, when: day(UNSEEN_OPEN_DAYS + 1), probeLimit: 0 });
++    assert.equal(late.ledger.jobs[`microsoft:${ids[4]}`].x, 'unseen');
++  } finally { net.restore(); }
++});
++
++test('a failed list (a 403 mid-board) writes nothing: the snapshot, the ledger and the crawl state stay as they were', async () => {
++  setMinInterval(0);
++  const board = BOARDS.nvidia(30);
++  const net = serve(board);
++  try {
++    const dir = tmp();
++    const state = path.join(dir, 'state');
++    await crawlOnce('nvidia', { dir, stateDir: state, when: at(0) });
++    const files = ['snap/nvidia.json', 'hist/nvidia.json', 'state/nvidia.json.gz'].map((f) => path.join(dir, f));
++    const before = files.map((f) => fs.readFileSync(f));
++    const handler = board.handler;
++    board.handler = (url, init) => (/\/api\/pcsx\/search/.test(url) && /start=10\b/.test(url) ? new Response('blocked', { status: 403 }) : handler(url, init));
++    const r = await runSnapshot(['nvidia'], { outDir: path.join(dir, 'snap'), historyDir: path.join(dir, 'hist'), crawlStateDir: state, now: () => at(6), log: () => {}, error: () => {}, parallelBeta: false });
++    assert.equal(r.failed, 1);
++    files.forEach((f, i) => assert.ok(fs.readFileSync(f).equals(before[i]), `${path.basename(f)} unchanged`));
++  } finally { net.restore(); }
++});
++
++test('Google: a record request that fails is listed but unpublished, and stays open in the ledger', async () => {
++  setMinInterval(0);
++  const board = BOARDS.google(12);
++  const net = serve(board);
++  try {
++    const dir = tmp();
++    const r1 = await crawlOnce('google', { dir, stateDir: null, when: at(0) });
++    assert.equal(r1.snap.jobs.length, 12);
++    const bad = board.ids()[3];
++    const handler = board.handler;
++    board.handler = (url, init) => (/batchexecute/.test(url) && String(init && init.body).includes(bad) ? new Response('no', { status: 403 }) : handler(url, init));
++    const r2 = await crawlOnce('google', { dir, stateDir: null, when: at(6) });
++    assert.equal(r2.snap.jobs.length, 11);
++    assert.deepEqual(r2.snap.crawl.unpublished, [`google:${bad}`]);
++    const e = r2.ledger.jobs[`google:${bad}`];
++    assert.ok(!e.c, 'not closed: it is in the sitemap');
++    assert.equal(e.l, at(6));
++  } finally { net.restore(); }
++});
++
++test('Amazon capped: postings the cap leaves out stay open while listed (beyond UNSEEN_OPEN_DAYS), through the beta merge too', async () => {
++  setMinInterval(0);
++  const c = COMPANIES.find((x) => x.slug === 'amazon');
++  const was = c.maxPostings;
++  c.maxPostings = 10;
++  const board = BOARDS.amazon(40);
++  const net = serve(board);
++  try {
++    const dir = tmp();
++    const state = path.join(dir, 'state');
++    const one = await crawlOnce('amazon', { dir, stateDir: state, when: day(0) });
++    assert.equal(one.snap.jobs.length, 10);
++    assert.equal(one.snap.jobsCapped.total, 40);
++    const published = new Set(one.snap.jobs.map((j) => j.id));
++    const late = await crawlOnce('amazon', { dir, stateDir: state, when: day(UNSEEN_OPEN_DAYS + 6) });
++    const open = Object.entries(late.ledger.jobs).filter(([, e]) => !e.c).map(([id]) => id);
++    assert.equal(open.length, 10, 'only published postings get entries');
++    for (const id of published) assert.ok(late.ledger.jobs[id] && !late.ledger.jobs[id].c, `${id} open`);
++    // The beta merge reads the same crawl's listed ids from the crawl state.
++    const data = path.join(dir, 'beta');
++    const fresh = path.join(dir, 'snap');
++    fs.mkdirSync(path.join(data, 'history'), { recursive: true });
++    fs.copyFileSync(path.join(dir, 'hist', 'amazon.json'), path.join(data, 'history', 'amazon.json'));
++    const out = execFileSync(process.execPath, [path.join(ROOT, '.github/scripts/beta-snapshots.mjs'), 'merge', fresh, data, state], { encoding: 'utf8', env: { ...process.env, GITHUB_STEP_SUMMARY: '', GITHUB_OUTPUT: '' } });
++    assert.match(out, /amazon \| \*\*fresh\*\*/);
++    const merged = read(path.join(data, 'history', 'amazon.json'));
++    assert.equal(Object.values(merged.jobs).filter((e) => !e.c).length, 10);
++  } finally { net.restore(); c.maxPostings = was; }
++});
++
++test('Apple: a listing absent from a short search is probed through jobDetails; a 404 closes it', async () => {
++  setMinInterval(0);
++  const board = BOARDS.apple(15);
++  const net = serve(board);
++  try {
++    const dir = tmp();
++    const state = path.join(dir, 'state');
++    await crawlOnce('apple', { dir, stateDir: state, when: at(0) });
++    const ids = board.ids();
++    board.close(ids[2]);
++    board.absentButOpen.add(ids[7]); // totalRecords 14, 13 listed: a short list
++    const two = await crawlOnce('apple', { dir, stateDir: state, when: at(6) });
++    assert.equal(two.snap.crawl.list.complete, false);
++    assert.equal(two.ledger.jobs[`apple:${ids[2]}`].x, 'gone');
++    assert.ok(!two.ledger.jobs[`apple:${ids[7]}`].c);
++  } finally { net.restore(); }
++});
+diff --git a/test/incremental-equivalence.test.js b/test/incremental-equivalence.test.js
+index bb857b6..5f366ac 100644
+--- a/test/incremental-equivalence.test.js
++++ b/test/incremental-equivalence.test.js
+@@ -11,27 +11,14 @@ import assert from 'node:assert/strict';
+ import fs from 'node:fs';
+ import os from 'node:os';
+ import path from 'node:path';
+-import { runSnapshot } from '../scripts/snapshot.js';
+ import { setMinInterval, resetRateLimits, resetRobots } from '../server/sources/polite.js';
+-import { BOARDS, DETAIL_BOARDS, serve } from './incremental-boards.js';
++import { BOARDS, DETAIL_BOARDS, serve, crawlOnce } from './incremental-boards.js';
+ 
+ afterEach(() => { setMinInterval(null); resetRateLimits(); resetRobots(); });
+ 
+ const T0 = Date.parse('2026-10-11T06:00:00Z');
+ const at = (h) => new Date(T0 + h * 3600e3).toISOString();
+ const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'melon-incr-'));
+-const read = (f) => JSON.parse(fs.readFileSync(f, 'utf8'));
+-
+-/** One crawl of `slug` into its own folders; returns { snap, ledger, result }. */
+-export async function crawlOnce(slug, { dir, stateDir, when, full = false, refreshDays, probeLimit }) {
+-  const outDir = path.join(dir, 'snap');
+-  const historyDir = path.join(dir, 'hist');
+-  const errors = [];
+-  const crawl = { ...(full ? { full } : {}), ...(refreshDays != null ? { refreshDays } : {}), ...(probeLimit != null ? { probeLimit } : {}) };
+-  const r = await runSnapshot([slug], { outDir, historyDir, crawlStateDir: stateDir, crawl, now: () => when, log: () => {}, error: (m) => errors.push(m), parallelBeta: false });
+-  assert.equal(r.failed, 0, `${slug}: ${errors.join('; ')} ${JSON.stringify(r.results)}`);
+-  return { snap: read(path.join(outDir, `${slug}.json`)), ledger: read(path.join(historyDir, `${slug}.json`)), result: r.results[0] };
+-}
+ 
+ const strip = ({ fetchedAt, crawl, ...rest }) => rest;
+ const N = 24;
+diff --git a/test/incremental-unit.test.js b/test/incremental-unit.test.js
+new file mode 100644
+index 0000000..a900fb4
+--- /dev/null
++++ b/test/incremental-unit.test.js
+@@ -0,0 +1,118 @@
++// The shared incremental module (server/sources/incremental.js): change signals, the delta
++// plan, conditional requests (ETag / Last-Modified, 304), the failed-detail fallback limit,
++// per-posting accounting, and that the politeness settings are untouched.
++import { test, afterEach } from 'node:test';
++import assert from 'node:assert/strict';
++import fs from 'node:fs';
++import os from 'node:os';
++import path from 'node:path';
++import {
++  rowKey, stableStringify, refreshAgeMs, deltaPlan, runDetails, accountPostings, CRAWL_STATE_FORMAT, DETAIL_REFRESH_DAYS,
++} from '../server/sources/incremental.js';
++import { setMinInterval, resetRateLimits, resetRobots, MIN_INTERVAL_MS, BOT_USER_AGENT } from '../server/sources/polite.js';
++import { eightfoldRowKey, EIGHTFOLD_BOARDS } from '../server/sources/eightfold.js';
++import { appleRowKey } from '../server/sources/apple.js';
++import { BOARDS, serve, crawlOnce } from './incremental-boards.js';
++
++afterEach(() => { setMinInterval(null); resetRateLimits(); resetRobots(); });
++const T0 = Date.parse('2026-10-11T06:00:00Z');
++const at = (h) => new Date(T0 + h * 3600e3).toISOString();
++const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'melon-unit-'));
++
++test('politeness is unchanged: 1 request/s per host, the same honest User-Agent', () => {
++  assert.equal(MIN_INTERVAL_MS, 1000);
++  assert.match(BOT_USER_AGENT, /^melon-seek\/0\.2 \(\+https:\/\/alvations\.github\.io\/melon-seek\/; .*about 1 request\/s\)$/);
++});
++
++test('rowKey: key order does not matter, any value change does; signals ignore volatile row fields', () => {
++  assert.equal(stableStringify({ b: 1, a: [2, { d: 3, c: undefined }] }), '{"a":[2,{"d":3}],"b":1}');
++  assert.equal(rowKey({ a: 1, b: 2 }), rowKey({ b: 2, a: 1 }));
++  assert.notEqual(rowKey({ a: 1 }), rowKey({ a: 2 }));
++  const t = EIGHTFOLD_BOARDS.microsoft;
++  const row = { id: 1, name: 'SWE', postedTs: 10, locations: ['Redmond'], solrScore: 0.3, stars: 0 };
++  assert.equal(eightfoldRowKey({ ...row, solrScore: 0.9, stars: 4 }, t), eightfoldRowKey(row, t), 'a search score is not an edit');
++  assert.notEqual(eightfoldRowKey({ ...row, postedTs: 11 }, t), eightfoldRowKey(row, t), 'postedTs moves on edits');
++  const pipe = { id: 'PIPE-1', postingTitle: 'Specialist', postingDate: 'Oct 10, 2026', managedPipelineRole: true };
++  assert.equal(appleRowKey({ ...pipe, postingDate: 'Oct 11, 2026' }), appleRowKey(pipe), 'retail pipeline rows are re-stamped every request');
++});
++
++test('refreshAgeMs: spread over [days/2, days]; 0 days = never by age', () => {
++  const ages = Array.from({ length: 500 }, (_, i) => refreshAgeMs(`id${i}`, 4) / 864e5);
++  assert.ok(Math.min(...ages) >= 2 && Math.max(...ages) <= 4);
++  assert.ok(Math.max(...ages) - Math.min(...ages) > 1.5, 'spread, not one expiry day');
++  assert.equal(refreshAgeMs('x', 0), Infinity);
++  assert.equal(DETAIL_REFRESH_DAYS, 4);
++});
++
++test('deltaPlan + runDetails: reasons, and a failed detail falls back to the cache only within the refresh limit', async () => {
++  const now = T0;
++  const prev = { format: CRAWL_STATE_FORMAT, version: 'v1', rows: {
++    a: { k: 'ka', d: { x: 'A' }, at: at(-1) },
++    b: { k: 'kb', d: { x: 'B' }, at: at(-1) },
++    c: { k: 'kc', d: { x: 'C' }, at: at(-1) },
++    old: { k: 'ko', d: { x: 'OLD' }, at: at(-24 * 30) },
++  } };
++  const plan = deltaPlan(prev, { version: 'v1', now });
++  const items = [{ id: 'a', key: 'ka' }, { id: 'b', key: 'kb2' }, { id: 'c', key: 'kc' }, { id: 'old', key: 'ko' }, { id: 'n', key: 'kn' }];
++  const asked = [];
++  const { details, failed } = await runDetails(plan, items, {
++    now, failMin: 10,
++    request: async (x) => { asked.push(x.id); if (x.id === 'b' || x.id === 'old') throw new Error('HTTP 500'); return { detail: { x: x.id.toUpperCase() } }; },
++  });
++  assert.deepEqual(asked.sort(), ['b', 'n', 'old'], 'a and c reused; b changed; old past its age; n new');
++  assert.deepEqual(details.get('b'), { x: 'B' }, 'b failed: its 1-hour-old cache stands in');
++  assert.equal(details.get('old'), null, 'old failed: its 30-day-old cache is beyond the limit, so no detail');
++  assert.deepEqual(failed, ['old']);
++  assert.deepEqual(plan.counts, { full: 0, new: 1, changed: 1, refresh: 1, reused: 2, notModified: 0, fallback: 1 });
++  const st = plan.state();
++  assert.equal(st.rows.b.at, at(-1), 'a fallback keeps its old verification time (retried next run)');
++  assert.equal(st.rows.n.at, new Date(now).toISOString());
++  assert.equal(deltaPlan(prev, { version: 'v2', now }).incremental, false, 'another adapter version: full');
++});
++
++test('accountPostings: new, changed, unchanged, absent', () => {
++  const a = accountPostings(null, [{ sourceId: '1', t: 1 }, { sourceId: '2', t: 2 }]);
++  assert.deepEqual(a.counts, { new: 2, changed: 0, unchanged: 0, absent: 0 });
++  const b = accountPostings(a.postings, [{ sourceId: '1', t: 1 }, { sourceId: '3', t: 3 }, { sourceId: '2', t: 9, _raw: { big: true } }].slice(0, 2));
++  assert.deepEqual(b.counts, { new: 1, changed: 0, unchanged: 1, absent: 1 });
++  assert.deepEqual(b.absent, ['2']);
++});
++
++test('conditional requests: a refresh sends If-None-Match, a 304 reuses the cached detail; a 304 sitemap reuses its entries', async () => {
++  setMinInterval(0);
++  const board = BOARDS.microsoft(8);
++  const sent = [];
++  const handler = board.handler;
++  board.handler = (url, init) => {
++    if (!/position_details/.test(url)) return handler(url, init);
++    const id = new URL(url).searchParams.get('position_id');
++    const etag = `"v-${id}"`;
++    if (init.headers['If-None-Match']) { sent.push(init.headers['If-None-Match']); if (init.headers['If-None-Match'] === etag) return new Response(null, { status: 304, headers: { etag } }); }
++    const r = handler(url, init);
++    return new Response(r.body, { status: r.status, headers: { 'content-type': 'application/json', etag } });
++  };
++  const g = BOARDS.google(5);
++  const gh = g.handler;
++  let sitemapAsked = 0;
++  g.handler = (url, init) => {
++    if (!/sitemap\.xml/.test(url)) return gh(url, init);
++    sitemapAsked++;
++    if (init.headers['If-None-Match'] === '"sm-1"') return new Response(null, { status: 304, headers: { etag: '"sm-1"' } });
++    const r = gh(url, init);
++    return new Response(r.body, { status: 200, headers: { 'content-type': 'text/xml', etag: '"sm-1"' } });
++  };
++  const net = serve(board, g);
++  try {
++    const dir = tmp();
++    const state = path.join(dir, 'state');
++    const one = await crawlOnce('microsoft', { dir, stateDir: state, when: at(0) });
++    const two = await crawlOnce('microsoft', { dir, stateDir: state, when: at(24 * 5) }); // every detail past its age
++    assert.equal(sent.length, 8, 'every refresh was conditional');
++    assert.equal(two.snap.crawl.notModified, 8);
++    assert.deepEqual(two.snap.jobs, one.snap.jobs);
++    const g1 = await crawlOnce('google', { dir, stateDir: state, when: at(0) });
++    const g2 = await crawlOnce('google', { dir, stateDir: state, when: at(6) });
++    assert.equal(sitemapAsked, 2);
++    assert.deepEqual(g2.snap.jobs, g1.snap.jobs, 'a 304 sitemap: the previous entries');
++  } finally { net.restore(); }
++});
+-- 
+2.43.0
+

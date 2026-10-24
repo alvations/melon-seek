@@ -1,0 +1,536 @@
+From 49ba34a0cdd4c9cf31197b96987303f9d32f8ef3 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sun, 11 Oct 2026 12:13:35 +0000
+Subject: [PATCH 2/5] Amazon/Meta backend: resume switch proven end to end;
+ adapter edge-case tests
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+test/amazon-meta-resume.test.js: on this tree neither board is requested by any entry point
+(snapshot CLI, fetchLive, probe recon/full/raw), in the matrix, merged, built or listed; on a
+copy of the tree with only the two paused fields deleted, the matrix, crawl (synthetic sites),
+beta gate, merge + ledger, archive ingest (deep-equal reconstruct), beta build, company list and
+market comps all pick both up.
+test/amazon-meta-adapters.test.js: §7e/§7g formats: pay table orders, hourly, monthly, CAD,
+JPY/INR/GBP, national sentence, row choice, cap and partition coverage, robots, 503 retry,
+search errors; Meta annual/monthly/hourly pay, country pick, JSON-LD fallback, decoys, 403 wall.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+---
+ test/amazon-meta-adapters.test.js | 251 ++++++++++++++++++++++++++++++
+ test/amazon-meta-resume.test.js   | 243 +++++++++++++++++++++++++++++
+ 2 files changed, 494 insertions(+)
+ create mode 100644 test/amazon-meta-adapters.test.js
+ create mode 100644 test/amazon-meta-resume.test.js
+
+diff --git a/test/amazon-meta-adapters.test.js b/test/amazon-meta-adapters.test.js
+new file mode 100644
+index 0000000..1021c96
+--- /dev/null
++++ b/test/amazon-meta-adapters.test.js
+@@ -0,0 +1,251 @@
++// Amazon and Meta adapters against the formats recorded in docs/DATA_SOURCES.md §7e and §7g,
++// on the real fixture rows (test/fixtures/bigtech-*.json) and the synthetic boards
++// (test/amazon-meta-synth.js). No network. Each fetch test lifts the registry's `paused` in this
++// process only (server/companies.js PAUSING); the paused path itself is test/amazon-meta-resume.test.js.
++import { test, afterEach } from 'node:test';
++import assert from 'node:assert/strict';
++import fs from 'node:fs';
++import path from 'node:path';
++import { fileURLToPath } from 'node:url';
++
++import { mapAmazonJob, fetchAmazon, amazonPayTable, amazonSalary, amazonPlace, COMPLETE } from '../server/sources/amazon.js';
++import { mapMetaJob, fetchMeta, extractMetaPage, parseMetaSitemap, metaCountry, MAX_FAILED_IN_A_ROW } from '../server/sources/meta.js';
++import { setMinInterval, resetRateLimits, resetRobots, newStats, BOT_USER_AGENT } from '../server/sources/polite.js';
++import { normalizeJob } from '../server/normalize.js';
++import { vetSalaries } from '../server/vet.js';
++import { getCompany, COMPANIES, crawlBlock } from '../server/companies.js';
++import { amazonRows, amazonSite, metaRecords, metaSite, metaPageHtml, installFetch } from './amazon-meta-synth.js';
++
++const FIX = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures');
++const fixture = (slug) => JSON.parse(fs.readFileSync(path.join(FIX, `bigtech-${slug}.json`), 'utf8'));
++afterEach(() => { setMinInterval(null); resetRateLimits(); resetRobots(); });
++
++async function resumed(slug, fn) {
++  const c = COMPANIES.find((x) => x.slug === slug);
++  const was = c.paused;
++  delete c.paused;
++  try { return await fn(); } finally { if (was !== undefined) c.paused = was; }
++}
++const job = (raw, slug) => vetSalaries([normalizeJob(raw, getCompany(slug))])[0];
++const pay = (j) => (j.salary ? [j.salary.min, j.salary.max, j.salary.currency] : null);
++
++/* ---------------------------------------------------------------- Amazon */
++
++const STOCKTON = fixture('amazon').records.find((r) => r.id_icims === '10575218');
++const loc = (city, rc, iso3, iso2, country) => JSON.stringify({ normalizedCountryCode: iso3, city, countryIso3a: iso3, countryIso2a: iso2, type: 'ONSITE', normalizedCountryName: country, normalizedLocation: `${city}, ${rc}, ${iso3}`, region: rc, normalizedCityName: city });
++/** The Stockton fixture row with another pay table (and place). */
++const withTable = (rows, over = {}) => ({ ...STOCKTON, preferred_qualifications: STOCKTON.preferred_qualifications.replace(/<br\/>USA, CA, Stockton.*$/, `<br/>${rows.join('<br/>')}`), ...over });
++const TORONTO = { city: 'Toronto', state: 'ON', country_code: 'CAN', locations: [loc('Toronto', 'ON', 'CAN', 'CA', 'Canada')], normalized_location: 'Toronto, ON, CAN' };
++
++test('Amazon pay table: both place orders, hourly, monthly, single figure, CAD and large-unit currencies', () => {
++  assert.deepEqual(amazonPlace('USA, CA, East Palo Alto'), { country: 'USA', state: 'ca', city: 'east palo alto' });
++  assert.deepEqual(amazonPlace('Seattle, WA, USA'), { country: 'USA', state: 'wa', city: 'seattle' });
++  assert.deepEqual(amazonPlace('GBR, London'), { country: 'GBR', state: null, city: 'london' });
++  assert.deepEqual(amazonPlace('JPN, 13, Tokyo'), { country: 'JPN', state: '13', city: 'tokyo' });
++  const rows = amazonPayTable('The base salary range for this position is listed below.<br/>JPN, 13, Tokyo - 7,000,000 - 10,500,000 JPY annually<br/>IND, KA, Bengaluru - 2,500,000.00 - 4,000,000.00 INR annually<br/>GBR, London - 70,000.00 - 95,000.00 GBP annually<br/>USA, WA, Seattle - 7,500.00 - 9,800.00 USD monthly');
++  assert.deepEqual(rows.map((r) => [r.min, r.max, r.currency, r.interval]), [[7000000, 10500000, 'JPY', 'year'], [2500000, 4000000, 'INR', 'year'], [70000, 95000, 'GBP', 'year'], [7500, 9800, 'USD', 'month']]);
++  // Through the normalizer and the vetting gate: structured, never quarantined.
++  const hourly = job(mapAmazonJob(withTable(['USA, VA, Aldie - 27.98 - 48.99 USD hourly'], { city: 'Aldie', state: 'VA' })), 'amazon');
++  assert.equal(hourly.salary.kind, 'hourly');
++  assert.equal(hourly.salary.originalInterval, 'hour');
++  assert.equal(hourly.salary.source, 'structured');
++  assert.ok(!hourly.salaryFlag);
++  const single = job(mapAmazonJob(withTable(['Seattle, WA, USA - 80,200.00 USD Annually'], { city: 'Seattle', state: 'WA' })), 'amazon');
++  assert.deepEqual(pay(single), [80200, 80200, 'USD']);
++  const cad = job(mapAmazonJob(withTable(['USA, WA, Seattle - 143,700.00 - 194,400.00 USD annually', 'CAN, ON, Toronto - 84,600.00 - 126,800.00 CAD annually'], TORONTO)), 'amazon');
++  assert.deepEqual(pay(cad), [84600, 126800, 'CAD']);
++  assert.equal(cad.salary.text, 'CAN, ON, Toronto - 84,600.00 - 126,800.00 CAD annually');
++  assert.equal(cad.salary.ranges.length, 2, 'every row kept');
++});
++
++test('Amazon pay row: whole city and state, else the first row in the job\'s country, else the first row', () => {
++  const t = amazonPayTable(['USA, NY, New York - 150,000.00 - 200,000.00 USD annually', 'USA, PA, York - 90,000.00 - 120,000.00 USD annually', 'USA, VA, Arlington - 140,000.00 - 180,000.00 USD annually', 'CAN, BC, Vancouver - 84,600.00 - 126,800.00 CAD annually', 'CAN, QC, Montreal - 80,000.00 - 120,000.00 CAD annually'].join('<br/>'));
++  const min = (j) => amazonSalary(j, t).salary.min;
++  assert.equal(min({ city: 'York', state: 'PA', country_code: 'USA' }), 90000, '"York" is not "New York"');
++  assert.equal(min({ city: 'New York', state: 'NY', country_code: 'USA' }), 150000);
++  assert.equal(min({ city: 'Arlington', state: 'TX', country_code: 'USA' }), 150000, 'Arlington, TX is not the Arlington, VA row: the first US row');
++  assert.equal(min({ city: 'Toronto', state: 'ON', country_code: 'CAN' }), 84600, 'unlisted Canadian city: the first Canadian row, not a US one');
++  assert.equal(min({ city: 'Denver', state: 'CO' }), 150000, 'no country: the first row');
++  // The job's own place wins whatever its position in the table.
++  assert.equal(min({ city: 'Montreal', state: 'QC', country_code: 'CAN' }), 80000);
++  // And the normalizer keeps that pick (same currency as the job's country).
++  const n = job(mapAmazonJob(withTable(['USA, WA, Seattle - 143,700.00 - 194,400.00 USD annually', 'CAN, BC, Vancouver - 84,600.00 - 126,800.00 CAD annually'], TORONTO)), 'amazon');
++  assert.deepEqual(pay(n), [84600, 126800, 'CAD']);
++});
++
++test('Amazon: the older national sentence is read by the text parser (no table)', () => {
++  const national = { ...STOCKTON, preferred_qualifications: STOCKTON.preferred_qualifications.replace(/<p><span[\s\S]*$/, '<br/><br/>Our compensation reflects the cost of labor across several US geographic markets. The base pay for this position ranges from $129,300/year in our lowest geographic market up to $223,600/year in our highest geographic market. Pay is based on a number of factors including market location.') };
++  const raw = mapAmazonJob(national);
++  assert.equal(raw.salary, null, 'not structured');
++  const n = job(raw, 'amazon');
++  assert.deepEqual(pay(n), [129300, 223600, 'USD']);
++  assert.equal(n.salary.source, 'text');
++  assert.equal(mapAmazonJob({ ...STOCKTON, job_schedule_type: 'part-time' }).employmentType, 'Part-time');
++  assert.equal(mapAmazonJob({ ...STOCKTON, job_schedule_type: 'flex-time' }).employmentType, 'flex-time', 'an unrecorded schedule is kept as written');
++});
++
++test('fetchAmazon: honest User-Agent, robots.txt first, spaced requests, every page through the polite client', async () => {
++  setMinInterval(25);
++  const rows = amazonRows({ total: 260, seed: 2 });
++  const seen = [];
++  const site = amazonSite(rows);
++  const real = globalThis.fetch;
++  globalThis.fetch = async (url, init) => { seen.push({ url: String(url), at: Date.now(), ua: init.headers['User-Agent'], redirect: init.redirect }); return site(String(url)); };
++  try {
++    const stats = newStats();
++    const { jobs } = await resumed('amazon', () => fetchAmazon('amazon', { stats }));
++    assert.equal(jobs.length, 260);
++    assert.match(seen[0].url, /\/robots\.txt$/);
++    assert.ok(seen.every((c) => c.ua === BOT_USER_AGENT && c.redirect === 'manual'));
++    const gaps = seen.slice(1).map((c, i) => c.at - seen[i].at);
++    assert.ok(gaps.every((g) => g >= 20), `request starts at least the interval apart: ${gaps}`);
++    assert.equal(stats.requests, seen.length);
++  } finally {
++    globalThis.fetch = real;
++  }
++});
++
++test('fetchAmazon: robots.txt that disallows the search API stops before any search request', async () => {
++  setMinInterval(0);
++  const seen = [];
++  const real = globalThis.fetch;
++  globalThis.fetch = async (url) => { seen.push(new URL(url).pathname); return new Response('User-agent: *\nDisallow: /en/search\n', { status: 200 }); };
++  try {
++    await assert.rejects(resumed('amazon', () => fetchAmazon('amazon')), (e) => e.code === 'robots');
++    assert.deepEqual(seen, ['/robots.txt']);
++  } finally { globalThis.fetch = real; }
++});
++
++test('fetchAmazon: the 10,000-hit cap; a partial board is refused, never published as the whole one', async () => {
++  setMinInterval(0);
++  const rows = amazonRows({ total: 600, seed: 9 });
++  // 1. The category facet leaves out the US postings without a category: unreachable through the
++  //    partitions. Under COMPLETE of the facet total: refused.
++  const hidden = rows.filter((r) => r.country_code === 'USA' && r.business_category === 'aws').length;
++  assert.ok(hidden / rows.length > 1 - COMPLETE, 'the hidden share is big enough to matter');
++  const base = amazonSite(rows, { cap: 150 });
++  const hide = (url) => {
++    const r = base(url);
++    if (!r || !/facets/.test(url) || !/normalized_country_code%5B%5D=USA/.test(url)) return r;
++    return r.json().then((b) => { b.facets.business_category_facet = b.facets.business_category_facet.filter((f) => !('aws' in f)); return new Response(JSON.stringify(b), { status: 200, headers: { 'content-type': 'application/json' } }); });
++  };
++  let net = installFetch(hide);
++  try {
++    await assert.rejects(resumed('amazon', () => fetchAmazon('amazon', { cap: 150 })), (e) => e.code === 'incomplete' && /listed \d+ of 600 postings/.test(e.message));
++  } finally { net.restore(); }
++  // 2. A US category itself at the cap: only its first `cap` are readable. A small loss (here
++  //    about 2%) is kept with a note; the 95% rule is about how much is missing.
++  net = installFetch(amazonSite(rows, { cap: 100 }));
++  try {
++    const stats = newStats();
++    const { jobs } = await resumed('amazon', () => fetchAmazon('amazon', { cap: 100, stats }));
++    assert.ok(jobs.length < 600 && jobs.length >= COMPLETE * 600, `${jobs.length}`);
++    assert.ok(stats.notes.some((x) => /USA\/aws still at the cap, first 100 only/.test(x)), stats.notes.join(' | '));
++    assert.ok(stats.notes.some((x) => /^USA: \d+ of \d+ postings listed through/.test(x)));
++  } finally { net.restore(); }
++  // 3. A capped board without country facets: the first page of hits only -> refused.
++  const noFacets = (url) => { const r = base(url); return r && /facets/.test(url) ? r.json().then((b) => new Response(JSON.stringify({ ...b, facets: {} }), { status: 200 })) : r; };
++  net = installFetch(noFacets);
++  try {
++    await assert.rejects(resumed('amazon', () => fetchAmazon('amazon', { cap: 150 })), (e) => e.code === 'incomplete' && /no country facets/.test(e.message));
++    // A probe run (maxJobs) is a sample, so it is not held to the total.
++    const sample = await resumed('amazon', () => fetchAmazon('amazon', { cap: 150, maxJobs: 50 }));
++    assert.equal(sample.jobs.length, 50);
++  } finally { net.restore(); }
++  // 4. A search error in the body, and an HTTP 503 that recovers on retry.
++  let n = 0;
++  net = installFetch((url) => (/search\.json/.test(url) && n++ === 0 ? new Response('busy', { status: 503, headers: { 'retry-after': '0' } }) : base(url)));
++  try {
++    const ok = await resumed('amazon', () => fetchAmazon('amazon', { cap: 150 }));
++    assert.equal(ok.jobs.length, 600, 'a 503 is retried');
++  } finally { net.restore(); }
++  net = installFetch((url) => (/search\.json/.test(url) ? new Response(JSON.stringify({ error: 'boom', hits: 0, jobs: null }), { status: 200 }) : base(url)));
++  try {
++    await assert.rejects(resumed('amazon', () => fetchAmazon('amazon')), (e) => e.code === 'upstream' && /search error "boom"/.test(e.message));
++  } finally { net.restore(); }
++});
++
++/* ------------------------------------------------------------------ Meta */
++
++const META = fixture('meta').records;
++
++test('Meta public_compensation: annual (US), intern monthly, hourly, the job country\'s range first', () => {
++  const swe = job(mapMetaJob(META[0], { id: META[0].id }), 'meta');
++  assert.deepEqual(pay(swe), [183997, 257000, 'USD']);
++  assert.equal(swe.salary.source, 'structured');
++  const intern = job(mapMetaJob(META[2], { id: META[2].id }), 'meta');
++  assert.deepEqual(pay(intern), [87756, 152004, 'USD'], '$7,313/month to $12,667/month, annualized');
++  assert.equal(intern.salary.originalInterval, 'month');
++  assert.equal(intern.employmentType, 'Intern');
++  const hourly = job(mapMetaJob({ ...META[0], public_compensation: [{ compensation_amount_minimum: '$56.25/hour', compensation_amount_maximum: '$78.37/hour', country_code: 'US' }] }, {}), 'meta');
++  assert.equal(hourly.salary.kind, 'hourly');
++  // Two countries listed: the first location's country, whatever form addressCountry takes.
++  const two = [{ compensation_amount_minimum: '$173,000/year', compensation_amount_maximum: '$245,000/year', country_code: 'US' }, { compensation_amount_minimum: '£95,000/year', compensation_amount_maximum: '£130,000/year', country_code: 'GB' }];
++  for (const addressCountry of ['GB', 'United Kingdom', { '@type': 'Country', name: 'GB' }]) {
++    const p = { ...META[1], public_compensation: two, ld: { ...META[1].ld, jobLocation: [{ name: 'London, UK', address: { addressCountry } }] } };
++    const r = mapMetaJob(p, {});
++    assert.deepEqual([r.salary.min, r.salary.max, r.salary.currency], [95000, 130000, 'GBP'], JSON.stringify(addressCountry));
++    assert.equal(r.salary.zones, 2);
++  }
++  assert.equal(metaCountry('USA'), 'US');
++  assert.equal(metaCountry(null), null);
++});
++
++test('Meta pages: page data after the apply section wins over decoys; JSON-LD only when it is missing', () => {
++  const [p] = metaRecords({ total: 1, seed: 4, ldOnly: 0 });
++  const full = extractMetaPage(metaPageHtml(p), p.id);
++  assert.deepEqual(full.locations, p.locations, 'not the navigation block\'s "locations"');
++  assert.equal(full.title, p.title);
++  assert.ok(full.description_html.length > 100);
++  const ldOnly = { ...p, ldOnly: true };
++  const x = extractMetaPage(metaPageHtml(ldOnly), p.id);
++  assert.equal(x.locations, null, 'no page data: the decoy "locations" is not read');
++  assert.equal(x.description_html, null);
++  assert.deepEqual(x.public_compensation, p.public_compensation, 'public_compensation is found anywhere on the page');
++  const j = mapMetaJob(x, { id: p.id, url: `https://www.metacareers.com/profile/job_details/${p.id}/` });
++  assert.equal(j.title, p.title, 'title from JSON-LD');
++  assert.deepEqual([j.locationText, ...j.extraLocations], p.ld.jobLocation.map((l) => l.name), 'locations from JSON-LD');
++  assert.ok(j.html.startsWith(`<p>${p.ld.description.slice(0, 30)}`), `description from JSON-LD, as paragraphs: ${j.html.slice(0, 80)}`);
++  assert.ok(j.salary, 'pay from public_compensation');
++  const htmlLd = mapMetaJob({ ...x, ld: { ...x.ld, description: '<p>One</p><ul><li>Two</li></ul>' } }, {});
++  assert.equal(htmlLd.html, '<p>One</p><ul><li>Two</li></ul>', 'an HTML description is kept as it is');
++  assert.deepEqual(parseMetaSitemap('<urlset><url><loc>https://www.metacareers.com/profile/job_details/2486789151677735/</loc><lastmod>2026-10-09</lastmod></url><url><loc>https://www.metacareers.com/jobs/1796691991338568/</loc></url></urlset>'),
++    [{ id: '2486789151677735', url: 'https://www.metacareers.com/profile/job_details/2486789151677735/', lastmod: '2026-10-09' }, { id: '1796691991338568', url: 'https://www.metacareers.com/profile/job_details/1796691991338568/' }]);
++});
++
++test('fetchMeta: honest client, closed postings skipped, a wall of failures stops the crawl early', async () => {
++  setMinInterval(0);
++  const recs = metaRecords({ total: 120, seed: 6 });
++  // Normal run: one 404 in the sitemap, a few transient 500s (retried by the polite client).
++  let flaky = 0;
++  let net = installFetch(metaSite(recs, { gone: ['999999999999'], status: (id) => (id === recs[5].id && flaky++ < 2 ? 500 : 200) }));
++  try {
++    const stats = newStats();
++    const { jobs } = await resumed('meta', () => fetchMeta('meta', { stats }));
++    assert.equal(jobs.length, 120);
++    assert.ok(stats.notes.some((n) => /1 sitemap posting\(s\) had no job data/.test(n)));
++    assert.ok(stats.retries >= 2, 'the 500s were retried');
++    assert.ok(jobs.every((j) => /^https:\/\/www\.metacareers\.com\/profile\/job_details\/\d+\/$/.test(j.url)));
++  } finally { net.restore(); }
++  // A 403 wall from the 11th page on: stops after MAX_FAILED_IN_A_ROW pages, not 110 more requests.
++  const blocked = new Set(recs.slice(10).map((r) => r.id));
++  net = installFetch(metaSite(recs, { status: (id) => (blocked.has(id) ? 403 : 200) }));
++  try {
++    await assert.rejects(resumed('meta', () => fetchMeta('meta')), (e) => e.code === 'details_failed' && /in a row/.test(e.message));
++    const pages = net.calls.filter((u) => /job_details/.test(u)).length;
++    assert.equal(pages, 10 + MAX_FAILED_IN_A_ROW, `stopped early (${pages} page requests)`);
++  } finally { net.restore(); }
++  // More than 5% failed, scattered: refused (the ledger would close those postings).
++  const scattered = new Set(recs.filter((_, i) => i % 9 === 0).map((r) => r.id));
++  net = installFetch(metaSite(recs, { status: (id) => (scattered.has(id) ? 403 : 200) }));
++  try {
++    await assert.rejects(resumed('meta', () => fetchMeta('meta')), (e) => e.code === 'details_failed' && /14\/120 page requests failed/.test(e.message));
++  } finally { net.restore(); }
++});
++
++test('crawlBlock reads the registry at call time', () => {
++  assert.equal(crawlBlock('amazon', 'amazon')?.slug, 'amazon');
++  assert.equal(crawlBlock('meta', 'META')?.paused, 'terms');
++  assert.equal(crawlBlock('eightfold', 'microsoft'), null);
++  assert.equal(crawlBlock('amazon', 'nope'), null);
++});
+diff --git a/test/amazon-meta-resume.test.js b/test/amazon-meta-resume.test.js
+new file mode 100644
+index 0000000..d9973a7
+--- /dev/null
++++ b/test/amazon-meta-resume.test.js
+@@ -0,0 +1,243 @@
++// The resume switch for Amazon and Meta (server/companies.js PAUSING; docs/process/amazon-meta-backend.md).
++//
++// A. On this tree, where both are `paused: 'terms'`: neither is ever requested, by any entry
++//    point (the snapshot CLI, fetchLive, the probe's recon, full and raw modes), and neither is in
++//    the crawl matrix, the merged beta artifact, the beta build or its company list, even with a
++//    snapshot file lying around.
++// B. On a copy of the tree with only the `paused` fields deleted (the one switch): every stage
++//    picks both up, in the order snapshot.yml and pages.yml run them: the crawl matrix, the crawl
++//    (the real adapters against synthetic amazon.jobs and metacareers.com, test/amazon-meta-synth.js),
++//    the per-company beta gate, the merge into the beta artifact (with the ledger), the archive
++//    ingest of the beta-crawl-<slug> artifact, the beta build and its company list.
++// No test here reaches the network: every fetch() is served by the synthetic sites or throws.
++import { test, before, after } from 'node:test';
++import assert from 'node:assert/strict';
++import fs from 'node:fs';
++import os from 'node:os';
++import path from 'node:path';
++import { spawnSync } from 'node:child_process';
++import { fileURLToPath, pathToFileURL } from 'node:url';
++
++import { listCompanies, getCompany, COMPANIES } from '../server/companies.js';
++import { setMinInterval, resetRateLimits, resetRobots } from '../server/sources/polite.js';
++import { fetchLive } from '../server/pipeline.js';
++import { runSnapshot, targetsFor } from '../scripts/snapshot.js';
++import { amazonRows, metaRecords, amazonSite, metaSite, installFetch } from './amazon-meta-synth.js';
++
++const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
++const SLUGS = ['amazon', 'meta'];
++const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'melon-resume-'));
++const SNAPS = path.join(TMP, 'synthetic-snapshots'); // made in-process below, used by part A's build
++const EMPTY = path.join(TMP, 'empty');
++const ENV = { GITHUB_SHA: 'resume-test', MELON_BUILT_AT: '2026-10-11T00:00:00.000Z', GITHUB_STEP_SUMMARY: '', GITHUB_OUTPUT: '' };
++const SIZES = { SYN_AMAZON: '300', SYN_META: '40' };
++
++const run = (cmd, args, { cwd = ROOT, env = {} } = {}) => {
++  const r = spawnSync(cmd, args, { cwd, encoding: 'utf8', env: { ...process.env, ...ENV, ...env }, timeout: 240_000 });
++  return { ...r, out: `${r.stdout || ''}${r.stderr || ''}` };
++};
++const readJson = (f) => JSON.parse(fs.readFileSync(f, 'utf8'));
++/** A preload that serves the synthetic sites to a child process and logs every fetch() it saw. */
++function preload(root, file) {
++  const u = (p) => pathToFileURL(path.join(root, p)).href;
++  fs.writeFileSync(file, [
++    `import fs from 'node:fs';`,
++    `import { amazonRows, metaRecords, amazonSite, metaSite, installFetch } from ${JSON.stringify(u('test/amazon-meta-synth.js'))};`,
++    `import { setMinInterval } from ${JSON.stringify(u('server/sources/polite.js'))};`,
++    `setMinInterval(0);`,
++    `const net = installFetch(amazonSite(amazonRows({ total: Number(process.env.SYN_AMAZON || 300), seed: 5 })), metaSite(metaRecords({ total: Number(process.env.SYN_META || 40), seed: 5 }), { gone: ['999999999999'] }));`,
++    `process.on('exit', () => { if (process.env.SYN_LOG) fs.appendFileSync(process.env.SYN_LOG, net.calls.map((c) => c + '\\n').join('')); });`,
++  ].join('\n'));
++  return file;
++}
++const calls = (log) => (fs.existsSync(log) ? fs.readFileSync(log, 'utf8').split('\n').filter(Boolean) : []);
++
++before(async () => {
++  fs.mkdirSync(EMPTY, { recursive: true });
++  // Synthetic snapshots of both boards, made in this process with the pause lifted here only.
++  const saved = COMPANIES.filter((c) => SLUGS.includes(c.slug)).map((c) => [c, c.paused]);
++  for (const [c] of saved) delete c.paused;
++  setMinInterval(0);
++  const net = installFetch(amazonSite(amazonRows({ total: 300, seed: 5 })), metaSite(metaRecords({ total: 40, seed: 5 })));
++  try {
++    const r = await runSnapshot(SLUGS, { outDir: SNAPS, historyDir: path.join(TMP, 'hist-scratch'), log: () => {}, error: () => {} });
++    assert.equal(r.failed, 0, JSON.stringify(r.results));
++  } finally {
++    net.restore();
++    for (const [c, p] of saved) c.paused = p;
++    setMinInterval(null); resetRateLimits(); resetRobots();
++  }
++});
++after(() => fs.rmSync(TMP, { recursive: true, force: true }));
++
++/* ------------------------------------------------- A. paused (this tree) */
++
++test('paused: both are left out of the registry lists, the crawl targets and the crawl matrix', () => {
++  for (const s of SLUGS) assert.ok(getCompany(s).paused, `${s} is paused on this tree`);
++  const beta = listCompanies({ channel: 'beta' }).map((c) => c.slug);
++  for (const s of SLUGS) {
++    assert.ok(!beta.includes(s), `${s} not in listCompanies beta`);
++    assert.ok(!targetsFor(['--channel', 'beta']).includes(s), `${s} not a --channel beta target`);
++  }
++  const m = run(process.execPath, ['.github/scripts/beta-snapshots.mjs', 'slugs']);
++  assert.equal(m.status, 0, m.out);
++  const matrix = JSON.parse(m.stdout);
++  assert.ok(matrix.length >= 5, 'the other beta boards are still crawled');
++  for (const s of SLUGS) assert.ok(!matrix.includes(s), `${s} not in the snapshot.yml matrix`);
++});
++
++test('paused: never requested, whoever asks (snapshot CLI with explicit slugs, fetchLive, the probe in every mode)', async () => {
++  // In this process: fetchLive and runSnapshot.
++  setMinInterval(0);
++  const net = installFetch(amazonSite(amazonRows({ total: 50 })), metaSite(metaRecords({ total: 5 })));
++  try {
++    for (const s of SLUGS) await assert.rejects(fetchLive(getCompany(s)), (e) => e.code === 'paused' && /terms/.test(e.message));
++    const out = path.join(TMP, 'paused-out');
++    const r = await runSnapshot(SLUGS, { outDir: out, historyDir: path.join(TMP, 'paused-hist'), log: () => {}, error: () => {} });
++    assert.equal(r.failed, 2);
++    for (const x of r.results) assert.match(x.error, /paused \(terms\)/);
++    assert.deepEqual(fs.readdirSync(out), [], 'no snapshot written');
++    assert.deepEqual(net.calls, [], 'not even robots.txt');
++  } finally {
++    net.restore(); setMinInterval(null); resetRateLimits(); resetRobots();
++  }
++  // Child processes, as a workflow would start them; the preload logs any fetch().
++  const pre = preload(ROOT, path.join(TMP, 'net-root.mjs'));
++  const log = path.join(TMP, 'paused-calls.log');
++  const env = { SYN_LOG: log, MELON_SNAPSHOT_DIR: path.join(TMP, 'paused-cli'), MELON_HISTORY_DIR: path.join(TMP, 'paused-cli-hist') };
++  const snap = run(process.execPath, ['--import', pre, 'scripts/snapshot.js', 'amazon', 'meta'], { env });
++  assert.equal(snap.status, 1, `every slug failed: ${snap.out}`);
++  assert.match(snap.out, /amazon: amazon: paused \(terms\)/);
++  for (const mode of ['recon', 'full']) {
++    const p = run(process.execPath, ['--import', pre, 'scripts/probe-bigtech.js'], { env: { ...env, PROBE_MODE: mode, PROBE_COMPANIES: 'amazon,meta', PROBE_MAX_JOBS: '5' } });
++    assert.equal(p.status, 0, p.out);
++    assert.match(p.out, /skipped amazon: paused \(terms\)/);
++    assert.match(p.out, /skipped meta: paused \(terms\)/);
++  }
++  const raw = JSON.stringify([{ url: 'https://www.amazon.jobs/en/search.json?offset=0&result_limit=1' }, { url: 'https://www.metacareers.com/jobsearch/sitemap.xml' }, { url: 'https://amazon.jobs/en/jobs/1/x' }]);
++  const pr = run(process.execPath, ['--import', pre, 'scripts/probe-bigtech.js'], { env: { ...env, PROBE_MODE: 'none', PROBE_RAW: raw } });
++  assert.equal((pr.out.match(/paused in server\/companies\.js; skipped, no request made/g) || []).length, 3, pr.out);
++  assert.deepEqual(calls(log), [], 'no child process made any request to either site');
++});
++
++test('paused: a leftover snapshot is dropped by the merge and never built or listed', () => {
++  // The merge: a paused company's file in the restored beta artifact is removed (not a beta company).
++  const data = path.join(TMP, 'paused-artifact');
++  fs.mkdirSync(path.join(data, 'snapshots'), { recursive: true });
++  fs.mkdirSync(path.join(data, 'history'), { recursive: true });
++  for (const s of SLUGS) fs.copyFileSync(path.join(SNAPS, `${s}.json`), path.join(data, 'snapshots', `${s}.json`));
++  const fresh = path.join(TMP, 'paused-fresh');
++  fs.mkdirSync(fresh, { recursive: true });
++  for (const s of SLUGS) fs.copyFileSync(path.join(SNAPS, `${s}.json`), path.join(fresh, `${s}.json`));
++  const m = run(process.execPath, ['.github/scripts/beta-snapshots.mjs', 'merge', fresh, data]);
++  assert.equal(m.status, 0, m.out);
++  for (const s of SLUGS) assert.ok(!fs.existsSync(path.join(data, 'snapshots', `${s}.json`)), `${s} removed from the beta artifact`);
++  assert.match(m.out, /Removed non-beta files: .*snapshots\/amazon\.json/);
++  // The build: snapshots present, still not on /beta/.
++  const out = path.join(TMP, 'dist-paused');
++  const b = run(process.execPath, ['scripts/build-static.js', '--out', out], { env: { MELON_SNAPSHOT_DIR: EMPTY, MELON_HISTORY_DIR: EMPTY, MELON_BETA_SNAPSHOT_DIR: SNAPS, MELON_BETA_HISTORY_DIR: EMPTY } });
++  assert.equal(b.status, 0, b.out.slice(-2000));
++  const listed = readJson(path.join(out, 'beta', 'api', 'companies.json')).map((c) => c.slug);
++  for (const s of SLUGS) {
++    assert.ok(!listed.includes(s), `${s} not in /beta/ api/companies.json`);
++    assert.ok(!fs.existsSync(path.join(out, 'beta', 'api', 'jobs', `${s}.json`)), `no /beta/ job list for ${s}`);
++    assert.ok(!fs.existsSync(path.join(out, 'api', 'jobs', `${s}.json`)), `no stable job list for ${s}`);
++  }
++});
++
++/* --------------------------------------- B. resumed (a copy of the tree) */
++
++test('resumed: deleting `paused` (the one switch) turns on matrix, crawl, gate, merge, archive, build and list', () => {
++  const T = path.join(TMP, 'tree');
++  for (const d of ['server', 'scripts', 'public', path.join('.github', 'scripts')]) fs.cpSync(path.join(ROOT, d), path.join(T, d), { recursive: true });
++  fs.mkdirSync(path.join(T, 'docs'), { recursive: true });
++  for (const f of ['package.json', path.join('data', 'cities.json'), path.join('test', 'amazon-meta-synth.js'), path.join('test', 'fixtures', 'bigtech-amazon.json'), path.join('test', 'fixtures', 'bigtech-meta.json')]) {
++    fs.mkdirSync(path.dirname(path.join(T, f)), { recursive: true });
++    fs.copyFileSync(path.join(ROOT, f), path.join(T, f));
++  }
++  // The methodology page is built from docs/*.md (METHODOLOGY_GUIDE.md, LIVABILITY.md).
++  for (const f of fs.readdirSync(path.join(ROOT, 'docs')).filter((n) => n.endsWith('.md'))) fs.copyFileSync(path.join(ROOT, 'docs', f), path.join(T, 'docs', f));
++  fs.symlinkSync(path.join(ROOT, 'node_modules'), path.join(T, 'node_modules'));
++  // THE SWITCH: delete the two `paused` fields, nothing else.
++  const reg = path.join(T, 'server', 'companies.js');
++  const before = fs.readFileSync(reg, 'utf8');
++  const after = before.replace(/, paused: 'terms' \}/g, ' }');
++  assert.equal(before.length - after.length, 2 * ", paused: 'terms'".length, 'exactly the two paused fields');
++  fs.writeFileSync(reg, after);
++
++  // 1. snapshot.yml beta-companies: the matrix.
++  const m = run(process.execPath, ['.github/scripts/beta-snapshots.mjs', 'slugs'], { cwd: T });
++  assert.equal(m.status, 0, m.out);
++  const matrix = JSON.parse(m.stdout);
++  for (const s of SLUGS) assert.ok(matrix.includes(s), `${s} in the crawl matrix: ${m.stdout}`);
++
++  // 2. beta-crawl (one job per company): the real snapshot CLI, served by the synthetic sites.
++  const pre = preload(T, path.join(T, 'test', 'zz-net.mjs'));
++  const log = path.join(TMP, 'resumed-calls.log');
++  const fresh = path.join(T, 'data', 'beta-fresh');
++  for (const s of SLUGS) {
++    const c = run(process.execPath, ['--import', pre, 'scripts/snapshot.js', s], { cwd: T, env: { ...SIZES, SYN_LOG: log, MELON_SNAPSHOT_DIR: fresh, MELON_HISTORY_DIR: path.join(TMP, 'ledger-scratch') } });
++    assert.equal(c.status, 0, c.out);
++    assert.match(c.out, new RegExp(`✓ ${s}: \\d+ jobs`));
++  }
++  const seen = calls(log);
++  assert.ok(seen.length > 40, `requests were made (${seen.length})`);
++  assert.ok(seen.every((u) => /^https:\/\/www\.(amazon\.jobs|metacareers\.com)\//.test(u)), 'only the two career sites');
++  assert.equal(seen.filter((u) => /amazon\.jobs\/robots\.txt$/.test(u)).length, 1, 'robots.txt checked once per crawl');
++  assert.ok(/robots\.txt$/.test(seen[0]), 'robots.txt first');
++  const snap = { amazon: readJson(path.join(fresh, 'amazon.json')), meta: readJson(path.join(fresh, 'meta.json')) };
++  assert.equal(snap.amazon.jobs.length, 300);
++  assert.equal(snap.meta.jobs.length, 40, 'the sitemap entry that is gone (404) is not a posting');
++  for (const s of SLUGS) {
++    assert.equal(snap[s].company.channel, 'beta');
++    assert.equal(snap[s].company.live, false);
++    assert.ok(snap[s].jobs.filter((j) => j.salary).length > 0, `${s} has pay`);
++  }
++
++  // 3. The per-company beta gate (the real vet-salaries.js): both pass.
++  const g = run('bash', ['.github/scripts/beta-gate.sh', fresh, path.join(T, 'rejected')], { cwd: T });
++  assert.equal(g.status, 0, g.out);
++  for (const s of SLUGS) assert.match(g.out, new RegExp(`beta-gate: ${s} passed`));
++
++  // 4. beta-merge: fresh replaces nothing (first crawl) and the ledger starts.
++  const data = path.join(T, 'data', 'beta');
++  const outFile = path.join(TMP, 'gh-output');
++  const mg = run(process.execPath, ['.github/scripts/beta-snapshots.mjs', 'merge', fresh, data], { cwd: T, env: { GITHUB_OUTPUT: outFile } });
++  assert.equal(mg.status, 0, mg.out);
++  assert.match(fs.readFileSync(outFile, 'utf8'), /fresh=2/);
++  for (const s of SLUGS) {
++    assert.ok(fs.existsSync(path.join(data, 'snapshots', `${s}.json`)), `${s} in the beta artifact`);
++    assert.ok(fs.existsSync(path.join(data, 'history', `${s}.json`)), `${s} ledger started`);
++  }
++
++  // 5. archive.yml: the beta-crawl-<slug> artifact is folded into the archive.
++  const archive = path.join(TMP, 'archive');
++  for (const s of SLUGS) {
++    const art = path.join(TMP, `artifact-${s}`);
++    fs.mkdirSync(art, { recursive: true });
++    fs.copyFileSync(path.join(fresh, `${s}.json`), path.join(art, `${s}.json`));
++    const a = run(process.execPath, ['scripts/archive/ingest.js', '--archive', archive, '--name', `beta-crawl-${s}`, '--dir', art], { cwd: T });
++    assert.equal(a.status, 0, a.out);
++    assert.match(a.out, /"status":"folded"/, a.out);
++    const rc = run(process.execPath, ['scripts/archive/reconstruct.js', '--archive', archive, '--company', s, '--check', path.join(art, `${s}.json`)], { cwd: T });
++    assert.equal(rc.status, 0, `the archive rebuilds ${s} deep-equal: ${rc.out}`);
++  }
++
++  // 6. pages.yml: the beta build lists both, bundle-only; the main site has neither.
++  const out = path.join(TMP, 'dist-resumed');
++  const b = run(process.execPath, ['scripts/build-static.js', '--out', out], { cwd: T, env: { MELON_SNAPSHOT_DIR: EMPTY, MELON_HISTORY_DIR: EMPTY, MELON_BETA_SNAPSHOT_DIR: path.join(data, 'snapshots'), MELON_BETA_HISTORY_DIR: path.join(data, 'history') } });
++  assert.equal(b.status, 0, b.out.slice(-2000));
++  const beta = readJson(path.join(out, 'beta', 'api', 'companies.json'));
++  const stable = readJson(path.join(out, 'api', 'companies.json')).map((c) => c.slug);
++  for (const s of SLUGS) {
++    const e = beta.find((c) => c.slug === s);
++    assert.ok(e, `${s} on the /beta/ company list`);
++    assert.equal(e.live, false, `${s} is bundle-only`);
++    const list = readJson(path.join(out, 'beta', 'api', 'jobs', `${s}.json`));
++    assert.equal(list.jobs.length, snap[s].jobs.length, `${s}: every posting bundled`);
++    assert.ok(fs.existsSync(path.join(out, 'beta', 'c', s, 'index.html')), `${s} share page`);
++    assert.ok(!stable.includes(s) && !fs.existsSync(path.join(out, 'api', 'jobs', `${s}.json`)), `${s} never on the main site`);
++  }
++  const market = readJson(path.join(out, 'beta', 'api', 'market.json'));
++  for (const s of SLUGS) assert.ok((market.companies || []).some((c) => c.slug === s), `${s} in the /beta/ market comps`);
++});
+-- 
+2.43.0
+

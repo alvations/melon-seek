@@ -1,0 +1,566 @@
+From c5adb95438c51ab6c160b47f656002c1b6a0d99c Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sun, 11 Oct 2026 13:50:48 +0000
+Subject: [PATCH 02/10] Closures need a complete list; crawl state and
+ per-posting accounting for every board
+
+server/history.js: updateLedger closes a posting only when absent from a complete list
+(x: absent), on a probe's 404/410/redirect (x: gone), or after UNSEEN_OPEN_DAYS missing from
+partial lists (x: unseen); listed-but-unpublished ids stay open. closureOptions builds the
+options from a snapshot. scripts/snapshot.js: fetchBoard passes the previous crawl state
+(MELON_CRAWL_STATE_DIR, <slug>.json.gz) to the adapter, normalizes the whole board, writes the
+snapshot's crawl field (mode, list completeness, new/changed/unchanged/absent, gone) and the
+next state. beta-snapshots.mjs merge reads the same crawl's listed ids. Stable adapters report
+their response validators.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+---
+ .github/scripts/beta-snapshots.mjs |  25 ++--
+ scripts/history.js                 |  13 ++-
+ scripts/snapshot.js                | 178 +++++++++++++++++++++++------
+ server/history.js                  |  53 ++++++++-
+ server/sources/ashby.js            |   4 +-
+ server/sources/greenhouse.js       |   4 +-
+ server/sources/lever.js            |   4 +-
+ server/sources/util.js             |   4 +-
+ 8 files changed, 226 insertions(+), 59 deletions(-)
+
+diff --git a/.github/scripts/beta-snapshots.mjs b/.github/scripts/beta-snapshots.mjs
+index ca45c85..a259dfd 100644
+--- a/.github/scripts/beta-snapshots.mjs
++++ b/.github/scripts/beta-snapshots.mjs
+@@ -4,7 +4,7 @@
+ //   node .github/scripts/beta-snapshots.mjs slugs
+ //       Prints the beta-channel slugs as a JSON array (the crawl matrix; [] = none),
+ //       from server/companies.js via scripts/build-static.js#channelCompanies.
+-//   node .github/scripts/beta-snapshots.mjs merge <fresh-dir> <data-dir>
++//   node .github/scripts/beta-snapshots.mjs merge <fresh-dir> <data-dir> [<crawl-state-dir>]
+ //       <data-dir> (data/beta) holds the restored job-board-snapshots-beta artifact:
+ //       snapshots/<slug>.json and history/<slug>.json. <fresh-dir> holds this run's
+ //       crawl results, one <slug>.json per company that fetched AND passed the beta gate.
+@@ -13,6 +13,10 @@
+ //       no fresh file keeps its previous snapshot and ledger untouched. Files of slugs that
+ //       are not beta companies are removed. Writes a Markdown table to $GITHUB_STEP_SUMMARY
+ //       and `fresh=<n>` / `kept=<n>` to $GITHUB_OUTPUT (when set).
++//       Closures follow server/history.js#closureOptions: the snapshot's `crawl` field (a short
++//       list closes nothing for being absent; probe-confirmed `gone` ids close) and, from
++//       <crawl-state-dir>/<slug>.json.gz of the SAME crawl (same fetchedAt), every id the crawl
++//       listed, so postings a cap left out stay open while they are on the board.
+ //
+ // Env: MELON_BETA_COMPANIES (test-only extra beta companies, as for scripts/build-static.js).
+ import fs from 'node:fs';
+@@ -33,9 +37,9 @@ async function betaCompanies() {
+ const readJson = (f) => { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch { return null; } };
+ const append = (file, text) => { if (file) fs.appendFileSync(file, text); };
+ 
+-async function merge(freshDir, dataDir) {
+-  // A capped snapshot (jobsCapped) records its left-out postings as unseen, not closed.
+-  const { recordPublished } = await imp('scripts', 'snapshot.js');
++async function merge(freshDir, dataDir, stateDir = null) {
++  // A capped or partial snapshot records its left-out postings as unseen, not closed.
++  const { recordPublished, readCrawlState } = await imp('scripts', 'snapshot.js');
+   const snaps = path.join(dataDir, 'snapshots');
+   const hist = path.join(dataDir, 'history');
+   fs.mkdirSync(snaps, { recursive: true });
+@@ -55,8 +59,11 @@ async function merge(freshDir, dataDir) {
+       let ledger = '';
+       try {
+         const capped = body && body.jobsCapped && typeof body.jobsCapped === 'object' ? body.jobsCapped : null;
+-        const h = await recordPublished(c.slug, jobs, fetchedAt, { dir: hist, capped });
+-        ledger = h && h.stats ? `ledger: ${h.stats.open} open, +${h.stats.added} new, ${h.stats.closed} closed${h.stats.unseen ? `, ${h.stats.unseen} left out by the cap kept open` : ''}` : '';
++        const crawl = body && body.crawl && typeof body.crawl === 'object' ? body.crawl : null;
++        const state = stateDir ? await readCrawlState(stateDir, c.slug) : null;
++        const listed = state && state.fetchedAt === fetchedAt && Array.isArray(state.listed) ? state.listed : null;
++        const h = await recordPublished(c.slug, jobs, fetchedAt, { dir: hist, capped, crawl, listed });
++        ledger = h && h.stats ? `ledger: ${h.stats.open} open, +${h.stats.added} new, ${h.stats.closed} closed${Object.keys(h.stats.closedBy || {}).length ? ` (${Object.entries(h.stats.closedBy).map(([k, v]) => `${v} ${k}`).join(', ')})` : ''}${h.stats.unseen ? `, ${h.stats.unseen} missing from a partial list kept open` : ''}${crawl ? `; crawl ${crawl.mode}, list ${crawl.list && crawl.list.complete === false ? 'partial' : 'complete'}` : ''}` : '';
+       } catch (err) {
+         ledger = `ledger unchanged (${err.message})`;
+       }
+@@ -94,9 +101,9 @@ async function merge(freshDir, dataDir) {
+ const [cmd, ...rest] = process.argv.slice(2);
+ if (cmd === 'slugs') {
+   console.log(JSON.stringify((await betaCompanies()).map((c) => c.slug)));
+-} else if (cmd === 'merge' && rest.length === 2) {
+-  await merge(path.resolve(rest[0]), path.resolve(rest[1]));
++} else if (cmd === 'merge' && (rest.length === 2 || rest.length === 3)) {
++  await merge(path.resolve(rest[0]), path.resolve(rest[1]), rest[2] ? path.resolve(rest[2]) : null);
+ } else {
+-  console.error('usage: beta-snapshots.mjs slugs | merge <fresh-dir> <data-dir>');
++  console.error('usage: beta-snapshots.mjs slugs | merge <fresh-dir> <data-dir> [<crawl-state-dir>]');
+   process.exit(2);
+ }
+diff --git a/scripts/history.js b/scripts/history.js
+index 515d1ba..092b960 100644
+--- a/scripts/history.js
++++ b/scripts/history.js
+@@ -15,7 +15,7 @@
+ import fs from 'node:fs/promises';
+ import path from 'node:path';
+ import { fileURLToPath, pathToFileURL } from 'node:url';
+-import { updateLedger, diffLedger, HISTORY_FORMAT } from '../server/history.js';
++import { updateLedger, diffLedger, closureOptions, HISTORY_FORMAT } from '../server/history.js';
+ 
+ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+ 
+@@ -67,13 +67,14 @@ export async function writeLedger(slug, ledger, { dir = historyDir() } = {}) {
+ 
+ /**
+  * Record one successful run into data/history/<slug>.json.
+- * Empty `jobs` (failed or empty fetch) leaves the file untouched.
++ * Empty `jobs` (failed or empty fetch) leaves the file untouched. `ledgerOpts`: updateLedger's
++ * closure options ({ complete, listed, gone }; server/history.js "Rules").
+  */
+-export async function recordRun(slug, jobs, fetchedAt, { dir = historyDir() } = {}) {
++export async function recordRun(slug, jobs, fetchedAt, { dir = historyDir(), ledgerOpts = {} } = {}) {
+   const file = fileFor(slug, dir);
+   if (!Array.isArray(jobs) || !jobs.length) return { file, changed: false, stats: null, ledger: null };
+   const prev = await readLedger(slug, { dir });
+-  const next = updateLedger(prev, jobs, fetchedAt);
++  const next = updateLedger(prev, jobs, fetchedAt, ledgerOpts);
+   if (next === prev) return { file, changed: false, stats: null, ledger: prev };
+   await writeLedger(slug, next, { dir });
+   return { file, changed: true, stats: diffLedger(prev, next), ledger: next };
+@@ -97,7 +98,9 @@ async function main(argv) {
+       try {
+         const snap = JSON.parse(await fs.readFile(path.join(snapDir, `${slug}.json`), 'utf8'));
+         const jobs = Array.isArray(snap) ? snap : snap.jobs;
+-        const r = await recordRun(slug, jobs, snap.fetchedAt, { dir });
++        // The snapshot's own closure facts: a capped or partial list closes nothing for being absent.
++        const ledgerOpts = closureOptions({ capped: snap.jobsCapped || null, crawl: snap.crawl || null });
++        const r = await recordRun(slug, jobs, snap.fetchedAt, { dir, ledgerOpts });
+         console.log(r.changed ? `✓ ${slug}: ${JSON.stringify(r.stats)}` : `- ${slug}: unchanged (empty or not newer than the ledger)`);
+       } catch (err) {
+         failed++;
+diff --git a/scripts/snapshot.js b/scripts/snapshot.js
+index 3094791..d9f205b 100644
+--- a/scripts/snapshot.js
++++ b/scripts/snapshot.js
+@@ -13,17 +13,22 @@
+ // to ~1.5 hours; they run in parallel (one host each) and log their progress.
+ // A beta snapshot over MAX_BETA_SNAPSHOT_BYTES has its descriptions trimmed
+ // (sections and keywords are derived from the full text first; see fitSnapshot).
+-// Env: MELON_SNAPSHOT_DIR (default data/snapshots), MELON_HISTORY_DIR (default data/history).
++// Env: MELON_SNAPSHOT_DIR (default data/snapshots), MELON_HISTORY_DIR (default data/history),
++// MELON_CRAWL_STATE_DIR (incremental crawl state, <slug>.json.gz; unset = full crawls),
++// MELON_FULL_CRAWL=1 (ignore the state once), MELON_DETAIL_REFRESH_DAYS (default 4),
++// MELON_CLOSE_PROBES (closure probes per board and run, default 50). docs/ARCHITECTURE.md "Incremental crawl".
+ import fs from 'node:fs/promises';
+ import path from 'node:path';
++import zlib from 'node:zlib';
+ import { pathToFileURL } from 'node:url';
+ import { listCompanies, resolveCompany } from '../server/companies.js';
+-import { fetchLive as defaultFetchLive } from '../server/pipeline.js';
+-import { NORMALIZER_VERSION } from '../server/normalize.js';
++import { ADAPTERS, maxBytesFor, BUILTIN_TIMEOUT_MS } from '../server/pipeline.js';
++import { NORMALIZER_VERSION, normalizeJobs } from '../server/normalize.js';
+ import { ROOT } from '../server/cache.js';
+ import { newStats } from '../server/sources/polite.js';
+-import { recordRun, readLedger, writeLedger, historyDir } from './history.js';
+-import { diffLedger } from '../server/history.js';
++import { CRAWL_STATE_FORMAT, accountPostings, LIST_ONLY } from '../server/sources/incremental.js';
++import { recordRun, readLedger, historyDir } from './history.js';
++import { closureOptions, UNSEEN_OPEN_DAYS } from '../server/history.js';
+ 
+ /** About 40 MB: the static build and the snapshot artifact stay manageable (docs/process/bigtech-data.md). */
+ export const MAX_BETA_SNAPSHOT_BYTES = 40 * 1024 * 1024;
+@@ -97,36 +102,114 @@ export function fitSnapshot(jobs, payloadOf, maxBytes = MAX_BETA_SNAPSHOT_BYTES,
+   }
+ }
+ 
+-/** A posting a capped run left out stays open in the F4 ledger while it was seen this recently. */
+-export const UNSEEN_OPEN_DAYS = 14;
++/** A posting a partial run (capped, or a short list) left out stays open in the F4 ledger while it was seen this recently. */
++export { UNSEEN_OPEN_DAYS };
+ 
+ /**
+- * scripts/history.js#recordRun for what a run published. A capped run (jobsCapped) only shows
+- * part of the board, so a posting it left out is not "closed": updateLedger would close it, and
+- * a new posting with the same title and place would then be linked to it as a repost (Amazon
+- * repeats titles per site). Those entries are re-opened while last seen within
+- * UNSEEN_OPEN_DAYS; after that they close as usual. The archive treats such runs as partial too
+- * (scripts/archive/ingest.js). Returns recordRun's result, stats.unseen = entries kept open.
++ * scripts/history.js#recordRun for what a run published, with the closure rules of
++ * server/history.js (closureOptions): a posting is closed only when absent from a COMPLETE
++ * list. A capped run (jobsCapped) or a short list (crawl.list.complete false) closes nothing for
++ * being absent: such entries stay open while last seen within UNSEEN_OPEN_DAYS, then close as
++ * "unseen". `listed` (the crawl state's ids: on the board, maybe left out by the cap) and
++ * crawl.unpublished are seen and kept open; crawl.gone (a probe's 404/410/redirect) closes now.
++ * The archive treats such runs as partial too (scripts/archive/ingest.js). Returns recordRun's
++ * result; stats.unseen = entries missing from a partial list kept open, stats.closedBy = { reason: n }.
+  */
+-export async function recordPublished(slug, jobs, fetchedAt, { dir, capped = null } = {}) {
+-  if (!capped) return recordRun(slug, jobs, fetchedAt, { dir });
++export async function recordPublished(slug, jobs, fetchedAt, { dir, capped = null, crawl = null, listed = null } = {}) {
++  const ledgerOpts = closureOptions({ capped, crawl, listed });
+   const prev = await readLedger(slug, { dir });
+-  const r = await recordRun(slug, jobs, fetchedAt, { dir });
+-  if (!r.changed || !r.ledger || !prev || !prev.jobs) return r;
++  const r = await recordRun(slug, jobs, fetchedAt, { dir, ledgerOpts });
++  if (!r.changed || !r.ledger) return r;
+   const now = r.ledger.lastRunAt;
+-  const horizon = Date.parse(now) - UNSEEN_OPEN_DAYS * 864e5;
++  const ids = new Set(jobs.map((j) => j && j.id));
++  const on = new Set(ledgerOpts.listed);
+   let unseen = 0;
++  const closedBy = {};
+   for (const [id, e] of Object.entries(r.ledger.jobs)) {
+-    const was = prev.jobs[id];
+-    if (e.c === now && was && !was.c && Date.parse(was.l || was.f || '') >= horizon) { delete e.c; unseen++; }
+-  }
+-  if (unseen) {
+-    await writeLedger(slug, r.ledger, { dir });
+-    r.stats = { ...diffLedger(prev, r.ledger), unseen };
++    if (!e.c && !ids.has(id) && !on.has(id) && prev && prev.jobs && prev.jobs[id]) unseen++;
++    if (e.c === now && e.x) closedBy[e.x] = (closedBy[e.x] || 0) + 1;
+   }
++  r.stats = { ...r.stats, unseen, closedBy };
+   return r;
+ }
+ 
++/* ------------------------------------------------------------ crawl state */
++
++/** Crawl state of one board: <dir>/<slug>.json.gz (server/sources/incremental.js), or null. */
++export function crawlStateFile(dir, slug) {
++  if (!/^[a-z0-9][a-z0-9_.-]*$/i.test(slug) || slug.includes('..')) throw new Error(`invalid slug "${slug}"`);
++  return path.join(dir, `${slug}.json.gz`);
++}
++
++/** Read a crawl state (null when missing, unreadable or another format: then the crawl is full). */
++export async function readCrawlState(dir, slug) {
++  if (!dir) return null;
++  try {
++    const s = JSON.parse(zlib.gunzipSync(await fs.readFile(crawlStateFile(dir, slug))).toString('utf8'));
++    return s && s.format === CRAWL_STATE_FORMAT && s.slug === slug ? s : null;
++  } catch { return null; }
++}
++
++/** Write a crawl state atomically (gzipped JSON). */
++export async function writeCrawlState(dir, slug, state) {
++  await fs.mkdir(dir, { recursive: true });
++  const file = crawlStateFile(dir, slug);
++  const tmp = `${file}.${process.pid}.tmp`;
++  await fs.writeFile(tmp, zlib.gzipSync(Buffer.from(JSON.stringify(state)), { level: 6 }));
++  await fs.rename(tmp, file);
++  return file;
++}
++
++/** Crawl options from the environment: MELON_FULL_CRAWL, MELON_DETAIL_REFRESH_DAYS, MELON_CLOSE_PROBES. */
++export function crawlEnv(env = process.env) {
++  const out = {};
++  if (/^(1|true|yes)$/i.test(env.MELON_FULL_CRAWL || '')) out.full = true;
++  if (env.MELON_DETAIL_REFRESH_DAYS) out.refreshDays = Number(env.MELON_DETAIL_REFRESH_DAYS);
++  if (env.MELON_CLOSE_PROBES) out.probeLimit = Number(env.MELON_CLOSE_PROBES);
++  return out;
++}
++
++/**
++ * Fetch one board through its adapter (server/pipeline.js ADAPTERS) with the incremental
++ * options, and normalize the whole board. Returns { jobs, raws, listing, state, validators }:
++ * listing/state come from detail and list-only adapters that report them (null otherwise).
++ */
++export async function fetchBoard(company, { log, stats, previous = null, crawl = {}, now } = {}) {
++  const adapter = ADAPTERS[company.source];
++  if (!adapter) throw new Error(`No adapter for source "${company.source}"`);
++  let validators = null;
++  const out = await adapter(company.board, {
++    maxBytes: maxBytesFor(company), timeoutMs: company.custom ? undefined : BUILTIN_TIMEOUT_MS,
++    ...(log ? { log } : {}), ...(stats ? { stats } : {}),
++    previous, ...crawl, ...(now ? { now } : {}),
++    onResponse: (h) => { validators = { etag: !!h.get('etag'), lastModified: !!h.get('last-modified') }; },
++  });
++  const raws = Array.isArray(out) ? out : out && Array.isArray(out.jobs) ? out.jobs : null;
++  if (!raws) throw new Error(`Adapter for "${company.source}" returned no job list`);
++  return {
++    jobs: normalizeJobs(raws, company), raws,
++    listing: !Array.isArray(out) && out.listing ? out.listing : null,
++    state: !Array.isArray(out) && out.state ? out.state : null,
++    validators,
++  };
++}
++
++/** The snapshot's `crawl` field: how the run updated the board and accounted for each posting. */
++export function crawlSummary({ slug, listing, account, state, validators, listOnly }) {
++  const ids = (list) => (Array.isArray(list) ? list.map((id) => `${slug}:${id}`) : []);
++  let verifiedSince = null;
++  if (state && state.rows) for (const r of Object.values(state.rows)) if (r.at && (!verifiedSince || r.at < verifiedSince)) verifiedSince = r.at;
++  return {
++    ...(listing && listing.summary ? listing.summary : { mode: 'list-only', why: listOnly }),
++    list: { complete: listing ? listing.complete !== false : true, listed: listing ? listing.listed : account.counts.new + account.counts.changed + account.counts.unchanged, expected: listing ? listing.expected ?? null : null },
++    postings: account.counts,
++    ...(verifiedSince ? { detailsVerifiedSince: verifiedSince } : {}),
++    gone: ids(listing && listing.gone),
++    unpublished: ids(listing && listing.unpublished),
++    ...(validators ? { validators } : {}),
++  };
++}
++
+ /** Targets for the CLI: explicit slugs, or a channel's companies (stable by default). */
+ export function targetsFor(args) {
+   const slugs = [];
+@@ -147,12 +230,18 @@ export function targetsFor(args) {
+ 
+ /**
+  * @param {string[]} targets  slugs or "source:board"
+- * @param {object} opts       { fetchLive, outDir, historyDir, now: () => ISO, log, error, parallelBeta }
++ * @param {object} opts       { fetchLive, outDir, historyDir, crawlStateDir, crawl, now: () => ISO, log, error, parallelBeta }
++ *   fetchLive (tests): (company, opts) -> Job[] or fetchBoard's result; default fetchBoard.
++ *   crawlStateDir: where <slug>.json.gz crawl states are read and written (env
++ *   MELON_CRAWL_STATE_DIR; none = every crawl is full and no state is kept).
++ *   crawl: { full, refreshDays, probeLimit } (default crawlEnv()).
+  * @returns {Promise<{ ok: number, failed: number, results: object[] }>}
+  */
+ export async function runSnapshot(targets, opts = {}) {
+   const {
+-    fetchLive = defaultFetchLive,
++    fetchLive = null,
++    crawlStateDir: stateDir = process.env.MELON_CRAWL_STATE_DIR || null,
++    crawl = crawlEnv(),
+     outDir = process.env.MELON_SNAPSHOT_DIR || path.join(ROOT, 'data', 'snapshots'),
+     historyDir: hDir = historyDir(),
+     now = () => new Date().toISOString(),
+@@ -174,16 +263,29 @@ export async function runSnapshot(targets, opts = {}) {
+       const t0 = Date.now();
+       const stats = newStats();
+       if (beta) log(`… ${slug}: fetching ${company.source}/${company.board} (beta; polite crawl, about 1 request/s)`);
++      // Incremental crawl (server/sources/incremental.js): the previous crawl state, if any.
++      const prevState = await readCrawlState(stateDir, slug);
++      const startedAt = now();
+       // Live only: fallback/demo data is never written to data/snapshots/ or the ledger.
+-      const jobs = beta ? await fetchLive(company, { log: (m) => log(`  [${slug}] ${m}`), stats }) : await fetchLive(company);
++      let fetched;
++      if (fetchLive) {
++        const r = beta ? await fetchLive(company, { log: (m) => log(`  [${slug}] ${m}`), stats }) : await fetchLive(company);
++        fetched = Array.isArray(r) ? { jobs: r, raws: null, listing: null, state: null, validators: null } : r;
++      } else {
++        fetched = await fetchBoard(company, { log: beta ? (m) => log(`  [${slug}] ${m}`) : undefined, stats, previous: prevState && prevState.source === company.source ? prevState.adapter || null : null, crawl, now: startedAt });
++      }
++      const { jobs, listing } = fetched;
+       if (!jobs.length) throw new Error('live fetch returned 0 jobs; keeping any existing snapshot and ledger');
+       const fetchedAt = now();
++      // Every posting accounted for: new, changed, unchanged (reused or re-read) or absent.
++      const account = accountPostings(prevState && prevState.source === company.source ? prevState.postings : null, fetched.raws || jobs.map((j) => ({ ...j, sourceId: String(j.id).slice(slug.length + 1) })));
++      const crawlInfo = crawlSummary({ slug, listing, account, state: fetched.state, validators: fetched.validators, listOnly: LIST_ONLY });
+       const { name, source, board, color } = company;
+       const pub = { slug, name, source, board, color, ...(beta ? { channel: 'beta', live: false } : {}) };
+       // normalizerVersion lets the server use these jobs as they are (PERF-1).
+       const payloadOf = (list, trimmedTo, capped) => ({
+         company: pub, mode: 'snapshot', fetchedAt, normalizerVersion: NORMALIZER_VERSION, error: null,
+-        ...(trimmedTo ? { descriptionsTrimmedTo: trimmedTo } : {}), ...(capped ? { jobsCapped: capped } : {}), jobs: list,
++        ...(trimmedTo ? { descriptionsTrimmedTo: trimmedTo } : {}), ...(capped ? { jobsCapped: capped } : {}), crawl: crawlInfo, jobs: list,
+       });
+       let out = jobs;
+       let trimmedTo = null;
+@@ -192,18 +294,30 @@ export async function runSnapshot(targets, opts = {}) {
+       const text = JSON.stringify(payloadOf(out, trimmedTo, capped), null, 1) + '\n';
+       const file = path.join(outDir, `${slug}.json`);
+       await fs.writeFile(file, text);
++      // Every listed posting (published or left out by the cap, or listed with a failed detail).
++      const listedIds = [...new Set([...jobs.map((j) => j.id), ...crawlInfo.unpublished])];
++      if (stateDir) {
++        try {
++          await writeCrawlState(stateDir, slug, {
++            format: CRAWL_STATE_FORMAT, slug, source: company.source, fetchedAt, normalizerVersion: NORMALIZER_VERSION,
++            postings: account.postings, listed: listedIds, adapter: fetched.state || null,
++          });
++        } catch (err) { error(`✗ crawl state ${slug}: ${err.message} (snapshot written; the next crawl is full)`); }
++      }
+       const withSalary = jobs.filter((j) => j.salary).length;
+       const secs = ((Date.now() - t0) / 1000).toFixed(0);
+       const size = `${(Buffer.byteLength(text) / 1048576).toFixed(1)} MB`;
+       const extra = beta ? `; ${stats.requests} requests, ${stats.pages} list pages, ${stats.details} details, ${(stats.bytes / 1048576).toFixed(0)} MB downloaded${trimmedTo ? `; descriptions trimmed to ${trimmedTo} chars (+ pay)` : ''}${capped ? `; capped to ${capped.kept} of ${capped.total} postings (${capped.rule}; ${capped.by === 'postings' ? `posting budget ${capped.limit}` : 'file size'})` : ''}` : '';
+       log(`✓ ${slug}: ${jobs.length} jobs (${withSalary} with salary) -> ${path.relative(ROOT, file)} ${size} [${beta ? `${secs}s` : `${Date.now() - t0}ms`}]${extra}`);
++      const pc = crawlInfo.postings;
++      log(`  [${slug}] crawl: ${crawlInfo.mode}${crawlInfo.why ? ` (${crawlInfo.why})` : ''}; list ${crawlInfo.list.complete ? 'complete' : 'PARTIAL (closes nothing for being absent)'}, ${crawlInfo.list.listed}${crawlInfo.list.expected != null ? ` of ${crawlInfo.list.expected}` : ''} listed; postings ${pc.new} new, ${pc.changed} changed, ${pc.unchanged} unchanged, ${pc.absent} absent; ${crawlInfo.gone.length} confirmed gone`);
+       for (const n of stats.notes) log(`  [${slug}] note: ${n}`);
+-      const result = { slug, ok: true, jobs: out.length, file, ...(beta ? { fetched: jobs.length, bytes: Buffer.byteLength(text), trimmedTo, capped, requests: stats.requests } : {}) };
++      const result = { slug, ok: true, jobs: out.length, file, crawl: crawlInfo, ...(beta ? { fetched: jobs.length, bytes: Buffer.byteLength(text), trimmedTo, capped, requests: stats.requests } : {}) };
+       try {
+-        // The ledger records what is published; a capped board's left-out postings are not "closed".
+-        const h = await recordPublished(slug, out, fetchedAt, { dir: hDir, capped });
++        // The ledger records what is published, with the closure rules: a partial list closes nothing for being absent.
++        const h = await recordPublished(slug, out, fetchedAt, { dir: hDir, capped, crawl: crawlInfo, listed: listedIds });
+         result.history = h.stats;
+-        if (h.changed) log(`  history ${slug}: ${h.stats.open} open, +${h.stats.added} new, ${h.stats.closed} closed, ${h.stats.reopened} reopened, ${h.stats.reposts} reposts -> ${path.relative(ROOT, h.file)}`);
++        if (h.changed) log(`  history ${slug}: ${h.stats.open} open, +${h.stats.added} new, ${h.stats.closed} closed${Object.keys(h.stats.closedBy || {}).length ? ` (${Object.entries(h.stats.closedBy).map(([k, v]) => `${v} ${k}`).join(', ')})` : ''}, ${h.stats.reopened} reopened, ${h.stats.reposts} reposts${h.stats.unseen ? `, ${h.stats.unseen} missing from a partial list kept open` : ''} -> ${path.relative(ROOT, h.file)}`);
+       } catch (err) {
+         result.historyError = err.message;
+         error(`✗ history ${slug}: ${err.message} (snapshot written, ledger unchanged)`);
+diff --git a/server/history.js b/server/history.js
+index 7ee2fdd..8f53305 100644
+--- a/server/history.js
++++ b/server/history.js
+@@ -17,7 +17,10 @@
+ //         "p": ISO|null,  // postedAt from the source (Greenhouse first_published, ...)
+ //         "k": "1x9z3a",  // fingerprint hash: normalized title + department + primary location
+ //         "r": "4001",    // Greenhouse internal_job_id (omitted when null)
+-//         "c": ISO,       // closedAt: first run where the id was missing (omitted while open)
++//         "c": ISO,       // closedAt: the run that closed it (omitted while open)
++//         "x": "absent",  // why it closed (with c): "absent" (missing from a complete list),
++//                         // "gone" (a probe got 404/410/a redirect, or the board returned no
++//                         // record), "unseen" (missing from partial lists for UNSEEN_OPEN_DAYS)
+ //         "n": 2,         // repost count (omitted when 0)
+ //         "o": ISO,       // firstSeenAt of the first posting in the repost chain (with n)
+ //         "s": "<id>"     // successor id, once a repost consumed this closed entry
+@@ -28,6 +31,13 @@
+ // Rules:
+ // - A failed or empty fetch never reaches updateLedger (scripts/history.js),
+ //   and updateLedger itself returns `prev` unchanged for an empty job list.
++// - Closures (docs/DATA_ARCHIVE.md §9, server/sources/incremental.js): a posting is closed
++//   only when it is absent from a COMPLETE list (opts.complete, the default). A partial
++//   list (a capped board, a list shorter than the board's own count) closes nothing for
++//   being absent: such an entry stays open while last seen within UNSEEN_OPEN_DAYS, then
++//   closes as "unseen". opts.listed: ids on the board but not in `jobs` (left out by a
++//   cap, a detail that failed): seen, kept open. opts.gone: ids confirmed closed (a probe's
++//   404/410/redirect): closed now as "gone", complete list or not.
+ // - An id that comes back after closing is "reopened": firstSeenAt is kept, the
+ //   close is cleared. Same id, so it is not a repost.
+ // - A repost is a NEW id that matches a CLOSED, not yet consumed entry by
+@@ -40,6 +50,8 @@
+ export const HISTORY_FORMAT = 'melon-history-1';
+ export const REPOST_WINDOW_DAYS = 30;
+ export const PRUNE_CLOSED_DAYS = 400;
++/** An entry missing from partial lists stays open while it was seen this recently. */
++export const UNSEEN_OPEN_DAYS = 14;
+ export const FRESHNESS = Object.freeze({ NEW_MAX: 7, ACTIVE_MAX: 59, STALE_MAX: 179 }); // evergreen >= 180
+ 
+ const DAY = 86400000;
+@@ -95,9 +107,12 @@ function validLedger(prev) {
+  * @param {object|null} prev    previous ledger (or null for a new one)
+  * @param {Job[]} jobs          normalized jobs of the run (needs id, title, department, locations, postedAt, reqId)
+  * @param {string} fetchedAt    ISO time of the run
++ * @param {object} [opts]       { complete = true, listed = [], gone = [], unseenDays } (see Rules)
+  * @returns {object} ledger (=== prev when jobs is empty or the run is not newer)
+  */
+-export function updateLedger(prev, jobs, fetchedAt) {
++export function updateLedger(prev, jobs, fetchedAt, opts = {}) {
++  const { complete = true, listed = [], gone = [], unseenDays = UNSEEN_OPEN_DAYS } = opts || {};
++  const goneSet = new Set(gone || []);
+   const base = validLedger(prev) ? prev : emptyLedger();
+   if (!Array.isArray(jobs) || !jobs.length) return prev || base;
+   const now = isoOf(fetchedAt);
+@@ -123,7 +138,7 @@ export function updateLedger(prev, jobs, fetchedAt) {
+     e.k = k;
+     if (p) e.p = p;
+     if (r) e.r = r;
+-    if (e.c) delete e.c; // reopened: same id, keep firstSeenAt
++    if (e.c) { delete e.c; delete e.x; } // reopened: same id, keep firstSeenAt
+   }
+ 
+   // Repost candidates: closed before this run, not reopened, not yet consumed.
+@@ -158,16 +173,42 @@ export function updateLedger(prev, jobs, fetchedAt) {
+     out[job.id] = entry;
+   }
+ 
+-  // Close what disappeared; prune long-closed entries.
++  // On the board but not published (left out by a cap, a failed detail): seen, kept open.
++  for (const id of listed || []) {
++    const e = out[id];
++    if (!e || seen.has(id)) continue;
++    seen.add(id);
++    e.l = now;
++    if (e.c && !e.s) { delete e.c; delete e.x; }
++  }
++
++  // Close what disappeared (only from a complete list, or when confirmed gone); prune long-closed entries.
++  const horizon = nowMs - unseenDays * DAY;
+   for (const [id, e] of Object.entries(out)) {
+     if (seen.has(id)) continue;
+-    if (!e.c) e.c = now;
+-    else if (nowMs - toMs(e.c) > PRUNE_CLOSED_DAYS * DAY) delete out[id];
++    if (!e.c) {
++      if (goneSet.has(id)) { e.c = now; e.x = 'gone'; }
++      else if (complete) { e.c = now; e.x = 'absent'; }
++      else if (!(toMs(e.l || e.f) >= horizon)) { e.c = now; e.x = 'unseen'; }
++      // else: missing from a partial list, seen recently: stays open
++    } else if (nowMs - toMs(e.c) > PRUNE_CLOSED_DAYS * DAY) delete out[id];
+   }
+ 
+   return { format: HISTORY_FORMAT, since: base.since || now, lastRunAt: now, runs: (base.runs || 0) + 1, jobs: out };
+ }
+ 
++/**
++ * updateLedger's closure options for a snapshot: `capped` (its jobsCapped), `crawl` (its crawl
++ * field: list.complete, gone, unpublished; scripts/snapshot.js#crawlSummary) and `listed` (the
++ * crawl state's listed ids, when at hand). A capped board or a short list is partial.
++ */
++export function closureOptions({ capped = null, crawl = null, listed = null } = {}) {
++  const c = crawl && typeof crawl === 'object' ? crawl : {};
++  const complete = !capped && !(c.list && c.list.complete === false);
++  const on = new Set([...(Array.isArray(c.unpublished) ? c.unpublished : []), ...(Array.isArray(listed) ? listed : [])]);
++  return { complete, listed: [...on], gone: Array.isArray(c.gone) ? c.gone : [] };
++}
++
+ /** Run statistics between two ledgers (for logs). */
+ export function diffLedger(prev, next) {
+   const a = validLedger(prev) ? prev.jobs : {};
+diff --git a/server/sources/ashby.js b/server/sources/ashby.js
+index 5a12c3d..2d392a9 100644
+--- a/server/sources/ashby.js
++++ b/server/sources/ashby.js
+@@ -6,8 +6,8 @@ export function ashbyUrl(board) {
+   return `https://api.ashbyhq.com/posting-api/job-board/${encodeURIComponent(board)}?includeCompensation=true`;
+ }
+ 
+-export async function fetchAshby(board, { maxBytes, timeoutMs } = {}) {
+-  const data = await fetchJson(ashbyUrl(board), { label: `ashby/${board}`, maxBytes, timeoutMs });
++export async function fetchAshby(board, { maxBytes, timeoutMs, onResponse } = {}) {
++  const data = await fetchJson(ashbyUrl(board), { label: `ashby/${board}`, maxBytes, timeoutMs, onResponse });
+   if (!data || !Array.isArray(data.jobs)) throw new UpstreamError(`ashby/${board}: unexpected response (no jobs array)`, { code: 'bad_shape' });
+   return data.jobs.filter((j) => j && j.isListed !== false).map(mapAshbyJob);
+ }
+diff --git a/server/sources/greenhouse.js b/server/sources/greenhouse.js
+index 2f55dfd..236e92f 100644
+--- a/server/sources/greenhouse.js
++++ b/server/sources/greenhouse.js
+@@ -9,8 +9,8 @@ export function greenhouseUrl(board) {
+   return `https://boards-api.greenhouse.io/v1/boards/${encodeURIComponent(board)}/jobs?content=true&pay_transparency=true`;
+ }
+ 
+-export async function fetchGreenhouse(board, { maxBytes, timeoutMs } = {}) {
+-  const data = await fetchJson(greenhouseUrl(board), { label: `greenhouse/${board}`, maxBytes, timeoutMs });
++export async function fetchGreenhouse(board, { maxBytes, timeoutMs, onResponse } = {}) {
++  const data = await fetchJson(greenhouseUrl(board), { label: `greenhouse/${board}`, maxBytes, timeoutMs, onResponse });
+   if (!data || !Array.isArray(data.jobs)) throw new UpstreamError(`greenhouse/${board}: unexpected response (no jobs array)`, { code: 'bad_shape' });
+   return data.jobs.map(mapGreenhouseJob);
+ }
+diff --git a/server/sources/lever.js b/server/sources/lever.js
+index e96c271..e5d2777 100644
+--- a/server/sources/lever.js
++++ b/server/sources/lever.js
+@@ -6,8 +6,8 @@ export function leverUrl(board) {
+   return `https://api.lever.co/v0/postings/${encodeURIComponent(board)}?mode=json`;
+ }
+ 
+-export async function fetchLever(board, { maxBytes, timeoutMs } = {}) {
+-  const data = await fetchJson(leverUrl(board), { label: `lever/${board}`, maxBytes, timeoutMs });
++export async function fetchLever(board, { maxBytes, timeoutMs, onResponse } = {}) {
++  const data = await fetchJson(leverUrl(board), { label: `lever/${board}`, maxBytes, timeoutMs, onResponse });
+   if (!Array.isArray(data)) throw new UpstreamError(`lever/${board}: unexpected response (expected an array of postings)`, { code: 'bad_shape' });
+   return data.map(mapLeverJob);
+ }
+diff --git a/server/sources/util.js b/server/sources/util.js
+index e5a502e..512318f 100644
+--- a/server/sources/util.js
++++ b/server/sources/util.js
+@@ -49,7 +49,7 @@ async function readCapped(res, maxBytes, ctrl, label) {
+  * GET JSON with a timeout (covers headers and body), a User-Agent, no
+  * redirects (review L2: the host stays the fixed vendor host) and a body cap.
+  */
+-export async function fetchJson(url, { timeoutMs, label = 'source', maxBytes } = {}) {
++export async function fetchJson(url, { timeoutMs, label = 'source', maxBytes, onResponse } = {}) {
+   if (!(maxBytes > 0)) maxBytes = MAX_BYTES;
+   if (!(timeoutMs > 0)) timeoutMs = TIMEOUT_MS;
+   const ctrl = new AbortController();
+@@ -78,6 +78,8 @@ export async function fetchJson(url, { timeoutMs, label = 'source', maxBytes } =
+         { code: 'http', status: res.status },
+       );
+     }
++    // The response headers (validators: server/sources/incremental.js), for the crawl summary.
++    if (typeof onResponse === 'function') { try { onResponse(res.headers, res.status); } catch {} }
+     let raw;
+     try {
+       raw = await readCapped(res, maxBytes, ctrl, label);
+-- 
+2.43.0
+

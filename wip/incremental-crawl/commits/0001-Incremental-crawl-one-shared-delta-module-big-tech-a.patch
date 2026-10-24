@@ -1,0 +1,955 @@
+From 892e162fbb5326f0b01fb5ceee7951877b643ac3 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sun, 11 Oct 2026 13:44:57 +0000
+Subject: [PATCH 01/10] Incremental crawl: one shared delta module; big-tech
+ adapters fetch details only for new, changed and aged postings
+
+server/sources/incremental.js: change signals (rowKey), deltaPlan, runDetails, conditional
+requests (ETag / Last-Modified, 304 reuse), closure probes for short lists, per-posting
+accounting. Apple, Google, Microsoft/NVIDIA/Netflix (Eightfold) and Meta use it for details;
+Amazon (list-only) for listing state and probes. Mapping code unchanged. polite.js: a 304 to
+a conditional request is returned, not thrown (rate unchanged).
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+---
+ docs/process/prompts/incremental-crawl.md |  29 ++
+ server/sources/amazon.js                  |  20 +-
+ server/sources/apple.js                   |  69 +++--
+ server/sources/eightfold.js               |  69 +++--
+ server/sources/google.js                  |  73 +++--
+ server/sources/incremental.js             | 358 ++++++++++++++++++++++
+ server/sources/meta.js                    |  99 +++---
+ server/sources/polite.js                  |   7 +-
+ 8 files changed, 613 insertions(+), 111 deletions(-)
+ create mode 100644 docs/process/prompts/incremental-crawl.md
+ create mode 100644 server/sources/incremental.js
+
+diff --git a/docs/process/prompts/incremental-crawl.md b/docs/process/prompts/incremental-crawl.md
+new file mode 100644
+index 0000000..c6084f6
+--- /dev/null
++++ b/docs/process/prompts/incremental-crawl.md
+@@ -0,0 +1,29 @@
++You are the data-pipeline engineer for melon-seek (/home/user/melon-seek, "the Zillow of job postings"). Role name: incremental-crawl. Save this prompt verbatim to docs/process/prompts/incremental-crawl.md, and write your log to docs/process/incremental-crawl.md following docs/process/TEMPLATE.md.
++
++The user, 2026-10-11: "Do we have the auto updates of the positions and delta code and backend setup? Also to check for posting that are already closed or no longer there? Launch an agent to make sure the mechanism is there so that we update the backend data in the most optimal way!! Don't just recrawl everything and check the diffs".
++
++**First, get the right base.** In your worktree run `git checkout --detach 3f47ddc`. That commit has Amazon and Meta resumed, and it will be pushed shortly. Symlink node_modules, data/snapshots and data/beta/snapshots from /home/user/melon-seek. Commit locally at milestones (a container restart loses uncommitted work), never push, and report your commit SHAs.
++
++**What exists today. Read it and confirm.**
++- .github/workflows/snapshot.yml crawls stable boards daily (Greenhouse, Ashby and Lever APIs, one list call each) and beta big-tech boards every 6 hours, each board in full. Apple's crawl is about 2 h 10 min, mostly 4,400 detail pages; NVIDIA, Microsoft and Google take 45–60 min; Meta about 20 min of 1,143 job pages; Amazon about 5 min of list pages.
++- The history ledger (server/history.js, scripts/history.js, .github/scripts/ledger.sh, and `recordPublished` in .github/scripts/beta-snapshots.mjs) opens and closes postings by diffing each run's list.
++- The archive (scripts/archive/*, docs/DATA_ARCHIVE.md) stores job versions and blobs by content.
++- The politeness rules are in server/sources/polite.js: honest User-Agent, about 1 request per second per host, robots.txt. The user said not to change the request rate. Don't change it, and don't break what works.
++
++**Build the most efficient correct update, per source:**
++1. **Delta detail fetching.** The list or search request is cheap; detail pages are the cost. Each crawl lists everything, then fetches details only for postings that are new, or whose list row shows a change: a title, location or updated or posted date different from the previous snapshot, or a content hash of the list row. Reuse the previous snapshot's normalized job for the rest. Do it per adapter, and only where the list row carries enough to detect a change: Apple (search rows vs jobDetails), Meta (sitemap `<lastmod>` where present, otherwise the URL set), Google (sitemap lastmod), and the Eightfold PCSX boards (Microsoft, NVIDIA; Netflix uses the classic Eightfold API). Use conditional requests (ETag / If-None-Match, If-Modified-Since) wherever a host supports them; check what the recorded responses show in docs/DATA_SOURCES.md §7. A periodic full refresh (for example every Nth run, or details older than N days) catches silent edits; choose it with numbers and make it configurable. Where the previous snapshot comes from in CI (the beta artifact, and the archive as fallback) must be robust: no previous snapshot means a full crawl.
++2. **Closed postings.** Today a posting missing from one list is closed. Make it right:
++   - a posting is closed when it is absent from a complete list;
++   - a partial or failed list never closes anything (the Amazon 95% rule is an example; generalize it);
++   - a capped board keeps its left-out postings open (already done for Amazon: check it);
++   - optionally confirm a closure with one cheap request to the posting URL (404, 410 or a redirect to search) when the list is ambiguous, within the same politeness budget.
++   Record closedAt and the reason in the ledger. Check that the site's "New" and listing-age badges and the archive stay correct.
++3. **Stable boards.** Greenhouse, Ashby and Lever already return everything in one call, so check whether any of them supports conditional requests or an updated-since field, and use it if it is safe.
++4. **Prove it.** Use synthetic boards and the recorded fixtures (no network in the sandbox):
++   - an incremental run gives a snapshot identical to a full crawl's, for unchanged, edited, new and closed postings;
++   - a failed partial list closes nothing;
++   - request counts drop. Estimate the real saving per board from the archive's day-to-day churn: `node scripts/archive/reconstruct.js` and the data-archive branch (`git fetch origin data-archive`) give per-day observations, so count how many postings are new or changed between consecutive runs.
++   Report the expected crawl time per board before and after.
++5. **Docs.** docs/DATA_SOURCES.md (how each board updates), docs/DATA_ARCHIVE.md (closures), docs/ARCHITECTURE.md, and the workflow, if it needs the previous snapshot passed in.
++
++You own server/sources/*.js (the incremental logic; keep each adapter's mapping output identical), scripts/snapshot.js, server/history.js, scripts/history.js, .github/scripts/beta-snapshots.mjs, .github/scripts/ledger.sh, .github/workflows/snapshot.yml, the docs above, your log and prompt, and new tests test/incremental-*.test.js. Other agents are editing public/styles.css and public/app.js, so don't touch public/*. Run `npm test` with MELON_BETA_SNAPSHOT_DIR set to an empty folder before you report. Machine: 4 CPUs and limited disk; check `df -h /`, and delete your own large scratch outputs when you're done. Use pid files; never `pkill -f`; never `playwright install`. Report: what existed, what you built, the per-board saving, the closure rules, the tests, and your SHAs.
+diff --git a/server/sources/amazon.js b/server/sources/amazon.js
+index 653948e..62d26d8 100644
+--- a/server/sources/amazon.js
++++ b/server/sources/amazon.js
+@@ -17,6 +17,7 @@
+ // A paused registry entry (server/companies.js PAUSING) is never requested.
+ import { UpstreamError, htmlToText, str } from './util.js';
+ import { politeJson, checkRobots, cookieJar, newStats } from './polite.js';
++import { deltaPlan, crawlOptions, probeAbsent, probeRequest, LIST_ONLY } from './incremental.js';
+ import { crawlBlock } from '../companies.js';
+ 
+ export const AMAZON_ORIGIN = 'https://www.amazon.jobs';
+@@ -291,5 +292,22 @@ export async function fetchAmazon(board = 'amazon', opts = {}) {
+     if (keepRaw) job._raw = j;
+     return job;
+   });
+-  return { jobs, stats };
++  // List-only board (server/sources/incremental.js LIST_ONLY): every row is the whole posting,
++  // so nothing is skipped. The state keeps the listed ids, so that postings absent from a list
++  // between 95% and 100% of the facet total are probed (their job page: 404/410/redirect =
++  // closed), never closed for being absent.
++  const co = crawlOptions(opts);
++  const plan = deltaPlan(maxJobs ? null : opts.previous, { version: AMAZON_CRAWL_VERSION, ...co, full: co.full || !!maxJobs });
++  for (const j of list) plan.listed(String(j.id_icims ?? j.id ?? ''));
++  const complete = !maxJobs && !!expected && rows.size >= expected;
++  const gone = maxJobs ? [] : await probeAbsent(plan, {
++    complete, probeLimit: co.probeLimit, signal, stats,
++    // robots.txt (cached for the run) must allow the job pages too, or the probe is "unknown".
++    probe: async (id) => (await checkRobots(AMAZON_ORIGIN, ['/en/jobs/1'], { label, stats, signal })) && probeRequest(`${AMAZON_ORIGIN}/en/jobs/${encodeURIComponent(id)}`, common, null, { method: 'HEAD', accept: 'text/html' }),
++  });
++  const listing = { complete, listed: rows.size, expected: expected || null, gone, summary: { mode: 'list-only', why: LIST_ONLY, listed: list.length } };
++  return { jobs, stats, listing, state: maxJobs ? null : plan.state() };
+ }
++
++/** Crawl-state version (server/sources/incremental.js). */
++export const AMAZON_CRAWL_VERSION = 'amazon-1';
+diff --git a/server/sources/apple.js b/server/sources/apple.js
+index 0c61968..2daf6f4 100644
+--- a/server/sources/apple.js
++++ b/server/sources/apple.js
+@@ -23,7 +23,8 @@
+ // copy, which lists only the place its pay is for. upgradeAppleJobs does the same for
+ // stored snapshots crawled before 2026-10-10 (server/sources/upgrade.js).
+ import { UpstreamError, htmlToText, str, isoOrNull } from './util.js';
+-import { politeJson, checkRobots, mapLimit, cookieJar, newStats } from './polite.js';
++import { politeJson, checkRobots, cookieJar, newStats } from './polite.js';
++import { deltaPlan, runDetails, conditionalGet, rowKey, pick, crawlOptions, probeAbsent, probeRequest, planNote, planSummary } from './incremental.js';
+ import { geocode, countryCode, locationPrecision } from '../geo.js';
+ import { parseSalary, annualize } from '../salary.js';
+ 
+@@ -404,9 +405,29 @@ export function upgradeAppleJobs(jobs) {
+ 
+ /* -------------------------------------------------------------- fetch */
+ 
+-/** Fetch the search pages, then details for US postings. Options as fetchEightfold (+ detailsFor: 'us'|'all'). */
++/** Crawl-state version (server/sources/incremental.js): bump when the detail request changes. */
++export const APPLE_CRAWL_VERSION = 'apple-1';
++const APPLE_SIGNAL = ['postingTitle', 'transformedPostingTitle', 'positionId', 'postingDate', 'locations', 'team', 'homeOffice', 'standardWeeklyHours', 'jobSummary'];
++
++/**
++ * A search row's change signal: title, places, team, hours, summary and posting date. A
++ * managed-pipeline (retail) row is re-stamped on every request, so its date is left out.
++ */
++export function appleRowKey(r) {
++  const sig = pick(r, APPLE_SIGNAL);
++  if (r && r.managedPipelineRole === true) delete sig.postingDate;
++  return rowKey(sig);
++}
++
++/**
++ * Fetch the search pages, then details for US postings. Options as fetchEightfold (+ detailsFor:
++ * 'us'|'all'), including the incremental ones (previous, full, refreshDays, now, probeLimit):
++ * a detail is fetched only for new postings, rows whose change signal moved and details past
++ * their refresh age. Returns { jobs, stats, listing, state }.
++ */
+ export async function fetchApple(board = 'apple', opts = {}) {
+   const { maxJobs = 0, stats = newStats(), log = () => {}, keepRaw = false, signal, concurrency = 2, timeoutMs, detailsFor = 'us' } = opts;
++  const co = crawlOptions(opts);
+   const label = 'apple';
+   const jar = cookieJar();
+   const common = { label, jar, stats, signal, timeoutMs };
+@@ -432,27 +453,26 @@ export async function fetchApple(board = 'apple', opts = {}) {
+     if (!res.searchResults.length || rows.size >= total || page * PAGE >= total || (maxJobs && rows.size >= Math.max(maxJobs * 4, 200))) break;
+   }
+   if (total != null && rows.size < total && !maxJobs) stats.notes.push(`search listed ${rows.size} of ${total} postings`);
++  const complete = !maxJobs && total != null && rows.size >= total;
+   let list = [...rows.values()];
+   // Probe runs: US postings first, so pay parsing is exercised.
+   if (maxJobs) list = [...list.filter(isUS), ...list.filter((r) => !isUS(r))].slice(0, maxJobs);
+ 
+-  const want = list.filter((r) => detailsFor === 'all' || isUS(r));
+-  log(`details for ${want.length} of ${list.length} postings (${detailsFor})`);
+-  const t0 = Date.now();
+-  const { results, errors } = await mapLimit(want, concurrency, async (r, i) => {
+-    const body = await politeJson(`${APPLE_ORIGIN}/api/v1/jobDetails/${encodeURIComponent(r.id)}?locale=en-us`, { ...common, retries: 3 });
+-    stats.details++;
+-    if ((i + 1) % 200 === 0) log(`details ${i + 1}/${want.length} (${Math.round((Date.now() - t0) / 1000)} s)`);
+-    return body && (body.res || body);
+-  }, { shouldStop: () => signal && signal.aborted });
+-  stats.detailErrors += errors.length;
+-  if (errors.length) stats.notes.push(`${errors.length} detail request(s) failed, first: ${errors[0].error.message}`);
+-  if (want.length && errors.length > Math.max(5, want.length * 0.2)) {
+-    throw new UpstreamError(`${label}: ${errors.length}/${want.length} detail requests failed (first: ${errors[0].error.message})`, { code: 'details_failed' });
+-  }
+-  const detail = new Map(want.map((r, i) => [String(r.id), results[i] || null]));
++  // Delta (server/sources/incremental.js); a probe run with maxJobs is always full.
++  const plan = deltaPlan(maxJobs ? null : opts.previous, { version: APPLE_CRAWL_VERSION, ...co, full: co.full || !!maxJobs });
++  const items = list.map((r) => ({ r, id: String(r.id), key: appleRowKey(r), want: detailsFor === 'all' || isUS(r) }));
++  log(`details for ${items.filter((x) => x.want).length} of ${list.length} postings (${detailsFor}${plan.incremental ? ', incremental' : ''})`);
++  const { details } = await runDetails(plan, items, {
++    ...co, concurrency, signal, stats, log, label,
++    request: async (x, cached) => {
++      const r = await conditionalGet(`${APPLE_ORIGIN}/api/v1/jobDetails/${encodeURIComponent(x.r.id)}?locale=en-us`, cached, { ...common, retries: 3 });
++      if (r.notModified) return r;
++      return { detail: r.body && (r.body.res || r.body), headers: r.headers };
++    },
++  });
++  stats.notes.push(planNote(plan, list.length));
+   // DQ-2: one posting per requisition, not one per listed location.
+-  const groups = groupAppleCopies(list.map((r) => ({ row: r, detail: detail.get(String(r.id)) || null })));
++  const groups = groupAppleCopies(list.map((r) => ({ row: r, detail: details.get(String(r.id)) || null })));
+   if (groups.length < list.length) stats.notes.push(`${list.length} listings are ${groups.length} requisitions (one posting each)`);
+   const jobs = groups.map((copies) => {
+     const job = mapAppleRequisition(copies);
+@@ -462,5 +482,16 @@ export async function fetchApple(board = 'apple', opts = {}) {
+     }
+     return job;
+   });
+-  return { jobs, stats };
++
++  // Closures: absent from a short list -> one jobDetails request each, closed only on 404/410/redirect.
++  const gone = maxJobs ? [] : await probeAbsent(plan, {
++    complete, probeLimit: co.probeLimit, signal, stats, what: 'listing(s)',
++    probe: (id) => probeRequest(`${APPLE_ORIGIN}/api/v1/jobDetails/${encodeURIComponent(id)}?locale=en-us`, common, (r) => {
++      const b = r.json();
++      const d = b && (b.res || b);
++      return d && (d.jobNumber || d.postingTitle);
++    }),
++  });
++  const listing = { complete, listed: rows.size, expected: total, gone, summary: planSummary(plan, list.length) };
++  return { jobs, stats, listing, state: maxJobs ? null : plan.state() };
+ }
+diff --git a/server/sources/eightfold.js b/server/sources/eightfold.js
+index ce7381e..dc744a2 100644
+--- a/server/sources/eightfold.js
++++ b/server/sources/eightfold.js
+@@ -19,7 +19,8 @@
+ // The list carries no description, so each posting costs one detail request;
+ // at about 1 request/s per host a 2,500-posting board takes ~45 minutes.
+ import { UpstreamError, htmlToText, str, isoOrNull } from './util.js';
+-import { politeJson, checkRobots, mapLimit, cookieJar, newStats } from './polite.js';
++import { politeJson, checkRobots, cookieJar, newStats } from './polite.js';
++import { deltaPlan, runDetails, conditionalGet, rowKey, pick, crawlOptions, probeAbsent, probeRequest, planNote, planSummary } from './incremental.js';
+ 
+ /** Fixed tenants (board key -> host, Eightfold group id, API flavour). */
+ export const EIGHTFOLD_BOARDS = Object.freeze({
+@@ -173,9 +174,26 @@ export function mapEightfoldJob(p, t = EIGHTFOLD_BOARDS.microsoft) {
+   };
+ }
+ 
++/** Crawl-state version (server/sources/incremental.js): bump when the detail request changes. */
++export const EIGHTFOLD_CRAWL_VERSION = 'eightfold-1';
++const PCSX_SIGNAL = ['name', 'postedTs', 'creationTs', 'locations', 'standardizedLocations', 'department', 'workLocationOption', 'displayJobId'];
++const CLASSIC_SIGNAL = ['name', 'posting_name', 't_update', 't_create', 'location', 'locations', 'department', 'business_unit', 'display_job_id'];
++
++/**
++ * A search row's change signal: the fields an edit or repost moves (title, places, department,
++ * work mode, and the dates: PCSX postedTs and classic t_update move on edits and reposts).
++ */
++export function eightfoldRowKey(p, t = EIGHTFOLD_BOARDS.microsoft) {
++  return rowKey(pick(p, t.api === 'pcsx' ? PCSX_SIGNAL : CLASSIC_SIGNAL));
++}
++
+ /**
+  * Fetch every posting of an Eightfold tenant: the search pages, then one
+  * detail request per posting (descriptions, and so pay, are only there).
++ * Incremental (server/sources/incremental.js): with `previous` (the last crawl state) a
++ * detail is fetched only for new postings, rows whose change signal moved, and details past
++ * their refresh age; the rest reuse the previous raw detail. Options also: full, refreshDays,
++ * now, probeLimit. Returns { jobs, stats, listing, state }.
+  * Options: maxJobs (probe), stats (polite.newStats()), log, keepRaw, signal,
+  * concurrency (detail requests in flight; the 1 request/s spacing still applies).
+  * Returns { jobs: RawJob[], stats }.
+@@ -185,6 +203,7 @@ export async function fetchEightfold(board, opts = {}) {
+   const t = EIGHTFOLD_BOARDS[key];
+   if (!t) throw new UpstreamError(`eightfold: unknown board "${key}"`, { code: 'bad_board' });
+   const { maxJobs = 0, stats = newStats(), log = () => {}, keepRaw = false, signal, concurrency = 2, timeoutMs } = opts;
++  const co = crawlOptions(opts);
+   const label = `eightfold/${key}`;
+   const jar = cookieJar(); // the site's own session cookies (_vs, _vscid): cookieless clients share a tiny bucket
+   const common = { label, jar, stats, signal, timeoutMs };
+@@ -193,6 +212,7 @@ export async function fetchEightfold(board, opts = {}) {
+   const rows = [];
+   const seen = new Set();
+   let total = null;
++  let stoppedEarly = false; // a page of repeats: the list is not known to be whole
+   for (let page = 0, start = 0; page < MAX_PAGES; page++, start += PAGE) {
+     const body = await politeJson(eightfoldSearchUrl(t, start), common);
+     stats.pages++;
+@@ -209,30 +229,43 @@ export async function fetchEightfold(board, opts = {}) {
+     }
+     if (page % 25 === 0) log(`search page ${page + 1}: ${rows.length}/${total ?? '?'} postings`);
+     if (!positions.length || (total != null && start + PAGE >= total) || (maxJobs && rows.length >= maxJobs)) break;
+-    if (!added && page > 0) { stats.notes.push(`search page ${page + 1} repeated earlier postings; stopped`); break; }
++    if (!added && page > 0) { stoppedEarly = true; stats.notes.push(`search page ${page + 1} repeated earlier postings; stopped`); break; }
+   }
+   if (total != null && rows.length < total && !maxJobs) stats.notes.push(`search listed ${rows.length} of ${total} postings`);
+   const list = maxJobs ? rows.slice(0, maxJobs) : rows;
++  const complete = !maxJobs && !stoppedEarly && total != null && rows.length >= total;
+ 
+-  const t0 = Date.now();
+-  const { results, errors } = await mapLimit(list, concurrency, async (p, i) => {
+-    const d = await politeJson(eightfoldDetailUrl(t, p.id), { ...common, retries: 3 });
+-    stats.details++;
+-    if ((i + 1) % 200 === 0) log(`details ${i + 1}/${list.length} (${Math.round((Date.now() - t0) / 1000)} s)`);
+-    return t.api === 'pcsx' ? d && d.data : d;
+-  }, { shouldStop: () => signal && signal.aborted });
+-  stats.detailErrors += errors.length;
+-  if (errors.length) stats.notes.push(`${errors.length} detail request(s) failed, first: ${errors[0].error.message}`);
+-  // A board where most details fail is broken, not partially available.
+-  if (list.length && errors.length > Math.max(5, list.length * 0.2)) {
+-    throw new UpstreamError(`${label}: ${errors.length}/${list.length} detail requests failed (first: ${errors[0].error.message})`, { code: 'details_failed' });
+-  }
+-  const jobs = list.map((p, i) => {
+-    const merged = { ...p, ...(results[i] || {}) };
++  // Delta (server/sources/incremental.js): a detail only for new, changed and aged postings.
++  // A probe run with maxJobs is always full and saves no state.
++  const plan = deltaPlan(maxJobs ? null : opts.previous, { version: EIGHTFOLD_CRAWL_VERSION, ...co, full: co.full || !!maxJobs });
++  const items = list.map((p) => ({ p, id: String(p.id), key: eightfoldRowKey(p, t) }));
++  const { details } = await runDetails(plan, items, {
++    ...co, concurrency, signal, stats, log, label,
++    request: async (x, cached) => {
++      const r = await conditionalGet(eightfoldDetailUrl(t, x.p.id), cached, { ...common, retries: 3 });
++      if (r.notModified) return r;
++      return { detail: t.api === 'pcsx' ? r.body && r.body.data : r.body, headers: r.headers };
++    },
++  });
++  // A failed detail with nothing cached maps from the search row alone, as before.
++  const jobs = items.map((x) => {
++    const merged = { ...x.p, ...(details.get(x.id) || {}) };
+     const job = mapEightfoldJob(merged, t);
+     if (keepRaw) job._raw = merged;
+     return job;
+   });
++  stats.notes.push(planNote(plan, list.length));
++
++  // Closures: absent from a short list -> one detail request each, closed only on 404/410/redirect.
++  const gone = maxJobs ? [] : await probeAbsent(plan, {
++    complete, probeLimit: co.probeLimit, signal, stats,
++    probe: (id) => probeRequest(eightfoldDetailUrl(t, id), common, (r) => {
++      const b = r.json();
++      const d = t.api === 'pcsx' ? b && b.data : b;
++      return d && (d.id != null || d.jobDescription || d.job_description || d.name);
++    }),
++  });
+   log(`done: ${jobs.length} postings, ${stats.requests} requests`);
+-  return { jobs, stats };
++  const listing = { complete, listed: rows.length, expected: total, gone, summary: planSummary(plan, list.length) };
++  return { jobs, stats, listing, state: maxJobs ? null : plan.state() };
+ }
+diff --git a/server/sources/google.js b/server/sources/google.js
+index d718c98..6e90a07 100644
+--- a/server/sources/google.js
++++ b/server/sources/google.js
+@@ -14,7 +14,8 @@
+ // Pay is text in the "about the job" HTML: "The US base salary range for this
+ // full-time position is $X-$Y + bonus + equity + benefits."
+ import { UpstreamError, htmlToText, str, decodeEntitiesOnce } from './util.js';
+-import { politeRequest, checkRobots, mapLimit, cookieJar, newStats, spreadSample } from './polite.js';
++import { politeRequest, checkRobots, cookieJar, newStats, spreadSample } from './polite.js';
++import { deltaPlan, runDetails, conditionalList, rowKey, crawlOptions, planNote, planSummary } from './incremental.js';
+ 
+ export const GOOGLE_ORIGIN = 'https://www.google.com';
+ export const GOOGLE_BASE = '/about/careers/applications';
+@@ -129,45 +130,59 @@ export function mapGoogleJob(rec, entry = {}) {
+   };
+ }
+ 
+-/** Fetch the sitemap, then each posting. Options as fetchEightfold. Returns { jobs, stats }. */
++/** Crawl-state version (server/sources/incremental.js): bump when the detail request changes. */
++export const GOOGLE_CRAWL_VERSION = 'google-1';
++
++/** A sitemap entry's change signal: its slug (the title) and <lastmod>. */
++export function googleRowKey(e) {
++  return rowKey({ slug: e && e.slug, lastmod: (e && e.lastmod) || null });
++}
++
++/**
++ * Fetch the sitemap, then each posting. Options as fetchEightfold, including the incremental
++ * ones (previous, full, refreshDays, now, probeLimit): the sitemap is a conditional request,
++ * and a posting's record is fetched only when it is new, its <lastmod> or slug moved, or its
++ * cached record is past its refresh age. The sitemap is the whole board (complete); a record
++ * that comes back empty is a posting closed since the sitemap was built (`listing.gone`), and
++ * one whose request failed is listed but unpublished (`listing.unpublished`: kept open).
++ * Returns { jobs, stats, listing, state }.
++ */
+ export async function fetchGoogle(board = 'google', opts = {}) {
+   const { maxJobs = 0, stats = newStats(), log = () => {}, keepRaw = false, signal, concurrency = 2, timeoutMs } = opts;
++  const co = crawlOptions(opts);
+   const label = 'google';
+   const jar = cookieJar();
+   const common = { label, jar, stats, signal, timeoutMs };
+   await checkRobots(GOOGLE_ORIGIN, [`${GOOGLE_BASE}/jobs/sitemap.xml`, `${GOOGLE_BASE}/_/HiringCportalFrontendUi/data/batchexecute`], { label, stats, signal });
+-  const sm = await politeRequest(GOOGLE_SITEMAP, { ...common, accept: 'application/xml,text/xml' });
++  const plan = deltaPlan(maxJobs ? null : opts.previous, { version: GOOGLE_CRAWL_VERSION, ...co, full: co.full || !!maxJobs });
++  const sm = await conditionalList(GOOGLE_SITEMAP, plan, common, parseGoogleSitemap, { accept: 'application/xml,text/xml' });
+   stats.pages++;
+-  let entries = parseGoogleSitemap(sm.text);
++  let entries = sm.entries;
+   if (!entries.length) throw new UpstreamError(`${label}: the jobs sitemap lists no postings`, { code: 'bad_shape' });
+   log(`sitemap: ${entries.length} postings`);
+   if (maxJobs) entries = spreadSample(entries, maxJobs); // probe: a spread, not the oldest evergreen posts
+-  const t0 = Date.now();
+-  let missing = 0;
+-  const { results, errors } = await mapLimit(entries, concurrency, async (e, i) => {
+-    const r = await politeRequest(GOOGLE_RPC, {
+-      ...common, method: 'POST', body: googleDetailBody(e.id), retries: 3,
+-      headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+-    });
+-    stats.details++;
+-    if ((i + 1) % 200 === 0) log(`details ${i + 1}/${entries.length} (${Math.round((Date.now() - t0) / 1000)} s)`);
+-    const rec = parseGoogleDetail(r.text);
+-    if (!rec) missing++;
+-    return rec;
+-  }, { shouldStop: () => signal && signal.aborted });
+-  stats.detailErrors += errors.length;
+-  if (missing) stats.notes.push(`${missing} sitemap posting(s) returned no record (closed since the sitemap was built)`);
+-  if (errors.length) stats.notes.push(`${errors.length} detail request(s) failed, first: ${errors[0].error.message}`);
+-  if (entries.length && errors.length > Math.max(5, entries.length * 0.2)) {
+-    throw new UpstreamError(`${label}: ${errors.length}/${entries.length} detail requests failed (first: ${errors[0].error.message})`, { code: 'details_failed' });
+-  }
++  const items = entries.map((e) => ({ e, id: String(e.id), key: googleRowKey(e) }));
++  const { details, gone, failed } = await runDetails(plan, items, {
++    ...co, concurrency, signal, stats, log, label,
++    request: async (x) => {
++      const r = await politeRequest(GOOGLE_RPC, {
++        ...common, method: 'POST', body: googleDetailBody(x.e.id), retries: 3,
++        headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
++      });
++      const rec = parseGoogleDetail(r.text);
++      return rec ? { detail: rec } : { gone: true };
++    },
++  });
++  if (gone.length) stats.notes.push(`${gone.length} sitemap posting(s) returned no record (closed since the sitemap was built)`);
++  stats.notes.push(planNote(plan, entries.length));
+   const jobs = [];
+-  entries.forEach((e, i) => {
+-    const rec = results[i];
+-    if (!rec) return;
+-    const job = mapGoogleJob(rec, e);
++  for (const x of items) {
++    const rec = details.get(x.id);
++    if (!rec) continue;
++    const job = mapGoogleJob(rec, x.e);
+     if (keepRaw) job._raw = rec;
+     jobs.push(job);
+-  });
+-  return { jobs, stats };
++  }
++  const listing = { complete: !maxJobs, listed: entries.length, expected: entries.length, gone, unpublished: failed, summary: planSummary(plan, entries.length) };
++  return { jobs, stats, listing, state: maxJobs ? null : plan.state({ list: sm.list }) };
+ }
+diff --git a/server/sources/incremental.js b/server/sources/incremental.js
+new file mode 100644
+index 0000000..53f18be
+--- /dev/null
++++ b/server/sources/incremental.js
+@@ -0,0 +1,358 @@
++// Incremental crawling: ONE mechanism for every board (docs/ARCHITECTURE.md "Incremental
++// crawl", docs/DATA_SOURCES.md §8, docs/process/incremental-crawl.md).
++//
++// Every crawl lists the whole board (the list request is cheap). What happens next depends
++// on the board's kind, through the same module:
++//   - detail boards (Apple, Google, Microsoft, NVIDIA, Netflix, Meta): the list does not carry
++//     the description or pay, so each posting costs one detail request. `deltaPlan` +
++//     `runDetails` fetch a detail only when
++//       * the posting is new (not in the previous crawl state),
++//       * its list row's CHANGE SIGNAL differs from the previous crawl (a small per-adapter
++//         function: `rowKey` of the title, places, dates, sitemap <lastmod> ...), or
++//       * its cached detail is older than its refresh age (`refreshAgeMs`: at most
++//         DETAIL_REFRESH_DAYS, spread per posting over [days/2, days] so a board's details
++//         never all expire in the same run). This catches edits the list does not show.
++//     Every other posting reuses the previous crawl's RAW detail record, and the adapter maps
++//     row + detail with the same code as a full crawl. Normalization is board-wide
++//     (boilerplate paragraphs, ubiquitous keywords, the vetting gate), so it always runs on
++//     the whole board: an incremental snapshot is identical to a full crawl's whenever the
++//     reused details are unchanged upstream (test/incremental-equivalence.test.js).
++//   - list-only boards (Greenhouse, Ashby, Lever, Amazon): the list row IS the whole
++//     posting, so there is no detail to skip: they are fetched in full every run, and the
++//     crawl summary says so (`LIST_ONLY`). They still go through `accountPostings`.
++// `accountPostings` (every board) accounts for every posting each run: new, changed,
++// unchanged, or absent (then closed with a reason by the ledger, server/history.js).
++//
++// Crawl state ("melon-crawl-1"), per adapter: { format, version, at, rows: { <id>: { k: change
++// signal, d: raw detail (absent when none is wanted), at: when the detail was last fetched or
++// confirmed (304), e: ETag, m: Last-Modified } }, list?: { e, m, entries } }. No previous
++// state, another adapter version or `full` means a full crawl, and the summary says why. A
++// re-fetch of a cached detail is a conditional request (If-None-Match / If-Modified-Since)
++// whenever the host sent a validator; a 304 confirms the cached detail.
++//
++// Closures: a posting is closed when it is absent from a COMPLETE list. Each adapter reports
++// `listing: { complete, listed, expected, gone }`. When the list came back short (Apple,
++// Microsoft and Amazon often list a few postings fewer than they count) nothing is closed for
++// being absent; up to CLOSE_PROBE_LIMIT of the postings the previous crawl listed get one cheap
++// request each (`probeAbsent`: the posting's own detail or page, same polite client and host
++// budget), and only a 404, a 410 or a redirect away from the posting closes one.
++//
++// Pure ES, browser-safe like every file in server/sources/ (server/lib-modules.js).
++import { politeRequest, mapLimit } from './polite.js';
++import { UpstreamError } from './util.js';
++
++export const CRAWL_STATE_FORMAT = 'melon-crawl-1';
++/** A cached detail is re-fetched after this many days at most (per posting: days/2..days). */
++export const DETAIL_REFRESH_DAYS = 4;
++/** At most this many closure probes per crawl (absent from a partial list). */
++export const CLOSE_PROBE_LIMIT = 50;
++/** The crawl summary of a board whose list carries every posting whole. */
++export const LIST_ONLY = 'list-only board: the list returns every posting in full, so there are no detail requests to skip; fetched in full';
++const DAY = 864e5;
++
++/** JSON with sorted keys (undefined dropped): equal values give equal strings. */
++export function stableStringify(v) {
++  if (v === undefined || typeof v === 'function') return 'null';
++  if (v === null || typeof v !== 'object') return JSON.stringify(v) ?? 'null';
++  if (Array.isArray(v)) return `[${v.map(stableStringify).join(',')}]`;
++  return `{${Object.keys(v).filter((k) => v[k] !== undefined && typeof v[k] !== 'function').sort().map((k) => `${JSON.stringify(k)}:${stableStringify(v[k])}`).join(',')}}`;
++}
++
++function fnv(str, seed) {
++  let h = seed >>> 0;
++  for (let i = 0; i < str.length; i++) {
++    h ^= str.charCodeAt(i);
++    h = Math.imul(h, 0x01000193) >>> 0;
++  }
++  return h;
++}
++
++/** A 64-bit content hash (two FNV-1a passes, base36) of a JSON value. */
++export function rowKey(v) {
++  const s = stableStringify(v);
++  return `${fnv(s, 0x811c9dc5).toString(36)}.${fnv(s, 0x050c5d1f).toString(36)}`;
++}
++
++/** The listed keys of `obj` (missing ones omitted). */
++export function pick(obj, keys) {
++  const o = {};
++  for (const k of keys) if (obj && obj[k] !== undefined) o[k] = obj[k];
++  return o;
++}
++
++/** A posting's refresh age (ms): `days` spread over [days/2, days] by its id; Infinity when days <= 0. */
++export function refreshAgeMs(id, days) {
++  if (!(days > 0)) return Infinity;
++  const u = (fnv(String(id), 0x811c9dc5) % 1000) / 1000;
++  return days * DAY * (0.5 + 0.5 * u);
++}
++
++/** Crawl options with defaults: { full, refreshDays, now (ms), probeLimit }. */
++export function crawlOptions(opts = {}) {
++  const now = opts.now != null ? (typeof opts.now === 'number' ? opts.now : Date.parse(opts.now)) : Date.now();
++  const days = Number(opts.refreshDays);
++  const limit = Number(opts.probeLimit);
++  return {
++    full: !!opts.full,
++    refreshDays: opts.refreshDays != null && Number.isFinite(days) ? days : DETAIL_REFRESH_DAYS,
++    now: Number.isFinite(now) ? now : Date.now(),
++    probeLimit: opts.probeLimit != null && Number.isFinite(limit) ? Math.max(0, limit) : CLOSE_PROBE_LIMIT,
++  };
++}
++
++/** True when `prev` is a crawl state this adapter version can use. */
++export function usableState(prev, version) {
++  return !!(prev && prev.format === CRAWL_STATE_FORMAT && prev.version === version && prev.rows && typeof prev.rows === 'object');
++}
++
++/** If-None-Match / If-Modified-Since for a cached entry ({} when it has no validator). */
++export function conditionalHeaders(entry) {
++  const h = {};
++  if (entry && entry.e) h['If-None-Match'] = entry.e;
++  if (entry && entry.m) h['If-Modified-Since'] = entry.m;
++  return h;
++}
++
++/** { e, m } validators of a response (omitted when absent). */
++export function validatorsOf(headers) {
++  const out = {};
++  const get = (k) => (headers && typeof headers.get === 'function' ? headers.get(k) : null);
++  if (get('etag')) out.e = get('etag');
++  if (get('last-modified')) out.m = get('last-modified');
++  return out;
++}
++
++/**
++ * The detail plan of one crawl. `previous`: the adapter's last crawl state (or null);
++ * `version`: the adapter's crawl-state version (a change forces a full crawl).
++ * decide(id, key) -> { fetch, reason: 'full'|'new'|'changed'|'refresh'|'reused', cached }.
++ * Then exactly one of fetched / notModified / reused / fallback / listed per listed id
++ * (runDetails does this).
++ */
++export function deltaPlan(previous, { version, ...opts } = {}) {
++  const { full, refreshDays, now } = crawlOptions(opts);
++  const ok = usableState(previous, version);
++  const prev = ok && !full ? previous.rows : null;
++  const why = full ? 'full crawl requested' : !previous ? 'no previous crawl state' : !ok ? 'previous crawl state is from another adapter version' : null;
++  const at = new Date(now).toISOString();
++  const rows = {};
++  const counts = { full: 0, new: 0, changed: 0, refresh: 0, reused: 0, notModified: 0, fallback: 0 };
++  const has = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
++  return {
++    incremental: !!prev,
++    why,
++    counts,
++    at,
++    previousList: ok && !full ? previous.list || null : null,
++    decide(id, key) {
++      const p = prev && has(prev, id) ? prev[id] : null;
++      let reason;
++      if (!prev) reason = 'full';
++      else if (!p || p.d === undefined) reason = 'new';
++      else if (p.k !== key) reason = 'changed';
++      else if (!(now - Date.parse(p.at || '') < refreshAgeMs(id, refreshDays))) reason = 'refresh';
++      else reason = 'reused';
++      counts[reason]++;
++      return { fetch: reason !== 'reused', reason, cached: p && p.d !== undefined ? p : null };
++    },
++    /** A detail fetched now (null/undefined detail: none to cache). */
++    fetched(id, key, detail, headers = null) {
++      rows[id] = detail === undefined || detail === null ? { k: key } : { k: key, d: detail, at, ...validatorsOf(headers) };
++    },
++    /** A conditional request answered 304: the cached detail is current (verified now). */
++    notModified(id, key, cached, headers = null) {
++      counts.notModified++;
++      rows[id] = { ...cached, k: key, at, ...validatorsOf(headers) };
++    },
++    /** The cached detail reused without a request (keeps its last-verified time). */
++    reused(id, key, cached) { rows[id] = { ...cached, k: key }; },
++    /** The detail request failed: the cached detail stands in (kept as old, so it is retried). */
++    fallback(id, key, cached) { counts.fallback++; rows[id] = { ...cached, k: key }; },
++    /** Listed, no detail wanted (Apple outside the US) or none available. */
++    listed(id, key = '') { rows[id] = { k: key }; },
++    /** Ids the previous crawl listed and this one has not (call after recording every listed id). */
++    absent() { return prev ? Object.keys(prev).filter((id) => !has(rows, id)) : []; },
++    /** Last-verified time of a listed id's detail (null when none). */
++    verifiedAt(id) { return has(rows, id) && rows[id].at ? rows[id].at : null; },
++    /** The next crawl state (`extra`: { list } etc.). */
++    state(extra = {}) { return { format: CRAWL_STATE_FORMAT, version, at, rows, ...extra }; },
++  };
++}
++
++/**
++ * A conditional GET of a cached entry: { notModified: true, headers } on 304, else
++ * { body (parsed JSON, or text with json: false), headers, status }. Throws like politeRequest otherwise.
++ */
++export async function conditionalGet(url, cached, opts = {}, { json = true } = {}) {
++  const headers = { ...(opts.headers || {}), ...conditionalHeaders(cached) };
++  const r = await politeRequest(url, { ...opts, headers, allowNotModified: true });
++  if (r.status === 304) return { notModified: true, headers: r.headers, status: 304 };
++  return { body: json ? r.json() : r.text, headers: r.headers, status: r.status, ok: r.ok };
++}
++
++/**
++ * The shared detail step of every detail board. `items`: [{ id, key, want, ... }] in list
++ * order (`want: false` = listed, no detail wanted). `request(item, cached)` makes ONE polite
++ * request and returns { detail, headers } | { notModified: true, headers } | { gone: true }
++ * (the posting no longer exists: a 404 page, an empty record), or throws.
++ * Failure policy: more than max(failMin, failShare x requests) failures throws (code
++ * details_failed: the crawl fails, the previous snapshot stays). A failed request whose
++ * posting has a cached detail no older than the refresh limit (refreshDays) reuses it (and is
++ * retried next run); otherwise the posting has no detail and is reported in `failed`.
++ * Returns { details: Map(id -> detail|null), gone: [ids], failed: [ids], requested }.
++ */
++export async function runDetails(plan, items, opts = {}) {
++  const { request, concurrency = 2, signal, stats, log = () => {}, label = 'source', failShare = 0.2, failMin = 5, shouldStop, beforeFailCheck, noun = 'detail' } = opts;
++  const { refreshDays, now } = crawlOptions(opts);
++  const decided = items.map((x) => {
++    if (x.want === false) { plan.listed(x.id, x.key); return { ...x, fetch: false, none: true }; }
++    return { ...x, ...plan.decide(x.id, x.key) };
++  });
++  const todo = decided.filter((x) => x.fetch);
++  const t0 = Date.now();
++  const { results, errors } = await mapLimit(todo, concurrency, async (x, i) => {
++    const r = await request(x, x.cached);
++    if (stats) stats.details++;
++    if ((i + 1) % 200 === 0) log(`details ${i + 1}/${todo.length} (${Math.round((Date.now() - t0) / 1000)} s)`);
++    return r || {};
++  }, { shouldStop: () => !!((signal && signal.aborted) || (shouldStop && shouldStop())) });
++  if (stats) stats.detailErrors += errors.length;
++  if (errors.length && stats) stats.notes.push(`${errors.length} ${noun} request(s) failed, first: ${errors[0].error.message}`);
++  if (beforeFailCheck) beforeFailCheck(errors);
++  if (todo.length && errors.length > Math.max(failMin, todo.length * failShare)) {
++    throw new UpstreamError(`${label}: ${errors.length}/${todo.length} ${noun} requests failed (first: ${errors[0].error.message})`, { code: 'details_failed' });
++  }
++  const got = new Map(todo.map((x, i) => [x.id, results[i]]));
++  const limit = refreshDays > 0 ? refreshDays * DAY : Infinity;
++  const details = new Map();
++  const gone = [];
++  const failed = [];
++  for (const x of decided) {
++    if (x.none) { details.set(x.id, null); continue; }
++    if (!x.fetch) { plan.reused(x.id, x.key, x.cached); details.set(x.id, x.cached.d); continue; }
++    const r = got.get(x.id);
++    if (r && r.notModified && x.cached) { plan.notModified(x.id, x.key, x.cached, r.headers); details.set(x.id, x.cached.d); continue; }
++    if (r && r.gone) { gone.push(x.id); continue; }
++    if (r && !r.notModified) { plan.fetched(x.id, x.key, r.detail, r.headers); details.set(x.id, r.detail == null ? null : r.detail); continue; }
++    // Failed (or not run): the cached detail, only within the refresh limit.
++    if (x.cached && now - Date.parse(x.cached.at || '') <= limit) { plan.fallback(x.id, x.key, x.cached); details.set(x.id, x.cached.d); continue; }
++    plan.listed(x.id, x.key);
++    details.set(x.id, null);
++    failed.push(x.id);
++  }
++  return { details, gone, failed, requested: todo.length };
++}
++
++/** Probe result of one response: 'gone' (404, 410, a redirect away from the posting), 'alive' (2xx), else 'unknown'. */
++export function classifyProbe(status, location, url) {
++  if (status === 404 || status === 410) return 'gone';
++  if (status >= 300 && status < 400 && status !== 304) {
++    if (!location) return 'unknown';
++    try {
++      const a = new URL(url);
++      const b = new URL(location, url);
++      return b.pathname.replace(/\/+$/, '') !== a.pathname.replace(/\/+$/, '') ? 'gone' : 'unknown';
++    } catch { return 'unknown'; }
++  }
++  if (status >= 200 && status < 300) return 'alive';
++  return 'unknown';
++}
++
++/**
++ * Probe up to `limit` absent ids, one request each (sequential: one host, the polite spacing
++ * applies). `request(id)` returns { status, location, url, alive?: bool } or throws (unknown).
++ * Returns { gone: [ids], alive: [ids], unknown: [ids], skipped: n }.
++ */
++export async function probeClosures(ids, request, { limit = CLOSE_PROBE_LIMIT, signal, stats } = {}) {
++  const out = { gone: [], alive: [], unknown: [], skipped: Math.max(0, ids.length - limit) };
++  for (const id of ids.slice(0, limit)) {
++    if (signal && signal.aborted) { out.skipped++; continue; }
++    let verdict = 'unknown';
++    try {
++      const r = await request(id);
++      verdict = classifyProbe(r.status, r.location, r.url);
++      if (verdict === 'alive' && r.alive === false) verdict = 'unknown';
++    } catch { verdict = 'unknown'; }
++    out[verdict].push(id);
++    if (stats) stats.probes = (stats.probes || 0) + 1;
++  }
++  return out;
++}
++
++/**
++ * Closure probes (call after runDetails or plan.listed for every row): when the list is not
++ * complete and the previous state is usable, the ids the previous crawl listed and this one
++ * did not get one `probe(id)` request each. Returns the gone ids; notes the rest.
++ */
++export async function probeAbsent(plan, { complete, probe, probeLimit, signal, stats, what = 'posting(s)' }) {
++  if (complete || !plan.incremental || !probeLimit) return [];
++  const absent = plan.absent();
++  if (!absent.length) return [];
++  const pr = await probeClosures(absent, probe, { limit: probeLimit, signal, stats });
++  if (stats) stats.notes.push(`${absent.length} ${what} the previous crawl listed are absent from this short list: ${pr.gone.length} gone (404/410/redirect), ${pr.alive.length} still open, ${pr.unknown.length} unknown, ${pr.skipped} not probed (kept open)`);
++  return pr.gone;
++}
++
++/** One probe request through the polite client: { status, location, url, alive }. `isAlive(r)` checks a 2xx body. */
++export async function probeRequest(url, common, isAlive = null, extra = {}) {
++  const r = await politeRequest(url, { ...common, ...extra, retries: 1, throwOnHttpError: false });
++  let alive = true;
++  if (r.ok && isAlive) { try { alive = !!isAlive(r); } catch { alive = false; } }
++  return { status: r.status, location: r.headers.get('location'), url, alive };
++}
++
++/**
++ * A one-request list (a sitemap), conditional on the previous crawl's validators: a 304
++ * reuses the previous crawl's parsed entries. `parse(text)` -> entries. Returns
++ * { entries, list (for plan.state({ list })), notModified }.
++ */
++export async function conditionalList(url, plan, common, parse, extra = {}) {
++  const prevList = plan.previousList && Array.isArray(plan.previousList.entries) && plan.previousList.entries.length ? plan.previousList : null;
++  const r = await conditionalGet(url, prevList, { ...common, ...extra }, { json: false });
++  if (r.notModified && prevList) {
++    if (common.stats) common.stats.notes.push('list not modified since the previous crawl (HTTP 304): its entries reused');
++    return { entries: prevList.entries, list: { ...prevList, ...validatorsOf(r.headers) }, notModified: true };
++  }
++  if (r.notModified) throw new UpstreamError(`${common.label || 'source'}: HTTP 304 with no cached list`, { code: 'http', status: 304 });
++  const entries = parse(r.body);
++  return { entries, list: { ...validatorsOf(r.headers), entries }, notModified: false };
++}
++
++/** A one-line summary of a plan, for the crawl log and the snapshot's `crawl` field. */
++export function planNote(plan, listed) {
++  const c = plan.counts;
++  if (!plan.incremental) return `full crawl (${plan.why}): ${c.full} detail request(s) for ${listed} listed`;
++  const fetched = c.new + c.changed + c.refresh;
++  return `incremental: ${fetched} detail request(s) for ${listed} listed (${c.new} new, ${c.changed} changed in the list, ${c.refresh} refreshed by age; ${c.notModified} not modified), ${c.reused} reused${c.fallback ? `, ${c.fallback} failed and kept from the previous crawl` : ''}`;
++}
++
++/** Plan counts for the snapshot's `crawl` field. */
++export function planSummary(plan, listed) {
++  return { mode: plan.incremental ? 'incremental' : 'full', ...(plan.why ? { why: plan.why } : {}), listed, ...plan.counts };
++}
++
++/**
++ * Every board, every run: each posting of `raws` (RawJobs, keyed by sourceId) against the
++ * previous run's `postings` ({ sourceId: rowKey of the RawJob }). Returns
++ * { postings (the next map), counts: { new, changed, unchanged, absent }, absent: [sourceIds] }
++ * (all postings "new" when there is no previous map).
++ */
++export function accountPostings(previous, raws) {
++  const prev = previous && typeof previous === 'object' ? previous : null;
++  const postings = {};
++  const counts = { new: 0, changed: 0, unchanged: 0, absent: 0 };
++  for (const r of raws || []) {
++    if (!r || r.sourceId == null) continue;
++    const id = String(r.sourceId);
++    if (Object.prototype.hasOwnProperty.call(postings, id)) continue;
++    const { _raw, ...rest } = r;
++    const k = rowKey(rest);
++    postings[id] = k;
++    if (!prev || !Object.prototype.hasOwnProperty.call(prev, id)) counts.new++;
++    else if (prev[id] !== k) counts.changed++;
++    else counts.unchanged++;
++  }
++  const absent = prev ? Object.keys(prev).filter((id) => !Object.prototype.hasOwnProperty.call(postings, id)) : [];
++  counts.absent = absent.length;
++  return { postings, counts, absent };
++}
+diff --git a/server/sources/meta.js b/server/sources/meta.js
+index 6a5cd7b..3c6f670 100644
+--- a/server/sources/meta.js
++++ b/server/sources/meta.js
+@@ -13,7 +13,8 @@
+ //     posted base range (the page says bonus and equity are extra).
+ // No GraphQL, token or doc_id is used: the sitemap is the list, the page is the record.
+ import { UpstreamError, htmlToText, str, isoOrNull, decodeEntitiesOnce } from './util.js';
+-import { politeRequest, checkRobots, mapLimit, cookieJar, newStats, spreadSample } from './polite.js';
++import { checkRobots, cookieJar, newStats, spreadSample } from './polite.js';
++import { deltaPlan, runDetails, conditionalGet, conditionalList, rowKey, crawlOptions, planNote, planSummary } from './incremental.js';
+ import { crawlBlock } from '../companies.js';
+ import { countryCode } from '../geo.js';
+ 
+@@ -222,9 +223,26 @@ export function mapMetaJob(p, entry = {}) {
+   };
+ }
+ 
+-/** Fetch the sitemap, then each job page. Options as fetchEightfold. Returns { jobs, stats }. */
++/** Crawl-state version (server/sources/incremental.js): bump when the page extraction changes. */
++export const META_CRAWL_VERSION = 'meta-1';
++
++/**
++ * A sitemap entry's change signal: its <lastmod> where the sitemap has one. Without it the
++ * signal is constant, so only new postings and pages past their refresh age are fetched
++ * (the URL set is the list).
++ */
++export function metaRowKey(e) {
++  return rowKey({ lastmod: (e && e.lastmod) || null });
++}
++
++/**
++ * Fetch the sitemap, then each job page. Options as fetchEightfold, including the incremental
++ * ones (previous, full, refreshDays, now, probeLimit). The cached detail is the extracted page
++ * (extractMetaPage), not the ~480 KB HTML. Returns { jobs, stats, listing, state }.
++ */
+ export async function fetchMeta(board = 'meta', opts = {}) {
+   const { maxJobs = 0, stats = newStats(), log = () => {}, keepRaw = false, signal, concurrency = 1, timeoutMs } = opts;
++  const co = crawlOptions(opts);
+   const label = 'meta';
+   // A paused company (server/companies.js PAUSING) is never requested, whoever calls this.
+   const blocked = crawlBlock('meta', board);
+@@ -232,53 +250,52 @@ export async function fetchMeta(board = 'meta', opts = {}) {
+   const jar = cookieJar();
+   const common = { label, jar, stats, signal, timeoutMs, maxBytes: 8 * 1024 * 1024 };
+   await checkRobots(META_ORIGIN, ['/jobsearch/sitemap.xml', '/profile/job_details/1/'], { label, stats, signal });
+-  const sm = await politeRequest(META_SITEMAP, { ...common, accept: 'application/xml,text/xml' });
++  const plan = deltaPlan(maxJobs ? null : opts.previous, { version: META_CRAWL_VERSION, ...co, full: co.full || !!maxJobs });
++  const sm = await conditionalList(META_SITEMAP, plan, common, parseMetaSitemap, { accept: 'application/xml,text/xml' });
+   stats.pages++;
+-  let entries = parseMetaSitemap(sm.text);
++  let entries = sm.entries;
+   if (!entries.length) throw new UpstreamError(`${label}: the jobs sitemap lists no postings`, { code: 'bad_shape' });
+   log(`sitemap: ${entries.length} postings`);
+   if (maxJobs) entries = spreadSample(entries, maxJobs);
+-  const t0 = Date.now();
+-  let empty = 0;
+   let ldOnly = 0;
+   let streak = 0; // consecutive failed pages: a site that has started refusing us is not asked 1,000 more times
+-  const { results, errors } = await mapLimit(entries, concurrency, async (e, i) => {
+-    try {
+-      const r = await politeRequest(e.url, { ...common, accept: 'text/html', retries: 3, throwOnHttpError: false });
+-      stats.details++;
+-      if ((i + 1) % 200 === 0) log(`pages ${i + 1}/${entries.length} (${Math.round((Date.now() - t0) / 1000)} s)`);
+-      if (r.status === 404 || r.status === 410) { empty++; streak = 0; return null; }
+-      if (!r.ok) throw new UpstreamError(`${label}: HTTP ${r.status} from ${e.url}`, { code: 'http', status: r.status });
+-      const p = extractMetaPage(r.text, e.id);
+-      streak = 0;
+-      if (!p.title) { empty++; return null; }
+-      if (!p.description_html && !p.locations) ldOnly++;
+-      return p;
+-    } catch (err) {
+-      streak++;
+-      throw err;
+-    }
+-  }, { shouldStop: () => (signal && signal.aborted) || streak >= MAX_FAILED_IN_A_ROW });
+-  stats.detailErrors += errors.length;
+-  if (empty) stats.notes.push(`${empty} sitemap posting(s) had no job data (closed since the sitemap was built)`);
++  const items = entries.map((e) => ({ e, id: String(e.id), key: metaRowKey(e) }));
++  // A failed page is a posting in an unknown state. Over 5% failed (or a stop after
++  // MAX_FAILED_IN_A_ROW), the crawl fails and the previous snapshot stays.
++  const { details, gone, failed } = await runDetails(plan, items, {
++    ...co, concurrency, signal, stats, log, label, failShare: MAX_FAILED_SHARE, failMin: 5, noun: 'page',
++    shouldStop: () => streak >= MAX_FAILED_IN_A_ROW,
++    beforeFailCheck: (errors) => {
++      if (streak >= MAX_FAILED_IN_A_ROW) throw new UpstreamError(`${label}: stopped after ${streak} failed pages in a row (first: ${errors[0].error.message})`, { code: 'details_failed' });
++    },
++    request: async (x, cached) => {
++      try {
++        const r = await conditionalGet(x.e.url, cached, { ...common, accept: 'text/html', retries: 3, throwOnHttpError: false }, { json: false });
++        if (r.notModified) { streak = 0; return r; }
++        if (r.status === 404 || r.status === 410) { streak = 0; return { gone: true }; }
++        if (!r.ok) throw new UpstreamError(`${label}: HTTP ${r.status} from ${x.e.url}`, { code: 'http', status: r.status });
++        const p = extractMetaPage(r.body, x.e.id);
++        streak = 0;
++        if (!p.title) return { gone: true };
++        if (!p.description_html && !p.locations) ldOnly++;
++        return { detail: p, headers: r.headers };
++      } catch (err) {
++        streak++;
++        throw err;
++      }
++    },
++  });
++  if (gone.length) stats.notes.push(`${gone.length} sitemap posting(s) had no job data (closed since the sitemap was built)`);
+   if (ldOnly) stats.notes.push(`${ldOnly} page(s) had no page data after "apply_for_this_job_section"; read from their JSON-LD only`);
+-  if (errors.length) stats.notes.push(`${errors.length} page request(s) failed, first: ${errors[0].error.message}`);
+-  // A failed page is a posting in an unknown state: publishing without it would close it in the
+-  // history ledger. Over 5% failed (or a stop after MAX_FAILED_IN_A_ROW), the crawl fails and the
+-  // previous snapshot stays.
+-  if (streak >= MAX_FAILED_IN_A_ROW) {
+-    throw new UpstreamError(`${label}: stopped after ${streak} failed pages in a row (first: ${errors[0].error.message})`, { code: 'details_failed' });
+-  }
+-  if (entries.length && errors.length > Math.max(5, entries.length * MAX_FAILED_SHARE)) {
+-    throw new UpstreamError(`${label}: ${errors.length}/${entries.length} page requests failed (first: ${errors[0].error.message})`, { code: 'details_failed' });
+-  }
++  stats.notes.push(planNote(plan, entries.length));
+   const jobs = [];
+-  entries.forEach((e, i) => {
+-    const p = results[i];
+-    if (!p) return;
+-    const job = mapMetaJob(p, e);
++  for (const x of items) {
++    const p = details.get(x.id);
++    if (!p) continue;
++    const job = mapMetaJob(p, x.e);
+     if (keepRaw) job._raw = p;
+     jobs.push(job);
+-  });
+-  return { jobs, stats };
++  }
++  const listing = { complete: !maxJobs, listed: entries.length, expected: entries.length, gone, unpublished: failed, summary: planSummary(plan, entries.length) };
++  return { jobs, stats, listing, state: maxJobs ? null : plan.state({ list: sm.list }) };
+ }
+diff --git a/server/sources/polite.js b/server/sources/polite.js
+index 4cbd523..310bde3 100644
+--- a/server/sources/polite.js
++++ b/server/sources/polite.js
+@@ -121,13 +121,14 @@ function retryAfterMs(res) {
+  * object -> JSON), accept, timeoutMs, maxBytes, label, jar (cookieJar()),
+  * interval (ms between requests to this host), retries (default 4),
+  * throwOnHttpError (default true), stats ({ requests, bytes, retries, statuses }),
+- * signal (caller abort).
++ * signal (caller abort), allowNotModified (a 304 to a conditional request is returned,
++ * not thrown: server/sources/incremental.js).
+  */
+ export async function politeRequest(url, opts = {}) {
+   const {
+     method = 'GET', headers = {}, body, accept = 'application/json', timeoutMs = DEFAULT_TIMEOUT_MS,
+     maxBytes = DEFAULT_MAX_BYTES, label = 'source', jar = null, interval, retries = BACKOFF_MS.length,
+-    throwOnHttpError = true, stats = null, signal = null,
++    throwOnHttpError = true, stats = null, signal = null, allowNotModified = false,
+   } = opts;
+   const host = new URL(url).host;
+   const h = { ...headers, 'User-Agent': BOT_USER_AGENT, Accept: accept };
+@@ -164,7 +165,7 @@ export async function politeRequest(url, opts = {}) {
+             try { return JSON.parse(text); } catch (err) { throw new UpstreamError(`${label}: invalid JSON from ${url}: ${err.message}`, { code: 'invalid_json' }); }
+           },
+         };
+-        if (!out.ok && throwOnHttpError) {
++        if (!out.ok && throwOnHttpError && !(allowNotModified && res.status === 304)) {
+           const where = res.status >= 300 && res.status < 400 ? ` (redirect to ${res.headers.get('location') || '?'})` : '';
+           const hint = res.status === 403 ? ' (blocked: the site refuses this client; not retried)' : '';
+           throw new UpstreamError(`${label}: HTTP ${res.status}${where}${hint} from ${url}: ${text.slice(0, 160).replace(/\s+/g, ' ')}`, { code: 'http', status: res.status });
+-- 
+2.43.0
+

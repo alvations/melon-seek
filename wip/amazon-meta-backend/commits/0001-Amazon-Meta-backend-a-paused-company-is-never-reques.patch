@@ -1,0 +1,1148 @@
+From 29770f25259b67283836bea9af228c7c66ccf020 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sun, 11 Oct 2026 12:07:12 +0000
+Subject: [PATCH 1/5] Amazon/Meta backend: a paused company is never requested;
+ adapter fixes; synthetic boards
+
+- server/companies.js: PAUSING doc and crawlBlock(source, board); `paused` stays the one switch.
+- amazon.js / meta.js: refuse to start (code 'paused') before any request while paused, whoever
+  calls them (snapshot.js <slug>, fetchLive, the probe).
+- probe-bigtech.js: recon/full skip paused companies; raw refuses their career hosts.
+- amazon.js: pay row by whole city + state, else the job's own country, else the first row;
+  each partition stops on its own `hits`; a crawl under 95% of the facet total is refused
+  (a partial board would close postings in the ledger); search errors checked first.
+- meta.js: no page-data anchor = JSON-LD only (plus public_compensation); addressCountry
+  names normalised; sitemap lastmod kept; stop after 10 failed pages in a row; >5% failed fails.
+- test/amazon-meta-synth.js: synthetic amazon.jobs / metacareers.com built from the fixtures
+  (no network), plus a CLI that crawls them with the real pipeline.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+---
+ docs/process/prompts/amazon-meta-backend.md |  32 ++
+ scripts/probe-bigtech.js                    |  60 ++-
+ server/companies.js                         |  31 ++
+ server/sources/amazon.js                    | 110 +++--
+ server/sources/meta.js                      |  85 +++-
+ test/amazon-meta-synth.js                   | 442 ++++++++++++++++++++
+ test/bigtech-polite.test.js                 |   7 +-
+ test/bigtech-sources.test.js                |  64 +--
+ 8 files changed, 741 insertions(+), 90 deletions(-)
+ create mode 100644 docs/process/prompts/amazon-meta-backend.md
+ create mode 100644 test/amazon-meta-synth.js
+
+diff --git a/docs/process/prompts/amazon-meta-backend.md b/docs/process/prompts/amazon-meta-backend.md
+new file mode 100644
+index 0000000..e273608
+--- /dev/null
++++ b/docs/process/prompts/amazon-meta-backend.md
+@@ -0,0 +1,32 @@
++You are the dedicated backend engineer for getting Amazon and Meta onto melon-seek's big-tech list (/home/user/melon-seek, "the Zillow of job postings"; the big-tech boards are on the beta site, /melon-seek/beta/). A data engineer works on the same goal at the same time (role amazon-meta-data); they own the terms question, the alternative data routes and docs/AMAZON_META.md, and you own the crawler, pipeline and build.
++
++The user's words, 2026-10-11: "Why are the Meta and Amazon ones missing?! Launch a dedicated agents data and backend engineer to figure it out and get the data!!! We must have these in the big tech list!"
++
++What the lead knows: both adapters exist (server/sources/amazon.js, server/sources/meta.js), with tests in test/bigtech-*.test.js. On 2026-10-10 both were set to `paused: 'terms'` in server/companies.js, so they are not crawled, built or listed. The reason was that their sites' terms appeared to bar automated collection, and resuming was left for the user to decide. Amazon is large: the probe counted 22,415 postings, about 4.6 times Apple's 4,875, and roughly 200 MB normalised (docs/process/bigtech-data.md). Meta has about 1,143 job pages from its sitemap.
++
++Read first: docs/DATA_SOURCES.md §7, docs/process/bigtech-data.md, docs/process/beta-deploy.md, docs/process/perf-mobile-beta.md (the beta performance budget), docs/ARCHITECTURE.md, server/companies.js, server/sources/{amazon,meta,polite}.js, scripts/snapshot.js, .github/workflows/snapshot.yml, .github/scripts/beta-snapshots.mjs, scripts/build-static.js (the beta channel), docs/process/PLAYBOOK.md and docs/process/TEMPLATE.md.
++
++**Where you work:** your own git worktree (you start in it). Symlink node_modules, data/snapshots and data/beta/snapshots from /home/user/melon-seek. Commit locally at milestones (a container restart loses uncommitted work), never push, and report your commit SHAs. You own:
++- server/sources/amazon.js and server/sources/meta.js;
++- in server/companies.js, the amazon and meta entries and the `paused` mechanics only;
++- .github/scripts/beta-snapshots.mjs, the beta size-fitting in scripts/snapshot.js, and scripts/probe-bigtech.js;
++- test/bigtech-*.test.js and new test/amazon-meta-*.test.js;
++- docs/process/amazon-meta-backend.md (your log, following docs/process/TEMPLATE.md) and docs/process/prompts/amazon-meta-backend.md (paste this prompt verbatim).
++Changes to any other file (.github/workflows/*, scripts/build-static.js, public/*, docs/DATA_SOURCES.md) go as patches in docs/process/patches/amazon-meta-backend-<name>.diff. Other lanes are editing public/app.js and public/viz/* right now.
++
++**The rule while the user decides:** don't request any Amazon or Meta job listing, search endpoint or job page, from the sandbox or from a GitHub runner. That includes the probe's recon and full modes for amazon and meta. Work from the recorded formats in docs/DATA_SOURCES.md §7e and §7g, and from the fixtures. Whether to collect against a site's terms is the user's decision. Your job is to make sure that once it is allowed, both go live in one step and work the first time.
++
++**Do:**
++1. **Trace why they're missing, end to end.** Follow the registry (`listCompanies`, `includePaused`), the crawl matrix (beta-snapshots.mjs slugs), the crawl, merge and gate jobs in snapshot.yml, the archive ingest, the build's beta channel and the beta company list. Confirm `paused: 'terms'` is the only cause, and list every place that would need to change to resume.
++2. **Make resuming one documented switch.** For example, removing `paused` (or a `resume` decision recorded next to it) turns on the crawl, archive, build and list together. A test should prove that a paused company is never requested, and that an unpaused one flows through every stage with fixtures.
++3. **Make the adapters ready.**
++   - Check them against the recorded formats and the fixtures. Cover the edge cases in §7e and §7g: Amazon's per-location pay table and the older national sentence, hourly pay, CAD and other currencies, the 10,000-hit cap per query and the partitioning by country and business category; Meta's `public_compensation`, intern monthly pay, and the JSON-LD fallback.
++   - Error handling, retries and the politeness rules in polite.js: honest User-Agent, about 1 request per second, robots.txt.
++   - Estimate the crawl time per run for each (Amazon about 225 list requests at 100 a page; Meta about 1,143 page requests at 1/s, about 20 minutes) and check it fits snapshot.yml's job timeout and the 6-hour schedule. Propose incremental crawling if not (for example, only fetching Meta pages whose sitemap entry is new or changed).
++4. **Amazon at scale.** 22,415 postings would make Amazon the largest board by far. Build a synthetic Amazon snapshot by scaling up the adapter's fixtures to the real count and the real country and category mix (from §7e), and measure what it does:
++   - the beta build: size, time, and the 800-character description fit (`fitSnapshot`, `jobsCapped`);
++   - the browser, with the method in docs/process/perf-mobile-beta.md (Playwright from NODE_PATH=/tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92f3-f582ebca24d9/scratchpad/pw/node_modules, Chromium at /opt/pw-browsers/chromium-1194/chrome-linux/chrome, never `playwright install`; serve your build with `node scripts/cycle/serve.mjs --dist <dir> --pid <file>` and stop it with `kill "$(cat <file>)"`, never `pkill -f`): first card on a 4x-throttled phone, memory, and filter and chart times.
++   Then design the fit and recommend one option with the numbers, for example: split Amazon into business units (AWS, Stores and so on) as separate boards, split by country, or cap the postings and say so on screen. Implement the parts in your files, and send patches for the rest.
++5. **Synthetic Meta snapshot:** the same, at about 1,143 postings, to prove the pipeline end to end.
++
++Machine: 4 CPUs, shared with other agents. Run builds and browser timings one at a time, and note `uptime` with every timing. Run `npm test` before you report. Report back with: why they're missing (every place, file:line), what resuming takes (the one switch), the adapter checks, crawl-time estimates, the Amazon scale numbers and your recommendation, the patches for the lead, and your commit SHAs.
+diff --git a/scripts/probe-bigtech.js b/scripts/probe-bigtech.js
+index 7997bf6..4ccb550 100644
+--- a/scripts/probe-bigtech.js
++++ b/scripts/probe-bigtech.js
+@@ -19,11 +19,19 @@
+ //
+ // All requests go through server/sources/polite.js: honest User-Agent, about
+ // 1 request/s per host, backoff on 429/5xx, no retries on 403.
++//
++// Paused companies (`paused` in server/companies.js, e.g. Amazon and Meta for their terms of
++// use) are never requested: recon and full skip them, and raw refuses their career hosts.
++// Their terms-of-use pages (www.amazon.com, www.facebook.com, www.meta.com) stay readable.
+ import { AsyncLocalStorage } from 'node:async_hooks';
++import { pathToFileURL } from 'node:url';
++import path from 'node:path';
+ import { politeRequest, robotsRules, robotsAllows, newStats, BOT_USER_AGENT } from '../server/sources/polite.js';
+ import { htmlToText } from '../server/sources/util.js';
++import { COMPANIES } from '../server/companies.js';
+ 
+-const args = process.argv.slice(2);
++const isMain = process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href;
++const args = isMain ? process.argv.slice(2) : [];
+ const opt = (name, env, dflt) => {
+   const i = args.indexOf(`--${name}`);
+   if (i >= 0 && args[i + 1] != null) return args[i + 1];
+@@ -34,7 +42,34 @@ const ONLY = opt('companies', 'PROBE_COMPANIES', '').split(/[\s,]+/).filter(Bool
+ const MAX_JOBS = Number(opt('max-jobs', 'PROBE_MAX_JOBS', '0')) || 0;
+ const RAW = opt('raw', 'PROBE_RAW', '');
+ 
+-const SLUGS = ['amazon', 'netflix', 'microsoft', 'nvidia', 'apple', 'google', 'meta', 'tesla'];
++export const SLUGS = ['amazon', 'netflix', 'microsoft', 'nvidia', 'apple', 'google', 'meta', 'tesla'];
++/** Each slug's career-site hosts (raw requests to a paused company's hosts are refused). */
++export const CAREER_HOSTS = Object.freeze({
++  amazon: ['www.amazon.jobs', 'amazon.jobs'],
++  netflix: ['explore.jobs.netflix.net', 'jobs.netflix.com'],
++  microsoft: ['apply.careers.microsoft.com', 'careers.microsoft.com', 'jobs.careers.microsoft.com'],
++  nvidia: ['nvidia.wd5.myworkdayjobs.com', 'jobs.nvidia.com'],
++  apple: ['jobs.apple.com'],
++  google: ['careers.google.com'],
++  meta: ['www.metacareers.com', 'metacareers.com'],
++  tesla: [],
++});
++/** Slugs paused in the registry right now (read at call time). */
++export const pausedSlugs = (registry = COMPANIES) => registry.filter((c) => c && c.paused).map((c) => c.slug);
++/**
++ * Which companies a recon/full run may touch: the requested ones (all when none), minus the
++ * paused ones. Returns { run, skipped: [{ slug, paused }] }.
++ */
++export function probeTargets(only = [], registry = COMPANIES) {
++  const paused = new Map(registry.filter((c) => c && c.paused).map((c) => [c.slug, c.paused]));
++  const want = only.length ? SLUGS.filter((s) => only.includes(s)) : SLUGS;
++  return { run: want.filter((s) => !paused.has(s)), skipped: want.filter((s) => paused.has(s)).map((slug) => ({ slug, paused: paused.get(slug) })) };
++}
++/** The paused company whose career site `host` is, or null (raw mode refuses those). */
++export function pausedHost(host, registry = COMPANIES) {
++  const h = String(host || '').toLowerCase();
++  return pausedSlugs(registry).find((slug) => (CAREER_HOSTS[slug] || []).includes(h)) || null;
++}
+ const HOSTS = new Set([
+   'www.amazon.jobs', 'amazon.jobs', 'explore.jobs.netflix.net', 'jobs.netflix.com', 'apply.careers.microsoft.com', 'careers.microsoft.com',
+   'jobs.careers.microsoft.com', 'nvidia.wd5.myworkdayjobs.com', 'jobs.nvidia.com', 'www.nvidia.com', 'jobs.apple.com', 'www.apple.com',
+@@ -348,6 +383,8 @@ async function rawRequests(spec) {
+     let u;
+     try { u = new URL(x.url); } catch { say(`raw: bad url ${x.url}`); continue; }
+     if (u.protocol !== 'https:' || !HOSTS.has(u.host)) { say(`raw: host ${u.host} is not one of the career sites; skipped`); continue; }
++    const paused = pausedHost(u.host);
++    if (paused) { say(`raw: ${u.host} is ${paused}'s careers site, which is paused in server/companies.js; skipped, no request made`); continue; }
+     const r = await req(u.href, { method: x.method || 'GET', body: x.body, accept: x.accept || '*/*', headers: x.headers || {} });
+     if (!r) continue;
+     const j = asJson(r);
+@@ -480,12 +517,15 @@ function trimHtml(html) {
+ 
+ /* ------------------------------------------------------------------ main */
+ 
+-console.log(`probe-bigtech mode=${MODE} companies=${ONLY.join(',') || 'all'} max-jobs=${MAX_JOBS || 'all'} UA="${BOT_USER_AGENT}" node=${process.version} at ${new Date().toISOString()}`);
+-const slugs = ONLY.length ? SLUGS.filter((s) => ONLY.includes(s)) : SLUGS;
+-if (RAW) await section('RAW REQUESTS', () => rawRequests(RAW));
+-if (MODE === 'recon') {
+-  await Promise.all(slugs.map((slug) => section(`RECON ${slug}`, async () => { await robots(slug); await RECON[slug](); })));
+-} else if (MODE === 'full') {
+-  await Promise.all(slugs.map((slug) => section(`FULL ${slug}`, () => full(slug))));
++if (isMain) {
++  console.log(`probe-bigtech mode=${MODE} companies=${ONLY.join(',') || 'all'} max-jobs=${MAX_JOBS || 'all'} UA="${BOT_USER_AGENT}" node=${process.version} at ${new Date().toISOString()}`);
++  const { run: slugs, skipped } = probeTargets(ONLY);
++  for (const s of skipped) console.log(`skipped ${s.slug}: paused (${s.paused}) in server/companies.js; no request made`);
++  if (RAW) await section('RAW REQUESTS', () => rawRequests(RAW));
++  if (MODE === 'recon') {
++    await Promise.all(slugs.map((slug) => section(`RECON ${slug}`, async () => { await robots(slug); await RECON[slug](); })));
++  } else if (MODE === 'full') {
++    await Promise.all(slugs.map((slug) => section(`FULL ${slug}`, () => full(slug))));
++  }
++  console.log(`\nprobe-bigtech done at ${new Date().toISOString()}`);
+ }
+-console.log(`\nprobe-bigtech done at ${new Date().toISOString()}`);
+diff --git a/server/companies.js b/server/companies.js
+index 196d2a0..d81d923 100644
+--- a/server/companies.js
++++ b/server/companies.js
+@@ -28,11 +28,13 @@ export const COMPANIES = [
+   // PAUSED (2026-10-10, lead): Meta's Automated Data Collection Terms bar automated collection
+   // "without ... express written permission", even though robots.txt and the sitemap expose the
+   // job pages. Not crawled until the user decides (docs/DATA_SOURCES.md §7 "Terms of use").
++  // To resume: delete `paused` below and write the decision here (date, who, link). See PAUSING.
+   { slug: 'meta', name: 'Meta', source: 'meta', board: 'meta', color: '#0866ff', channel: 'beta', live: false, paused: 'terms' },
+   { slug: 'apple', name: 'Apple', source: 'apple', board: 'apple', color: '#6e6e73', channel: 'beta', live: false },
+   { slug: 'netflix', name: 'Netflix', source: 'eightfold', board: 'netflix', color: '#e50914', channel: 'beta', live: false },
+   // PAUSED (2026-10-10, lead): Amazon's Conditions of Use exclude "data mining, robots, or similar
+   // data gathering and extraction tools". Not crawled until the user decides (DATA_SOURCES §7).
++  // To resume: delete `paused` below and write the decision here (date, who, link). See PAUSING.
+   { slug: 'amazon', name: 'Amazon', source: 'amazon', board: 'amazon', color: '#ff9900', channel: 'beta', live: false, paused: 'terms' },
+   // NVIDIA's own careers site (jobs.nvidia.com) is an Eightfold tenant; its Workday
+   // CXS API was in a maintenance redirect during the first probe.
+@@ -61,6 +63,35 @@ export function listCompanies({ channel = 'stable', includePaused = false } = {}
+   return list.map((c) => ({ ...c }));
+ }
+ 
++/**
++ * PAUSING. `paused: '<reason>'` on a built-in is the one switch that keeps a company out of
++ * every stage (docs/process/amazon-meta-backend.md "The resume switch"):
++ *   - listCompanies() leaves it out unless `includePaused`, so it is not in snapshot.yml's crawl
++ *     matrix (.github/scripts/beta-snapshots.mjs slugs), not merged into the beta artifact (the
++ *     merge removes a paused company's old files), not built into /beta/ and not on its company
++ *     list, the market comps or the share pages; the archive only ever sees what a crawl uploads;
++ *   - its adapter refuses to start before its first request (crawlBlock, UpstreamError code
++ *     'paused'), whoever calls it: scripts/snapshot.js <slug>, server/pipeline.js#fetchLive or the
++ *     probe's full mode; scripts/probe-bigtech.js also skips it in recon and refuses its career
++ *     hosts in raw mode;
++ *   - getCompany() still resolves it, so links to it get a plain "paused" message (server/index.js).
++ * To RESUME: delete the `paused` field and record the decision in the comment above the entry.
++ * Nothing else changes: the next 6-hourly snapshot.yml run crawls it, the merge, archive and
++ * pages.yml pick up its file, and /beta/ lists it (test/amazon-meta-resume.test.js runs every
++ * stage on a copy of the tree with the field removed).
++ */
++export const PAUSE_REASONS = Object.freeze({ terms: 'its careers site’s terms don’t allow automated collection' });
++
++/**
++ * The paused built-in behind an adapter's (source, board), or null when it may be crawled:
++ * { slug, name, paused, reason }. Read at call time, so a test that edits COMPANIES sees it.
++ */
++export function crawlBlock(source, board) {
++  const c = COMPANIES.find((x) => x.source === source && String(x.board).toLowerCase() === String(board || '').toLowerCase());
++  if (!c || !c.paused) return null;
++  return { slug: c.slug, name: c.name, paused: c.paused, reason: PAUSE_REASONS[c.paused] || String(c.paused) };
++}
++
+ /** Any built-in on any channel; the result carries `channel` ('stable' or 'beta'). */
+ export function getCompany(slug) {
+   if (!slug) return null;
+diff --git a/server/sources/amazon.js b/server/sources/amazon.js
+index 5509d33..653948e 100644
+--- a/server/sources/amazon.js
++++ b/server/sources/amazon.js
+@@ -8,15 +8,22 @@
+ // One query returns at most 10,000 hits (`hits` is capped at 10000), so the
+ // board is read in partitions: by country (`normalized_country_code[]`), and a
+ // country at the cap by `business_category[]` as well. Postings are deduped on
+-// id_icims. Pay is text at the tail of preferred_qualifications: "The base pay
+-// for this position ranges from $129,300/year in our lowest geographic market
+-// up to $223,600/year in our highest geographic market."
++// id_icims, and a crawl that lists under 95% of the facet total is refused (COMPLETE).
++// Pay: the per-location table after "The base salary range for this position is listed
++// below." ("USA, CA, East Palo Alto - 165,200.00 - 223,600.00 USD annually"), read here as a
++// structured salary (amazonPayTable, amazonSalary); older postings' national sentence ("The base
++// pay for this position ranges from $129,300/year in our lowest geographic market up to
++// $223,600/year in our highest geographic market.") is left to the text parser (normalize).
++// A paused registry entry (server/companies.js PAUSING) is never requested.
+ import { UpstreamError, htmlToText, str } from './util.js';
+ import { politeJson, checkRobots, cookieJar, newStats } from './polite.js';
++import { crawlBlock } from '../companies.js';
+ 
+ export const AMAZON_ORIGIN = 'https://www.amazon.jobs';
+ const PAGE = 100;
+ const CAP = 10000;
++/** A crawl that lists less than this share of the facet total is incomplete and is not written. */
++export const COMPLETE = 0.95;
+ 
+ /** Search URL. `filters`: { normalized_country_code: 'USA', business_category: 'aws', ... } (one value each). */
+ export function amazonSearchUrl(offset, filters = {}, { limit = PAGE, facets = false } = {}) {
+@@ -107,17 +114,40 @@ export function amazonPayTable(...blocks) {
+ }
+ 
+ const norm = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
++const ISO3 = /^[A-Z]{3}$/;
+ /**
+- * Pay rule (docs/DATA_SOURCES.md §7): the row for the posting's primary
+- * location (the job's own city/state), else the first row. Every row is kept
+- * as payRanges (salary.ranges), and their count is the zone count.
++ * A pay-table row's place: "USA, CA, East Palo Alto" (country first), "Seattle, WA, USA" (country
++ * last), "GBR, London", "JPN, 13, Tokyo" -> { country: 'USA', state: 'ca', city: 'east palo alto' }
++ * (country an ISO 3166 alpha-3 code like the row's country_code; state and city normalised).
++ */
++export function amazonPlace(label) {
++  const parts = String(label || '').split(',').map((x) => x.trim()).filter(Boolean);
++  let country = null;
++  if (parts.length > 1 && ISO3.test(parts[0])) country = parts.shift();
++  else if (parts.length > 1 && ISO3.test(parts[parts.length - 1])) { country = parts.pop(); parts.reverse(); }
++  const state = parts.length > 1 ? norm(parts[0]) : null;
++  const city = norm(parts.length > 1 ? parts.slice(1).join(' ') : parts[0]);
++  return { country, state: state || null, city: city || null };
++}
++
++/**
++ * Pay rule (docs/DATA_SOURCES.md §7a, §7e): the row for the posting's primary location (the
++ * row's own city, with the same state when both name one), else the first row in the posting's
++ * country, else the first row. Cities and states are compared whole ("York, PA" is not
++ * "New York, NY"; "Arlington, TX" is not "Arlington, VA"). Every row is kept as payRanges
++ * (salary.ranges); their distinct ranges are the zone count.
+  */
+ export function amazonSalary(j, table = amazonPayTable(j.description, j.basic_qualifications, j.preferred_qualifications)) {
+   if (!table.length) return { salary: null, payRanges: [] };
+   const city = norm(j.city);
+   const state = norm(j.state);
+-  const pick = (city && table.find((r) => { const t = norm(r.location).split(' '); const l = norm(r.location); return l.includes(city) && (!state || t.includes(state) || l.includes(state)); }))
+-    || (city && table.find((r) => norm(r.location).includes(city)))
++  const country = ISO3.test(String(j.country_code || '')) ? String(j.country_code) : null;
++  const places = table.map((r) => amazonPlace(r.location));
++  const sameCountry = (p) => !country || !p.country || p.country === country;
++  const row = (test) => { const i = places.findIndex(test); return i >= 0 ? table[i] : null; };
++  const pick = (city && (row((p) => p.city === city && sameCountry(p) && !!state && p.state === state)
++    || row((p) => p.city === city && sameCountry(p) && (!state || !p.state))))
++    || (country && row((p) => p.country === country))
+     || table[0];
+   const distinct = new Set(table.map((r) => `${r.min}|${r.max}|${r.currency}|${r.interval}`)).size;
+   const salary = { min: pick.min, max: pick.max, currency: pick.currency, interval: pick.interval, text: pick.line, zones: distinct };
+@@ -125,6 +155,9 @@ export function amazonSalary(j, table = amazonPayTable(j.description, j.basic_qu
+   return { salary, payRanges };
+ }
+ 
++/** job_schedule_type values -> employmentType (anything else is kept as written). */
++const SCHEDULE = { 'full-time': 'Full-time', 'part-time': 'Part-time' };
++
+ /** One search.json row -> RawJob. */
+ export function mapAmazonJob(j) {
+   const { locs, remote } = parseLocations(j);
+@@ -142,7 +175,7 @@ export function mapAmazonJob(j) {
+     title: (str(j.title) || 'Untitled role').trim(),
+     department: dept,
+     team: family && family !== dept ? family : null,
+-    employmentType: sched ? sched.replace(/^full-time$/i, 'Full-time').replace(/^part-time$/i, 'Part-time') : null,
++    employmentType: sched ? SCHEDULE[sched.toLowerCase()] || sched : null,
+     locationText: locs[0] || '',
+     extraLocations: locs.slice(1),
+     remote,
+@@ -158,12 +191,16 @@ export function mapAmazonJob(j) {
+ 
+ /**
+  * Fetch the whole board in partitions under the 10,000-hit cap. Options:
+- * maxJobs (probe), stats, log, keepRaw, signal, partitions (override, tests).
++ * maxJobs (probe), stats, log, keepRaw, signal, partitions and cap (overrides, tests).
+  * Returns { jobs, stats }.
+  */
+ export async function fetchAmazon(board = 'amazon', opts = {}) {
+   const { maxJobs = 0, stats = newStats(), log = () => {}, keepRaw = false, signal, timeoutMs } = opts;
++  const cap = opts.cap > 0 ? opts.cap : CAP;
+   const label = 'amazon';
++  // A paused company (server/companies.js PAUSING) is never requested, whoever calls this.
++  const blocked = crawlBlock('amazon', board);
++  if (blocked) throw new UpstreamError(`${label}: paused (${blocked.paused}): ${blocked.reason}; not crawling (server/companies.js)`, { code: 'paused' });
+   const jar = cookieJar();
+   const common = { label, jar, stats, signal, timeoutMs, maxBytes: 20 * 1024 * 1024 };
+   await checkRobots(AMAZON_ORIGIN, ['/en/search.json'], { label, stats, signal });
+@@ -172,18 +209,24 @@ export async function fetchAmazon(board = 'amazon', opts = {}) {
+   const add = (list) => { let n = 0; for (const j of list || []) { const k = String(j && (j.id_icims ?? j.id)); if (j && !rows.has(k)) { rows.set(k, j); n++; } } return n; };
+   const full = () => maxJobs && rows.size >= maxJobs;
+ 
+-  /** Page one partition to the end (or the cap). */
++  const page = (body) => {
++    if (body && body.error) throw new UpstreamError(`${label}: search error ${JSON.stringify(body.error).slice(0, 160)}`, { code: 'upstream' });
++    if (!body || !Array.isArray(body.jobs)) throw new UpstreamError(`${label}: unexpected response (no jobs array)`, { code: 'bad_shape' });
++    return body;
++  };
++  /**
++   * Page one partition to the end (or the cap). The partition's own `hits` (first page) decides
++   * when to stop; the facet count is only the fallback. Returns that hits value.
++   */
+   const crawl = async (filters, hitsHint) => {
+     let hits = hitsHint;
+-    for (let offset = 0; offset < CAP; offset += PAGE) {
++    for (let offset = 0; offset < cap; offset += PAGE) {
+       if (full()) return hits;
+-      const body = await politeJson(amazonSearchUrl(offset, filters), common);
++      const body = page(await politeJson(amazonSearchUrl(offset, filters), common));
+       stats.pages++;
+-      if (!body || !Array.isArray(body.jobs)) throw new UpstreamError(`${label}: unexpected response (no jobs array)`, { code: 'bad_shape' });
+-      if (body.error) throw new UpstreamError(`${label}: search error ${JSON.stringify(body.error).slice(0, 160)}`, { code: 'upstream' });
+-      if (hits == null) hits = Number(body.hits) || 0;
++      if (offset === 0 && Number.isFinite(Number(body.hits)) && body.hits !== null && body.hits !== '') hits = Number(body.hits);
+       add(body.jobs);
+-      if (body.jobs.length < PAGE || offset + PAGE >= hits) break;
++      if (body.jobs.length < PAGE || offset + PAGE >= Math.min(hits ?? cap, cap)) break;
+     }
+     return hits;
+   };
+@@ -198,36 +241,49 @@ export async function fetchAmazon(board = 'amazon', opts = {}) {
+       return null;
+     }).filter((x) => x && x.value).sort((a, b) => b.count - a.count);
+   };
+-  const first = await politeJson(amazonSearchUrl(0, {}, { facets: true }), common);
++  const first = page(await politeJson(amazonSearchUrl(0, {}, { facets: true }), common));
+   stats.pages++;
+-  if (!first || !Array.isArray(first.jobs)) throw new UpstreamError(`${label}: unexpected response (no jobs array)`, { code: 'bad_shape' });
+   add(first.jobs);
+   const total = Number(first.hits) || 0;
+   const countries = opts.partitions ? opts.partitions.countries : facet(first, 'normalized_country_code');
+   const sum = countries.reduce((n, c) => n + c.count, 0);
+-  log(`hits ${total}${total >= CAP ? ' (capped)' : ''}; ${countries.length} countries totalling ${sum} postings`);
++  log(`hits ${total}${total >= cap ? ' (capped)' : ''}; ${countries.length} countries totalling ${sum} postings`);
+   stats.notes.push(`board size from country facets: ${sum} postings in ${countries.length} countries`);
+-  if (total < CAP || !countries.length) {
+-    if (total >= CAP) stats.notes.push('no country facets returned; read only up to the 10,000-hit cap');
++  const short = []; // partitions that could not be read whole
++  if (total < cap || !countries.length) {
++    if (total >= cap) short.push(`no country facets returned, so only the first ${cap} hits are readable`);
+     await crawl({}, total);
+   } else {
+     for (const c of countries) {
+       if (full()) break;
+-      if (c.count < CAP) { await crawl({ normalized_country_code: c.value }, c.count); continue; }
++      if (c.count < cap) { await crawl({ normalized_country_code: c.value }, c.count); continue; }
+       // A country at the cap (the US): split by business category.
+-      const sub = await politeJson(amazonSearchUrl(0, { normalized_country_code: c.value }, { facets: true }), common);
++      const sub = page(await politeJson(amazonSearchUrl(0, { normalized_country_code: c.value }, { facets: true }), common));
+       stats.pages++;
+-      add(sub && sub.jobs);
++      add(sub.jobs);
+       const cats = opts.partitions && opts.partitions.categories ? opts.partitions.categories : facet(sub, 'business_category');
+-      if (!cats.length) { stats.notes.push(`${c.value}: no category facets; first 10,000 only`); await crawl({ normalized_country_code: c.value }, c.count); continue; }
++      if (!cats.length) { short.push(`${c.value}: no category facets, first 10,000 only`); await crawl({ normalized_country_code: c.value }, c.count); continue; }
+       for (const b of cats) {
+         if (full()) break;
+         const h = await crawl({ normalized_country_code: c.value, business_category: b.value }, b.count);
+-        if (h >= CAP) stats.notes.push(`${c.value}/${b.value} still at the cap; first 10,000 only`);
++        if (h >= cap) short.push(`${c.value}/${b.value} still at the cap, first ${cap} only`);
+       }
++      // Postings with no category, or one the facet does not name, are not reachable this way.
++      const got = [...rows.values()].filter((r) => r && r.country_code === c.value).length;
++      if (got < c.count) stats.notes.push(`${c.value}: ${got} of ${c.count} postings listed through ${cats.length} business categories`);
+     }
+   }
++  for (const s of short) stats.notes.push(s);
+   log(`listed ${rows.size} postings in ${stats.pages} pages`);
++  // Never publish a partial board as the whole one: the history ledger would mark every posting it
++  // missed as closed. Under 95% of the facet total (postings come and go during the ~5-minute
++  // crawl; run 7 listed exactly the facet total), or a capped board with no partitions, the crawl
++  // fails and the previous snapshot stays (snapshot.yml keeps it; docs/process/amazon-meta-backend.md).
++  const expected = Math.max(sum, total);
++  if (!maxJobs && expected && (rows.size < COMPLETE * expected || (short.length && total >= cap && !countries.length))) {
++    throw new UpstreamError(`${label}: listed ${rows.size} of ${expected} postings (${short.join('; ') || 'partitions came back short'}); not writing a partial board`, { code: 'incomplete' });
++  }
++  if (!maxJobs && sum && rows.size < sum) stats.notes.push(`listed ${rows.size} of the ${sum} postings the country facets count (${((100 * rows.size) / sum).toFixed(1)}%)`);
+   let list = [...rows.values()];
+   if (maxJobs) list = list.slice(0, maxJobs);
+   const jobs = list.map((j) => {
+diff --git a/server/sources/meta.js b/server/sources/meta.js
+index 2c809f7..6a5cd7b 100644
+--- a/server/sources/meta.js
++++ b/server/sources/meta.js
+@@ -14,19 +14,32 @@
+ // No GraphQL, token or doc_id is used: the sitemap is the list, the page is the record.
+ import { UpstreamError, htmlToText, str, isoOrNull, decodeEntitiesOnce } from './util.js';
+ import { politeRequest, checkRobots, mapLimit, cookieJar, newStats, spreadSample } from './polite.js';
++import { crawlBlock } from '../companies.js';
++import { countryCode } from '../geo.js';
+ 
+ export const META_ORIGIN = 'https://www.metacareers.com';
+ export const META_SITEMAP = `${META_ORIGIN}/jobsearch/sitemap.xml`;
++/** The crawl stops after this many failed page requests in a row (a 403 wall, an outage). */
++export const MAX_FAILED_IN_A_ROW = 10;
++/** More failed pages than this share (and more than 5) fails the crawl: the previous snapshot stays. */
++export const MAX_FAILED_SHARE = 0.05;
+ 
+-/** Sitemap -> [{ id, url }] (deduped, in order). */
++/**
++ * Sitemap -> [{ id, url, lastmod? }] (deduped, in order). `lastmod` is kept when the entry has
++ * one (§7g does not record whether Meta's does); an incremental crawl would key on it.
++ */
+ export function parseMetaSitemap(xml) {
+   const out = [];
+   const seen = new Set();
+-  for (const m of String(xml || '').matchAll(/<loc>\s*([^<\s]+)\s*<\/loc>/g)) {
+-    const u = /\/(?:profile\/job_details|jobs)\/(\d{6,})/.exec(m[1]);
++  const text = String(xml || '');
++  const blocks = /<url>/.test(text) ? text.split(/<url>/).slice(1) : [...text.matchAll(/<loc>[\s\S]*?<\/loc>/g)].map((m) => m[0]);
++  for (const b of blocks) {
++    const loc = /<loc>\s*([^<\s]+)\s*<\/loc>/.exec(b);
++    const u = loc && /\/(?:profile\/job_details|jobs)\/(\d{6,})/.exec(loc[1]);
+     if (!u || seen.has(u[1])) continue;
+     seen.add(u[1]);
+-    out.push({ id: u[1], url: `${META_ORIGIN}/profile/job_details/${u[1]}/` });
++    const lm = /<lastmod>\s*([^<\s]+)\s*<\/lastmod>/.exec(b);
++    out.push({ id: u[1], url: `${META_ORIGIN}/profile/job_details/${u[1]}/`, ...(lm ? { lastmod: lm[1] } : {}) });
+   }
+   return out;
+ }
+@@ -83,9 +96,11 @@ export function extractMetaPage(html, id) {
+   // description, public_compensation …) follow the "apply_for_this_job_section"
+   // object, which has a title and description of its own, so start after it.
+   const section = jsonSpanAfter(page, 'apply_for_this_job_section');
+-  let from = section ? section.end : page.indexOf(`"requisition_id":"${id}"`);
+-  if (from < 0) from = 0;
+-  const get = (k) => jsonValueAfter(page, k, from);
++  const from = section ? section.end : page.indexOf(`"requisition_id":"${id}"`);
++  // No anchor: the page's own data can't be told apart from the rest of the page (a "locations"
++  // or "title" key elsewhere would be read as the job's), so only the JSON-LD block is used,
++  // plus public_compensation, a key nothing else on the page carries.
++  const get = from >= 0 ? (k) => jsonValueAfter(page, k, from) : (k) => (k === 'public_compensation' ? jsonValueAfter(page, k, 0) : undefined);
+   let descHtml = get('description');
+   if (typeof descHtml === 'string' && descHtml.startsWith('{')) {
+     try { descHtml = JSON.parse(descHtml).__html; } catch { descHtml = null; }
+@@ -141,6 +156,14 @@ export function metaPayRanges(comp) {
+ 
+ const EMPLOYMENT = { FULL_TIME: 'Full-time', PART_TIME: 'Part-time', INTERN: 'Intern', CONTRACTOR: 'Contract', TEMPORARY: 'Temporary' };
+ 
++/** A schema.org addressCountry (code, name or Country object) -> ISO 3166 alpha-2, or null. */
++export function metaCountry(v) {
++  const s = str(v && typeof v === 'object' ? v.name || v.identifier : v);
++  if (!s) return null;
++  if (/^[A-Za-z]{2}$/.test(s)) return s.toUpperCase();
++  return countryCode(s);
++}
++
+ /** Extracted page (extractMetaPage) -> RawJob. */
+ export function mapMetaJob(p, entry = {}) {
+   const ld = p.ld || {};
+@@ -155,9 +178,14 @@ export function mapMetaJob(p, entry = {}) {
+   if (p.responsibilities && p.responsibilities.length) html += `<h3>Responsibilities</h3>${li(p.responsibilities)}`;
+   if (p.minimum_qualifications && p.minimum_qualifications.length) html += `<h3>Minimum Qualifications</h3>${li(p.minimum_qualifications)}`;
+   if (p.preferred_qualifications && p.preferred_qualifications.length) html += `<h3>Preferred Qualifications</h3>${li(p.preferred_qualifications)}`;
+-  if (!html && ld.description) html = `<p>${decodeEntitiesOnce(String(ld.description)).replace(/\n+/g, '</p><p>')}</p>`;
++  if (!html && ld.description) {
++    // JSON-LD fallback (no page data): schema.org allows HTML or plain text here.
++    const d = decodeEntitiesOnce(String(ld.description)).trim();
++    html = /<(?:p|ul|ol|li|br|div|h[1-6])\b[^>]*>/i.test(d) ? d : `<p>${d.replace(/\n\s*\n+/g, '</p><p>').replace(/\n/g, '<br>')}</p>`;
++  }
+   const ranges = metaPayRanges(p.public_compensation);
+-  const firstCountry = (ld.jobLocation || []).map((l) => l && l.address && l.address.addressCountry).find(Boolean);
++  // addressCountry is "US", "United States" or { "@type": "Country", "name": "US" }.
++  const firstCountry = (ld.jobLocation || []).map((l) => metaCountry(l && l.address && l.address.addressCountry)).find(Boolean);
+   const pick = ranges.find((r) => r.country && r.country === firstCountry) || ranges.find((r) => r.country === 'US') || ranges[0] || null;
+   let salary = null;
+   if (pick) {
+@@ -198,6 +226,9 @@ export function mapMetaJob(p, entry = {}) {
+ export async function fetchMeta(board = 'meta', opts = {}) {
+   const { maxJobs = 0, stats = newStats(), log = () => {}, keepRaw = false, signal, concurrency = 1, timeoutMs } = opts;
+   const label = 'meta';
++  // A paused company (server/companies.js PAUSING) is never requested, whoever calls this.
++  const blocked = crawlBlock('meta', board);
++  if (blocked) throw new UpstreamError(`${label}: paused (${blocked.paused}): ${blocked.reason}; not crawling (server/companies.js)`, { code: 'paused' });
+   const jar = cookieJar();
+   const common = { label, jar, stats, signal, timeoutMs, maxBytes: 8 * 1024 * 1024 };
+   await checkRobots(META_ORIGIN, ['/jobsearch/sitemap.xml', '/profile/job_details/1/'], { label, stats, signal });
+@@ -209,20 +240,36 @@ export async function fetchMeta(board = 'meta', opts = {}) {
+   if (maxJobs) entries = spreadSample(entries, maxJobs);
+   const t0 = Date.now();
+   let empty = 0;
++  let ldOnly = 0;
++  let streak = 0; // consecutive failed pages: a site that has started refusing us is not asked 1,000 more times
+   const { results, errors } = await mapLimit(entries, concurrency, async (e, i) => {
+-    const r = await politeRequest(e.url, { ...common, accept: 'text/html', retries: 3, throwOnHttpError: false });
+-    stats.details++;
+-    if ((i + 1) % 200 === 0) log(`pages ${i + 1}/${entries.length} (${Math.round((Date.now() - t0) / 1000)} s)`);
+-    if (r.status === 404 || r.status === 410) { empty++; return null; }
+-    if (!r.ok) throw new UpstreamError(`${label}: HTTP ${r.status} from ${e.url}`, { code: 'http', status: r.status });
+-    const p = extractMetaPage(r.text, e.id);
+-    if (!p.title) { empty++; return null; }
+-    return p;
+-  }, { shouldStop: () => signal && signal.aborted });
++    try {
++      const r = await politeRequest(e.url, { ...common, accept: 'text/html', retries: 3, throwOnHttpError: false });
++      stats.details++;
++      if ((i + 1) % 200 === 0) log(`pages ${i + 1}/${entries.length} (${Math.round((Date.now() - t0) / 1000)} s)`);
++      if (r.status === 404 || r.status === 410) { empty++; streak = 0; return null; }
++      if (!r.ok) throw new UpstreamError(`${label}: HTTP ${r.status} from ${e.url}`, { code: 'http', status: r.status });
++      const p = extractMetaPage(r.text, e.id);
++      streak = 0;
++      if (!p.title) { empty++; return null; }
++      if (!p.description_html && !p.locations) ldOnly++;
++      return p;
++    } catch (err) {
++      streak++;
++      throw err;
++    }
++  }, { shouldStop: () => (signal && signal.aborted) || streak >= MAX_FAILED_IN_A_ROW });
+   stats.detailErrors += errors.length;
+   if (empty) stats.notes.push(`${empty} sitemap posting(s) had no job data (closed since the sitemap was built)`);
++  if (ldOnly) stats.notes.push(`${ldOnly} page(s) had no page data after "apply_for_this_job_section"; read from their JSON-LD only`);
+   if (errors.length) stats.notes.push(`${errors.length} page request(s) failed, first: ${errors[0].error.message}`);
+-  if (entries.length && errors.length > Math.max(5, entries.length * 0.2)) {
++  // A failed page is a posting in an unknown state: publishing without it would close it in the
++  // history ledger. Over 5% failed (or a stop after MAX_FAILED_IN_A_ROW), the crawl fails and the
++  // previous snapshot stays.
++  if (streak >= MAX_FAILED_IN_A_ROW) {
++    throw new UpstreamError(`${label}: stopped after ${streak} failed pages in a row (first: ${errors[0].error.message})`, { code: 'details_failed' });
++  }
++  if (entries.length && errors.length > Math.max(5, entries.length * MAX_FAILED_SHARE)) {
+     throw new UpstreamError(`${label}: ${errors.length}/${entries.length} page requests failed (first: ${errors[0].error.message})`, { code: 'details_failed' });
+   }
+   const jobs = [];
+diff --git a/test/amazon-meta-synth.js b/test/amazon-meta-synth.js
+new file mode 100644
+index 0000000..4a42d63
+--- /dev/null
++++ b/test/amazon-meta-synth.js
+@@ -0,0 +1,442 @@
++// Synthetic Amazon and Meta boards (docs/process/amazon-meta-backend.md). NO NETWORK: the boards
++// are built from the real probe records in test/fixtures/bigtech-{amazon,meta}.json and served
++// by a fetch() stand-in that behaves like the endpoints recorded in docs/DATA_SOURCES.md §7e and
++// §7g. Used by test/amazon-meta-*.test.js and, as a CLI, for the scale measurements:
++//
++//   node test/amazon-meta-synth.js --out DIR [--amazon 22415] [--meta 1143] [--seed 1]
++//       crawls both synthetic boards with the real adapters, normalizer and scripts/snapshot.js
++//       (fitSnapshot, the 40 MB beta budget), with the registry's `paused` lifted IN THIS PROCESS
++//       ONLY, and writes DIR/<slug>.json exactly as the beta crawl job would; prints timings.
++//
++// What is recorded (§7e): 22,415 postings in 58 countries, 62 business categories, the US over
++// the 10,000-hit cap, `hits` capped at 10,000 per query, 100 rows a page, the per-location pay
++// table (annual, hourly, CAD), the older national sentence. The split of postings over countries
++// and categories below is an ASSUMPTION (only those totals are recorded); the four category
++// slugs seen in the fixtures (aws, fulfillment-ops, advertising, no-business-category) are real.
++// Meta (§7g): 1,143 sitemap postings, the JSON-LD block, the page data after
++// "apply_for_this_job_section" with public_compensation ("$173,000/year", "$7,313/month").
++import fs from 'node:fs';
++import path from 'node:path';
++import { fileURLToPath, pathToFileURL } from 'node:url';
++
++const HERE = path.dirname(fileURLToPath(import.meta.url));
++const fixture = (slug) => JSON.parse(fs.readFileSync(path.join(HERE, 'fixtures', `bigtech-${slug}.json`), 'utf8'));
++
++/** Small seeded PRNG (mulberry32), so every run builds the same board. */
++export function rng(seed = 1) {
++  let a = seed >>> 0;
++  const next = () => {
++    a = (a + 0x6d2b79f5) >>> 0;
++    let t = a;
++    t = Math.imul(t ^ (t >>> 15), t | 1);
++    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
++    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
++  };
++  const r = { next, int: (lo, hi) => lo + Math.floor(next() * (hi - lo + 1)), pick: (a) => a[Math.floor(next() * a.length)] };
++  r.weighted = (pairs) => { let x = next() * pairs.reduce((s, p) => s + p[1], 0); for (const p of pairs) { x -= p[1]; if (x <= 0) return p[0]; } return pairs[pairs.length - 1][0]; };
++  r.sample = (list, n) => { const c = [...list]; const out = []; while (out.length < n && c.length) out.push(c.splice(Math.floor(next() * c.length), 1)[0]); return out; };
++  return r;
++}
++
++/* ================================================================ Amazon */
++
++export const AMAZON_TOTAL = 22415;
++export const AMAZON_CAP = 10000;
++
++// [ISO3, ISO2, country name, postings (assumed), cities [city, region code, region name]]. The US
++// count is whatever is left of AMAZON_TOTAL (12,600 here, over the cap, as recorded).
++const US_CITIES = [
++  ['Seattle', 'WA', 'Washington'], ['Bellevue', 'WA', 'Washington'], ['Arlington', 'VA', 'Virginia'], ['Herndon', 'VA', 'Virginia'],
++  ['Austin', 'TX', 'Texas'], ['Sunnyvale', 'CA', 'California'], ['Santa Clara', 'CA', 'California'], ['East Palo Alto', 'CA', 'California'],
++  ['San Francisco', 'CA', 'California'], ['New York', 'NY', 'New York'], ['Boston', 'MA', 'Massachusetts'], ['Nashville', 'TN', 'Tennessee'],
++  ['Denver', 'CO', 'Colorado'], ['Atlanta', 'GA', 'Georgia'], ['Chicago', 'IL', 'Illinois'], ['Dallas', 'TX', 'Texas'],
++  ['Phoenix', 'AZ', 'Arizona'], ['Culver City', 'CA', 'California'], ['San Diego', 'CA', 'California'], ['Irvine', 'CA', 'California'],
++  ['Portland', 'OR', 'Oregon'], ['Detroit', 'MI', 'Michigan'], ['Stockton', 'CA', 'California'], ['Aldie', 'VA', 'Virginia'],
++  ['Jacksonville', 'FL', 'Florida'], ['Columbus', 'OH', 'Ohio'], ['Minneapolis', 'MN', 'Minnesota'], ['Pittsburgh', 'PA', 'Pennsylvania'],
++  ['Redmond', 'WA', 'Washington'], ['Washington', 'DC', 'District of Columbia'],
++];
++export const AMAZON_COUNTRIES = [
++  ['USA', 'US', 'United States', null, US_CITIES],
++  ['IND', 'IN', 'India', 2050, [['Bengaluru', 'KA', 'Karnataka'], ['Hyderabad', 'TS', 'Telangana'], ['Chennai', 'TN', 'Tamil Nadu'], ['Pune', 'MH', 'Maharashtra']]],
++  ['DEU', 'DE', 'Germany', 820, [['Berlin', 'BE', 'Berlin'], ['Munich', 'BY', 'Bavaria'], ['Dresden', 'SN', 'Saxony']]],
++  ['GBR', 'GB', 'United Kingdom', 800, [['London', 'LND', 'England'], ['Edinburgh', 'EDH', 'Scotland'], ['Manchester', 'MAN', 'England']]],
++  ['CAN', 'CA', 'Canada', 760, [['Toronto', 'ON', 'Ontario'], ['Vancouver', 'BC', 'British Columbia'], ['Montreal', 'QC', 'Quebec']]],
++  ['JPN', 'JP', 'Japan', 560, [['Tokyo', '13', 'Tokyo']]], ['IRL', 'IE', 'Ireland', 430, [['Dublin', 'D', 'Dublin']]],
++  ['CHN', 'CN', "People's Republic of China", 380, [['Shanghai', '31', 'Shanghai'], ['Shenzhen', '44', 'Guangdong'], ['Beijing', '11', 'Beijing']]],
++  ['ESP', 'ES', 'Spain', 340, [['Madrid', 'M', 'Madrid'], ['Barcelona', 'B', 'Catalonia']]], ['FRA', 'FR', 'France', 320, [['Paris', 'IDF', 'Ile-de-France']]],
++  ['ITA', 'IT', 'Italy', 290, [['Milan', 'MI', 'Lombardy']]], ['LUX', 'LU', 'Luxembourg', 270, [['Luxembourg', 'LU', 'Luxembourg']]],
++  ['POL', 'PL', 'Poland', 250, [['Gdansk', 'PM', 'Pomerania'], ['Warsaw', 'MZ', 'Masovia']]], ['AUS', 'AU', 'Australia', 240, [['Sydney', 'NSW', 'New South Wales'], ['Melbourne', 'VIC', 'Victoria']]],
++  ['SGP', 'SG', 'Singapore', 220, [['Singapore', 'SG', 'Singapore']]], ['MEX', 'MX', 'Mexico', 210, [['Mexico City', 'DIF', 'Mexico City']]],
++  ['BRA', 'BR', 'Brazil', 190, [['Sao Paulo', 'SP', 'Sao Paulo']]], ['NLD', 'NL', 'Netherlands', 170, [['Amsterdam', 'NH', 'North Holland']]],
++  ['ISR', 'IL', 'Israel', 160, [['Tel Aviv', 'TA', 'Tel Aviv'], ['Haifa', 'HA', 'Haifa']]], ['ZAF', 'ZA', 'South Africa', 150, [['Cape Town', 'WC', 'Western Cape']]],
++  ['CRI', 'CR', 'Costa Rica', 140, [['San Jose', 'SJ', 'San Jose']]], ['KOR', 'KR', 'Korea, Republic of', 130, [['Seoul', '11', 'Seoul']]],
++  ['ROU', 'RO', 'Romania', 120, [['Bucharest', 'B', 'Bucharest'], ['Iasi', 'IS', 'Iasi']]], ['ARE', 'AE', 'United Arab Emirates', 110, [['Dubai', 'DU', 'Dubai']]],
++  ['SAU', 'SA', 'Saudi Arabia', 100, [['Riyadh', '01', 'Riyadh']]], ['PHL', 'PH', 'Philippines', 95, [['Manila', 'NCR', 'Metro Manila']]],
++  ['CZE', 'CZ', 'Czechia', 90, [['Prague', 'PR', 'Prague']]], ['SWE', 'SE', 'Sweden', 80, [['Stockholm', 'AB', 'Stockholm']]],
++  ['BEL', 'BE', 'Belgium', 70, [['Brussels', 'BRU', 'Brussels']]], ['AUT', 'AT', 'Austria', 60, [['Vienna', '9', 'Vienna']]],
++  ['CHE', 'CH', 'Switzerland', 60, [['Zurich', 'ZH', 'Zurich']]], ['TWN', 'TW', 'Taiwan', 55, [['Taipei', 'TPE', 'Taipei']]],
++  ['IDN', 'ID', 'Indonesia', 50, [['Jakarta', 'JK', 'Jakarta']]], ['MYS', 'MY', 'Malaysia', 50, [['Kuala Lumpur', '14', 'Kuala Lumpur']]],
++  ['VNM', 'VN', 'Vietnam', 45, [['Ho Chi Minh City', 'SG', 'Ho Chi Minh']]], ['TUR', 'TR', 'Turkey', 45, [['Istanbul', '34', 'Istanbul']]],
++  ['EGY', 'EG', 'Egypt', 40, [['Cairo', 'C', 'Cairo']]], ['ARG', 'AR', 'Argentina', 40, [['Buenos Aires', 'C', 'Buenos Aires']]],
++  ['CHL', 'CL', 'Chile', 38, [['Santiago', 'RM', 'Santiago']]], ['COL', 'CO', 'Colombia', 36, [['Bogota', 'DC', 'Bogota']]],
++  ['NZL', 'NZ', 'New Zealand', 34, [['Auckland', 'AUK', 'Auckland']]], ['DNK', 'DK', 'Denmark', 32, [['Copenhagen', '84', 'Capital Region']]],
++  ['FIN', 'FI', 'Finland', 30, [['Helsinki', '18', 'Uusimaa']]], ['NOR', 'NO', 'Norway', 28, [['Oslo', '03', 'Oslo']]],
++  ['PRT', 'PT', 'Portugal', 28, [['Lisbon', '11', 'Lisbon']]], ['GRC', 'GR', 'Greece', 26, [['Athens', 'I', 'Attica']]],
++  ['HUN', 'HU', 'Hungary', 24, [['Budapest', 'BU', 'Budapest']]], ['SVK', 'SK', 'Slovakia', 22, [['Bratislava', 'BL', 'Bratislava']]],
++  ['BGR', 'BG', 'Bulgaria', 20, [['Sofia', '22', 'Sofia']]], ['HKG', 'HK', 'Hong Kong', 20, [['Hong Kong', 'HK', 'Hong Kong']]],
++  ['THA', 'TH', 'Thailand', 18, [['Bangkok', '10', 'Bangkok']]], ['NGA', 'NG', 'Nigeria', 16, [['Lagos', 'LA', 'Lagos']]],
++  ['KEN', 'KE', 'Kenya', 14, [['Nairobi', '30', 'Nairobi']]], ['PER', 'PE', 'Peru', 12, [['Lima', 'LIM', 'Lima']]],
++  ['URY', 'UY', 'Uruguay', 10, [['Montevideo', 'MO', 'Montevideo']]], ['ISL', 'IS', 'Iceland', 8, [['Reykjavik', '1', 'Capital Region']]],
++  ['MAR', 'MA', 'Morocco', 8, [['Casablanca', '06', 'Casablanca-Settat']]], ['PAK', 'PK', 'Pakistan', 6, [['Lahore', 'PB', 'Punjab']]],
++];
++
++// 62 business categories with assumed shares (the four slugs from the fixtures are real; the
++// rest are stand-ins named after Amazon's public business units, or numbered).
++const NAMED_CATEGORIES = [
++  ['aws', 0.38], ['fulfillment-ops', 0.10], ['stores', 0.08], ['operations', 0.07], ['devices', 0.06], ['advertising', 0.05],
++  ['no-business-category', 0.04], ['kuiper', 0.03], ['prime-video', 0.025], ['alexa', 0.02], ['pharmacy', 0.01], ['music', 0.01],
++];
++export const AMAZON_CATEGORIES = [
++  ...NAMED_CATEGORIES,
++  ...Array.from({ length: 50 }, (_, i) => [`category-${String(i + 1).padStart(2, '0')}`, (1 - NAMED_CATEGORIES.reduce((s, c) => s + c[1], 0)) * (0.93 ** i) * (1 - 0.93) / (1 - 0.93 ** 50)]),
++];
++
++// Job families: titles, Amazon's job_category / job_family, USD annual base (or hourly), text pools.
++const F = (o) => o;
++const FAMILIES = {
++  sde: F({ titles: ['Software Development Engineer', 'Software Development Engineer II', 'Senior Software Development Engineer', 'Software Development Engineer, AWS Lambda', 'Front-End Engineer', 'Systems Development Engineer', 'Software Development Manager'], category: 'Software Development', family: 'Software Development', pay: [129300, 223600],
++    resp: ['Design, build and operate highly available distributed systems that serve millions of requests per second', 'Write high-quality, maintainable code in Java, Python or C++ and review the code of your peers', 'Own the operational health of your services, including on-call, alarms, dashboards and post-incident reviews', 'Work with product managers to turn ambiguous customer problems into well-scoped technical designs', 'Drive the architecture of new services on AWS (EC2, S3, DynamoDB, Lambda) with security and cost in mind', 'Mentor junior engineers and raise the bar for engineering excellence across the team', 'Improve build, test and deployment pipelines so that the team ships safely many times a day', 'Instrument services with metrics and tracing and use the data to find and remove bottlenecks', 'Partner with scientists to productionize machine learning models behind low-latency APIs', 'Lead design reviews and write documents that explain trade-offs to technical and non-technical readers', 'Automate manual operational work and reduce the cost to serve of existing systems', 'Contribute to the long-term roadmap of the platform together with senior engineers and managers'],
++    basic: ['3+ years of non-internship professional software development experience', '3+ years of programming with at least one software programming language experience', '2+ years of experience designing or architecting new and existing systems (design patterns, reliability and scaling)', "Bachelor's degree in computer science or equivalent", 'Experience as a mentor, tech lead or leading an engineering team', 'Experience with full software development life cycle, including coding standards, code reviews, source control management, build processes, testing, and operations'],
++    pref: ['Knowledge of computer architecture, operating systems, and parallel computing', 'Experience with distributed systems, consistency models and storage engines', 'Knowledge of professional software engineering & best practices for full software development life cycle', 'Experience with Kubernetes, containers and infrastructure as code', 'Experience building machine learning systems in production', "Master's degree in computer science or equivalent"] }),
++  tpm: F({ titles: ['Technical Program Manager', 'Senior Technical Program Manager', 'Infrastructure TPM, Infra Capacity Delivery', 'Technical Program Manager, Data Center Delivery'], category: 'Project/Program/Product Management--Technical', family: 'Tech Infrastructure Prgrm Mgmt', pay: [127100, 171900],
++    resp: ['Own end-to-end delivery of multi-team technical programs from planning through launch', 'Define program goals, milestones and success metrics and report status to senior leadership', 'Identify risks and dependencies early and drive mitigation plans across engineering teams', 'Build mechanisms such as weekly business reviews, dashboards and runbooks that scale the program', 'Work with suppliers and construction partners to deliver data center capacity on schedule', 'Translate business requirements into technical requirements together with engineers', 'Drive decisions on scope, schedule and cost trade-offs with clear written proposals', 'Improve processes for capacity forecasting, procurement and deployment'],
++    basic: ['3+ years of technical product or program management experience', '3+ years of working directly with engineering teams experience', 'Experience managing programs across cross functional teams, building processes and coordinating release schedules', "Bachelor's degree in engineering, computer science or a related field"],
++    pref: ['Experience in data center construction, networking or hardware supply chain', 'Project Management Professional (PMP) or similar certification', 'Experience using SQL or Python to analyze program data', 'Experience with Lean or Six Sigma process improvement'] }),
++  sa: F({ titles: ['Solutions Architect', 'Senior Solutions Architect', 'Specialist Solutions Architect, Generative AI', 'Partner Solutions Architect'], category: 'Solutions Architect', family: 'Solutions Architect', pay: [138200, 239000],
++    resp: ['Act as a trusted technical advisor to customers building on AWS', 'Design reference architectures for migration, analytics and generative AI workloads', 'Run workshops, proofs of concept and architecture reviews with customer engineering teams', 'Capture customer feedback and share it with AWS service teams to shape the roadmap', 'Write blog posts, whitepapers and sample code that help customers adopt AWS services', 'Work with account managers to grow adoption across a portfolio of strategic customers', 'Present at conferences, meetups and AWS Summits'],
++    basic: ['5+ years of experience in cloud architecture and implementation', '5+ years of design, implementation, or consulting in applications and infrastructures experience', "Bachelor's degree in computer science, engineering, math or a related field", '10+ years of IT development or implementation/consulting in the software or Internet industries experience'],
++    pref: ['Experience with machine learning frameworks such as PyTorch or TensorFlow', 'AWS Professional certification', 'Experience migrating or transforming legacy customer solutions to the cloud', 'Experience with security and compliance frameworks'] }),
++  ops: F({ titles: ['Area Manager II', 'Operations Manager', 'Senior Operations Manager', 'Area Manager, Night Shift', 'Shift Manager, Sort Center'], category: 'Fulfillment & Operations Management', family: 'Fulfillment Center', pay: [72500, 125000],
++    resp: ['Lead a team of 50 to 150 associates in a fast-paced fulfillment center', 'Own safety, quality and productivity metrics for your area and shift', 'Use Lean and Kaizen tools to find and remove waste in operational processes', 'Coach, develop and engage associates and front-line leaders', 'Plan labor and staffing against volume forecasts with the site leadership team', 'Analyze operational data in Excel and SQL to drive daily decisions', 'Partner with HR, safety, loss prevention and engineering teams on site initiatives', 'Drive a culture of safety and continuous improvement on the floor'],
++    basic: ['1+ years of people management experience', 'Experience in Microsoft Office products and applications', "Bachelor's degree or 2+ years of experience in operations, manufacturing or logistics", 'Experience working in a fast-paced environment with changing priorities'],
++    pref: ['Experience with Lean, Six Sigma or Kaizen', 'Experience managing teams of 20 people or more', 'Experience in retail, hospitality, healthcare or customer-facing environments', 'Experience using SQL or data visualization tools'] }),
++  hourly: F({ titles: ['Data Center Technician', 'Maintenance Technician', 'Robotics Technician', 'Fulfillment Center Associate'], category: 'Facilities, Maintenance, & Real Estate', family: 'Maintenance', hourly: [18.5, 48.99],
++    resp: ['Install, troubleshoot and repair servers, network equipment and cabling', 'Perform preventive maintenance on conveyors, robotics and material handling equipment', 'Follow safety procedures and standard work in a regulated environment', 'Document work orders and parts usage in the maintenance system', 'Work rotating shifts, including nights, weekends and holidays', 'Lift up to 50 pounds and work on your feet for long periods'],
++    basic: ['High school or equivalent diploma', '1+ years of experience in an electrical, mechanical or IT technician role', 'Ability to work 10-hour shifts and a flexible schedule'],
++    pref: ['Associate degree in a technical field', 'CompTIA A+, Network+ or similar certification', 'Experience with PLCs and industrial controls'] }),
++  sales: F({ titles: ['Account Manager', 'Advertising Account Manager', 'Sales Specialist', 'Business Development Manager', 'Enterprise Account Manager'], category: 'Sales, Advertising, & Account Management', family: 'Account Management', pay: [96000, 165000],
++    resp: ['Own a portfolio of advertising customers and grow their investment with Amazon Ads', 'Build annual business plans with customers and agencies and track them against goals', 'Analyze campaign performance and recommend optimizations based on data', 'Negotiate and close new business with senior decision makers', 'Partner with product, marketing and solutions teams to bring new products to customers', 'Forecast revenue accurately and manage a healthy pipeline in Salesforce'],
++    basic: ['3+ years of sales or account management experience', 'Experience with annual brand and media planning', 'Experience building relationships with senior business leaders', "Bachelor's degree"],
++    pref: ['Experience in digital advertising, programmatic or retail media', 'Experience using data and analytics to drive customer decisions', 'Fluency in a second language'] }),
++  bie: F({ titles: ['Business Intelligence Engineer', 'Data Engineer', 'Data Scientist', 'Applied Scientist', 'Senior Applied Scientist'], category: 'Business Intelligence', family: 'Business Intel Engineer', pay: [118900, 203000],
++    resp: ['Build and maintain data pipelines and data models in Redshift, Spark and S3', 'Design dashboards in QuickSight or Tableau that leaders use to run the business', 'Develop statistical and machine learning models for forecasting and optimization', 'Define metrics and run experiments to measure the impact of new features', 'Write clear analyses that turn data into decisions for business partners', 'Improve data quality, lineage and documentation across the team'],
++    basic: ['3+ years of analyzing and interpreting data with Redshift, Oracle, NoSQL etc. experience', 'Experience with data visualization using Tableau, Quicksight, or similar tools', 'Experience with one or more industry analytics visualization tools (e.g. Excel, Tableau, QuickSight, MicroStrategy, PowerBI) and statistical methods (e.g. t-test, Chi-squared)', 'Experience with scripting language (e.g., Python, Java, or R)'],
++    pref: ['Experience with AWS solutions such as EC2, DynamoDB, S3, and Redshift', 'Experience in data mining, ETL, etc. and using databases in a business environment with large-scale, complex datasets', 'Experience with forecasting and statistical analysis', "Master's degree or PhD in a quantitative field"] }),
++  pm: F({ titles: ['Product Manager - Technical', 'Senior Product Manager', 'Vendor Manager', 'Senior Program Manager', 'Brand Specialist'], category: 'Project/Program/Product Management--Non-Tech', family: 'Product Management', pay: [105000, 195000],
++    resp: ['Own the product vision, roadmap and requirements for a customer-facing experience', 'Work backwards from customers with press releases and FAQs', 'Prioritize features with engineering and design based on data and customer insight', 'Manage relationships with vendors and selling partners to grow selection and improve pricing', 'Define and track key performance indicators and run weekly business reviews', 'Launch features globally and work with marketplace teams on localization'],
++    basic: ['5+ years of product or program management experience', 'Experience owning and driving roadmap strategy and definition', 'Experience with end to end product delivery', "Bachelor's degree"],
++    pref: ['MBA', 'Experience in e-commerce, retail or consumer technology', 'Experience using SQL to analyze product data'] }),
++};
++const CATEGORY_FAMILIES = {
++  aws: [['sde', 0.45], ['sa', 0.2], ['tpm', 0.12], ['bie', 0.1], ['sales', 0.08], ['hourly', 0.05]],
++  'fulfillment-ops': [['ops', 0.6], ['hourly', 0.3], ['tpm', 0.05], ['bie', 0.05]],
++  operations: [['ops', 0.5], ['hourly', 0.2], ['tpm', 0.15], ['bie', 0.15]],
++  advertising: [['sales', 0.5], ['sde', 0.25], ['bie', 0.15], ['pm', 0.1]],
++  stores: [['pm', 0.35], ['sde', 0.3], ['bie', 0.15], ['sales', 0.2]],
++};
++const DEFAULT_FAMILIES = [['sde', 0.35], ['pm', 0.2], ['bie', 0.15], ['tpm', 0.1], ['sales', 0.1], ['ops', 0.1]];
++
++const INTROS = [
++  'Amazon is looking for builders who are passionate about customers and want to work on problems at a scale few companies can offer. You will join a team that owns services used by millions of customers every day, and you will have the freedom to invent and simplify while learning from some of the most experienced engineers and leaders in the industry.',
++  'Do you want to help shape the future of how customers shop, watch, listen and run their businesses? Our team moves fast, works backwards from customers and measures success by the outcomes we deliver for them. We are hiring people who like ownership, write clearly and want to grow their careers in a high-impact organization.',
++  'This role sits at the center of a global organization that is still in its early days. You will work with partners across engineering, science, finance and operations, and you will be expected to bring structure to ambiguous problems, make data-driven decisions and deliver results with a high bar for quality.',
++];
++const TEAMS = [
++  'About the team<br/>Our team is made up of engineers, scientists and program managers spread across several time zones. We value mentorship, operational excellence and a healthy work-life balance, and we invest in each other through design reviews, pairing and regular career conversations.',
++  'About the team<br/>Diverse experiences: Amazon values diverse experiences. Even if you do not meet all of the qualifications and skills listed in the job description, we encourage candidates to apply. Mentorship and career growth: we are continually raising our performance bar as we strive to become Earth’s best employer.',
++];
++const DAY = [
++  'A day in the life<br/>You start the day with a short stand-up, then spend focused time on design and code. In the afternoon you might join a customer call, review a document written by a peer, or dive into a metric that moved overnight. Every week you present progress in a business review, and every quarter you help plan what the team builds next.',
++  'A day in the life<br/>No two days are the same. Some days are spent with partner teams working through a launch plan, others in deep analysis of operational data or in conversations with customers about what they need next. You will have the support of a manager who invests in your growth and peers who will challenge your thinking.',
++];
++const EEO = 'Amazon is an equal opportunity employer and does not discriminate on the basis of protected veteran status, disability, or other legally protected status.';
++// Public boilerplate on US postings (the fixture rows carry its first words before the trim).
++const LA_COUNTY = 'Los Angeles County applicants: Job duties for this position include: work safely and cooperatively with other employees, supervisors, and staff; adhere to standards of excellence despite stressful conditions; communicate effectively and respectfully with employees, supervisors, and staff to ensure exceptional customer service; and follow all federal, state, and local laws and Company policies. Criminal history may have a direct, adverse, and negative relationship with some of the material job duties of this position. These include the duties and responsibilities listed above, as well as the abilities to adhere to company policies, exercise sound judgment, effectively manage stress and work safely and respectfully with others, exhibit trustworthiness and professionalism, and safeguard business operations and the Company’s reputation. Pursuant to the Los Angeles County Fair Chance Ordinance, we will consider for employment qualified applicants with arrest and conviction records.';
++const ACCOMMODATION = 'Our inclusive culture empowers Amazonians to deliver the best results for our customers. If you have a disability and need a workplace accommodation or adjustment during the application and hiring process, including support for the interview or onboarding process, please visit <a href="https://amazon.jobs/content/en/how-we-hire/accommodations">https://amazon.jobs/content/en/how-we-hire/accommodations</a> for more information. If the country/region you’re applying in isn’t listed, please contact your Recruiting Partner.';
++const PAY_INTRO = '<p><span style="color: rgb(35, 47, 62)" class="ProseMirror-FontColor">The base salary range for this position is listed below. Your Amazon package will include sign-on payments and restricted stock units (RSUs). Final compensation will be determined based on factors including experience, qualifications, and location. Amazon also offers comprehensive benefits including health insurance (medical, dental, vision, prescription, Basic Life &amp; AD&amp;D insurance and option for Supplemental life plans, EAP, Mental Health Support, Medical Advice Line, Flexible Spending Accounts, Adoption and Surrogacy Reimbursement coverage), 401(k) matching, paid time off, and parental leave. Learn more about our benefits at </span><a target="_blank" rel="noopener noreferrer nofollow" href="https://amazon.jobs/en/benefits"><span style="color: rgb(35, 47, 62)" class="ProseMirror-FontColor">https://amazon.jobs/en/benefits</span></a><span style="color: rgb(35, 47, 62)" class="ProseMirror-FontColor">.</span></p>';
++const NATIONAL = (lo, hi) => `Our compensation reflects the cost of labor across several US geographic markets. The base pay for this position ranges from $${lo.toLocaleString('en-US')}/year in our lowest geographic market up to $${hi.toLocaleString('en-US')}/year in our highest geographic market. Pay is based on a number of factors including market location and may vary depending on job-related knowledge, skills, and experience.`;
++const HUBS = new Set(['San Francisco', 'Sunnyvale', 'Santa Clara', 'East Palo Alto', 'New York', 'Seattle', 'Bellevue', 'Redmond']);
++const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
++const money = (n) => n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
++const slug = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
++
++/** The country list scaled to `total` postings (the US gets the remainder), as [{ iso3, iso2, name, count, cities }]. */
++export function amazonCountryPlan(total = AMAZON_TOTAL) {
++  const others = AMAZON_COUNTRIES.filter((c) => c[3] != null);
++  const scale = total / AMAZON_TOTAL;
++  const plan = others.map(([iso3, iso2, name, n, cities]) => ({ iso3, iso2, name, count: Math.max(1, Math.round(n * scale)), cities }));
++  const us = AMAZON_COUNTRIES[0];
++  plan.unshift({ iso3: us[0], iso2: us[1], name: us[2], count: Math.max(1, total - plan.reduce((s, c) => s + c.count, 0)), cities: us[4] });
++  return plan;
++}
++
++/**
++ * Synthetic amazon.jobs search.json rows (the whole posting is in the row, §7e), newest first.
++ * Built from the fixture rows' shape and texts; `total` postings over the country plan.
++ */
++export function amazonRows({ total = AMAZON_TOTAL, seed = 1, today = Date.UTC(2026, 9, 10) } = {}) {
++  const R = rng(seed);
++  const base = fixture('amazon').records[0];
++  const plan = amazonCountryPlan(total);
++  const rows = [];
++  let id = 10575400;
++  for (const c of plan) {
++    for (let k = 0; k < c.count; k++) {
++      const cat = R.weighted(AMAZON_CATEGORIES);
++      const fam = FAMILIES[R.weighted(CATEGORY_FAMILIES[cat] || DEFAULT_FAMILIES)];
++      const title = R.pick(fam.titles);
++      // Locations: one place for most postings, up to 10 for pipeline requisitions.
++      const nLoc = R.weighted([[1, 0.65], [2, 0.12], [3, 0.08], [R.int(4, 10), 0.15]]);
++      const places = R.sample(c.cities, Math.min(nLoc, c.cities.length));
++      const prim = places[0];
++      const locations = places.map(([city, rc, rn]) => JSON.stringify({
++        normalizedStateName: rn, normalizedCountryCode: c.iso3, city, countryIso3a: c.iso3, countryIso2a: c.iso2,
++        locationNonStemming: `${c.name}, ${rc}, ${city}`, type: 'ONSITE', normalizedCountryName: c.name,
++        normalizedLocation: `${city}, ${rn}, ${c.iso3}`, location: `${c.iso2}, ${rc}, ${city}`, region: rc, normalizedCityName: city,
++      }));
++      // Text: an intro, responsibilities, the team; basic and preferred qualifications.
++      // Calibrated to the ~9 KB per normalized posting measured on real rows (docs/process/bigtech-data.md).
++      const resp = R.sample(fam.resp, R.int(Math.min(6, fam.resp.length), fam.resp.length));
++      const intro = R.sample(INTROS, R.int(1, 2)).join('<br/><br/>');
++      const description = [intro, `Key job responsibilities<br/>${resp.map((x) => `- ${x}`).join('<br/>')}`, R.pick(DAY), R.pick(TEAMS)].join('<br/><br/>');
++      const basic = R.sample(fam.basic, R.int(Math.min(3, fam.basic.length), fam.basic.length)).map((x) => `- ${x}`).join('<br/>');
++      let pref = `${R.sample(fam.pref, R.int(Math.min(3, fam.pref.length), fam.pref.length)).map((x) => `- ${x}`).join('<br/>')}<br/><br/>${EEO}`;
++      if (c.iso3 === 'USA') pref += `<br/><br/>${LA_COUNTY}`;
++      // Pay: the US and Canada publish it (the per-location table; 5% of US postings use the older
++      // national sentence); elsewhere the accommodation paragraph only.
++      const lvl = /Senior|Manager|Principal|II\b/.test(title) ? 1.18 : 1;
++      if (c.iso3 === 'USA' && R.next() < 0.05 && !fam.hourly) {
++        pref += `<br/><br/>${NATIONAL(Math.round(fam.pay[0] * lvl / 100) * 100, Math.round(fam.pay[1] * lvl / 100) * 100)}`;
++      } else if (c.iso3 === 'USA' || (c.iso3 === 'CAN' && R.next() < 0.8)) {
++        const rowsTxt = places.map(([city, rc]) => {
++          const f = (HUBS.has(city) ? 1 : 0.87) * (c.iso3 === 'CAN' ? (fam.hourly ? 1.15 : 0.8) : 1) * lvl;
++          const cur = c.iso3 === 'CAN' ? 'CAD' : 'USD';
++          if (fam.hourly) return `${c.iso3}, ${rc}, ${city} - ${money(Math.round(fam.hourly[0] * f * 100) / 100)} - ${money(Math.round(fam.hourly[1] * f * 100) / 100)} ${cur} hourly`;
++          return `${c.iso3}, ${rc}, ${city} - ${money(Math.round(fam.pay[0] * f / 100) * 100)} - ${money(Math.round(fam.pay[1] * f / 100) * 100)} ${cur} annually`;
++        });
++        pref += `<br/><br/>${ACCOMMODATION}<br/><br/>${PAY_INTRO}<br/>${rowsTxt.join('<br/>')}`;
++      } else {
++        pref += `<br/><br/>${ACCOMMODATION}`;
++      }
++      // Newest first (sort=recent): ages grow along the list, most within the last 90 days.
++      const age = Math.floor((rows.length / Math.max(1, total)) * 120 * R.next() + R.int(0, 30) * R.next());
++      const d = new Date(today - age * 864e5);
++      const day = d.getUTCDate();
++      rows.push({
++        ...base,
++        id: `synthetic-${id}`, id_icims: String(id), title, job_path: `/en/jobs/${id}/${slug(title)}`,
++        description, basic_qualifications: basic, preferred_qualifications: pref,
++        description_short: description.slice(0, 300),
++        job_category: fam.category, job_family: fam.family, business_category: cat,
++        job_schedule_type: fam.hourly && R.next() < 0.3 ? 'part-time' : 'full-time',
++        city: prim[0], state: prim[1], country_code: c.iso3,
++        location: `${c.iso2}, ${prim[1]}, ${prim[0]}`, normalized_location: `${prim[0]}, ${prim[2]}, ${c.iso3}`,
++        locations, posted_date: `${MONTHS[d.getUTCMonth()]} ${day < 10 ? ` ${day}` : day}, ${d.getUTCFullYear()}`,
++        updated_time: `${R.int(1, 23)} hours`, primary_search_label: `${cat}.team-${slug(fam.family)}`,
++        url_next_step: `https://account.amazon.jobs/jobs/${id}/apply`,
++      });
++      id--;
++    }
++  }
++  rows.sort((a, b) => Date.parse(b.posted_date) - Date.parse(a.posted_date) || Number(b.id_icims) - Number(a.id_icims));
++  return rows;
++}
++
++const AMAZON_ROBOTS = 'User-agent: AhrefsBot\nDisallow: /\n\nUser-agent: *\nDisallow: /internal\nDisallow: /*/internal\n';
++
++/**
++ * A stand-in for www.amazon.jobs: /robots.txt and /en/search.json as recorded in §7e (filters
++ * normalized_country_code[] and business_category[], `hits` capped at 10,000, nothing past
++ * offset 9,900, at most 100 rows a page, facets on request). Returns (url, init) => Response | null.
++ */
++export function amazonSite(rows, { cap = AMAZON_CAP, onSearch } = {}) {
++  const facet = (list, key) => {
++    const m = new Map();
++    for (const r of list) m.set(r[key], (m.get(r[key]) || 0) + 1);
++    return [...m].sort((a, b) => b[1] - a[1]).map(([k, n]) => ({ [k]: n }));
++  };
++  const countryKey = 'country_code';
++  return (url) => {
++    const u = new URL(url);
++    if (u.host !== 'www.amazon.jobs') return null;
++    if (u.pathname === '/robots.txt') return new Response(AMAZON_ROBOTS, { status: 200, headers: { 'content-type': 'text/plain' } });
++    if (u.pathname !== '/en/search.json') return new Response('not found', { status: 404 });
++    const q = u.searchParams;
++    const cc = q.get('normalized_country_code[]');
++    const bc = q.get('business_category[]');
++    const list = rows.filter((r) => (!cc || r[countryKey] === cc) && (!bc || r.business_category === bc));
++    const offset = Number(q.get('offset')) || 0;
++    const limit = Math.min(100, Number(q.get('result_limit')) || 10);
++    if (onSearch) onSearch({ cc, bc, offset });
++    const facets = {};
++    for (const f of q.getAll('facets[]')) facets[`${f}_facet`] = facet(list, f === 'normalized_country_code' ? countryKey : f);
++    const jobs = offset < cap ? list.slice(offset, Math.min(offset + limit, cap)) : [];
++    return new Response(JSON.stringify({ error: null, hits: Math.min(list.length, cap), facets, jobs }), { status: 200, headers: { 'content-type': 'application/json' } });
++  };
++}
++
++/* ================================================================== Meta */
++
++export const META_TOTAL = 1143;
++
++const META_FAMILIES = [
++  { w: 0.38, dept: 'Engineering', team: 'Software Engineering', titles: ['Software Engineer, Infrastructure', 'Software Engineer, Product', 'Software Engineer, Machine Learning', 'Production Engineer', 'Software Engineer, iOS'], pay: [183997, 257000] },
++  { w: 0.12, dept: 'Research', team: 'Artificial Intelligence', titles: ['Research Scientist, Generative AI', 'Research Engineer, Llama', 'Applied Research Scientist'], pay: [177000, 251000] },
++  { w: 0.1, dept: 'Engineering', team: 'Security', titles: ['Security Engineer - Applied AI', 'Security Engineer, Detection and Response'], pay: [173000, 245000] },
++  { w: 0.1, dept: 'Data Science', team: 'Data & Analytics', titles: ['Data Scientist, Product Analytics', 'Data Engineer, Analytics'], pay: [150000, 220000] },
++  { w: 0.08, dept: 'Product Management', team: 'Product Management', titles: ['Product Manager, Reality Labs', 'Technical Program Manager'], pay: [166000, 238000] },
++  { w: 0.08, dept: 'Reality Labs', team: 'Hardware Engineering', titles: ['Optical Engineer', 'Hardware Engineer, Silicon', 'Display Systems Engineer'], pay: [156000, 219000] },
++  { w: 0.07, dept: 'Sales', team: 'Advertising Sales', titles: ['Client Partner', 'Account Manager, Global Business Group'], pay: [118000, 175000] },
++  { w: 0.07, dept: 'Research', team: 'Internship - PhD', titles: ['Research Scientist Intern, Optical System Design (PhD)', 'Software Engineer Intern', 'Research Scientist Intern, AI (PhD)'], monthly: [7313, 12667], intern: true },
++];
++const META_US = [['Menlo Park, CA', 'Menlo Park', 'California'], ['Sunnyvale, CA', 'Sunnyvale', 'California'], ['Redmond, WA', 'Redmond', 'Washington'], ['Seattle, WA', 'Seattle', 'Washington'], ['New York, NY', 'New York', 'New York'], ['Burlingame, CA', 'Burlingame', 'California'], ['Boston, MA', 'Boston', 'Massachusetts'], ['Austin, TX', 'Austin', 'Texas'], ['Washington, DC', 'Washington', 'District of Columbia'], ['Remote, US', 'Remote', null]];
++const META_INTL = [['London, UK', 'GB'], ['Dublin, Ireland', 'IE'], ['Singapore', 'SG'], ['Tel Aviv, Israel', 'IL'], ['Zurich, Switzerland', 'CH'], ['Toronto, ON', 'CA']];
++
++/**
++ * Synthetic Meta job records, in extractMetaPage's shape (the fixture's), `total` of them.
++ * About 70% US with public_compensation (annual; interns monthly; 3% hourly), the rest abroad
++ * without a published range (as the London fixture). `ldOnly` share of pages carry only JSON-LD.
++ */
++export function metaRecords({ total = META_TOTAL, seed = 1, ldOnly = 0.02, today = Date.UTC(2026, 9, 10) } = {}) {
++  const R = rng(seed);
++  const fx = fixture('meta').records;
++  const out = [];
++  for (let i = 0; i < total; i++) {
++    const fam = R.weighted(META_FAMILIES.map((f) => [f, f.w]));
++    const seedRec = fx[fam.intern ? 2 : fam.team === 'Security' ? 1 : 0];
++    const us = R.next() < 0.7 || fam.intern;
++    const n = us ? R.weighted([[1, 0.55], [2, 0.2], [R.int(3, 10), 0.25]]) : 1;
++    const places = us ? R.sample(META_US, n) : [R.pick(META_INTL)];
++    const id = String(2486789151600000 + i * 7919);
++    const title = R.pick(fam.titles);
++    let comp = [];
++    if (us) {
++      const lvl = 0.85 + 0.3 * R.next();
++      const fmt = (v, unit) => `$${Math.round(v).toLocaleString('en-US')}/${unit}`;
++      if (fam.monthly) comp = [{ error_apology_note: '', has_bonus: false, has_equity: false, compensation_amount_minimum: fmt(fam.monthly[0], 'month'), compensation_amount_maximum: fmt(fam.monthly[1], 'month'), country_code: 'US' }];
++      else if (R.next() < 0.03) comp = [{ error_apology_note: '', has_bonus: false, has_equity: false, compensation_amount_minimum: '$56.25/hour', compensation_amount_maximum: '$78.37/hour', country_code: 'US' }];
++      else comp = [{ error_apology_note: '', has_bonus: true, has_equity: true, compensation_amount_minimum: fmt(Math.round(fam.pay[0] * lvl / 1000) * 1000, 'year'), compensation_amount_maximum: fmt(Math.round(fam.pay[1] * lvl / 1000) * 1000, 'year'), country_code: 'US' }];
++    }
++    const posted = new Date(today - Math.floor(R.next() * R.next() * 400) * 864e5).toISOString().replace('.000Z', '-07:00');
++    const jobLocation = places.map((p) => (us
++      ? { name: p[0], address: { '@type': 'PostalAddress', addressLocality: p[1], ...(p[2] ? { addressRegion: p[2] } : {}), addressCountry: 'US' } }
++      : { name: p[0], address: { '@type': 'PostalAddress', addressLocality: p[0].split(',')[0], addressCountry: p[1] } }));
++    out.push({
++      id, title, locations: places.map((p) => p[0]), departments: [fam.team], internal_departments: [fam.dept],
++      description_html: seedRec.description_html, responsibilities: R.sample(seedRec.responsibilities, Math.max(3, seedRec.responsibilities.length - R.int(0, 2))),
++      minimum_qualifications: seedRec.minimum_qualifications, preferred_qualifications: seedRec.preferred_qualifications, public_compensation: comp,
++      ld: { title, description: seedRec.ld.description, datePosted: posted, employmentType: fam.intern ? 'INTERN' : 'FULL_TIME', jobLocation },
++      ldOnly: R.next() < ldOnly,
++    });
++  }
++  return out;
++}
++
++/**
++ * A job page as metacareers.com serves it, reduced to what matters (§7g): the JSON-LD block,
++ * a decoy block with its own "title" and "locations" keys (the site's navigation), then the
++ * page data after "apply_for_this_job_section". `p.ldOnly` pages have no page data.
++ */
++export function metaPageHtml(p) {
++  const ld = { '@context': 'https://schema.org', '@type': 'JobPosting', title: p.ld.title, description: p.ld.description, datePosted: p.ld.datePosted, employmentType: p.ld.employmentType, jobLocation: p.ld.jobLocation };
++  const decoy = { title: 'Meta Careers', locations: ['Menlo Park, CA', 'London, UK', 'Singapore', 'Remote, US'], description: 'Find your next job at Meta.' };
++  const data = {
++    apply_for_this_job_section: { title: 'Apply for this job', description: 'Take the first step toward a rewarding career at Meta.' },
++    requisition_id: p.id, title: p.title, locations: p.locations, departments: p.departments, internal_departments: p.internal_departments,
++    description: JSON.stringify({ __html: p.description_html }), responsibilities: p.responsibilities.map((item) => ({ item })),
++    minimum_qualifications: p.minimum_qualifications.map((item) => ({ item })), preferred_qualifications: p.preferred_qualifications.map((item) => ({ item })),
++    public_compensation: p.public_compensation,
++  };
++  const esc = (o) => JSON.stringify(o).replace(/\//g, '\\/');
++  return `<!DOCTYPE html><html><head><title>${p.title} | Meta Careers</title><script type="application/ld+json" nonce="x">${esc(ld)}</script></head><body>`
++    + `<script>require(["nav"],{"props":${esc(decoy)}})</script>`
++    + (p.ldOnly ? `<script>require(["x"],{"props":${esc({ public_compensation: p.public_compensation })}})</script>` : `<script>require(["x"],{"props":${esc(data)}})</script>`)
++    + '</body></html>';
++}
++
++const META_ROBOTS = 'User-agent: *\nDisallow: /ajax/\nDisallow: /tealium/\nDisallow: /intern/\nDisallow: /internal/\nDisallow: /login/\nDisallow: /oidc/callback/\nDisallow: /signup/\nDisallow: /resume/\nSitemap: https://www.metacareers.com/jobsearch/sitemap.xml\n';
++
++/**
++ * A stand-in for www.metacareers.com: robots.txt, the jobs sitemap and one page per record.
++ * `gone` ids are in the sitemap but answer 404 (closed since the sitemap was built).
++ */
++export function metaSite(records, { gone = [], status = () => 200 } = {}) {
++  const byId = new Map(records.map((p) => [p.id, p]));
++  const sitemap = `<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${[...records.map((p) => p.id), ...gone].map((id) => `<url><loc>https://www.metacareers.com/profile/job_details/${id}/</loc></url>`).join('')}</urlset>`;
++  return (url) => {
++    const u = new URL(url);
++    if (u.host !== 'www.metacareers.com') return null;
++    if (u.pathname === '/robots.txt') return new Response(META_ROBOTS, { status: 200, headers: { 'content-type': 'text/plain' } });
++    if (u.pathname === '/jobsearch/sitemap.xml') return new Response(sitemap, { status: 200, headers: { 'content-type': 'text/xml' } });
++    const id = (/^\/profile\/job_details\/(\d+)\/$/.exec(u.pathname) || [])[1];
++    const p = id && byId.get(id);
++    if (!p) return new Response('<html>This job is no longer available</html>', { status: 404, headers: { 'content-type': 'text/html' } });
++    const st = status(id);
++    if (st !== 200) return new Response('error', { status: st, headers: { 'content-type': 'text/html' } });
++    return new Response(metaPageHtml(p), { status: 200, headers: { 'content-type': 'text/html' } });
++  };
++}
++
++/* ================================================================ fetch */
++
++/**
++ * Replace globalThis.fetch with the given site handlers. Any URL no handler serves throws (no
++ * network in tests). Returns { calls: [url], hosts: { host: n }, restore() }.
++ */
++export function installFetch(...sites) {
++  const real = globalThis.fetch;
++  const calls = [];
++  const hosts = {};
++  globalThis.fetch = async (url, init) => {
++    const u = String(url);
++    calls.push(u);
++    const h = new URL(u).host;
++    hosts[h] = (hosts[h] || 0) + 1;
++    for (const s of sites) { const r = s(u, init); if (r) return r; }
++    throw new TypeError(`fetch failed: no network in this test (${u})`);
++  };
++  return { calls, hosts, restore: () => { globalThis.fetch = real; } };
++}
++
++/* ================================================================== CLI */
++
++const isMain = process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href;
++if (isMain) {
++  const arg = (k, d) => { const i = process.argv.indexOf(`--${k}`); return i > 0 ? process.argv[i + 1] : d; };
++  const out = path.resolve(arg('out', 'synthetic-snapshots'));
++  const nA = Number(arg('amazon', AMAZON_TOTAL));
++  const nM = Number(arg('meta', META_TOTAL));
++  const seed = Number(arg('seed', 1));
++  const { COMPANIES } = await import('../server/companies.js');
++  const { setMinInterval } = await import('../server/sources/polite.js');
++  const { runSnapshot } = await import('../scripts/snapshot.js');
++  // Lift the pause IN THIS PROCESS ONLY (the registry file is untouched); every request below is
++  // served by the stand-ins, and anything else throws.
++  for (const c of COMPANIES) if (c.slug === 'amazon' || c.slug === 'meta') delete c.paused;
++  setMinInterval(0);
++  const t0 = Date.now();
++  const rowsA = nA ? amazonRows({ total: nA, seed }) : [];
++  const recsM = nM ? metaRecords({ total: nM, seed }) : [];
++  console.log(`built ${rowsA.length} Amazon rows and ${recsM.length} Meta records in ${Date.now() - t0} ms`);
++  const net = installFetch(amazonSite(rowsA), metaSite(recsM));
++  const targets = [nA ? 'amazon' : null, nM ? 'meta' : null].filter(Boolean);
++  const hist = path.join(out, '.history-scratch');
++  const t1 = Date.now();
++  const rss = { max: 0 };
++  const timer = setInterval(() => { rss.max = Math.max(rss.max, process.memoryUsage().rss); }, 200);
++  const r = await runSnapshot(targets, { outDir: out, historyDir: hist, parallelBeta: false });
++  clearInterval(timer);
++  net.restore();
++  console.log(JSON.stringify({ seconds: (Date.now() - t1) / 1000, peakRssMB: Math.round(rss.max / 1048576), requests: net.hosts, results: r.results.map(({ file, history, ...x }) => x) }, null, 1));
++  process.exit(r.failed ? 1 : 0);
++}
+diff --git a/test/bigtech-polite.test.js b/test/bigtech-polite.test.js
+index 63153f2..1bc20cd 100644
+--- a/test/bigtech-polite.test.js
++++ b/test/bigtech-polite.test.js
+@@ -7,7 +7,7 @@ import {
+   politeRequest, politeJson, robotsRules, robotsAllows, checkRobots, resetRobots, setMinInterval, resetRateLimits,
+   cookieJar, mapLimit, newStats, BOT_USER_AGENT,
+ } from '../server/sources/polite.js';
+-import { listCompanies, getCompany, resolveCompany, SOURCES } from '../server/companies.js';
++import { listCompanies, getCompany, resolveCompany, SOURCES, COMPANIES } from '../server/companies.js';
+ import { targetsFor, fitSnapshot, trimDescription } from '../scripts/snapshot.js';
+ 
+ const realFetch = globalThis.fetch;
+@@ -16,7 +16,8 @@ afterEach(() => { globalThis.fetch = realFetch; setMinInterval(null); resetRateL
+ const STABLE = ['anthropic', 'anduril', 'openai', 'scaleai', 'xai', 'cohere', 'palantir', 'shieldai'];
+ const BETA_ALL = ['google', 'microsoft', 'meta', 'apple', 'netflix', 'amazon', 'nvidia'];
+ // Paused for terms of use (server/companies.js `paused: 'terms'`): never crawled or listed by default.
+-const PAUSED = ['meta', 'amazon'];
++// Read from the registry, so resuming a company (deleting its `paused`) needs no edit here.
++const PAUSED = COMPANIES.filter((c) => c.paused).map((c) => c.slug);
+ const BETA = BETA_ALL.filter((s) => !PAUSED.includes(s));
+ 
+ test('registry: listCompanies() default is exactly the stable list; beta adds the big-tech boards', () => {
+@@ -30,7 +31,7 @@ test('registry: listCompanies() default is exactly the stable list; beta adds th
+     assert.match(c.color, /^#[0-9a-f]{6}$/i);
+   }
+   assert.deepEqual(listCompanies({ channel: 'beta', includePaused: true }).map((c) => c.slug), [...STABLE, ...BETA_ALL]);
+-  for (const slug of PAUSED) assert.equal(getCompany(slug)?.paused, 'terms', `${slug} is paused for terms of use but still resolves`);
++  for (const slug of PAUSED) assert.ok(getCompany(slug)?.paused, `${slug} is paused but still resolves`);
+   assert.throws(() => listCompanies({ channel: 'nightly' }), /Unknown channel/);
+   // getCompany resolves any channel and names it.
+   assert.equal(getCompany('microsoft').channel, 'beta');
+diff --git a/test/bigtech-sources.test.js b/test/bigtech-sources.test.js
+index 6bac89f..f2b670e 100644
+--- a/test/bigtech-sources.test.js
++++ b/test/bigtech-sources.test.js
+@@ -15,7 +15,8 @@ import { mapGoogleJob, fetchGoogle, parseGoogleSitemap, parseGoogleDetail, googl
+ import { mapMetaJob, fetchMeta, extractMetaPage, parseMetaSitemap, metaPayRanges, parseMetaAmount } from '../server/sources/meta.js';
+ import { setMinInterval, resetRateLimits, resetRobots, newStats } from '../server/sources/polite.js';
+ import { normalizeJob, normalizeJobs } from '../server/normalize.js';
+-import { getCompany } from '../server/companies.js';
++import { getCompany, COMPANIES } from '../server/companies.js';
++import { amazonRows, amazonSite, installFetch } from './amazon-meta-synth.js';
+ 
+ const FIX = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures');
+ const fixture = (slug) => JSON.parse(fs.readFileSync(path.join(FIX, `bigtech-${slug}.json`), 'utf8'));
+@@ -28,6 +29,13 @@ const text = (s, status = 200, type = 'text/plain') => new Response(s, { status,
+ const EIGHTFOLD_ROBOTS = 'User-agent: *\nDisallow: /\nAllow: /careers\nAllow: /api/apply\nAllow: /api/pcsx\n';
+ const norm = (raw, slug) => normalizeJob(raw, getCompany(slug));
+ const sal = (j) => (j.salary ? [j.salary.min, j.salary.max, j.salary.currency] : null);
++/** Run `fn` as if `slug` were resumed (its `paused` field removed in this process only), then restore it. */
++async function resumed(slug, fn) {
++  const c = COMPANIES.find((x) => x.slug === slug);
++  const was = c.paused;
++  delete c.paused;
++  try { return await fn(); } finally { if (was !== undefined) c.paused = was; }
++}
+ 
+ /* ------------------------------------------------------------- Eightfold */
+ 
+@@ -164,35 +172,29 @@ test('Amazon: real search rows -> RawJob; pay table row of the primary location'
+ 
+ test('fetchAmazon: under the cap pages straight through; at the cap partitions by country, then category', async () => {
+   setMinInterval(0);
+-  const { records } = fixture('amazon');
+-  const row = (i, cc) => ({ ...records[0], id_icims: String(5000 + i), country_code: cc });
+-  const pages = [];
+-  globalThis.fetch = async (url) => {
+-    const u = new URL(url);
+-    if (u.pathname === '/robots.txt') return text('User-agent: AhrefsBot\nDisallow: /\nUser-agent: *\nDisallow: /internal\n');
+-    pages.push(u.search);
+-    const off = Number(u.searchParams.get('offset'));
+-    const cc = u.searchParams.get('normalized_country_code[]');
+-    const bc = u.searchParams.get('business_category[]');
+-    const facets = u.searchParams.getAll('facets[]').length
+-      ? { normalized_country_code_facet: [{ USA: 10500 }, { CAN: 150 }], business_category_facet: cc ? [{ aws: 120 }, { retail: 30 }] : [{ aws: 9000 }] }
+-      : {};
+-    let pool;
+-    if (!cc) pool = Array.from({ length: 10000 }, (_, i) => row(i, 'USA'));
+-    else if (cc === 'CAN') pool = Array.from({ length: 150 }, (_, i) => row(20000 + i, 'CAN'));
+-    else if (cc === 'USA' && !bc) pool = Array.from({ length: 10000 }, (_, i) => row(i, 'USA'));
+-    else pool = Array.from({ length: bc === 'aws' ? 120 : 30 }, (_, i) => row((bc === 'aws' ? 30000 : 40000) + i, 'USA'));
+-    return json({ error: null, hits: Math.min(10000, pool.length), facets, jobs: pool.slice(off, off + Number(u.searchParams.get('result_limit'))) });
+-  };
+-  const stats = newStats();
+-  const { jobs } = await fetchAmazon('amazon', { stats });
+-  const ids = new Set(jobs.map((j) => j.sourceId));
+-  assert.equal(ids.size, jobs.length, 'deduped');
+-  // 100 from the first facet page (the USA facet page repeats them), 120 aws + 30 retail, 150 Canada.
+-  assert.equal(jobs.length, 400);
+-  assert.ok(jobs.some((j) => j.sourceId === '35119') && jobs.some((j) => j.sourceId === '45029') && jobs.some((j) => j.sourceId === '25149'));
+-  assert.ok(pages.some((p) => p.includes('business_category%5B%5D=aws')));
+-  assert.ok(stats.notes.some((n) => /board size from country facets: 10650/.test(n)));
++  // A synthetic amazon.jobs (test/amazon-meta-synth.js) with the hit cap scaled down to 150, so
++  // 600 postings behave like 22,415 under the real 10,000: the US is over the cap, each US
++  // business category under it.
++  const rows = amazonRows({ total: 600, seed: 7 });
++  const searches = [];
++  const net = installFetch(amazonSite(rows, { cap: 150, onSearch: (q) => searches.push(q) }));
++  try {
++    const small = rows.filter((r) => r.country_code !== 'USA').slice(0, 120);
++    const one = installFetch(amazonSite(small, { cap: 150 }));
++    const flat = await resumed('amazon', () => fetchAmazon('amazon', { cap: 150 }));
++    one.restore();
++    assert.equal(flat.jobs.length, 120, 'under the cap: one partition, paged straight through');
++    const stats = newStats();
++    const { jobs } = await resumed('amazon', () => fetchAmazon('amazon', { stats, cap: 150 }));
++    assert.equal(new Set(jobs.map((j) => j.sourceId)).size, jobs.length, 'deduped on id_icims');
++    assert.equal(jobs.length, rows.length, 'every posting, through the partitions');
++    assert.ok(searches.some((q) => q.cc === 'USA' && q.bc === 'aws'), 'the US is split by business category');
++    assert.ok(!searches.some((q) => q.cc === 'USA' && !q.bc && q.offset > 0), 'the capped US partition is never paged whole');
++    assert.ok(searches.some((q) => q.cc === 'IND' && !q.bc), 'a country under the cap is read whole');
++    assert.ok(stats.notes.some((n) => new RegExp(`board size from country facets: ${rows.length} postings in 58 countries`).test(n)), stats.notes.join(' | '));
++  } finally {
++    net.restore();
++  }
+ });
+ 
+ /* ----------------------------------------------------------------- Apple */
+@@ -346,7 +348,7 @@ test('fetchMeta: sitemap then one page per posting; closed postings skipped', as
+     return p ? text(metaPage(p), 200, 'text/html') : text('gone', 404, 'text/html');
+   };
+   const stats = newStats();
+-  const { jobs } = await fetchMeta('meta', { stats });
++  const { jobs } = await resumed('meta', () => fetchMeta('meta', { stats }));
+   assert.equal(jobs.length, records.length);
+   assert.ok(stats.notes.some((n) => /1 sitemap posting/.test(n)));
+ });
+-- 
+2.43.0
+

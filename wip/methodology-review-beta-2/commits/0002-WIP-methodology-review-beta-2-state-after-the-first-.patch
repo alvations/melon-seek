@@ -1,0 +1,28 @@
+From 1c3c45ba9ee7b9ae85a5d460be5c6e0c1cf05d64 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 16 Oct 2026 20:14:37 +0000
+Subject: [PATCH 2/8] WIP methodology-review-beta-2: state after the first walk
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+---
+ docs/process/methodology-review-beta-2.md | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/docs/process/methodology-review-beta-2.md b/docs/process/methodology-review-beta-2.md
+index fb493db..c9ed4a7 100644
+--- a/docs/process/methodology-review-beta-2.md
++++ b/docs/process/methodology-review-beta-2.md
+@@ -1,7 +1,8 @@
+ # Process log: methodology-review-beta-2 (methodology and sources reviewer, beta round 3)
+ 
+ ## State
+-- 2026-10-16 19:58 UTC: started. Worktree detached at origin/claude/stoic-ride-54ddxp 6178be7; today's crawl symlinked (not committed). Prompt pasted. Next: read docs, serve the lead's build, registry checks.
++- 2026-10-16 20:25 UTC: build served (port 46201, pid in scratchpad/methodology-review-beta-2/serve.pid); registry modes run; all 8 boards walked (top bar, badge, stats, chart notes, map, Insights, Compare); 10 Amazon drawers dumped. Draft findings MR-23..MR-37 noted below (to be confirmed and written up). Scripts: scratchpad/methodology-review-beta-2/tools/{pick,walk,drawer,load}.mjs.
++- Next: drawers for Meta, Google, Microsoft, NVIDIA, Apple, Netflix, Anduril; phone check; city coverage; tests; patches.
+ 
+ ## 1. Brief
+ - Prompt: [prompts/methodology-review-beta-2.md](prompts/methodology-review-beta-2.md) (verbatim, with the lead's note for beta round 3, 2026-10-16).
+-- 
+2.43.0
+

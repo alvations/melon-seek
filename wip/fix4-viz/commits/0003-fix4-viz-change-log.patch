@@ -1,0 +1,24 @@
+From 6124456277fec76a733ec7f87bc490d3f53d686b Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sun, 11 Oct 2026 16:58:57 +0000
+Subject: [PATCH 3/3] fix4-viz: change log
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+---
+ docs/process/fix4-viz.md | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/docs/process/fix4-viz.md b/docs/process/fix4-viz.md
+index 0be149c..6ad5e85 100644
+--- a/docs/process/fix4-viz.md
++++ b/docs/process/fix4-viz.md
+@@ -226,4 +226,4 @@ under load, the same range as the review's 177–346 ms department filter; the c
+ 
+ ## 7. Change log
+ 
+-- 2026-10-11: findings fixed in 192d8fa (first milestone) and LATER; log, screenshots and patch.
++- 2026-10-11: findings fixed in 192d8fa; phone Pay legend beside the switch (decision 19), counts only when they fit, log, screenshots and patch in 03489bf; this line in the last commit. Scratch builds deleted; df -h / after: 17 GB free.
+-- 
+2.43.0
+

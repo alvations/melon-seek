@@ -1,0 +1,233 @@
+From a7453ee53948e47a415aac666538907e5ad6bf39 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sun, 11 Oct 2026 14:07:07 +0000
+Subject: [PATCH 08/10] =?UTF-8?q?Docs:=20the=20incremental=20crawl=20and?=
+ =?UTF-8?q?=20closure=20rules=20(ARCHITECTURE),=20how=20each=20board=20upd?=
+ =?UTF-8?q?ates=20with=20expected=20crawl=20times=20(DATA=5FSOURCES=20?=
+ =?UTF-8?q?=C2=A78),=20closures=20in=20the=20archive=20(DATA=5FARCHIVE=20?=
+ =?UTF-8?q?=C2=A79,=20=C2=A713=20patch),=20adding=20a=20board=20(PLAYBOOK)?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+---
+ docs/ARCHITECTURE.md     | 67 ++++++++++++++++++++++++++++++++++++++++
+ docs/DATA_ARCHIVE.md     | 19 +++++++++++-
+ docs/DATA_SOURCES.md     | 51 ++++++++++++++++++++++++++++++
+ docs/process/PLAYBOOK.md | 23 ++++++++++++++
+ 4 files changed, 159 insertions(+), 1 deletion(-)
+
+diff --git a/docs/ARCHITECTURE.md b/docs/ARCHITECTURE.md
+index 12a4d9d..d503afd 100644
+--- a/docs/ARCHITECTURE.md
++++ b/docs/ARCHITECTURE.md
+@@ -91,3 +91,70 @@ background if tiles can't load.
+ 
+   In the browser, `public/api.js` runs the live → snapshot → demo fallback
+   chain itself.
++
++## Incremental crawl and closures
++
++Every board, stable or beta, goes through one mechanism: `server/sources/incremental.js`,
++driven by `scripts/snapshot.js`. Per-board facts are in [DATA_SOURCES.md](DATA_SOURCES.md) §8;
++the decisions and measurements are in [process/incremental-crawl.md](process/incremental-crawl.md).
++
++**Every run lists the whole board.** The list (search pages, a sitemap, one API call) is
++cheap and is the only way to know what is still open. What follows depends on the board:
++
++| Kind | Boards | What the run fetches |
++| --- | --- | --- |
++| detail board | Apple, Google, Microsoft, NVIDIA, Netflix, Meta | the list, then a detail only for postings that are **new**, whose **change signal** moved, or whose cached detail is past its **refresh age**; every other posting reuses the previous run's raw detail |
++| list-only board | Greenhouse, Ashby, Lever, Amazon | the list rows are the whole postings, so there is nothing to skip: the full list, every run (the crawl summary says `list-only`) |
++
++- **Change signal.** One small function per adapter (`eightfoldRowKey`, `appleRowKey`,
++  `googleRowKey`, `metaRowKey`): a hash (`rowKey`) of the list fields an edit or a repost moves:
++  the title, places, department and dates (Eightfold `postedTs` / `t_update`, Apple
++  `postingDate`, a sitemap `<lastmod>`). Volatile fields (search scores) are left out.
++- **Refresh age.** A cached detail is re-fetched after at most `DETAIL_REFRESH_DAYS` = 4 days
++  (`MELON_DETAIL_REFRESH_DAYS`), spread per posting over 2 to 4 days so no run re-reads a whole
++  board. This catches edits the list does not show. A re-fetch is a conditional request
++  (`If-None-Match` / `If-Modified-Since`) whenever the host sent a validator; a 304 confirms the
++  cached detail. Sitemaps are conditional too.
++- **Same output as a full crawl.** The cache holds RAW detail records, not normalized jobs:
++  the adapter maps row + detail with the same code as a full crawl, and normalization runs on
++  the whole board every time (it is board-wide: boilerplate paragraphs, ubiquitous keywords, the
++  vetting gate; reusing normalized jobs could not be identical). `test/incremental-equivalence.test.js`
++  proves snapshot, ledger and archive equality for every adapter.
++- **Failures.** A failed detail reuses its cached detail only while it is within the refresh
++  limit (and is retried next run); otherwise the posting has no detail, as in a full crawl. The
++  failure thresholds that fail a crawl are unchanged (20% of detail requests; Meta 5% or 10 in a row).
++- **Crawl state.** `MELON_CRAWL_STATE_DIR/<slug>.json.gz` (`melon-crawl-1`): `postings`
++  (each posting's signature, for accounting), `listed` (every job id the run listed), and
++  `adapter` (per listed id: change signal `k`, raw detail `d`, last-verified time `at`, validators
++  `e`/`m`; the sitemap's entries and validators). No state, an unreadable one, another adapter
++  version (`*_CRAWL_VERSION`) or `MELON_FULL_CRAWL=1` (the workflow's `full_crawl` input) means a
++  full crawl, and the snapshot says why.
++- **Accounting.** Each snapshot carries `crawl`: `mode` (`incremental` / `full` / `list-only`)
++  and `why`; `list` `{ complete, listed, expected }`; `postings` `{ new, changed, unchanged,
++  absent }`; the detail counts (`new`, `changed`, `refresh`, `reused`, `notModified`,
++  `fallback`); `detailsVerifiedSince` (the oldest last-verified time of a reused detail);
++  `gone` and `unpublished` job ids. Every posting is in exactly one bucket each run.
++
++**Closures** (server/history.js `updateLedger`, `closureOptions`):
++
++| The posting is | The ledger |
++| --- | --- |
++| absent from a **complete** list | closed now, `x: "absent"` |
++| absent from a **partial** list (shorter than the board's own count; capped) | stays open while last seen within `UNSEEN_OPEN_DAYS` = 14, then `x: "unseen"` |
++| confirmed gone: a probe got 404/410/a redirect away, or the board returned no record | closed now, `x: "gone"` |
++| listed but not published (left out by the cap, a failed detail) | seen, open |
++| in a failed crawl (a refused list, too many failed details) | nothing is written: snapshot, ledger and state stay as they were |
++
++A **closure probe** is one request to the posting's own detail (Apple `jobDetails`, Eightfold
++`position_details`) or page (Amazon, `HEAD`) for postings that the previous crawl listed and a
++partial list did not, at most `CLOSE_PROBE_LIMIT` = 50 per board and run (`MELON_CLOSE_PROBES`),
++through the same polite client (1 request/s per host, robots.txt). Only 404, 410 or a redirect
++away from the posting closes; a 200, an error or a 403 leaves it open.
++
++**In CI** (`.github/workflows/snapshot.yml`): each beta crawl restores the newest trusted
++`job-board-crawl-state-beta` artifact into `data/crawl-state/`, crawls, and hands its own
++`crawl-state-<slug>` to the merge; the merge overlays this run's states on the previous ones
++(a crawl that did not finish keeps its previous state), records the ledger with the same
++crawl's listed ids, and uploads `job-board-crawl-state-beta` (30 days). The stable job does
++the same with `job-board-crawl-state`. The state is a cache, not data: the archive never
++ingests it (`scripts/archive/sweep.js` lists the names it takes), and losing it costs one full crawl.
+diff --git a/docs/DATA_ARCHIVE.md b/docs/DATA_ARCHIVE.md
+index 6e66266..a45440a 100644
+--- a/docs/DATA_ARCHIVE.md
++++ b/docs/DATA_ARCHIVE.md
+@@ -190,7 +190,11 @@ archived inputs and the code commit, and its retention is 1 day.
+ - **Late snapshots.** A snapshot older than the company's latest observation that was never seen is stored whole in `late/`. It is reconstructable but not folded.
+ - **Partial observations.** The following never close what they did not see:
+   - a capped board (`jobsCapped`);
+-  - a "full" observation with under half the open postings (≥ 40 open; a likely truncated fetch).
++  - a "full" observation with under half the open postings (≥ 40 open; a likely truncated fetch);
++  - a crawl whose list came back short (`crawl.list.complete: false`, docs/ARCHITECTURE.md
++    "Incremental crawl and closures"), once patch §13 `incremental-crawl-archive-partial.diff` is
++    applied. Until then such an observation closes the few postings it did not list (as `closed`);
++    they resume as a new version when listed again.
+ 
+   Missing postings keep their last-seen time. They resume as a new version (`gap` / `resumed`) or close as `unseen` after 30 days.
+ - **Vetting.** Every snapshot goes through the site's own upgrade and gate (`relocateJobs`, `rekeyBoardJobs`, `vetSalaries`, as in `scripts/build-static.js`). Implausible pay is archived as `quarantined` with its codes and reason, never as valid pay.
+@@ -296,6 +300,18 @@ node scripts/archive/record.js --list [--dataset <id>]
+ - **`ledger.sh` (patch §13).** When no trusted `history-ledger` artifact exists, `restore` falls back to the archive mirror (read-only), instead of starting fresh. Setting `HISTORY_STORE=branch` with `LEDGER_BRANCH=data-archive` also works for reads.
+   - Do **not** enable `persist-ledger` against `data-archive`: `ledger.sh commit-branch` writes a tree of `history/` only. `archive.yml` already persists the ledger.
+ - **No change to server/history.js or scripts/history.js is needed.** The prune is a cache policy of the working ledger. The archive is the record.
++- **Closures in the ledger (2026-10-11).** An entry's `c` (closedAt) now comes with `x`, the reason:
++  `absent` (missing from a complete list), `gone` (a closure probe got 404/410/a redirect away, or
++  the board returned no record for a listed posting), `unseen` (missing from partial lists for
++  `UNSEEN_OPEN_DAYS` = 14). A partial list (capped, or shorter than the board's own count) closes
++  nothing for being absent, and a posting the run listed but did not publish (the cap, a failed
++  detail) stays open; a failed crawl records nothing. `ledger/entries` keeps `x` with the entry.
++  Rules: docs/ARCHITECTURE.md "Incremental crawl and closures".
++- **Incremental crawls do not change what is archived.** Snapshots from an incremental crawl are
++  identical to a full crawl's except for the top-level `crawl` summary (kept in the observation's
++  `payload` like `jobsCapped`), so job versions, `validFrom`/`validTo` and closures are the same
++  (`test/incremental-equivalence.test.js` ingests both and compares `jobs/<slug>/`). The crawl
++  state (`job-board-crawl-state[-beta]`, `crawl-state-<slug>`) is a cache and is never ingested.
+ 
+ ## 10. Integrity (`scripts/archive/verify.js`)
+ 
+@@ -361,6 +377,7 @@ Tests: `test/archive.test.js` covers these failure cases:
+ | --- | --- | --- |
+ | `docs/process/patches/archive-ledger.diff` | `.github/scripts/ledger.sh` | `restore` falls back to the archive's ledger mirror (read-only) when no trusted artifact exists, so the F4 ledger never restarts from zero. `restore-artifact` behaves as before |
+ | `docs/process/patches/archive-pages.diff` | `.github/workflows/pages.yml` | upload what each deploy fetched as `job-board-snapshots-pages` (14 days; transport only), so a day whose snapshot.yml run failed is still archived. Today those fetches exist nowhere |
++| `docs/process/patches/incremental-crawl-archive-partial.diff` | `scripts/archive/ingest.js` | a snapshot whose `crawl.list.complete` is false (a list shorter than the board's own count) is a partial observation, like a capped one, so the archive does not close what it did not list (the ledger already does not) |
+ | `docs/process/patches/archive-snapshot.diff` | `.github/workflows/snapshot.yml` | upload a beta snapshot the gate rejected as `beta-crawl-rejected-<slug>`. It is never published, but today it is lost |
+ 
+ ## 14. Size
+diff --git a/docs/DATA_SOURCES.md b/docs/DATA_SOURCES.md
+index f9225b9..6a14768 100644
+--- a/docs/DATA_SOURCES.md
++++ b/docs/DATA_SOURCES.md
+@@ -364,3 +364,54 @@ that would mean impersonating a browser or evading bot protection, which this
+ project does not do. Tesla is therefore not in `server/companies.js`, has no
+ adapter, and is not on the beta site. `scripts/probe-bigtech.js --mode recon
+ --companies tesla` re-checks it.
++
++## 8. How each board updates (incremental crawl)
++
++The mechanism, the crawl state and the closure rules are in
++[ARCHITECTURE.md](ARCHITECTURE.md) "Incremental crawl and closures"; measurements and decisions in
++[process/incremental-crawl.md](process/incremental-crawl.md). Every run lists the whole board;
++only detail requests are skipped. The request rate is unchanged (1 request/s per host).
++
++| Board | List (every run) | Change signal (list row) | Detail when | Complete list when | Closure probe |
++| --- | --- | --- | --- | --- | --- |
++| Apple | search pages (20 rows) | `postingTitle`, `transformedPostingTitle`, `positionId`, `postingDate` (not for managed-pipeline rows, re-stamped on every request), `locations`, `team`, `homeOffice`, `standardWeeklyHours`, `jobSummary` | US listings only: new, signal moved, or past the refresh age | listed >= `totalRecords` | `GET /api/v1/jobDetails/<id>` |
++| Microsoft, NVIDIA | PCSX search (10 rows) | `name`, `postedTs` (moves on edits and reposts), `creationTs`, `locations`, `standardizedLocations`, `department`, `workLocationOption`, `displayJobId` | new, signal moved, past the refresh age | listed >= `count` and no repeated page | `GET /api/pcsx/position_details` |
++| Netflix | classic search (10 rows) | `name`, `posting_name`, `t_update`, `t_create`, `location(s)`, `department`, `business_unit`, `display_job_id` | as above | listed >= `count` | `GET /api/apply/v2/jobs/<id>` |
++| Google | jobs sitemap (conditional GET) | the sitemap entry's slug (the title) and `<lastmod>` | as above | always (the sitemap is the board); a record that comes back empty is `gone` | not needed |
++| Meta | jobs sitemap (conditional GET) | `<lastmod>` where the sitemap has one; otherwise none, so only new postings and pages past the refresh age are read (the URL set is the list). §7g did not record whether Meta's sitemap has `<lastmod>`: the crawl summary's `changed` count shows it | as above; the cached detail is the extracted page, not the ~480 KB HTML | always; a 404/410 page is `gone` | not needed |
++| Amazon | search pages by country and category | list-only: the row is the whole posting | never (no detail requests) | listed >= the facet total (95% is still published, as before, but is partial) | `HEAD /en/jobs/<id>` (robots.txt checked) |
++| Greenhouse, Ashby, Lever | one request | list-only | never | always (one response is the board) | not needed |
++
++**Conditional requests.** No recorded response in this repository shows the headers (§7's
++fixtures keep bodies only), so support is not known for any host. The adapters therefore send
++`If-None-Match` / `If-Modified-Since` only when the previous response carried an `ETag` /
++`Last-Modified`, and a 304 reuses the cached detail or sitemap; a host that ignores them answers
++200 as before. The stable adapters report whether their single response carries validators
++(`crawl.validators` in the snapshot), so the next daily run shows it.
++
++**Stable boards (Greenhouse, Ashby, Lever): no updated-since filter exists.** Greenhouse's list
++documents only `content` (§1), Lever's only `mode, skip, limit, location, commitment, team,
++department, level, group` (§4), Ashby's only `includeCompensation` (§3b). Each board is one
++request a day, so a 304 could save bandwidth (Anduril's list is ~38 MB) but not requests or
++time; it is not used, because a 304 would have to be answered from a stored raw response the
++stable job does not keep, and normalization depends on the whole board. Greenhouse's
++`updated_at` moved on 43 of the 45 Anduril edits the archive recorded on 2026-10-10, so the
++list already shows its changes.
++
++**Expected crawl time per run** (6-hourly beta crawl; "before" = run 38118242488, 2026-10-11;
++"after" = the steady state from the archive's churn, with a 4-day refresh age, i.e. about 1/12
++of each board's details per run, plus the new and visibly changed postings; at about 1.0-1.1 s
++per request):
++
++| Board | Before: requests, time | After: requests per run | After: time | Saving |
++| --- | --- | --- | --- | --- |
++| Apple | 4,704 (305 search pages, 4,396 details), 89 min | ~305 + ~366 refresh + ~20 new/changed + ≤ 50 probes ≈ 700 | ~13 min | ~85% |
++| NVIDIA | 2,931 (267 + 2,663), 49 min | ~267 + ~222 + ~10 ≈ 500 | ~9 min | ~83% |
++| Microsoft | 2,510 (229 + 2,279), 42 min | ~229 + ~190 + ~10 + ≤ 6 probes ≈ 435 | ~8 min | ~83% |
++| Google | 3,421 (1 + 3,417), 57 min | ~1 + ~285 + ~5 ≈ 290 | ~5 min | ~92% |
++| Netflix | 504 (46 + 457), 8.4 min | ~46 + ~38 + ~2 ≈ 86 | ~1.5 min | ~83% |
++| Meta | 1,145 (1 + 1,143 pages, ~550 MB), ~20 min | ~1 + ~95 + ~10 ≈ 106 (~50 MB) | ~2 min | ~90% |
++| Amazon | ~301 list pages, ~5 min | the same (list-only) + ≤ 50 probes when the list is short | ~5 min | 0 |
++| Greenhouse, Ashby, Lever | 1 each | 1 each | seconds | 0 |
++
++The first run after a deploy, after an adapter-version bump, or with `full_crawl` is a full crawl.
+diff --git a/docs/process/PLAYBOOK.md b/docs/process/PLAYBOOK.md
+index edfce60..18df068 100644
+--- a/docs/process/PLAYBOOK.md
++++ b/docs/process/PLAYBOOK.md
+@@ -174,3 +174,26 @@ These are the rules learned the hard way on 2026-10-10.
+ - Beta-specific: a company with `paused` in server/companies.js is never crawled or tested (its adapter
+   refuses to start). Amazon is capped at 5,000 postings on /beta/ (`maxPostings`). Apple's full
+   crawl takes about 2 h 10 min.
++
++## Adding a board to the incremental crawl
++
++Every board goes through `server/sources/incremental.js` (docs/ARCHITECTURE.md "Incremental crawl
++and closures"). A new adapter in `server/sources/` plugs in like this:
++
++1. **List-only board** (the list returns whole postings, like Greenhouse or Amazon): return the
++   RawJob array, or `{ jobs, listing: { complete, listed, expected } }` when the list is paged
++   and can come back short. Nothing else: `scripts/snapshot.js` accounts for every posting and
++   the crawl summary says `list-only`.
++2. **Detail board** (a request per posting): write a change-signal function,
++   `rowKey(pick(row, [the fields an edit moves: title, places, dates, lastmod]))`, and a
++   `*_CRAWL_VERSION` constant. In the fetch function: `const plan = deltaPlan(opts.previous,
++   { version, ...crawlOptions(opts) })`, then `runDetails(plan, items, { request })` with one
++   polite request per item (`conditionalGet` for a GET, so 304s work), map each row with
++   `details.get(id)`, and return `{ jobs, stats, listing, state: plan.state() }`. A sitemap is
++   `conditionalList`.
++3. **Completeness.** Set `listing.complete` only when the list is provably the whole board
++   (rows >= the board's own count; a sitemap). A short list closes nothing. If the board has a
++   cheap per-posting URL, add `probeAbsent` with a probe that tells a 404/410/redirect.
++4. **Test it**: add the board to `test/incremental-boards.js` (`BOARDS`); the equivalence test
++   then checks it against a full crawl. Keep the mapping functions unchanged, and do not change
++   the request rate (`server/sources/polite.js`).
+-- 
+2.43.0
+
