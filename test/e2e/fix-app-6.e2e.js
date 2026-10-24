@@ -386,14 +386,17 @@ export function registerFixApp6Tests(suite) {
     suite.test(`fix-app-6: [BN-8] ${viewport.width}x${viewport.height}: a minimum typed in PLN, € or £ (or bare, in a view paid in złoty) stays in that currency in the chip, the link and the saved search's name; the filter is the dollar one`, async (ctx) => {
       const { st, page, errors } = await open(ctx, { viewport });
       const bad = [];
+      // The Min box: the left column on a desktop, the filter sheet on a phone (as fix-app's [P-5] and the phone matrix type it).
       const typeMin = async (txt) => {
-        if (viewport.width <= 860) {
-          await page.evaluate(() => document.querySelector('#quickChips [data-pop=salary]')?.scrollIntoView({ inline: 'center' }));
-          await page.locator('#quickChips [data-pop=salary]').click(); await sleep(600);
+        const phone = viewport.width <= 860;
+        if (phone) { await page.locator('#filtersToggle').click(); await sleep(800); }
+        const box = page.locator(phone ? '#filters input.range-val' : '#filterBody input.range-val').first();
+        await box.fill(txt); await box.press('Enter'); await sleep(800);
+        if (phone) {
+          const done = page.locator('#filtersDone');
+          if (await done.isVisible().catch(() => false)) await done.click(); else await page.keyboard.press('Escape').catch(() => {});
+          await sleep(600);
         }
-        const box = page.locator(viewport.width <= 860 ? '#popover input.range-val' : '#filterBody input.range-val').first();
-        await box.fill(txt); await box.press('Enter'); await sleep(700);
-        if (viewport.width <= 860) { await page.keyboard.press('Escape').catch(() => {}); await sleep(400); }
       };
       const chip = () => text(page, '#quickChips [data-pop=salary] .chip-label');
       for (const [hash, typed, label, cur, amount] of [

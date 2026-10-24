@@ -1146,7 +1146,10 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
     if (labelW > 0) {
       const cap = el('div', 'ms-hist__cap');
       cap.style.width = labelW + 'px';
-      cap.append(el('span', 'ms-hist__title', medianCaption(pay)), el('span', 'ms-hist__sub', capMedian(pay, med)));
+      // BN-4 (fix-app-6): "Median posted pay $28.50/hour" is wider than a narrow label column: then "Median $28.50/hour".
+      const sub = capMedian(pay, med), long = medianCaption(pay);
+      const title = textWidth(`${long}${sub}`, `600 12px ${curFam}`) > labelW - 16 - 4 ? 'Median ' : long;
+      cap.append(el('span', 'ms-hist__title', title), el('span', 'ms-hist__sub', sub));
       cap.title = medianTitle(pay);
       hist.append(cap);
     }

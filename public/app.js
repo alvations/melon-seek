@@ -3207,7 +3207,7 @@ function renderKpis() {
   const total = data.jobs.length;
   const pct = st.n ? Math.round((st.withSalary / st.n) * 100) : 0;
   const here = viewSpec?.l.size ? ' for the places you picked' : '';
-  const item = (strong, rest, title, cls = '') => h('span', { class: `stat ${cls}`.trim(), title }, h('strong', null, strong), rest ? ` ${rest}` : null);
+  const item = (strong, rest, title, cls = '') => h('span', { class: `stat ${cls}`.trim(), title }, h('strong', null, strong), rest ? ' ' : null, rest || null);
   const ote = st.oteOnly ? 'on-target earnings, ' : '';
   const left = st.oteLeftOut ? `; ${plural(st.oteLeftOut, 'posting')} with on-target earnings (base plus commission) left out` : '';
   const share = st.top && st.n > 1 ? st.top[1] / st.n : 0;
@@ -3226,7 +3226,7 @@ function renderKpis() {
     item(st.n.toLocaleString(), st.n === total ? (st.n === 1 ? 'role' : 'roles') : `of ${total.toLocaleString()} roles`, null, 'stat--count'),
     // P-6: with a Location filter, the share counts pay that applies there ("22% show pay for London").
     st.n ? item(capWhole ? `${capWhole.whole}%` : `${pct}%`, capWhole ? `of all ${capWhole.total.toLocaleString()} show pay`
-      : capNote?.salariedFirst ? `of the ${capNote.kept.toLocaleString()} kept show pay` : onePlace ? `show pay for ${onePlace}` : 'show pay',
+      : capNote?.salariedFirst ? `of the ${capNote.kept.toLocaleString()} kept show pay` : onePlace ? tightWords([`show pay for ${onePlace}`, 'show pay']) : 'show pay',
       `${st.withSalary.toLocaleString()} of ${st.n.toLocaleString()} postings include a pay range${here}${here ? ' (pay posted only for other places or another country is not counted)' : ''}${capNote ? `. ${capNote.tip}` : ''}`, 'stat--share') : null,
     // BP-13: it says which pay the median is of; the chart's median uses the same set.
     // MR-39: with pay in several currencies, the median is the main one's and says where ("base pay median (US)").
@@ -3265,6 +3265,7 @@ function renderKpis() {
   statsNotes = details;
   chart?.setNotes?.(fold ? details : []);
   renderNote(el, { line: [...line.flatMap((p, i) => (i ? [h('span', { class: 'stat-sep', 'aria-hidden': 'true' }, '·'), p] : [p])), noPay], details: fold ? [] : details, key: 'stats-line' });
+  requestAnimationFrame(fitStatsLine);
 }
 let statsNotes = []; // UX-57: the stats line's facts, for the chart notes
 
@@ -3280,10 +3281,45 @@ function medianUnitTip(st) {
  */
 function medianItem(st, basisShort, title) {
   const v = medianText(st.hm);
+  // [long, short]: the short words show only where the line would wrap (fitStatsLine).
   const words = st.oteOnly ? ['median on-target earnings'] : st.fullTime ? ['median, a year if full-time', 'median if full-time']
-    : st.notBaseOnly ? ['posted pay median'] : ['base pay median'];
-  const rest = words.map((w) => `${w}${basisShort}`);
-  return h('span', { class: 'stat stat--median', title }, h('strong', null, v), ' ', rest.length > 1 ? fitOneLine(h('span'), rest) : rest[0]);
+    : st.notBaseOnly ? ['posted pay median', 'median'] : ['base pay median'];
+  return h('span', { class: 'stat stat--median', title }, h('strong', null, v), ' ', tightWords(words.map((w) => `${w}${basisShort}`)));
+}
+/** A stats-line phrase with a shorter form for a line that would wrap: [long] or [long, short] -> text, or a span fitStatsLine fits. */
+function tightWords([long, short]) {
+  return short ? h('span', { class: 'stat-fit', dataset: { long, short } }, long) : long;
+}
+/**
+ * BN-4 (fix-app-6): the stats line is one line. Where it would wrap (a desktop layout from 861 px with a long filter, e.g.
+ * "10 of 4,851 roles · 100% show pay for these places · $28.50/hour posted pay median" at 932 px), the median's words
+ * go short first ("$28.50/hour median"), then the pay share's ("100% show pay"). The long words stay in their tips.
+ */
+let statsRo = null;
+function fitStatsLine() {
+  const el = $('#statsLine');
+  const line = el?.querySelector('.ms-note__line');
+  if (!line) return;
+  if (!statsRo && typeof ResizeObserver === 'function') {
+    let w = -1;
+    statsRo = new ResizeObserver(() => { const now = el.getBoundingClientRect().width; if (Math.abs(now - w) >= 0.5) { w = now; fitStatsLine(); } });
+    statsRo.observe(el);
+  }
+  const lines = () => {
+    const mids = [];
+    for (const x of line.getClientRects()) { if (x.width < 0.5) continue; const m = Math.round(x.top + x.height / 2); if (!mids.some((t) => Math.abs(t - m) < 6)) mids.push(m); }
+    const r = document.createRange();
+    r.selectNodeContents(line);
+    for (const x of r.getClientRects()) { if (x.width < 0.5) continue; const m = Math.round(x.top + x.height / 2); if (!mids.some((t) => Math.abs(t - m) < 6)) mids.push(m); }
+    return mids.length;
+  };
+  // The text itself changes (as note.js fitLine does), so what the line says is what it shows.
+  const set = (sel, which) => { for (const x of line.querySelectorAll(`${sel} .stat-fit`)) if (x.textContent !== x.dataset[which]) x.textContent = x.dataset[which]; };
+  set('.stat', 'long');
+  if (!line.getClientRects().length || lines() <= 1) return;
+  set('.stat--median', 'short');
+  if (lines() <= 1) return;
+  set('.stat--share', 'short');
 }
 
 /** I-2: one line on what the site is ("Pay, and what's left after tax and rent, for 8 tech companies' open roles"). */
