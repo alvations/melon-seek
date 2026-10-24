@@ -314,5 +314,11 @@ test('UX-50 coloured by company, the card names the company first, beside its do
   const src = fs.readFileSync(new URL('../public/app.js', import.meta.url), 'utf8');
   const meta = src.slice(src.indexOf("h('div', { class: 'card-meta', id: `${did}-m` },"), src.indexOf("h('div', { class: 'card-foot', id: `${did}-f` },"));
   assert.ok(meta.length > 100, 'the card meta block');
-  assert.match(meta, /colorBy\(\) === 'brand' \? `\$\{brandKey\(job\)\} · \$\{deptKey\(job\)\}` : deptKey\(job\)/);
+  // fix-ui-6 (B-1) moved the meta line's items into cardMetaItems(job, colorBy(), …), which names the coloured key first
+  // under every grouping: the company here, the level and the place too.
+  assert.match(meta, /\.\.\.cardMetaItems\(job, dim, loc, remoteTag\)/);
+  assert.match(src, /const dim = colorBy\(\);/);
+  const items = src.slice(src.indexOf('function cardMetaItems('), src.indexOf('/* ---------------------------------------------------------------- drawer */'));
+  assert.match(items, /dim === 'brand' \? brandKey\(job\)/);
+  assert.match(items, /`\$\{lead\} · \$\{deptKey\(job\)\}`/);
 });
