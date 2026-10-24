@@ -1,7 +1,7 @@
 # Process log: fix-app-6 (front-end engineer, fix wave 6)
 
 ## State
-- 2026-10-24 06:40 UTC: **done on the lead's 94d65d0; npm test at the last SHA, then the SHA to the lead.** Resumed after the container
+- 2026-10-24 06:50 UTC: **done on the lead's 94d65d0 and sent to the lead.** npm test CI-like at 0b38b12: 1,359 tests, 1,349 pass, 0 fail, 10 skipped. Resumed after the container
   restart at about 00:23 UTC (every background process was lost; the worktree and commits were intact). Base: db38a30 (detached; later
   than e800c43).
 - Findings (persona reviews, wave 2, on e800c43's build; BN-3 to BN-8 and BN-1's country-wide counts from the lead by message):
@@ -20,7 +20,7 @@
   the 3 failures fixed and re-run: 10/10).
 - Rebases: 7ea8be8..118fd28 on db38a30 (branch fix-app-6-pre-rebase) -> e77cd41..55a53be (branch fix-app-6-pre-rebase2) -> 94d65d0..HEAD; conflicts only in the imports of public/app.js (both kept), scripts/e2e.js (all registrations kept) and CONTRACT.md (all sections). On e77cd41: d928b03's build, e2e (mine, fix-salary-6's and the related groups) 226/227 passed, 0 failed, 1 skipped. 29df67d: V-44's line is short on a short map (fix-ui-6's Razr cover item).
 - On 94d65d0 (build of 29df67d, 26ad524's app.js and 3ce7bb0's map.js and viz.css copied in): npm test at 29df67d 1,359 tests, 1,349 pass, 0 fail, 10 skipped; e2e (mine, fix-ui-6's, fix-juice-6's, fix-salary-6's and the related groups) 369/396, 25 failed: fix-ui-6's B-2 at 23 sizes (my chip was replaced when the posting's text loaded, losing B-2's spacing: 26ad524), the Razr cover's V-44 line (3ce7bb0) and fix-juice-6's J-4 (a tooltip read too early); the 28 re-run: 28/28.
-- Next: CI-like npm test at the last SHA through heavy.sh, then send the SHA to the lead.
+- Next: none in this lane unless the lead sends more; the lead's batch gate runs the full e2e.
 - Not committed: the data links data/snapshots and data/beta/snapshots, and the node_modules link.
 
 ## 1. Brief
