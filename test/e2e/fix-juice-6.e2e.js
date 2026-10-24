@@ -307,7 +307,11 @@ export function registerFixJuice6Tests(suite) {
       for (const slug of ['google', 'amazon', 'microsoft']) {
         if (slug !== 'google') { await page.goto(`${st.beta}/#c=${slug}`); await ready(page); }
         await page.waitForSelector('#chartHost .ms-bin', { timeout: 60000 }).catch(() => {});
-        chip = await page.locator('#chartHost .ms-bin--overflow').first().evaluate((e) => ({ text: e.textContent.trim(), aria: e.getAttribute('aria-label') })).catch(() => null);
+        // fix-data-6: the visible chips only. A hash-only goto keeps the previous board's chart in the page for a moment
+        // (its chips laid out at 0×0), so the first chip in the DOM could be that board's ("›1" from Microsoft) while the
+        // hover below lands on Google's.
+        await page.locator('#chartHost .ms-bin--overflow:visible').first().waitFor({ timeout: 15000 }).catch(() => {});
+        chip = await page.locator('#chartHost .ms-bin--overflow:visible').first().evaluate((e) => ({ text: e.textContent.trim(), aria: e.getAttribute('aria-label') })).catch(() => null);
         if (chip) break;
       }
       if (!chip) ctx.notes.push('fix-juice-6 [J-4]: no edge chip on Google, Amazon or Microsoft in this build; the chip words were not checked');
@@ -316,7 +320,7 @@ export function registerFixJuice6Tests(suite) {
         if (!new RegExp(`past the ${side} edge of the chart`).test(chip.aria || '')) bad.push(`the "${chip.text}" chip's accessible name: "${chip.aria}"`);
         if (d.desktop) {
           // Its tip (the chart's own, on hover) says the same.
-          await page.locator('#chartHost .ms-bin--overflow').first().hover();
+          await page.locator('#chartHost .ms-bin--overflow:visible').first().hover();
           await sleep(300);
           const tip = await page.locator('.ms-viz-tip:not([hidden])').first().textContent().catch(() => '');
           if (!new RegExp(`paid (above|below) .*, past the ${side} edge of the chart`).test(tip || '')) bad.push(`the "${chip.text}" chip's tip: "${(tip || '').slice(0, 160)}"`);
