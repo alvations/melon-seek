@@ -132,3 +132,81 @@ asks for the desktop site by default, so it sends a Mac user agent and has touch
 
 Width still decides what it decides today (the top bar's give-way ladder, the narrow chart rows under 520 px). The
 class adds only the vertical budget.
+
+**How to set the class.** By the visible height, read once the page has laid out and again on a width change or a
+rotation, never on a height change alone (the keyboard: bindKeyboardInsets already tells it apart), as a root
+attribute, e.g. `<html data-fit="compact">`. A `max-height` media query gives the same answer in Chromium and in the
+tests; the attribute is the safer choice for iOS, whose browsers report the large viewport to some CSS and the small
+one to `innerHeight`. Either way the e2e tests set the viewport to the sizes above.
+
+### 3.2 The patch for test/e2e/phone-sizes.mjs
+
+[patches/ux-density-6-phone-sizes.diff](patches/ux-density-6-phone-sizes.diff) (`git apply` checks clean on
+0c6990e). For fix-ui-6 to apply:
+- `VISIBLE` (21 entries): every phone above under its bars, the test sizes of 3.1. iPhones carry Chrome on iOS's
+  user agent (`CriOS`), except the mini's Safari size and the Pro Max with Safari's bars collapsed (440x844).
+- `TABLETS` (10 entries): the five iPads, portrait and landscape, with iPadOS Safari's Mac user agent, touch and 2x.
+- `ALL_SIZES` = PHONES + POSTURES + VISIBLE + TABLETS: 52 entries (21 today).
+- test/beta-coverage.test.js: the size test now wants at least 52 sizes, a height of 260 or more (the razr cover
+  screen under its bars is 275), a user agent matching `iPhone|Android|Macintosh`, and names the mini under Chrome's
+  bars (375x625), the largest iPhone (440x757) and iPads in both orientations. It passes on the patched files
+  (`node --test --test-name-pattern=phone-sizes test/beta-coverage.test.js`: 1 pass).
+- **Cost:** every e2e file that loops over ALL_SIZES (phone-matrix, fix-phone-text, fix-phone-controls,
+  beta-coverage and seven more) runs about 2.5 times as many cases. If that is too slow for the gate, keep the new
+  lists out of ALL_SIZES and loop the density tests (3.3) over `[...VISIBLE, ...TABLETS]`; the lead decides.
+
+### 3.3 The density spec
+
+The rule in one line: **the first screen of every phone shows the first card's title and pay, and at least two or
+three whole chart rows; everything else is one tap away (the caption's Details, the sheet, the row's tap), and
+nothing is dropped.** Bigger classes add back, in this order: the circles, the strip, the notes line, the one-row top
+bar, three cards, then the desktop's side-by-side list.
+
+| Element (top to bottom) | Short ≤ 500 | Compact 501–699 | Tall 700–959 | Tablet portrait ≥ 960 | Wide > 860 | Check |
+|---|---|---|---|---|---|---|
+| Header pills: Beta, company, freshness, theme | as today (fix-phone-sizes' give-way ladder) | as today: one row, name whole | as today | **one row with the search and the views** (from 640 px wide, so the Fold open too) | as today | D-11 |
+| Search, Chart / Map / Insights, quick bar | as today | as today | as today | (in the top bar's one row) | as today | D-13 |
+| Tagline | gone (today) | **first visit only** | **first visit only** | **first visit only** | as today, beside the controls | D-3 |
+| Stats line | gone (today) | **Chart view: gone** (the caption has the median); Map view: as today | same as compact | Chart view: **count · share** (+ Details), beside Clusters / Ranges; Map: as today | Chart view: **count · share**; Map: as today | D-2 |
+| Clusters / Ranges and Group | as today | **as today, one row, two controls** (not merged, see 3.4) | as today | as today | as today | D-13 |
+| Chart caption | unit + median | **unit + median + the chart's one Details** | unit + median | unit + median (as today) | "Median base pay $214K" over the strip (today) | D-2, D-8 |
+| Histogram strip | folded | **folded: opens with the caption's Details** | shown | shown | shown | D-4 |
+| Ranges' legend line ("Striped … · Colour: department") | folded | **folded into Details** | shown | shown | shown | D-4 |
+| Chart rows | as compact | **52 px rows: the label line (name · N roles · median) and the band, the median tick and a thin line from the lowest to the highest pay on the axis; no circles** | today's rows: circles with their counts | today's (wide) rows | today's | D-5 |
+| Whole rows on the first screen (Apple) | 0 is allowed (cover screen: a glance at the header and one card) | **≥ 3 from 600 px tall, ≥ 2 below** | **≥ 3** | **≥ 6** | ≥ 5 | D-6 |
+| "›N" edge chips | kept | **kept**, at the line's end | kept | kept | kept | D-13 |
+| With / without pay line | folded | **folded: the first line of the caption's Details** | shown | shown | shown | D-7 |
+| Sheet peek | fix-ui-6's 104 (cover), 64 (landscape) | **grip 20 + count row 48 + the first card down to its pay + 8 (measured, ~130 px)**; the Juice line shows from half up; Map view too | same rule (~130–150 px) | **three whole cards** (~40 % of the height) | no sheet: the list column | D-1 |
+| Few roles (a filter leaves ≤ 20) | | fix-ui-6's B-10: the peek rises into the room the rows leave | same | same | | D-1, D-6 |
+
+**The checks**, each a test fix-ui-6 can write (sizes from 3.1, the four boards of the audit, dark and light):
+
+- **D-1 A card on the first screen.** At every phone-layout size in VISIBLE and TABLETS (portrait), in Chart and Map
+  view, on load and after a filter that leaves few roles: the first card's `.card-title` (all its lines) and its
+  `.card-pay .sal-pill` are inside the viewport and not covered (`elementFromPoint` at their centres lands in them).
+  Short sizes: Chart view only. Tablet portrait: the third card is whole too.
+- **D-2 The median once.** In Chart view, exactly one visible element on the first screen states the view's median
+  figure (text matching /median/i with a money figure); it is the chart's caption at every size. In Map view it is the
+  stats line.
+- **D-3 Tagline.** With the site's "visited" flag in localStorage before load, `#tagline` is not visible at any
+  phone-layout size; without it, it is visible and one line (fix-phone-text's guard). Desktop: unchanged. Storage that
+  throws counts as a first visit.
+- **D-4 Strip and Ranges legend.** Compact and short: `.ms-chart__hist` and the Ranges legend line are not visible
+  until the caption's Details is opened, then visible. Tall and up: visible on load.
+- **D-5 Compact rows.** Compact and short: no `.ms-bin` other than the edge chips is visible; every row with pay has a
+  visible band, median tick and range line; a row is at most 52 px tall. Tall and up: circles as today.
+- **D-6 Rows on the first screen.** Whole `.ms-crow` between the axis and the sheet's top, on Apple: the minimums in the
+  table (375x625: ≥ 3; 375x544: ≥ 2; 440x757: ≥ 3; 744x1023: ≥ 6).
+- **D-7 The notes line.** Compact: `.ms-chart__foot` is not visible, and the first item of the caption's Details has
+  both numbers ("2,781 … with pay", "2,070 without"). Tall and up: visible, one line.
+- **D-8 One Details.** Compact, Chart view: exactly one visible "Details" control in the toolbar and the chart.
+- **D-9 Lines above the first card.** Compact: at most 7 text lines outside the chart's rows sit above the first
+  card's title (top bar 2, quick bar 1, Clusters / Ranges 1, caption 1, axis 1, the sheet's count 1). 375x625 on Apple
+  today: 10.
+- **D-11 Tablet portrait and the Fold open.** `.topbar` is one row (≤ 64 px tall) from 640 px wide in the phone layout.
+- **D-12 The Duo stacked under its bars** (720x1010, hinge at y 460–494, CDP `displayFeature`): nothing on the hinge,
+  at least two whole cards on the bottom screen and two whole rows on the top screen.
+- **D-13 Nothing lost.** At every size: the sheet's count equals the board's; each row's accessible name (its count and
+  median) and each edge chip's count are the same as on today's build; the toolbar, quick bar and top bar show no
+  control that today's build does not, and the count of visible controls there is never higher.
+- **D-14 Nothing cut.** fix-phone-text's guard (one line from 360 px up, two below) passes at every new size.

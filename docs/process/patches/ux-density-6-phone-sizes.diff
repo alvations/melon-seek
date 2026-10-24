@@ -1,0 +1,109 @@
+--- a/test/e2e/phone-sizes.mjs
++++ b/test/e2e/phone-sizes.mjs
+@@ -3,10 +3,17 @@
+ // the platform (its user agent and engine family). Foldables and dual-screen devices are listed per posture.
+ // Used by test/e2e/webkit/phone-smoke.mjs, test/e2e/phone-matrix.e2e.js and the QA templates; fix lanes and QA
+ // passes test their phone changes on every entry.
++// The user, 2026-10-24: "make sure that the amount of information scales as per phone iPad sizes from iPhone mini up to
++// like iPhone 18 pro max or even iPhone Duo". PHONES and POSTURES are whole screens; VISIBLE is what the page gets
++// under the browser's bars, and TABLETS are the iPads (docs/process/ux-density-6.md, "The size matrix").
+ const IOS_UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.6 Mobile/15E148 Safari/604.1';
++const CRIOS_UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/141.0.7390.96 Mobile/15E148 Safari/604.1';
++// iPadOS Safari asks for the desktop site by default: a Mac user agent, with touch.
++const IPAD_UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.6 Safari/605.1.15';
+ const ANDROID_UA = (model) => `Mozilla/5.0 (Linux; Android 15; ${model}) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Mobile Safari/537.36`;
+ 
+-const ios = (name, width, height, dpr) => ({ name, width, height, dpr, platform: 'ios', ua: IOS_UA });
++const ios = (name, width, height, dpr, ua = IOS_UA) => ({ name, width, height, dpr, platform: 'ios', ua });
++const ipad = (name, width, height) => ({ name, width, height, dpr: 2, platform: 'ipados', ua: IPAD_UA });
+ const android = (name, width, height, dpr, model) => ({ name, width, height, dpr, platform: 'android', ua: ANDROID_UA(model) });
+ 
+ /** Portrait phones, narrowest first. */
+@@ -40,7 +47,56 @@
+   android('Motorola razr (inner, landscape)', 1005, 412, 2.625, 'motorola razr 50 ultra'),
+ ]);
+ 
+-export const ALL_SIZES = Object.freeze([...PHONES, ...POSTURES]);
++/**
++ * What the page gets under the browser's bars, portrait (ux-density-6, "The size matrix"). On this site the page never
++ * scrolls on a phone (the results sheet drags), so the bars stay shown and these are the sizes people see. iPhones:
++ * Chrome on iOS with its bars shown, the smallest page there (measured from the user's iPhone 13 mini: 375x625; Safari's
++ * bottom bar leaves 4 px more). Android: Chrome with a 56 px toolbar, a 24 px status bar and a 24 px gesture bar
++ * (estimates). The iPhone 18 Pro Max is assumed to be the 17 Pro Max until Apple publishes its numbers.
++ */
++export const VISIBLE = Object.freeze([
++  android('Galaxy Fold (folded), Chrome bars shown', 280, 549, 3, 'SM-F900U'),
++  ios('iPhone SE (1st gen), Chrome bars shown', 320, 445, 2, CRIOS_UA),
++  android('Galaxy Z Fold 5 (cover), Chrome bars shown', 344, 778, 2.625, 'SM-F946U'),
++  android('Motorola razr (cover screen), Chrome bars shown', 352, 275, 3, 'motorola razr 40 ultra'),
++  android('Galaxy S8, Chrome bars shown', 360, 612, 4, 'SM-G950U'),
++  android('Galaxy Z Flip 5, Chrome bars shown', 360, 776, 3, 'SM-F731U'),
++  ios('iPhone SE (3rd gen), Chrome bars shown', 375, 544, 2, CRIOS_UA),
++  ios('iPhone 13 mini, Chrome bars shown', 375, 625, 3, CRIOS_UA),        // the user's phone, 2026-10-24
++  ios('iPhone 13 mini, Safari bars shown', 375, 629, 3),
++  ios('iPhone 13 / 14, Chrome bars shown', 390, 660, 3, CRIOS_UA),
++  ios('iPhone 15 / 16, Chrome bars shown', 393, 656, 3, CRIOS_UA),
++  ios('iPhone 16 Pro / 17, Chrome bars shown', 402, 675, 3, CRIOS_UA),
++  android('Pixel 8, Chrome bars shown', 412, 811, 2.625, 'Pixel 8'),
++  android('Motorola razr (inner), Chrome bars shown', 412, 901, 2.625, 'motorola razr 50 ultra'),
++  ios('iPhone 15 Pro Max / 16 Plus, Chrome bars shown', 430, 736, 3, CRIOS_UA),
++  ios('iPhone 16 / 17 / 18 Pro Max, Chrome bars shown', 440, 757, 3, CRIOS_UA),
++  ios('iPhone 16 / 17 / 18 Pro Max, Safari bars collapsed', 440, 844, 3),
++  android('Surface Duo (one screen), bars shown', 540, 616, 2.5, 'Surface Duo'),
++  android('Galaxy Z Fold 5 (open), Chrome bars shown', 690, 725, 2.625, 'SM-F946U'),
++  // The stacked Duo under its bars: the top screen keeps 460 px, the hinge is at y 460–494, the bottom screen 516 px.
++  android('Surface Duo (stacked), bars shown', 720, 1010, 2.5, 'Surface Duo'),
++  android('Surface Duo (spanned), bars shown', 1114, 616, 2.5, 'Surface Duo'),
++]);
++
++/**
++ * iPads in Safari, portrait and landscape, under its status bar, toolbar and tab bar (110 px; iPadOS 18's default
++ * "Separate" tabs). Portrait iPads up to 834 px wide get the phone layout (≤ 860 px), the 12.9" and 13" the desktop.
++ */
++export const TABLETS = Object.freeze([
++  ipad('iPad mini (portrait)', 744, 1023),
++  ipad('iPad mini (landscape)', 1133, 634),
++  ipad('iPad / iPad Air 11" (portrait)', 820, 1070),
++  ipad('iPad / iPad Air 11" (landscape)', 1180, 710),
++  ipad('iPad Pro 11" (portrait)', 834, 1084),
++  ipad('iPad Pro 11" (landscape)', 1194, 724),
++  ipad('iPad Pro 12.9" / iPad Air 13" (portrait)', 1024, 1256),
++  ipad('iPad Pro 12.9" / iPad Air 13" (landscape)', 1366, 914),
++  ipad('iPad Pro 13" (M4, portrait)', 1032, 1266),
++  ipad('iPad Pro 13" (M4, landscape)', 1376, 922),
++]);
++
++export const ALL_SIZES = Object.freeze([...PHONES, ...POSTURES, ...VISIBLE, ...TABLETS]);
+ 
+ /** Playwright context options for one entry (isMobile is Chromium-only; WebKit takes the rest). */
+ export function contextFor(d, engine = 'chromium') {
+--- a/test/beta-coverage.test.js
++++ b/test/beta-coverage.test.js
+@@ -92,20 +92,23 @@
+   assert.deepEqual(m[1].split(',').sort(), BETA, 'the WebKit phone smoke boards');
+ });
+ 
+-test('beta-coverage: phone-sizes.mjs lists 21 distinct sizes, each a touch phone with a viewport, DPR and user agent', async () => {
++test('beta-coverage: phone-sizes.mjs lists 52 distinct sizes (whole screens, the page under the browser bars, iPads), each a touch screen with a viewport, DPR and user agent', async () => {
+   const { ALL_SIZES, contextFor } = await import(pathToFileURL(path.join(E2E, 'phone-sizes.mjs')).href);
+-  assert.ok(ALL_SIZES.length >= 19, `${ALL_SIZES.length} sizes`);
++  assert.ok(ALL_SIZES.length >= 52, `${ALL_SIZES.length} sizes`);
+   const keys = ALL_SIZES.map((d) => `${d.name} ${d.width}x${d.height}`);
+   assert.equal(new Set(keys).size, keys.length, 'sizes are distinct');
+   assert.equal(new Set(ALL_SIZES.map((d) => d.name)).size, ALL_SIZES.length, 'names are distinct (tests are named by them)');
+   for (const d of ALL_SIZES) {
+     const o = contextFor(d);
+-    assert.ok(o.viewport.width >= 280 && o.viewport.height >= 300 && o.deviceScaleFactor >= 1 && o.hasTouch && o.isMobile, d.name);
+-    assert.match(o.userAgent, /iPhone|Android/, d.name);
++    assert.ok(o.viewport.width >= 280 && o.viewport.height >= 260 && o.deviceScaleFactor >= 1 && o.hasTouch && o.isMobile, d.name);
++    assert.match(o.userAgent, /iPhone|Android|Macintosh/, d.name); // iPadOS Safari sends a Mac user agent
+   }
+   assert.ok(ALL_SIZES.some((d) => d.width === 280), 'the folded Fold (280 px)');
+   assert.ok(ALL_SIZES.some((d) => d.width === 352 && d.height === 355), 'the Razr cover screen');
+   assert.ok(ALL_SIZES.some((d) => d.width > d.height), 'a landscape posture');
++  assert.ok(ALL_SIZES.some((d) => d.width === 375 && d.height === 625), 'the iPhone 13 mini under Chrome\'s bars (the user\'s, 2026-10-24)');
++  assert.ok(ALL_SIZES.some((d) => d.width === 440 && d.height === 757), 'the largest iPhone under its bars');
++  assert.ok(ALL_SIZES.some((d) => d.platform === 'ipados' && d.width < d.height) && ALL_SIZES.some((d) => d.platform === 'ipados' && d.width > d.height), 'iPads, portrait and landscape');
+ });
+ 
+ /** e2e files whose tests loop over every phone size (ALL_SIZES, or PHONES with POSTURES). */
