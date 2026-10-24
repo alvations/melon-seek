@@ -133,6 +133,7 @@ persona-beta-2-18-24, -25-34, -35-44, -45-54, -55-plus (logs on the branch, 5502
 - fix-data-6 final: G-1 359 towns at their place (2,206 postings, lat/lon only; Amazon centre places 8,263 -> 6,001); G-2 AL -> Albania; G-3 Monterrey N.L. Mexico, Bayshore -> Ottawa; G-4 Bogotá; K-1 0% targets not a bonus (Google 2,512 -> 2,462 mentions), 2,455 stated targets shown; P-1 532 cards name the pay places; P-2 16,414 headings exact; P-3 2,442 hourly cards lead with the posted rate; P-4 112 postings gain places; R-1/R-3 1,839 change family, Amazon no-family 2,332 -> 881, new family 'Warehouse, delivery & store operations' 1,768; R-2 126 Lead Associates Senior -> Mid; C-1 comparables spread (Entry, II, Senior, Principal x2); T-19 skips run. Nothing dropped vs e77cd41.
 - Follow-ups (backlog): 'Buenos Aires City', 'Ho Chi Minh', 'Cracow' at country centre; Yokohama-shi/Chiba-shi duplicates; Apple 'US-Lead' titles Senior; Japanese Amazon titles no family; Monroe/Hamilton Twp NJ at state centre.
 - 10:0x gate 1 on 505a4df done: npm 1,359/0 fail; build ok; e2e 1,193 pass, 3 fail (UX-17 p390 google chip -1 px -> fix-ui-6 standalone fix; Beta coverage predates BN-6 -> 5de0efc, 32/32; J-4 test race -> fixed in fix-data-6's commits). Picked fix-data-6 f13ebd6..7fbb17e (21) clean -> a2b224e. Waiting on fix-ui-6's UX-17 SHA, then gate 2.
+- 10:03 gate 2 started on 5de0efc (SHARDS=2, machine quiet, load 1.7). UX-17 fix from fix-ui-6 will be added with a targeted run + npm test.
 
-### Agents at 2026-10-24T10:02:39Z
-agent fix-ui-6 add67b9453342f4ba transcript-age=0min head=5e2c252
+### Agents at 2026-10-24T10:13:46Z
+agent fix-ui-6 add67b9453342f4ba transcript-age=2min head=5e2c252
