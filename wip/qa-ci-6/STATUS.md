@@ -2,11 +2,12 @@
 
 - Worktree: `/home/user/melon-seek/.claude/worktrees/agent-a6d5736b954b39411`
 - Base (on claude/stoic-ride-54ddxp): `a0763eceb553a3da77408fd81acf018174302bbc`
-- Head: `b9baf8d3ae85333062a76da505ee7f3d4933ad19`
+- Head: `a5bdbc9f088c2d75ce874a1b19efacc65d9809e1`
 - Restore: `bash scripts/cycle/restore-wip.sh qa-ci-6 <new worktree dir>`
 
 ## Commits since the base
 ```
+a5bdbc9 qa-ci-6: on f13ebd6: D-41 counts a place's state-wide roles (BN-1); V-43 reads pins in any currency (fix-salary-6's rows per country)
 b9baf8d qa-ci-6: log verification table and known gaps
 e3b9c56 qa-ci-6: D-50 and MR-34 name the case they picked in the run's notes; log decisions and steps
 2c3621d WIP qa-ci-6: Badge swap picks its cluster and card by property; CI pins Playwright 1.56.1 (Chromium 141, the local gate's)
@@ -86,21 +87,6 @@ ed32bf1 fix-salary-6: norm-14; golden re-baselined (0 of 300 hashes changed) and
 ## Uncommitted and new files
 ```
  M docs/process/qa-ci-6.md
- M docs/screenshots/chart.png
- M docs/screenshots/dark-drawer.png
- M docs/screenshots/dark.png
- M docs/screenshots/drawer-juice.png
- M docs/screenshots/drawer.png
- M docs/screenshots/fix-pay-at-place/e2e-card-1114x720.png
- M docs/screenshots/fix-pay-at-place/e2e-card-280x653.png
- M docs/screenshots/fix-pay-at-place/e2e-card-352x355.png
- M docs/screenshots/fix-pay-at-place/e2e-card-375x812.png
- M docs/screenshots/fix-pay-at-place/e2e-card-720x1114.png
- M docs/screenshots/insights.png
- M docs/screenshots/map-juice.png
- M docs/screenshots/map.png
- M docs/screenshots/mobile.png
- M docs/screenshots/qa-mobile/e2e-landscape-map.png
 ```
 
 ## Left out (not in untracked.tgz)

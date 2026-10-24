@@ -1,7 +1,7 @@
 From 6d82ea420e0ce4820838285fe45240bd9061f179 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 24 Oct 2026 06:43:41 +0000
-Subject: [PATCH 72/72] WIP fix-ui-6: phase 2: the rows' medians in their pay's
+Subject: [PATCH 72/73] WIP fix-ui-6: phase 2: the rows' medians in their pay's
  currency (fix-app-6's BN-2 rule: PLN for Warsaw, CA$ for Vancouver); its
  test; UX-40's row form accepts the currencies
 

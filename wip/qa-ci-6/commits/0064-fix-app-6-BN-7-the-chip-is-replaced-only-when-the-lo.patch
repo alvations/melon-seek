@@ -1,7 +1,7 @@
 From d5f2daa2b8aaccc4285320344e9daad20c860270 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 24 Oct 2026 06:09:46 +0000
-Subject: [PATCH 64/74] fix-app-6: BN-7 the chip is replaced only when the
+Subject: [PATCH 64/75] fix-app-6: BN-7 the chip is replaced only when the
  loaded posting names another level, and keeps B-2's spacing (fitMetaLine)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

@@ -1,7 +1,7 @@
 From 7dcda9d61af53ba308403a947d4e80c0552580bf Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 24 Oct 2026 04:40:45 +0000
-Subject: [PATCH 25/74] fix-ui-6: B-9 keeps a saved search with new roles in
+Subject: [PATCH 25/75] fix-ui-6: B-9 keeps a saved search with new roles in
  view (M-28's five plain ones leave the company centred); B-11's line at 12
  words; the chart scrolls rows into view under its axis (A-8 at 280 px)
 
