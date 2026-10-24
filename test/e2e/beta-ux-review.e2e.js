@@ -133,18 +133,32 @@ export function registerBetaUxReviewTests(suite) {
         const r = await page.evaluate(() => {
           const out = [];
           const W = document.documentElement.clientWidth;
+          // fix-ui-6 (2026-10-24): what is on screen, inside every box that clips it. The chart's rows scroll in a box
+          // the notes line sits under; a row partly past that box's bottom has its chip clipped away, not drawn on the
+          // line (Google at p390: "‹1" at y 658–676 under a box that ends at 654, measured as touching the line).
+          const shown = (el, q) => {
+            let v = { left: q.left, right: q.right, top: q.top, bottom: q.bottom };
+            for (let e = el.parentElement; e; e = e.parentElement) {
+              if (getComputedStyle(e).overflow === 'visible') continue;
+              const b = e.getBoundingClientRect();
+              v = { left: Math.max(v.left, b.left), right: Math.min(v.right, b.right), top: Math.max(v.top, b.top), bottom: Math.min(v.bottom, b.bottom) };
+            }
+            return v.right - v.left > 0.5 && v.bottom - v.top > 0.5 ? v : null;
+          };
           const texts = [];
           const walker = document.createTreeWalker(document.querySelector('#chartHost'), NodeFilter.SHOW_TEXT);
           let n;
           while ((n = walker.nextNode())) {
             if (!n.textContent.trim() || n.parentElement.closest('.ms-bin')) continue;
             const rg = document.createRange(); rg.selectNodeContents(n);
-            for (const q of rg.getClientRects()) texts.push({ t: n.textContent.trim(), q });
+            for (const box of rg.getClientRects()) { const q = shown(n.parentElement, box); if (q) texts.push({ t: n.textContent.trim(), q }); }
           }
           for (const ch of document.querySelectorAll('.ms-bin__chip')) {
-            const r = ch.getBoundingClientRect();
-            if (!r.width) continue;
-            if (r.left < -0.5 || r.right > W + 0.5) out.push(`"${ch.textContent}" runs off the screen [${Math.round(r.left)}, ${Math.round(r.right)}] of ${W}`);
+            const all = ch.getBoundingClientRect();
+            if (!all.width) continue;
+            if (all.left < -0.5 || all.right > W + 0.5) out.push(`"${ch.textContent}" runs off the screen [${Math.round(all.left)}, ${Math.round(all.right)}] of ${W}`);
+            const r = shown(ch, all);
+            if (!r) continue;
             for (const { t, q } of texts) {
               if (q.bottom <= r.top || q.top >= r.bottom) continue;
               const gap = q.right <= r.left ? r.left - q.right : q.left >= r.right ? q.left - r.right : -1;
