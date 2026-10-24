@@ -23,6 +23,18 @@ whenever a lane starts, reports, is integrated or is retired.
 - Durable: scheduled task trig_01V9kyxPXVY6unE6Y6eE3D4Q fires the "Resume tick" prompt into this session at :32 every hour; it survives container restarts and fires again once a usage limit resets. Delete it with delete_trigger when the cycle is finished.
 - In-session: the 15-minute "Checkpoint tick" cron (7,22,37,52) runs `bash $S/tick.sh`; it dies with the session, and the resume tick recreates it.
 
+## Usage pacing (the user, 2026-10-24: "Make sure you don't get interrupted by session or token limit")
+- At most 5 agents run at once. Six or seven in parallel used up the 5-hour usage allowance in about 2 hours on 2026-10-23.
+- Paused lanes wait in this order and resume, by SendMessage, one per finished lane: qa-ci-6, then fix-juice-6.
+- After a usage-limit stop, resume only the `running` lanes. The paused ones stay paused.
+- The lead keeps its own turns short: no polling loops, small outputs.
+- The hourly resume task is the backstop if a limit still lands: it fires after the reset and resumes from this file.
+
+## Machine rules (tell every new or relaunched agent)
+- Economy: read files in parts, filter long output, don't re-run suites already run, poll every few minutes, skip the full e2e.
+- Heavy jobs (build-static.js, npm test, e2e, perf probes) go through `bash $S/heavy.sh <cmd>` (flock, 3 slots machine-wide); timeouts inside it. Load 28 on 4 CPUs at 00:58 without it.
+- Keep disk above 2 GB: agents drop stale builds; the lead retires lanes with safe-to-delete.sh.
+
 ## Paths
 - S=/tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92f3-f582ebca24d9/scratchpad (scratch; lost if the container is reclaimed)
 - Integration worktree $S/wt-int (lane lead-integration); checkpoint checkout $S/wt-ckpt; clean npm-test checkout $S/lead-clean
@@ -37,9 +49,9 @@ whenever a lane starts, reports, is integrated or is retired.
 | fix-data-6 | a08f9659d62990db4 | .claude/worktrees/agent-a08f9659d62990db4 | G-1 (norm-14), G-2 bare country codes, G-3 Bayshore store and Monterrey N.L., T-19 P-2/D-11, C-1, K-1, P-1, P-2, P-3, R-1, R-2, R-3 | running |
 | fix-app-6 | af65001c61c5e8b4f | .claude/worktrees/agent-af65001c61c5e8b4f | BN-1..BN-8 | running |
 | fix-salary-6 | a29d354058b1f01b7 | .claude/worktrees/agent-a29d354058b1f01b7 | S-1 multi-country pay (norm-14 shared with fix-data-6; salary.unlisted shown in the drawer) | running |
-| fix-juice-6 | aab76ab3a12b3f957 | .claude/worktrees/agent-aab76ab3a12b3f957 | J-1..J-5 | running |
+| fix-juice-6 | aab76ab3a12b3f957 | .claude/worktrees/agent-aab76ab3a12b3f957 | J-1..J-5 | paused |
 | ux-density-6 | a8d30680c4dcc21d7 | .claude/worktrees/agent-a8d30680c4dcc21d7 | the user's 2026-10-24 iPhone mini request: size matrix (visible viewports, Pro Max, iPads, Duo) and a per-size density spec for fix-ui-6; no product code | running |
-| qa-ci-6 | a6d5736b954b39411 | .claude/worktrees/agent-a6d5736b954b39411 | the 12 CI e2e failures and 25 skips (run 40024210372) | running |
+| qa-ci-6 | a6d5736b954b39411 | .claude/worktrees/agent-a6d5736b954b39411 | the 12 CI e2e failures and 25 skips (run 40024210372) | paused |
 
 Done and retired (do not relaunch): fix-phone-sizes, fix-qa4, fix-mr-3, qa-suite-beta, fix-viz-5 (batch 3, e800c43);
 persona-beta-2-18-24, -25-34, -35-44, -45-54, -55-plus (logs on the branch, 5502155).
@@ -93,12 +105,14 @@ persona-beta-2-18-24, -25-34, -35-44, -45-54, -55-plus (logs on the branch, 5502
 - 00:4x resume safety: lead state file $S/lead-state.md published to wip/LEAD-STATE.md by $S/tick.sh at every tick; durable hourly resume task trig_01V9kyxPXVY6unE6Y6eE3D4Q (:32); in-session cron d821b313 runs tick.sh; PLAYBOOK Checkpoints step 7 added.
 - qa-ci-6 b-1 (CI failure 3): bare ISO codes from Eightfold boards filed as US states (microsoft:1970393557021098 AL=Albania -> Alabama; also ME, MD, MT, PA, GA, MA, MN, SC, VA, NE; LA -> Los Angeles) -> fix-data-6 as G-2. Test stays red, no expected-red entry.
 - 00:4x the user (iPhone mini screenshots): 'charts and view way too noisy ... information scales per phone/iPad size from iPhone mini to iPhone 18 Pro Max or Duo'. Launched ux-density-6 (size matrix with visible viewports + iPads + Pro Max; per-size density spec with checks; mockups); fix-ui-6 phase 2 implements it. User's mini: 375x812, page gets ~375x625 with browser bars; first screen shows no job. qa-ci-6 b-2 (Bayshore Shopping Centre store as a place) and Monterrey N.L. -> fix-data-6 G-3.
+- 01:0x load 28 on 4 CPUs (5-6 builds + npm tests + e2e at once): added $S/heavy.sh (flock queue, 3 heavy slots) and told all seven agents to wrap builds, npm test, e2e and probes in it, and to drop their stale builds. Disk 91% (3.6 GB): checkpointed the nine pre-checkpoint lanes (40608b6), safe-to-delete passed for all nine, worktrees removed (amazon-meta-backend, fix4-viz, amazon-meta-data, fix5-data, qa-desktop-beta-3, methodology-review-beta-2, incremental-crawl, fix-company-scroll, qa-mobile-beta-3).
+- 01:0x the user: 'Make sure you don't get interrupted by session or token limit'. Paced: at most 5 agents at once; fix-juice-6 and qa-ci-6 paused at a safe point (resume order qa-ci-6, fix-juice-6, one per finished lane); economy rules sent to the five running. Hourly resume task stays as the backstop.
+- 01:1x fix-juice-6 paused at c4c84ab: J-1..J-5 fixed with red tests (unit 4/9, e2e 16/16 red on base); Juice/tax unit tests unchanged; next: rebuild via heavy.sh, e2e green, related groups, screenshots, send SHA.
+- 01:1x qa-ci-6 paused at 5f24b37 (2c5eecd WIP test fixes not yet run: don't integrate). Classified: (a) pinned to 10-16, tests fixed WIP: fix3-data, D-41, MR-34, UX-59, Duo strip, 21 D-50 skips, BP-10 skip; (b) b-1, b-2 (+Monterrey) sent; (c) CI-only: UI badge (CI server fetched live boards -> MELON_OFFLINE default in harness), [cuts], 280 phone-text guard, razr landscape pass on CI's data here, suspect CI Chromium 153 vs 141 here -> pin Playwright 1.56.1 in e2e.yml; open: Badge swap. Step 4 WIP: per-shard verdict, summary fails on stopped runs and over --max-skips.
 
-### Agents at 2026-10-24T00:58:35Z
-agent fix-ui-6 add67b9453342f4ba transcript-age=1min head=0596d1f
-agent fix-data-6 a08f9659d62990db4 transcript-age=3min head=29250f0
-agent fix-app-6 af65001c61c5e8b4f transcript-age=0min head=0c06bb2
-agent fix-salary-6 a29d354058b1f01b7 transcript-age=0min head=6926984
-agent fix-juice-6 aab76ab3a12b3f957 transcript-age=3min head=b8ae128
-agent ux-density-6 a8d30680c4dcc21d7 transcript-age=0min head=f52d08c
-agent qa-ci-6 a6d5736b954b39411 transcript-age=0min head=d04035a
+### Agents at 2026-10-24T01:13:30Z
+agent fix-ui-6 add67b9453342f4ba transcript-age=7min head=9d188a1
+agent fix-data-6 a08f9659d62990db4 transcript-age=3min head=5bf929d
+agent fix-app-6 af65001c61c5e8b4f transcript-age=1min head=559e6e5
+agent fix-salary-6 a29d354058b1f01b7 transcript-age=5min head=3931eb4
+agent ux-density-6 a8d30680c4dcc21d7 transcript-age=0min head=6ae424b
