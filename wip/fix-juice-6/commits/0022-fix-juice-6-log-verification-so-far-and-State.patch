@@ -1,0 +1,104 @@
+From a666f089817531b77dfd0c7b7531413513c03351 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 24 Oct 2026 04:38:49 +0000
+Subject: [PATCH 22/22] fix-juice-6: log, verification so far and State
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+---
+ docs/process/fix-juice-6.md | 69 ++++++++++++++++++++-----------------
+ 1 file changed, 37 insertions(+), 32 deletions(-)
+
+diff --git a/docs/process/fix-juice-6.md b/docs/process/fix-juice-6.md
+index 8810c77..849ceca 100644
+--- a/docs/process/fix-juice-6.md
++++ b/docs/process/fix-juice-6.md
+@@ -2,37 +2,12 @@
+ 
+ ## State
+ 
+-- **Paused by the lead at 01:05 UTC (usage limit). Head c08bdc2. Nothing runs in the background.**
+-- **Base:** origin/claude/stoic-ride-54ddxp at fd9da2f (batch 3, e800c43, plus persona wave-2 logs and wip/ checkpoints).
+-- **Done:**
+-  - e2a1ab2 prompt; 72998c6 log; b60b702 red tests and the words module; dfc3b4e the fixes for J-1 to J-5; b8ae128 log;
+-    c08bdc2 narrow forms for 280 px (measured in the app's font: every shortest name with the largest yearly amount is
+-    at most 126 px of the 128 px the Tax row has at 280), a shorter family line, two test fixes, Fix3 app [BP-2] lets
+-    the graded pay place lead, before screenshots (docs/screenshots/fix-juice-6/before-*, shrunk);
+-  - red: unit 4 of 9 fail with the base app.js/index.html/chart.js; e2e 16 of 16 fail on the base build (0/16);
+-  - npm test, CI-like, clean checkout on dfc3b4e: 1,317 tests, 1,306 pass, 1 fail, 10 skipped. The one failure,
+-    polite-spacing "a late timer never brings two requests to one host closer than the minimum interval", is a timing
+-    test at load 24; it passes alone (1/1). The Juice and tax unit tests (juice, juice-household, juice-tax-golden,
+-    refresh-tax): 66/66 pass, unchanged. test/fix-juice-6.test.js 9/9 and freshness-policy 9/9 pass on c08bdc2.
+-  - green e2e on dfc3b4e's build (stopped at test 12 of 38 by the pause, load 11 to 24): J-3 4/4 and J-2 3/4 pass;
+-    J-1 failed on 3 things now fixed in c08bdc2 (names over 128 px at 280; my own "INPS social security" tripping the
+-    "social security" check; the US row regex) and J-2 at 280 on the family line cut by 23 px (fixed in c08bdc2).
+-- **dist/ is dfc3b4e's build, not c08bdc2's.** public/features/juice-drawer.js is copied verbatim by the build (cmp
+-  checked for dist/ and dist/beta/). If public/app.js is verbatim too (`cmp public/app.js dist/beta/app.js` after
+-  rebuilding from dfc3b4e's app.js), copy the two files into dist/ and dist/beta/ instead of a 7-minute rebuild; else
+-  rebuild through the queue.
+-- **Heavy jobs go through the lead's queue:** `bash <scratch>/fj6/scripts/e2e.sh <log name> '<grep>'` (wraps
+-  `<scratch>/heavy.sh`, logs to `<scratch>/fj6/<log name>.log`); builds and npm test likewise via heavy.sh.
+-- **List:** J-1 tax row names outside the US; J-2 the household tax line; J-3 remember Monthly/Yearly; J-4 jargon tips
+-  (grades, Clusters/Ranges, the chart's ‹n/›n chips); J-5 (by message from the lead) a card's Juice grade names its place.
+-- **Next:**
+-  1. dist on c08bdc2 (copy or rebuild); serve with `node scripts/cycle/serve.mjs --dist dist --pid <scratch>/fj6/serve.pid`;
+-  2. e2e `fix-juice-6` (38 tests) green;
+-  3. related groups, one at a time: `juice|drawer|household|waterfall` (106), `Fix phone text`, `Beta mobile QA 4`;
+-     re-run S-3, S-6, PERF-1, V15, T21 alone if they fail;
+-  4. after screenshots: `node <scratch>/fj6/scripts/shots.mjs http://127.0.0.1:5361/melon-seek/beta after docs/screenshots/fix-juice-6`, shrink, commit;
+-  5. npm test in the clean checkout (`git -C <scratch>/fj6/clean checkout --detach <sha>`), 0 fail;
+-  6. fill §5, SendMessage the lead the SHA (J-1 to J-5, tests, the J-5 design note in §3.6).
++- **Head a3a1cea + this log, rebased onto e77cd41 (fix-salary-6).** Resumed 04:37 UTC after the container restart.
++- **Done:** J-1 to J-5 fixed and tested; red then green (§5); after screenshots; npm test 0 fail on a3a1cea;
++  the Juice and drawer e2e groups: 135/137, the one failure is fix3-data's, not this lane's (§6).
++- **In progress:** `Fix phone text` and `Beta mobile QA 4` (111 tests) through the queue, log `<scratch>/fj6/e2e-related2.log`.
++- **Next:** read that run, re-run any load-sensitive test alone, fill §5, SendMessage the lead the SHA.
++- Heavy jobs: `bash <scratch>/fj6/scripts/{e2e,build,npmtest}.sh <log name> ...` (each wraps `<scratch>/heavy.sh`).
+ 
+ ## 1. Brief
+ 
+@@ -118,10 +93,40 @@ and its registration in `scripts/e2e.js`, one expectation in `test/e2e/fix-app.e
+ 
+ ## 5. Verification
+ 
+-(filled as runs finish)
++- **Red, on the base (fd9da2f):**
++  - test/fix-juice-6.test.js with the base app.js, index.html and chart.js: 4 of 9 fail (J-1's app wiring, J-2's
++    household line, J-3, J-4); the 5 that pass test the new module alone.
++  - e2e `fix-juice-6: [J-` on the base build: 0/16 pass. For example J-1 at 1280: "income tax $20,000 · state or local tax
++    $11,800 · social security $4,100" for Toronto; J-2: "Family here means one earner; each person is taxed separately
++    here." (2 lines at 1280); J-3: `melon-seek.juicePeriod.v1` never written; J-4: "the "🍉 42 · Dry" badge's tip doesn't
++    start with what Dry means", Clusters/Ranges tips, the "‹2" chip "2 roles below $50K: …"; J-5: Netflix "Los Gatos, CA
++    +3" graded for Seattle, Meta "Sunnyvale, CA +1" for Austin, NVIDIA "Santa Clara, CA +5" for Austin, Microsoft "United
++    States +2" for Reston, Google "New York, NY +1" for Chicago.
++- **Green, on 38fd2dd's build (rebased onto e77cd41):** e2e `fix-juice-6` 38/38 pass in 6 minutes (load 5.5 to 7.4): J-1, J-2
++  and J-3 at 280x653, 375x812, 352x355 and 1280x800; J-4 and J-5 at 375x812 and 1280x800; "[phone]" at all 21 sizes of
++  phone-sizes.mjs plus 1280x800, Ontario, New York and London, Monthly and Yearly.
++- **Unit:** test/fix-juice-6.test.js 9/9; the Juice and tax tests (juice, juice-household, juice-tax-golden,
++  refresh-tax) and freshness-policy: 84/84, unchanged by this lane.
++- **npm test, CI-like** (clean checkout `<scratch>/fj6/clean` at a3a1cea, no data links, `MELON_BETA_SNAPSHOT_DIR=`):
++  1,337 tests, 1,327 pass, 0 fail, 10 skipped, 85 s (load 5). On dfc3b4e before the rebase (load 24): 1 fail, the
++  polite-spacing timing test, which passed alone.
++- **Related e2e groups**, `^(?!fix-juice-6).*(juice|drawer|household|waterfall)` on a3a1cea's build: 135/137 pass, 1 skipped,
++  1 fail: "fix3-data: [browser] lib/juice.js gives no Juice from another country's pay …", whose Cohere case "Head of
++  Corporate Development" now has no `juiceMissing` (§6). The updated [P-15] (Fix app) and [BP-2] (Fix3 app) pass.
++- **Screenshots** (docs/screenshots/fix-juice-6/, shrunk): `before-*` from the persona-wave build (cycle-beta7-dist,
++  e800c43), `after-*` from this lane's build: Toronto and London families at 280x653, 375x812, 352x355 and 1280x800;
++  Milan and Munich couples and a New York family at 280x653 and 1280x800; Google's Key Account Executive cards (J-5) at
++  375x812 and 1280x800.
+ 
+ ## 6. Known gaps and follow-ups
+ 
++- **For the lead, not this lane's:** fix3-data's [browser] test fails on e77cd41's server/juice.js and salary rows, which this
++  lane does not touch. Cohere's "Head of Corporate Development" (CA$ range tied to "Canada", US$ ranges tied to "United
++  States", listed in United States / Canada / London, UK / Remote) gets no Juice and no `juiceMissing`: its posted places
++  are country-only, with no city record, so attachJuice returns before saying why (DQ-27's rule), where the test expects
++  `pay-other-country` for London. Owner: fix-salary-6 or fix-data-6 (attachJuice / the test).
++- **Data, left as posted (J-4):** Microsoft's "CE" in titles and Google's "IAM" tag on a controls technician.
++
+ - The rent and living-cost lines under the waterfall ("everyday costs for two adults and two children, excluding rent")
+   still wrap to 4 lines at 280 px; they are not this lane's IDs.
+ - The `TAX_HOUSEHOLD` notes in server/juice.js ("Canada taxes each person separately; …") still say "separately"; they
+-- 
+2.43.0
+

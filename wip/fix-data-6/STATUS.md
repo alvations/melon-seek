@@ -2,11 +2,13 @@
 
 - Worktree: `/home/user/melon-seek/.claude/worktrees/agent-a08f9659d62990db4`
 - Base (on claude/stoic-ride-54ddxp): `a0763eceb553a3da77408fd81acf018174302bbc`
-- Head: `799a1648f4b0ee614511c8b82724207095c9421a`
+- Head: `af8696977c9a845f14ccab69e4bd20217984971e`
 - Restore: `bash scripts/cycle/restore-wip.sh fix-data-6 <new worktree dir>`
 
 ## Commits since the base
 ```
+af86969 fix-data-6: log state after the rebase onto e77cd41 and the restart
+733f793 fix-data-6: on top of fix-salary-6, one line at 280 and 320 px: the hourly heading ($27.98–48.99/hour, then whole dollars), the yearly line (hours in Details), P-1's line (shorter forms); fix-salary-6's harness stubs isFullTimeHourly
 799a164 fix-data-6: related e2e after P-2 and T-19: exact headings in fix-pay-at-place, a programme's per-place rates exact, Fix app [P-2] picks what the drawer shows; phone lines one line at every size
 30603a6 fix-data-6: CONTRACT and DATA_SOURCES for G-2 and G-3; log with the counts, the red and green runs
 1ebab41 fix-data-6: G-2 bare ISO codes that are US state codes are countries; G-3 dotted state abbreviations, Monterrey and Apple Bayshore
@@ -38,9 +40,6 @@ ed32bf1 fix-salary-6: norm-14; golden re-baselined (0 of 300 hashes changed) and
 
 ## Uncommitted and new files
 ```
- M public/app.js
- M test/e2e/fix-data-6.e2e.js
- M test/fix-salary-6.test.js
 ```
 
 ## Left out (not in untracked.tgz)

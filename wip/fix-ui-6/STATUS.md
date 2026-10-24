@@ -2,11 +2,12 @@
 
 - Worktree: `/home/user/melon-seek/.claude/worktrees/agent-add67b9453342f4ba`
 - Base (on claude/stoic-ride-54ddxp): `a0763eceb553a3da77408fd81acf018174302bbc`
-- Head: `18dcea446c6db5bcc69229436cb6ead29cc7c87c`
+- Head: `7e19e64dc50fcb6c0e5429de5b3ffccdd105c37f`
 - Restore: `bash scripts/cycle/restore-wip.sh fix-ui-6 <new worktree dir>`
 
 ## Commits since the base
 ```
+7e19e64 fix-ui-6: B-9 keeps a saved search with new roles in view (M-28's five plain ones leave the company centred); B-11's line at 12 words; the chart scrolls rows into view under its axis (A-8 at 280 px)
 18dcea4 fix-ui-6: log: steps, gaps, change log
 5cec245 fix-ui-6: screenshots before and after (shrunk), the log's verification
 f7d64aa fix-ui-6: B-12 the peek is measured to the first card's pay; B-7 one pan to the nearest clear offset, the map fits short boxes over 860 px
@@ -34,37 +35,7 @@ ed32bf1 fix-salary-6: norm-14; golden re-baselined (0 of 300 hashes changed) and
 
 ## Uncommitted and new files
 ```
- M docs/screenshots/fix-salary-6/dublin-card-1280x800.png
- M docs/screenshots/fix-salary-6/dublin-card-352x355.png
- M docs/screenshots/fix-salary-6/dublin-card-375x812.png
- M docs/screenshots/fix-salary-6/dublin-drawer-1280x800.png
- M docs/screenshots/fix-salary-6/dublin-drawer-352x355.png
- M docs/screenshots/fix-salary-6/dublin-drawer-375x812.png
- M docs/screenshots/fix-salary-6/milan-card-1280x800.png
- M docs/screenshots/fix-salary-6/milan-card-352x355.png
- M docs/screenshots/fix-salary-6/milan-card-375x812.png
- M docs/screenshots/fix-salary-6/milan-drawer-1280x800.png
- M docs/screenshots/fix-salary-6/milan-drawer-352x355.png
- M docs/screenshots/fix-salary-6/milan-drawer-375x812.png
- M docs/screenshots/fix-salary-6/paris-card-1280x800.png
- M docs/screenshots/fix-salary-6/paris-card-352x355.png
- M docs/screenshots/fix-salary-6/paris-card-375x812.png
- M docs/screenshots/fix-salary-6/paris-drawer-1280x800.png
- M docs/screenshots/fix-salary-6/paris-drawer-352x355.png
- M docs/screenshots/fix-salary-6/paris-drawer-375x812.png
- M docs/screenshots/qa-mobile-beta-2/e2e-M-28-360x640-with-the-keyboard-up-300-px-.png
- M docs/screenshots/qa-mobile-beta-2/e2e-M-28-iPhone-SE-Safari-375x548.png
- M docs/screenshots/qa-mobile-beta-2/e2e-M-28-landscape-844x390-with-5-saved-searches.png
- M docs/screenshots/qa-mobile-beta-2/e2e-M-28-landscape-844x390.png
- M docs/screenshots/qa-mobile-beta-2/e2e-M-29-company-menu-focus.png
- M docs/screenshots/qa-mobile-beta-2/e2e-M-30-saved-searches-loaded.png
- M docs/screenshots/qa-mobile-beta-2/e2e-M-31-empty-message-half-sheet.png
- M docs/screenshots/qa-mobile-beta/e2e-M-19-sort-while-scrolled.png
  M docs/screenshots/qa-mobile-beta/e2e-M-21-company-menu.png
- M docs/screenshots/qa-mobile-beta/e2e-M-22-paused-board.png
- M docs/screenshots/qa-mobile-beta/e2e-M-24-keyboard-location-search.png
- M docs/screenshots/qa-mobile-beta/e2e-M-27-topbar-360.png
- M docs/screenshots/qa-mobile/e2e-landscape-map.png
 ```
 
 ## Left out (not in untracked.tgz)

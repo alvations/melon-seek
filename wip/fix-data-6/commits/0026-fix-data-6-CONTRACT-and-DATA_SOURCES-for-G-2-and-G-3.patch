@@ -1,7 +1,7 @@
 From 30603a604adca3f8a638ea26b1c20a0b6610d735 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 24 Oct 2026 01:08:22 +0000
-Subject: [PATCH 26/27] fix-data-6: CONTRACT and DATA_SOURCES for G-2 and G-3;
+Subject: [PATCH 26/29] fix-data-6: CONTRACT and DATA_SOURCES for G-2 and G-3;
  log with the counts, the red and green runs
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

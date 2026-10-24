@@ -2,11 +2,12 @@
 
 - Worktree: `/home/user/melon-seek/.claude/worktrees/agent-aab76ab3a12b3f957`
 - Base (on claude/stoic-ride-54ddxp): `a0763eceb553a3da77408fd81acf018174302bbc`
-- Head: `a3a1cea8d0e448a3f4e64c832a4164df20ea43fd`
+- Head: `a666f089817531b77dfd0c7b7531413513c03351`
 - Restore: `bash scripts/cycle/restore-wip.sh fix-juice-6 <new worktree dir>`
 
 ## Commits since the base
 ```
+a666f08 fix-juice-6: log, verification so far and State
 a3a1cea fix-juice-6: after screenshots (Toronto, Milan, London, Munich, New York at 280, 375, 352 and 1280; J-5 cards), shrunk
 3fad4c8 WIP fix-juice-6: State at the pause
 e1ae15e WIP fix-juice-6: narrow forms for 280 px, two test fixes, BP-2 accepts any pay place first, before screenshots
@@ -32,31 +33,6 @@ ed32bf1 fix-salary-6: norm-14; golden re-baselined (0 of 300 hashes changed) and
 
 ## Uncommitted and new files
 ```
- M docs/process/fix-juice-6.md
- M docs/screenshots/dark-drawer.png
- M docs/screenshots/dark.png
- M docs/screenshots/drawer-juice.png
- M docs/screenshots/drawer.png
- M docs/screenshots/fix-salary-6/dublin-card-1280x800.png
- M docs/screenshots/fix-salary-6/dublin-card-352x355.png
- M docs/screenshots/fix-salary-6/dublin-card-375x812.png
- M docs/screenshots/fix-salary-6/dublin-drawer-1280x800.png
- M docs/screenshots/fix-salary-6/dublin-drawer-352x355.png
- M docs/screenshots/fix-salary-6/dublin-drawer-375x812.png
- M docs/screenshots/fix-salary-6/milan-card-1280x800.png
- M docs/screenshots/fix-salary-6/milan-card-352x355.png
- M docs/screenshots/fix-salary-6/milan-card-375x812.png
- M docs/screenshots/fix-salary-6/milan-drawer-1280x800.png
- M docs/screenshots/fix-salary-6/milan-drawer-352x355.png
- M docs/screenshots/fix-salary-6/milan-drawer-375x812.png
- M docs/screenshots/fix-salary-6/paris-card-1280x800.png
- M docs/screenshots/fix-salary-6/paris-card-352x355.png
- M docs/screenshots/fix-salary-6/paris-card-375x812.png
- M docs/screenshots/fix-salary-6/paris-drawer-1280x800.png
- M docs/screenshots/fix-salary-6/paris-drawer-352x355.png
- M docs/screenshots/fix-salary-6/paris-drawer-375x812.png
- M docs/screenshots/map-juice.png
- M docs/screenshots/map.png
 ```
 
 ## Left out (not in untracked.tgz)

@@ -1,7 +1,7 @@
 From 08512b1f2b18ec377648b4414fa5c5447a50c7da Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 24 Oct 2026 00:38:45 +0000
-Subject: [PATCH 23/27] fix-data-6: P-3 full-time hourly pay at its posted
+Subject: [PATCH 23/29] fix-data-6: P-3 full-time hourly pay at its posted
  rate; C-1 equally similar comparables spread across the estimate's pay
 
 P-3 (public/app.js): a full-time posting paid by the hour leads with its posted
