@@ -123,7 +123,7 @@ persona-beta-2-18-24, -25-34, -35-44, -45-54, -55-plus (logs on the branch, 5502
 - 05:2x fix-juice-6 done (c3fc219; npm test 1,337/0 fail; Juice/tax units 84/84 unchanged; J-5 reversed: the card names the graded place first, accepted). Picked into wt-int -> 942db8a with one app.js conflict in locSummary resolved (J-5 ordering, then B-1's coloured key first). Regression from S-1 (fix3-data browser lib/juice.js: Cohere London, attachJuice gives no reason) sent back to fix-salary-6 (resumed, on 942db8a).
 - 05:2x fix-salary-6 follow-up b0795a2 (attachJuice gives 'pay-other-country' again when tied rows have no city and every listed city is another country; Cohere 67 with Juice, 2 CA$ London give the reason; npm test 1,338/0 fail) picked -> 94d65d0. fix-app-6 resumed on 94d65d0 (plus V-44 Razr cover map line).
 
-### Agents at 2026-10-24T05:58:47Z
-agent fix-ui-6 add67b9453342f4ba transcript-age=5min head=3835971
-agent fix-data-6 a08f9659d62990db4 transcript-age=5min head=6c0f2f1
-agent fix-app-6 af65001c61c5e8b4f transcript-age=9min head=b8171bd
+### Agents at 2026-10-24T06:13:42Z
+agent fix-ui-6 add67b9453342f4ba transcript-age=0min head=3835971
+agent fix-data-6 a08f9659d62990db4 transcript-age=0min head=6c0f2f1
+agent fix-app-6 af65001c61c5e8b4f transcript-age=3min head=26ad524
