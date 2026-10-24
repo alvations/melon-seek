@@ -118,7 +118,7 @@ persona-beta-2-18-24, -25-34, -35-44, -45-54, -55-plus (logs on the branch, 5502
 - fix-salary-6 final ad2cb71 (log State only) picked. Notes: cards round €41,500 to '€42K' (drawer keeps hundreds) - UI choice; OpenAI Zone A/B rows stay untied; lead re-baselines norm-14 after fix-data-6 lands.
 - 02:45 all five agents stopped on the usage limit (reset 04:20); container restarted ~04:33. 04:35 checkpoint 6582da0; cron recreated; pacing cut to 3 at once: resumed fix-data-6, fix-juice-6 (both near done) and fix-ui-6; fix-app-6 then qa-ci-6 wait.
 
-### Agents at 2026-10-24T04:43:47Z
-agent fix-ui-6 add67b9453342f4ba transcript-age=0min head=7e19e64
-agent fix-data-6 a08f9659d62990db4 transcript-age=0min head=af86969
-agent fix-juice-6 aab76ab3a12b3f957 transcript-age=4min head=a666f08
+### Agents at 2026-10-24T04:58:40Z
+agent fix-ui-6 add67b9453342f4ba transcript-age=2min head=ab125e4
+agent fix-data-6 a08f9659d62990db4 transcript-age=5min head=af86969
+agent fix-juice-6 aab76ab3a12b3f957 transcript-age=9min head=a666f08
