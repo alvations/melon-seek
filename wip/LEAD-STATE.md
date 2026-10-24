@@ -46,7 +46,7 @@ whenever a lane starts, reports, is integrated or is retired.
 | Lane | Agent id | Worktree | Items | Status |
 |---|---|---|---|---|
 | fix-ui-6 | add67b9453342f4ba | .claude/worktrees/agent-add67b9453342f4ba | B-1..B-12 (layout, phone sizes, map fit); phase 2: implement ux-density-6's density spec and size matrix | running |
-| fix-data-6 | a08f9659d62990db4 | .claude/worktrees/agent-a08f9659d62990db4 | G-1 (norm-14), G-2 bare country codes, G-3 Bayshore store and Monterrey N.L., T-19 P-2/D-11, C-1, K-1, P-1, P-2, P-3, R-1, R-2, R-3 | done (7fbb17e on f13ebd6; pick after the gate) |
+| fix-data-6 | a08f9659d62990db4 | .claude/worktrees/agent-a08f9659d62990db4 | G-1 (norm-14), G-2 bare country codes, G-3 Bayshore store and Monterrey N.L., T-19 P-2/D-11, C-1, K-1, P-1, P-2, P-3, R-1, R-2, R-3 | done (7fbb17e, integrated a2b224e) |
 | fix-app-6 | af65001c61c5e8b4f | .claude/worktrees/agent-af65001c61c5e8b4f | BN-1..BN-8 | done (42b2a59, integrated f13ebd6) |
 | fix-salary-6 | a29d354058b1f01b7 | .claude/worktrees/agent-a29d354058b1f01b7 | S-1 multi-country pay (done 49e86ee, integrated); follow-up now: attachJuice reason regression, on 942db8a | done (b0795a2, integrated 94d65d0) |
 | fix-juice-6 | aab76ab3a12b3f957 | .claude/worktrees/agent-aab76ab3a12b3f957 | J-1..J-5 | done (c3fc219, picked into wt-int 942db8a) |
@@ -57,7 +57,7 @@ Done and retired (do not relaunch): fix-phone-sizes, fix-qa4, fix-mr-3, qa-suite
 persona-beta-2-18-24, -25-34, -35-44, -45-54, -55-plus (logs on the branch, 5502155).
 
 ## Next steps
-0. Integration branch $S/wt-int is at 505a4df (fix-salary-6, fix-ui-6 B-1..B-12, fix-juice-6, fix-app-6, qa-ci-6). Gate started 08:16 (SHARDS=2, detached; result in $S/gate/result). If it passes: push, check CI/Pages/WebKit/e2e.yml. Still to come: fix-data-6 (incl. P-4), fix-ui-6 D-1..D-14, then a second gate. (fix-salary-6, the UX docs, fix-ui-6 B-1..B-12, fix-juice-6; one app.js conflict resolved in locSummary: J-5 order then B-1's coloured key), not pushed: it waits for the gate. fix-ui-6 is on phase 2 (D-1..D-14). fix-data-6, fix-app-6, fix-ui-6 and fix-juice-6 were told to rebase onto it.
+0. Integration branch $S/wt-int is at 5de0efc: fix-salary-6, fix-ui-6 B-1..B-12, fix-juice-6, fix-app-6, qa-ci-6, fix-data-6 (a2b224e), the Beta coverage test for BN-6. Gate 1 on 505a4df: npm 0 fail, build ok, e2e 1,193 pass / 3 fail (UX-17 -> fix-ui-6 small fix; Beta coverage -> fixed 5de0efc; J-4 -> fixed by fix-data-6). Next: pick fix-ui-6's UX-17 SHA, gate 2, push, CI/Pages/WebKit/e2e.yml.
 1. Integrate each lane's SHAs as they report (pick.sh into $S/wt-int); after fix-data-6 and fix-salary-6 are both in,
    re-baseline the golden file once for norm-14 with the tooling.
 2. Gate (SHARDS=2) on the integrated head; fix what it finds; npm test; push; check CI, Pages, WebKit (dispatch
@@ -132,6 +132,7 @@ persona-beta-2-18-24, -25-34, -35-44, -45-54, -55-plus (logs on the branch, 5502
 - 09:3x fix-data-6 G-4 7fbb17e (one commit on 217ff5c): 'Bogota, D.C.' -> Bogotá, Colombia, 15 Amazon postings (geodiff: 1 result, 15 postings, nothing else); they lose a wrong US-pay estimate; npm test 1,382/0 fail. fix-data-6 complete: pick f13ebd6..7fbb17e after the gate.
 - fix-data-6 final: G-1 359 towns at their place (2,206 postings, lat/lon only; Amazon centre places 8,263 -> 6,001); G-2 AL -> Albania; G-3 Monterrey N.L. Mexico, Bayshore -> Ottawa; G-4 Bogotá; K-1 0% targets not a bonus (Google 2,512 -> 2,462 mentions), 2,455 stated targets shown; P-1 532 cards name the pay places; P-2 16,414 headings exact; P-3 2,442 hourly cards lead with the posted rate; P-4 112 postings gain places; R-1/R-3 1,839 change family, Amazon no-family 2,332 -> 881, new family 'Warehouse, delivery & store operations' 1,768; R-2 126 Lead Associates Senior -> Mid; C-1 comparables spread (Entry, II, Senior, Principal x2); T-19 skips run. Nothing dropped vs e77cd41.
 - Follow-ups (backlog): 'Buenos Aires City', 'Ho Chi Minh', 'Cracow' at country centre; Yokohama-shi/Chiba-shi duplicates; Apple 'US-Lead' titles Senior; Japanese Amazon titles no family; Monroe/Hamilton Twp NJ at state centre.
+- 10:0x gate 1 on 505a4df done: npm 1,359/0 fail; build ok; e2e 1,193 pass, 3 fail (UX-17 p390 google chip -1 px -> fix-ui-6 standalone fix; Beta coverage predates BN-6 -> 5de0efc, 32/32; J-4 test race -> fixed in fix-data-6's commits). Picked fix-data-6 f13ebd6..7fbb17e (21) clean -> a2b224e. Waiting on fix-ui-6's UX-17 SHA, then gate 2.
 
-### Agents at 2026-10-24T09:43:43Z
-agent fix-ui-6 add67b9453342f4ba transcript-age=11min head=5e2c252
+### Agents at 2026-10-24T10:02:39Z
+agent fix-ui-6 add67b9453342f4ba transcript-age=0min head=5e2c252
