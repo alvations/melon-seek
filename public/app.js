@@ -1900,12 +1900,20 @@ function makeCompanyMenu() {
       })));
     }
   }
-  /** M-21: the menu opens with the current company (✓) in view. */
+  /**
+   * M-21: the menu opens with the current company (✓) in view. B-9 (fix-ui-6): saved searches, listed first, stay in
+   * view too: the list scrolls no further than keeps the first one whole. On the Razr cover screen (a list three rows
+   * tall) the menu opened on the current company with the saved search and its "1 new" above, off screen.
+   */
   function reveal() {
     const cur = list.querySelector('.company-item[aria-current="true"]');
     if (!cur) return;
     const lr = list.getBoundingClientRect(), cr = cur.getBoundingClientRect();
-    if (cr.top < lr.top || cr.bottom > lr.bottom) list.scrollTop += cr.top - lr.top - Math.max(0, (lr.height - cr.height) / 2);
+    if (cr.top >= lr.top && cr.bottom <= lr.bottom) return;
+    let d = cr.top - lr.top - Math.max(0, (lr.height - cr.height) / 2);
+    const saved = list.querySelector('.saved-row');
+    if (saved) d = Math.min(d, saved.getBoundingClientRect().top - lr.top);
+    if (d > 0) list.scrollTop += d;
   }
   return { el, sync, reveal };
 }
@@ -3026,21 +3034,22 @@ function renderTagline() {
   const el = $('#tagline');
   if (!el) return;
   const n = companies.filter((c) => !c.custom).length;
-  // UX-23: on the beta site the line says what the beta adds (the Beta tag by the logo links to the main site).
+  // UX-23: the Beta tag by the logo says it is the beta site and links to the main site.
   const big = CHANNEL === 'beta' ? companies.filter((c) => c.live === false && !c.custom).map((c) => c.name) : [];
   const list = big.length > 1 ? `${big.slice(0, -1).join(', ')} and ${big[big.length - 1]}` : big[0];
-  // fix-density: one line. The beta line names how many careers sites it adds (the names are in its title
-  // and the company menu); a phone shows a shorter line than the desktop.
-  const text = big.length ? `Beta: adds ${big.length > 1 ? `${big.length} big-tech companies’` : `${big[0]}’s`} own careers sites`
+  // fix-density: one line; a phone shows a shorter line than the desktop. B-11 (fix-ui-6, persona wave 2 I-1, 5 of 5):
+  // the beta line said only what the beta adds ("Beta: adds 7 big-tech careers sites"), not what the site is for, so it
+  // says that first, as the main site's line does; what the beta adds (the names) stays in its title.
+  const text = big.length ? `Job postings and their posted pay, and what’s left after tax and rent, at ${n} companies`
     : `Pay, and what’s left after tax and rent, for ${n ? `${n} companies’` : 'tech companies’'} open roles`;
-  const short = big.length ? `Beta: adds ${big.length > 1 ? `${big.length} big-tech careers sites` : `${big[0]}’s careers site`}` : 'Tech pay, after tax and rent';
+  const short = big.length ? 'Job postings and their posted pay' : 'Tech pay, after tax and rent';
   if (el.dataset.text !== text) {
     el.dataset.text = text;
-    el.title = big.length ? `Beta: adds ${list} from their own careers sites` : text;
+    el.title = big.length ? `${text}. Beta: adds ${list} from their own careers sites` : text;
     el.replaceChildren(h('strong', { class: 'tagline-brand' }, 'melon·seek'), h('span', { class: 'tagline-sep', 'aria-hidden': 'true' }, ' · '),
       h('span', { class: 'tagline-long' }, text), h('span', { class: 'tagline-short' }, short),
       // fix-phone-text: the shortest line, for a box too narrow for the others (fitTagline).
-      h('span', { class: 'tagline-tiny' }, big.length ? `Beta: ${big.length > 1 ? `${big.length} big-tech sites` : `${big[0]}’s site`}` : 'Pay after tax and rent'));
+      h('span', { class: 'tagline-tiny' }, big.length ? 'Jobs and their posted pay' : 'Pay after tax and rent'));
     requestAnimationFrame(fitTagline);
   }
   document.body.classList.toggle('is-filtered', activeFilterCount() > 0 || !!area);
@@ -3198,7 +3207,37 @@ function onInsightFilter({ type, value } = {}) {
   toast(S[key].includes(value) ? `Filtering by “${value}”` : `Removed “${value}”`);
 }
 
+/**
+ * B-10 (fix-ui-6, persona wave 2 I-10): on a phone a chart with few rows (10 roles, 5 rows) left half the screen blank
+ * above the sheet. The sheet's peek rises into the room the rows leave (a body-level --sheet-peek, so the chart's box
+ * shrinks to its rows and its notes line follows them), never above the half snap, and comes back down when the rows
+ * need the room or the view is not the chart. Written only when it changes (a write restyles the page).
+ */
+let sheetLift = 0;
+function fitSheetToChart() {
+  let lift = 0;
+  const host = $('#chartHost');
+  const sheet = isMobile() && !matchMedia('(max-height: 500px), (vertical-viewport-segments: 2)').matches;
+  if (sheet && S.m === 'chart' && data.status === 'ready' && host && !host.hidden && visible.length) {
+    const scroll = host.querySelector('.ms-chart__scroll'), sticky = host.querySelector('.ms-chart__sticky'), body = host.querySelector('.ms-chart__body');
+    const h = body ? parseFloat(body.style.height) : NaN;
+    if (scroll?.clientHeight && Number.isFinite(h) && h > 0) {
+      const base = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--sheet-peek')) || 0;
+      const room = scroll.clientHeight + sheetLift - (sticky?.offsetHeight || 0) - h - 8; // at the base peek
+      const max = Math.max(0, Math.round(innerHeight * 0.5) - base);
+      lift = room >= 32 ? Math.min(max, Math.floor(room)) : 0;
+    }
+  }
+  if (Math.abs(lift - sheetLift) < 4 && !(lift === 0 && sheetLift)) return;
+  sheetLift = lift;
+  if (lift) {
+    const base = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--sheet-peek')) || 0;
+    document.body.style.setProperty('--sheet-peek', `${Math.round(base + lift)}px`);
+  } else document.body.style.removeProperty('--sheet-peek');
+}
+
 function renderViz() {
+  requestAnimationFrame(fitSheetToChart); // B-10: after this update has drawn
   renderInsights();
   $('#vizArea').hidden = S.m === 'insights' && data.status === 'ready';
   if (S.m === 'insights' && data.status === 'ready') { $('#vizControls').hidden = true; return; }
@@ -5819,6 +5858,7 @@ function bindEvents() {
     if (document.body.classList.contains('filters-open')) { setFiltersModal(isMobile()); syncChipsExpanded(); } // rotation / resize across 860px
     syncFiltersInert(); // UX-56: across 1200px the panel turns from a docked column into a sheet, and back
     if (drawerJobId) { fitApplyLabel(); fitMetaLine(); } // M-49, B-2: a rotation changes the room for the Apply label and the meta line
+    fitSheetToChart(); // B-10: a rotation changes the room the chart's rows leave
   }));
   addEventListener('scroll', () => positionPopover(), true);
 

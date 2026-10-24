@@ -12,7 +12,13 @@
 //       as tall as with a mouse, and nothing scrolls;
 //   B-6 from 861 px up the search box keeps a usable width and its words ("Search roles" or more), Refresh button or not;
 //   B-7 on the map's first view no price pin, its pointer included, is under the map's own controls or the attribution,
-//       with a basemap (tiles answered with a blank image, as a real phone loads them) at every size.
+//       with a basemap (tiles answered with a blank image, as a real phone loads them) at every size;
+//   B-8 on the Surface Duo spanned nothing lies across the hinge, whether the browser reports the two screens or not;
+//   B-9 on the Razr cover screen the company menu shows the saved searches and their "N new", and the "new roles" toast
+//       leaves the first card's title and pay readable;
+//   B-10 with few roles the chart leaves no blank band above the results sheet (portrait phones);
+//   B-11 the beta site's arrival line says what the site is for, on one line at every size;
+//   B-12 the phone's first screen shows the first card's title and pay once the list has loaded (the cover: its title).
 // Serves the static build (FUI6_DIST, else BETA_QA_DIST, else dist/) under /melon-seek/ the way GitHub Pages does, and
 // skips without a beta build. Expected values come from the board's own list (public/api.js unpackJobs of the build's
 // files) and the page's geometry, not from the code under test. FUI6_SHOTS=<label> saves screenshots to
@@ -23,7 +29,7 @@ import path from 'node:path';
 import zlib from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 import { ROOT, assert, skip } from './harness.js';
-import { ALL_SIZES, contextFor } from './phone-sizes.mjs';
+import { ALL_SIZES, PHONES, contextFor } from './phone-sizes.mjs';
 import { unpackJobs } from '../../public/api.js';
 import { displayLevel, levelLabel } from '../../public/features/roles.js';
 
@@ -35,6 +41,8 @@ const DESKTOP = { name: 'Desktop', width: 1440, height: 900 };
 const LAPTOP = { name: 'Small laptop', width: 1024, height: 768 };
 const at = (w, h) => { const d = ALL_SIZES.find((s) => s.width === w && s.height === h); assert(d, `test/e2e/phone-sizes.mjs lists ${w}x${h}`); return d; };
 const label = (d) => `${d.name} ${d.width}x${d.height}`;
+/** The portrait phones (phone-sizes.mjs PHONES) and the stacked Duo's phone layout is left out: its list stays open. */
+const PORTRAIT = PHONES;
 const slug = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 
 let shared = null;
@@ -310,6 +318,85 @@ function pinsCovered() {
   return { n, out };
 }
 
+/* ------------------------------------------------------------------------------------------------------------- B-8 */
+
+/** The Surface Duo spanned: two 540 px screens and the 34 px hinge between them (phone-sizes.mjs, fix-phone-sizes). */
+const HINGE = [540, 574];
+/**
+ * In the page: what shows across the hinge, as text or a control or a chart mark: each box is cut to what its
+ * clipping ancestors show, and text is judged by its own line boxes. Closed off-screen sheets (inert) do not count.
+ */
+function onHinge([a, b]) {
+  const out = [];
+  const seen = new Set();
+  const textual = (e) => [...e.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim());
+  for (const e of document.querySelectorAll('body *')) {
+    if (!e.getClientRects().length || e.closest('[inert], [hidden], .sr-only')) continue;
+    const cs = getComputedStyle(e);
+    if (cs.visibility === 'hidden' || +cs.opacity === 0) continue;
+    const control = e.matches('a[href], button, input, select, textarea, summary, [role=button], [tabindex]:not([tabindex="-1"])');
+    const text = textual(e);
+    const mark = e.matches('.ms-bin, .ms-pin, .ms-row, svg, canvas, img');
+    if (!control && !text && !mark) continue;
+    const r0 = e.getBoundingClientRect();
+    let L = r0.left, R = r0.right, T = r0.top, B = r0.bottom;
+    for (let p = e.parentElement; p && p !== document.body; p = p.parentElement) {
+      const pc = getComputedStyle(p);
+      if (pc.overflowX !== 'visible' || pc.overflowY !== 'visible' || pc.clipPath !== 'none') { const q = p.getBoundingClientRect(); L = Math.max(L, q.left); R = Math.min(R, q.right); T = Math.max(T, q.top); B = Math.min(B, q.bottom); }
+    }
+    if (R - L < 1 || B - T < 1 || B <= 0 || T >= innerHeight || !(L < b - 0.5 && R > a + 0.5)) continue;
+    if (text && !control && !mark) {
+      const rg = document.createRange();
+      rg.selectNodeContents(e);
+      if (![...rg.getClientRects()].some((x) => x.width > 0.5 && x.left < b - 0.5 && x.right > a + 0.5 && x.left < R && x.right > L)) continue;
+    }
+    const name = `${e.tagName.toLowerCase()}${e.id ? `#${e.id}` : ''}${typeof e.className === 'string' && e.className ? `.${e.className.split(' ')[0]}` : ''}`;
+    if (seen.has(name)) continue;
+    seen.add(name);
+    out.push(`${name} at x ${Math.round(L)}–${Math.round(R)}${text ? ` ("${e.textContent.trim().slice(0, 24)}")` : ''}`);
+  }
+  return out;
+}
+
+/* ------------------------------------------------------------------------------------------------------------ B-12 */
+
+/** In the page: whether the first card's title (its first line) and its pay show on the first screen, uncovered. */
+function firstCardShows() {
+  const card = document.querySelector('#resultsList .card[data-id], #resultsList .card[data-preview-id]');
+  if (!card) return { card: false };
+  const title = card.querySelector('.card-title');
+  const pay = card.querySelector('.card-pay .sal-pill');
+  const seen = (r, el) => {
+    if (!r || r.top < 0 || r.bottom > innerHeight + 0.5 || r.left < 0 || r.right > innerWidth + 0.5) return false;
+    const t = document.elementFromPoint((r.left + r.right) / 2, (r.top + r.bottom) / 2);
+    return !!t && (t === el || el.contains(t) || card.contains(t));
+  };
+  let line = null;
+  if (title) { const rg = document.createRange(); rg.selectNodeContents(title); line = [...rg.getClientRects()].find((x) => x.width > 1) || null; }
+  const pr = pay?.getBoundingClientRect();
+  const host = document.querySelector('#chartHost');
+  return {
+    card: true, title: seen(line, title), pay: !!pay && seen(pr, pay), text: title?.textContent.trim().slice(0, 40),
+    titleBottom: line ? Math.round(line.bottom) : null, payBottom: pr ? Math.round(pr.bottom) : null, sheetTop: Math.round(document.querySelector('#results').getBoundingClientRect().top),
+    chart: host && !host.hidden ? Math.round(host.getBoundingClientRect().height) : 0, inner: innerHeight,
+  };
+}
+
+/* ------------------------------------------------------------------------------------------------------------ B-9 */
+
+/** Saved searches for the board (one with new roles: its last opening is before the newest postings were first seen). */
+async function savedSeeds(st, board) {
+  const jobs = await boardJobs(st, board);
+  const dated = jobs.filter((j) => j.firstSeenAt).map((j) => Date.parse(j.firstSeenAt)).sort((a, b) => b - a);
+  if (dated.length < 3) skip(`${board} has no first-seen dates in this build`);
+  const since = new Date(dated[1] - 1).toISOString(); // the two newest are new since then
+  return [
+    { id: 'fui6-a', name: `${board} · everything`, hash: `c=${board}`, channel: 'beta', createdAt: since, lastSeenAt: since, seen: jobs.map((j) => j.id) },
+    { id: 'fui6-b', name: `${board} · engineers`, hash: `c=${board}&q=engineer`, channel: 'beta', createdAt: since, lastSeenAt: new Date().toISOString(), seen: [] },
+  ];
+}
+const SEED_SAVED = (list) => { try { localStorage.setItem('melon.saved', JSON.stringify(list)); } catch { /* blocked */ } };
+
 export function registerFixUi6Tests(suite) {
   /* ----------------------------------------------------------------------------------------------------------- B-1 */
   suite.test('fix-ui-6: [B-1] under every grouping each card names the key its dot is coloured for first, beside the dot, and cards of one key share one colour (Google, Apple, Amazon; desktop and 390 px)', async (ctx) => {
@@ -523,6 +610,173 @@ export function registerFixUi6Tests(suite) {
         await context.close();
       }
       assert(!bad.length, `${label(size)}: ${bad.join(' | ')}`);
+    });
+  }
+
+  /* ----------------------------------------------------------------------------------------------------------- B-8 */
+  for (const reported of [false, true]) {
+    suite.test(`fix-ui-6: [B-8] [Surface Duo spanned 1114x720, ${reported ? 'hinge reported (CDP displayFeature)' : 'no hinge reported (one viewport segment)'}] no text, control or chart mark lies across the hinge (x 540–574): the first screen, the company menu, the filter sheet and a job page (Google, Apple)`, async (ctx) => {
+      const size = at(1114, 720);
+      const bad = [];
+      for (const board of ['google', 'apple']) {
+        const st = await serveDist();
+        if (!st) skip('no beta build');
+        const context = await ctx.browser.newContext({ ...contextFor(size, 'chromium'), colorScheme: 'light' });
+        ctx.cleanup.push(() => context.close());
+        await context.route((u) => !u.href.startsWith(st.origin) && !u.href.startsWith('data:') && !u.href.startsWith('blob:'), (r) => r.abort('blockedbyclient'));
+        const page = await context.newPage();
+        if (reported) {
+          const cdp = await context.newCDPSession(page);
+          await cdp.send('Emulation.setDeviceMetricsOverride', { width: size.width, height: size.height, deviceScaleFactor: size.dpr, mobile: true, screenWidth: size.width, screenHeight: size.height, displayFeature: { orientation: 'vertical', offset: HINGE[0], maskLength: HINGE[1] - HINGE[0] } });
+        }
+        await page.goto(`${st.base}beta/#c=${board}`, { timeout: 60000 });
+        await ready(page);
+        await sleep(600);
+        const segs = await page.evaluate(() => window.viewport?.segments?.length || 1);
+        if (reported) assert(segs === 2, `the hinge emulation took (${segs} segment)`);
+        const look = async (what) => { for (const x of await page.evaluate(onHinge, HINGE)) bad.push(`${board}, ${what}: ${x}`); };
+        await look('first screen');
+        if (board === 'google' && !reported) await shot(page, 'B-8-duo-spanned-google');
+        await page.evaluate(() => document.querySelector('#companyMenuBtn').click());
+        await page.waitForSelector('#popover:not([hidden]) .company-item', { timeout: 8000 });
+        await sleep(400);
+        await look('company menu');
+        await page.keyboard.press('Escape');
+        await sleep(300);
+        await page.evaluate(() => document.querySelector('#filtersToggle').click());
+        await page.waitForFunction(() => document.body.classList.contains('filters-open'), null, { timeout: 8000 }).catch(() => {});
+        await sleep(700);
+        await look('filter sheet');
+        await page.keyboard.press('Escape');
+        await sleep(400);
+        const id = await page.evaluate(() => document.querySelector('#resultsList .card[data-id]')?.dataset.id);
+        await page.evaluate((id) => { location.hash = `c=${id.split(':')[0]}&job=${encodeURIComponent(id)}`; }, id);
+        await page.waitForFunction(() => !document.querySelector('#drawer').hidden, null, { timeout: 30000 });
+        await sleep(700);
+        await look('job page');
+        await context.close();
+      }
+      assert(!bad.length, `${bad.length} thing(s) across the hinge:\n  ${bad.slice(0, 16).join('\n  ')}`);
+    });
+  }
+
+  /* ----------------------------------------------------------------------------------------------------------- B-9 */
+  suite.test('fix-ui-6: [B-9] Razr cover screen (352x355): the company menu opens inside the screen with the saved searches and their "N new" in view, and opening one leaves the first card\'s title and pay readable under its toast', async (ctx) => {
+    const size = at(352, 355);
+    const st = await serveDist();
+    if (!st) skip('no beta build');
+    const bad = [];
+    for (const board of ['google', 'microsoft']) {
+      const seeds = await savedSeeds(st, board);
+      const { page, errors, context } = await open(ctx, size, { hash: `c=${board}`, init: { fn: SEED_SAVED, arg: seeds } });
+      const b = await page.locator('#companyMenuBtn').boundingBox();
+      await page.touchscreen.tap(b.x + b.width / 2, b.y + b.height / 2);
+      await page.waitForSelector('#popover:not([hidden]) .saved-row', { timeout: 8000 });
+      await sleep(600);
+      const m = await page.evaluate(() => {
+        const pop = document.querySelector('#popover').getBoundingClientRect();
+        const list = document.querySelector('#popover .company-list').getBoundingClientRect();
+        const row = document.querySelector('#popover .saved-row');
+        const r = row.getBoundingClientRect();
+        const badge = row.querySelector('.saved-new');
+        return { pop: [pop.left, pop.top, pop.right, pop.bottom].map(Math.round), list: [Math.round(list.top), Math.round(list.bottom)], row: [Math.round(r.top), Math.round(r.bottom)], badge: badge?.textContent || null, inner: [innerWidth, innerHeight] };
+      });
+      if (m.pop[0] < -0.5 || m.pop[1] < -0.5 || m.pop[2] > m.inner[0] + 0.5 || m.pop[3] > m.inner[1] + 0.5) bad.push(`${board}: the menu runs off the screen ${JSON.stringify(m.pop)}`);
+      if (m.row[0] < m.list[0] - 0.5 || m.row[1] > m.list[1] + 0.5) bad.push(`${board}: the first saved search (${m.badge || 'no "new"'}) is out of the list's view (row ${m.row}, list ${m.list})`);
+      if (!m.badge) bad.push(`${board}: the saved search shows no "N new"`);
+      await shot(page, `B-9-cover-menu-${board}`);
+      const row = page.locator('#popover .saved-row .company-item').first();
+      const rb = await row.boundingBox();
+      await page.touchscreen.tap(rb.x + Math.min(60, rb.width / 2), rb.y + rb.height / 2);
+      await page.waitForFunction(() => { const t = document.querySelector('#toast'); return t && !t.hidden && /new role/.test(t.textContent); }, null, { timeout: 30000 }).catch(() => {});
+      await sleep(400);
+      const t = await page.evaluate(() => {
+        const toast = document.querySelector('#toast');
+        if (!toast || toast.hidden || !/new role/.test(toast.textContent)) return null;
+        const tr = toast.getBoundingClientRect();
+        const card = document.querySelector('#resultsList .card[data-id]');
+        const hit = (r) => r && tr.left < r.right && tr.right > r.left && tr.top < r.bottom && tr.bottom > r.top && r.bottom > 0 && r.top < innerHeight;
+        const title = card?.querySelector('.card-title'), pay = card?.querySelector('.card-pay');
+        let line = null;
+        if (title) { const rg = document.createRange(); rg.selectNodeContents(title); line = [...rg.getClientRects()].find((x) => x.width > 1) || null; }
+        return { toast: [tr.left, tr.top, tr.right, tr.bottom].map(Math.round), text: toast.textContent, title: hit(line), pay: hit(pay?.getBoundingClientRect()), inside: tr.left >= -0.5 && tr.right <= innerWidth + 0.5 && tr.top >= -0.5 && tr.bottom <= innerHeight + 0.5 };
+      });
+      if (!t) bad.push(`${board}: no "new roles" toast after opening the saved search`);
+      else {
+        if (t.title || t.pay) bad.push(`${board}: the toast ${JSON.stringify(t.toast)} covers the first card's ${[t.title && 'title', t.pay && 'pay'].filter(Boolean).join(' and ')}`);
+        if (!t.inside) bad.push(`${board}: the toast runs off the screen ${JSON.stringify(t.toast)}`);
+      }
+      await shot(page, `B-9-cover-toast-${board}`);
+      bad.push(...errors);
+      await context.close();
+    }
+    assert(!bad.length, bad.join('; '));
+  });
+
+  /* ---------------------------------------------------------------------------------------------------------- B-10 */
+  for (const size of PORTRAIT) {
+    suite.test(`fix-ui-6: [B-10] [${label(size)}] with few roles (Google, Warsaw, Intern and Entry) the chart leaves no blank band above the results sheet: under 48 px between the chart's rows and its notes line or the sheet`, async (ctx) => {
+      const { page, errors } = await open(ctx, size, { hash: 'c=google&l=Warsaw&s=Intern&s=Entry' });
+      await sleep(900);
+      const n = await page.evaluate(() => Number((document.querySelector('#resultsTitle')?.textContent.match(/[\d,]+/) || ['0'])[0].replace(/,/g, '')));
+      if (!n || n > 30) skip(`${n} roles: not a few`);
+      const g = await page.evaluate(() => {
+        const host = document.querySelector('#chartHost');
+        const sticky = host.querySelector('.ms-chart__sticky'), body = host.querySelector('.ms-chart__body'), foot = host.querySelector('.ms-chart__foot');
+        const rowsEnd = (sticky?.getBoundingClientRect().bottom || 0) + parseFloat(body?.style.height || '0');
+        const footShown = foot && foot.getClientRects().length && getComputedStyle(foot).display !== 'none';
+        const next = Math.min(footShown ? foot.getBoundingClientRect().top : Infinity, document.querySelector('#results').getBoundingClientRect().top);
+        return { rowsEnd: Math.round(rowsEnd), next: Math.round(next), blank: Math.round(next - rowsEnd), scroll: host.querySelector('.ms-chart__scroll')?.clientHeight };
+      });
+      if (g.blank > 48) await shot(page, `B-10-few-roles-${slug(size.name)}-${size.width}x${size.height}`);
+      if (size.width === 412 && size.height === 915) await shot(page, `B-10-few-roles-pixel8`);
+      assert(g.blank <= 48 && !errors.length, `${n} roles: ${g.blank} px blank between the chart's rows (end ${g.rowsEnd}) and what follows (${g.next}) ${errors.join(' | ')}`);
+    });
+  }
+
+  /* ---------------------------------------------------------------------------------------------------------- B-11 */
+  for (const size of [...ALL_SIZES, DESKTOP, LAPTOP]) {
+    suite.test(`fix-ui-6: [B-11] [${label(size)}] the beta site's arrival line says what the site is for ("… posted pay …"), on one line, never cut`, async (ctx) => {
+      const { page, errors } = await open(ctx, size, { hash: 'c=google' });
+      const r = await page.evaluate(() => {
+        const t = document.querySelector('#tagline');
+        if (!t || !t.getClientRects().length || getComputedStyle(t).display === 'none') return null;
+        const rg = document.createRange();
+        rg.selectNodeContents(t);
+        const lines = new Set([...rg.getClientRects()].filter((x) => x.width > 0.5).map((x) => Math.round(x.top + x.height / 2)));
+        return { text: t.innerText.replace(/\s+/g, ' ').trim(), cut: t.scrollWidth > t.clientWidth + 0.5, lines: lines.size, title: t.title };
+      });
+      if (!r) skip('this size shows no line above the chart');
+      if (size.width === 390 || size.width === 1440) await shot(page, `B-11-arrival-${size.width}x${size.height}`);
+      const bad = [];
+      if (!/posted pay/i.test(r.text)) bad.push(`it reads "${r.text}", which does not say what the site is for`);
+      if (r.cut) bad.push(`"${r.text}" is cut`);
+      if (r.lines > 1) bad.push(`"${r.text}" takes ${r.lines} lines`);
+      if (!/careers sites/.test(r.title)) bad.push(`its title lost what the beta adds: "${r.title}"`);
+      assert(!bad.length && !errors.length, [...bad, ...errors].join('; '));
+    });
+  }
+
+  /* ---------------------------------------------------------------------------------------------------------- B-12 */
+  for (const size of [...PORTRAIT, at(352, 355)]) {
+    const cover = size.width === 352 && size.height === 355;
+    suite.test(`fix-ui-6: [B-12] [${label(size)}] once the list has loaded, the first screen shows the first card's title${cover ? '' : ' and pay'} (Google, Apple, Amazon), and the chart keeps a box of its own`, async (ctx) => {
+      const bad = [];
+      for (const board of ['google', 'apple', 'amazon']) {
+        const { page, errors, context } = await open(ctx, size, { hash: `c=${board}` });
+        await sleep(600);
+        const r = await page.evaluate(firstCardShows);
+        if (!r.card) bad.push(`${board}: no card`);
+        else {
+          if (!r.title) bad.push(`${board}: the first card's title "${r.text}" is not on the first screen (its first line ends at ${r.titleBottom}, the sheet's top at ${r.sheetTop}, the screen ${r.inner})`);
+          if (!cover && !r.pay) bad.push(`${board}: the first card's pay is not on the first screen (it ends at ${r.payBottom}, the screen ${r.inner})`);
+          if (r.chart < 40) bad.push(`${board}: the chart is ${r.chart} px tall`);
+        }
+        if (board === 'google' && [280, 352, 390].includes(size.width)) await shot(page, `B-12-first-screen-${slug(size.name)}-${size.width}x${size.height}`);
+        bad.push(...errors);
+        await context.close();
+      }
+      assert(!bad.length, bad.join('; '));
     });
   }
 }
