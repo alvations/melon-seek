@@ -6,7 +6,7 @@ whenever a lane starts, reports, is integrated or is retired.
 
 ## Resume procedure (idempotent: every step skips what is already done)
 1. `git fetch origin claude/stoic-ride-54ddxp`; read `wip/LEAD-STATE.md` (this file) and `docs/process/lead.md`'s last entry.
-2. In-session checkpoint timer: if CronList shows none, recreate it (7,22,37,52 * * * *, the "Checkpoint tick" prompt that runs `bash $S/tick.sh`).
+2. Checkpoints run as a detached shell loop with no model turn: if `kill -0 $(cat $S/tick-loop.pid)` fails, start `setsid nohup bash $S/tick-loop.sh >> $S/tick-loop.log 2>&1 < /dev/null & disown`. If $S is gone (new container), `mkdir -p $S` and copy `wip/lead-tools/*` from the branch into it first. Don't create an in-session cron: each cron turn re-reads the whole conversation and burned the usage limit.
 3. Same container (the worktrees below exist): for each lane with status `running`, check its transcript age
    (`bash $S/tick.sh --agents`). A lane stale for 20+ minutes and not reported done is resumed with
    SendMessage to its agent id ("resume from your log's State; your background processes died"). Never start a new
@@ -23,7 +23,9 @@ whenever a lane starts, reports, is integrated or is retired.
 - Durable: scheduled task trig_01V9kyxPXVY6unE6Y6eE3D4Q fires the "Resume tick" prompt into this session at :32 every hour; it survives container restarts and fires again once a usage limit resets. Delete it with delete_trigger when the cycle is finished.
 - In-session: the 15-minute "Checkpoint tick" cron (7,22,37,52) runs `bash $S/tick.sh`; it dies with the session, and the resume tick recreates it.
 
-## Usage pacing (the user, 2026-10-24: "Make sure you don't get interrupted by session or token limit")
+## Usage pacing
+- 2026-10-24 11:43 UTC: the WEEKLY usage limit stopped fix-ui-6 (resets 2026-10-30 13:00 UTC). The lead may be blocked too. The hourly resume task keeps firing for as long as it takes (days or weeks); each firing resumes from this file.
+- Efficiency (the user, 2026-10-24: "work efficiently ... push regularly and complete asap"): push each gated batch at once; the lead does small integrations itself; no idle model turns. (the user, 2026-10-24: "Make sure you don't get interrupted by session or token limit")
 - At most 3 agents run at once. Six or seven in parallel used up the 5-hour usage allowance in about 2 hours on 2026-10-23, and five did in about 2 h 15 min on 2026-10-24 (limit 02:45, reset 04:20).
 - No lanes are paused (qa-ci-6 resumed 06:3x).
 - After a usage-limit stop, resume only the `running` lanes. The paused ones stay paused.
@@ -45,7 +47,7 @@ whenever a lane starts, reports, is integrated or is retired.
 ## Lanes (fix wave 6; prompts in $S/prompts6/ and in each lane's docs/process/prompts/)
 | Lane | Agent id | Worktree | Items | Status |
 |---|---|---|---|---|
-| fix-ui-6 | add67b9453342f4ba | .claude/worktrees/agent-add67b9453342f4ba | B-1..B-12 (layout, phone sizes, map fit); phase 2: implement ux-density-6's density spec and size matrix | running |
+| fix-ui-6 | add67b9453342f4ba | .claude/worktrees/agent-add67b9453342f4ba | B-1..B-12 (layout, phone sizes, map fit); phase 2: implement ux-density-6's density spec and size matrix | paused (weekly limit; D-1..D-15 in eb16ee0, e8bf2a3, 4a4428f on d2c0fc6, related groups unfinished) |
 | fix-data-6 | a08f9659d62990db4 | .claude/worktrees/agent-a08f9659d62990db4 | G-1 (norm-14), G-2 bare country codes, G-3 Bayshore store and Monterrey N.L., T-19 P-2/D-11, C-1, K-1, P-1, P-2, P-3, R-1, R-2, R-3 | done (7fbb17e, integrated a2b224e) |
 | fix-app-6 | af65001c61c5e8b4f | .claude/worktrees/agent-af65001c61c5e8b4f | BN-1..BN-8 | done (42b2a59, integrated f13ebd6) |
 | fix-salary-6 | a29d354058b1f01b7 | .claude/worktrees/agent-a29d354058b1f01b7 | S-1 multi-country pay (done 49e86ee, integrated); follow-up now: attachJuice reason regression, on 942db8a | done (b0795a2, integrated 94d65d0) |
@@ -139,5 +141,4 @@ persona-beta-2-18-24, -25-34, -35-44, -45-54, -55-plus (logs on the branch, 5502
 - 11:0x fix-ui-6 D-1..D-15 on d2c0fc6: eb16ee0 (D-1..D-14 + phone-sizes patch), e8bf2a3 (screenshots), 4a4428f (D-15 pill: 10.5em -> 15.5em -> short forms; whole sentence fits 2 lines at all VISIBLE sizes; V-46 split phones/tablets). fix-ui-6 group 468/0 fail; npm test 1,381/0 fail. Related groups still running; not final.
 - 11:2x prepared 36d8d81 in $S/wt-fix (on 5de0efc): sameRange helper in M-42, D-45, UX-37 (beta-ux-review-2), Beta desktop QA 4 (card rounded vs job page exact after P-2); helper unit-checked incl. the one-place-range negative case. After gate 2: pick d2c0fc6 (UX-17) + 36d8d81, re-run T21 alone and the 5 groups, npm test, push.
 
-### Agents at 2026-10-24T11:28:43Z
-agent fix-ui-6 add67b9453342f4ba transcript-age=22min head=5e2c252 STALE
+### Agents at 2026-10-24T15:29:50Z
