@@ -161,6 +161,10 @@ don't lose that much." So:
      log's `## State`.
 5. **Lead state is pushed too.** Every decision and integration goes into [lead.md](lead.md) in
    the same push, so a new lead session can continue from the repo alone.
+   - Between pushes, the lead keeps a state file and publishes it to `wip/LEAD-STATE.md` at every
+     checkpoint tick. It holds each running lane's agent id, worktree, items and status, the next
+     steps, and the resume procedure.
+   - It also holds the lead's unpushed notes.
 6. **Delete nothing until it is on the branch.** The user, 2026-10-17: "Make sure the data and
    code is pushed and the audit trail before you delete stuff."
    - Before removing a lane's worktree, run
@@ -177,6 +181,27 @@ don't lose that much." So:
      `observedAt` and job counts. Rebuild it with `scripts/cycle/local-data.js`.
    - `git worktree remove` without `--force` refuses a worktree with changes; keep it that way
      unless the only changes are screenshots the suite rewrote.
+7. **Something outside the session wakes the lead.** On 2026-10-23 every agent and the lead stopped
+   on a usage limit, then the container restarted. The session cron died with it, and nothing
+   resumed until the user asked. The user, 2026-10-24: "Make sure you autonomously resume if you
+   got killed and is able to not keep redoing work". So:
+   - The lead also keeps a durable hourly scheduled task (`create_trigger` into its own session).
+     It survives a container restart and fires again once a usage limit resets. Delete it when the
+     cycle ends.
+   - Its prompt is the resume procedure:
+     1. read the state (the local file, or `wip/LEAD-STATE.md` on the branch);
+     2. recreate the 15-minute checkpoint cron if it is gone;
+     3. checkpoint;
+     4. resume, by SendMessage, every agent whose transcript has been still for 20 minutes without
+        reporting done;
+     5. continue the next steps.
+   - Resuming never redoes work:
+     - SendMessage continues the agent's own transcript. Start a new agent only when the old one
+       can't resume (a new container), restored with `restore-wip.sh` and told to read its log's
+       `## State` first.
+     - The lead's pick script skips commits already picked, and the checkpoint skips unchanged
+       lanes.
+     - `safe-to-delete.sh` is read-only.
 
 ## Stage 4. Record and repeat
 
