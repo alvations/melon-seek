@@ -4092,8 +4092,21 @@ function likePool(job) {
 /** BP-3 (fix wave 3, shared decision 2): of those, only roles whose pay is for the same country (payCountry). */
 function payPool(job) {
   const pool = likePool(job);
-  const same = pool ? samePayCountry(job, pool) : [];
+  const same = pool ? samePayCountry(rankSubject(job), pool) : [];
   return same.length >= 5 ? same : null;
+}
+/**
+ * S-1 (fix-salary-6): the posting as the drawer's rank and strip see it. Under a Location filter whose figure is another
+ * country's line (Milan on Italy's €124K–127K, where the headline is Germany's), the pool is that country's roles, so the
+ * rank reads "… of Google’s roles in Italy", never Italian pay ranked among German roles. Otherwise the posting itself.
+ */
+function rankSubject(job) {
+  const at = viewSpec?.l.size ? placePay(job) : null;
+  const rows = at && at.basis === 'place' && Array.isArray(at.ranges) ? at.ranges : [];
+  const cc = rows.length && rows.every((r) => r.country && r.country === rows[0].country) ? rows[0].country : null;
+  if (!cc || cc === job.salary?.country) return job;
+  const locations = (job.locations || []).filter((l) => String(l?.country || '').toUpperCase() === cc);
+  return locations.length ? { ...job, locations, salary: { ...job.salary, country: cc, currency: at.currency, ranges: undefined, places: undefined } } : job;
 }
 /** What the pool is called in "Pays more than 37% of <noun> at Anthropic". */
 const poolNoun = (job) => (job.seniority === 'Intern' ? 'internships' : isOte(job) ? 'roles with on-target earnings' : 'roles');
@@ -4102,7 +4115,8 @@ const shortNoun = (job) => (job.seniority === 'Intern' ? 'internships' : 'roles'
 function percentile(job) {
   const pool = likePool(job);
   const own = drawerUSD(job);
-  return pool ? payRank(job, pool, { mid: (j) => (j === job ? own?.mid : j._mid) }) : null;
+  const subject = rankSubject(job); // S-1: the picked line's country
+  return pool ? payRank(subject, pool, { mid: (j) => (j === subject ? own?.mid : j._mid) }) : null;
 }
 /**
  * UX-37 (fix-pay-at-place): the range the drawer's rank and strip use for this role: under a Location filter the range
@@ -4171,11 +4185,12 @@ function salaryDistribution(job) {
   const own = drawerUSD(job); // UX-37: the range the Details name
   const dom = base && own ? { lo: Math.min(base.lo, own.min), hi: Math.max(base.hi, own.max) } : base;
   const mids = (pool || []).map((j) => j._mid).concat(own ? [own.mid] : []).sort((a, b) => a - b);
-  const foreign = job.salary.currency && job.salary.currency !== 'USD';
+  const cur = rankSubject(job).salary.currency; // S-1: the currency of the line shown (CAD for Toronto)
+  const foreign = cur && cur !== 'USD';
   const fullTime = isPartTimeHourly(job) ? ' a year if full-time' : ''; // shared decision 4
   const approx = foreign && own ? approxLine(job, own, fullTime)
     // MR-1: a currency with no rate in the table is shown as posted, and says why it is left out of comparisons.
-    : foreign ? h('p', { class: 'fnote' }, `We can’t convert ${job.salary.currency} to US dollars yet (no exchange rate), so this pay is left out of charts and comparisons.`) : null;
+    : foreign ? h('p', { class: 'fnote' }, `We can’t convert ${cur} to US dollars yet (no exchange rate), so this pay is left out of charts and comparisons.`) : null;
   if (!pool || !dom || !own) return approx ? h('div', { class: 'd-dist' }, approx) : null;
   const W = 100, H = 40, N = 32;
   const counts = new Array(N).fill(0);

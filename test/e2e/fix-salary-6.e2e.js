@@ -17,6 +17,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.csv': 'text/csv', '.txt': 'text/plain', '.woff2': 'font/woff2' };
 const linesAt = (width) => (width < 360 ? 2 : 1); // fix-phone-text's rule
 const SHOTS = path.join(ROOT, 'docs', 'screenshots', 'fix-salary-6');
+// FIX_SALARY_6_SHOTS=-before names the screenshots of a base build's run apart (BETA_QA_DIST=<that build>).
+const TAG = /^[-\w]{0,20}$/.test(process.env.FIX_SALARY_6_SHOTS || '') ? process.env.FIX_SALARY_6_SHOTS || '' : '';
 
 let shared = null;
 /** Serve the build under /melon-seek/ (gzip, like Pages); null without a beta build. One server for the whole file. */
@@ -72,7 +74,7 @@ async function board(page, base, hash) {
   await ready(page);
   await sleep(600);
 }
-const text = (page, sel) => page.locator(sel).first().evaluate((e) => (e.textContent || '').replace(/\s+/g, ' ').trim()).catch(() => null);
+const text = (page, sel) => page.locator(sel).first().evaluate((e) => (e.textContent || '').replace(/\s+/g, ' ').trim(), null, { timeout: 3000 }).catch(() => null);
 /** Open a posting from the board in view (a hash change keeps the list and the filter). */
 async function drawer(page, hash, id) {
   await page.evaluate((h) => { location.hash = h; }, `${hash}&job=${encodeURIComponent(id)}`);
@@ -91,9 +93,9 @@ async function appJob(page, base, company, id) {
 
 // The reviewer's cases: the place picked, the line posted for it, and every line the posting gives.
 const CASES = [
-  { id: 'google:111420466312159942', place: 'Milan', pill: '€124K–127K', lines: ['Germany', 'Italy'], was: 'Pay posted for Germany only' },
-  { id: 'google:123907061523063494', place: 'Paris', pill: /^€42K(\/year)?$/, lines: ['Ireland', 'Germany', 'France'], was: 'Pay posted for Ireland only' },
-  { id: 'google:111289074672640710', place: 'Dublin', pill: '€116K–118K', lines: ['Ireland', 'Netherlands'], was: 'Pay posted for the Netherlands only' },
+  { id: 'google:111420466312159942', place: 'Milan', pill: '€124K–127K', lines: ['Germany', 'Italy'], was: 'Pay posted for Germany only', other: 'Germany' },
+  { id: 'google:123907061523063494', place: 'Paris', pill: /^€42K(\/year)?$/, lines: ['Ireland', 'Germany', 'France'], was: 'Pay posted for Ireland only', other: 'Ireland' },
+  { id: 'google:111289074672640710', place: 'Dublin', pill: '€116K–118K', lines: ['Ireland', 'Netherlands'], was: 'Pay posted for the Netherlands only', other: 'Netherlands' },
 ];
 
 async function checkCase(ctx, device, c) {
@@ -102,29 +104,37 @@ async function checkCase(ctx, device, c) {
   await board(page, st.beta, hash);
   const j = await appJob(page, st.beta, 'google', c.id);
   if (!j || !j.salary) skip(`${c.id} is not in this build's Google list`);
+  // Every problem is collected, so a failing build shows all of them (and its screenshots are taken).
+  const bad = [];
+  const want = (v) => (typeof c.pill === 'string' ? v === c.pill : c.pill.test(v));
   const rows = (j.salary.ranges || []).map((r) => r.label);
-  assertEq(rows.join(', '), c.lines.join(', '), `${c.id}: the posting's lines as rows (it kept one country's line)`);
+  if (rows.join(', ') !== c.lines.join(', ')) bad.push(`the posting's rows are [${rows.join(', ')}], want [${c.lines.join(', ')}] (it kept one country's line)`);
   // The card: the place's own line, not "Pay posted for … only".
   const card = page.locator(`#resultsList .card[data-id="${c.id}"]`);
   await card.first().scrollIntoViewIfNeeded().catch(() => {});
   assert(await card.count(), `${c.id} is not listed under l=${c.place}`);
   const pill = (await card.first().locator('.sal-pill').innerText()).trim();
-  assert(!/only$/.test(pill), `${device.name}: the card still reads "${pill}" (it was "${c.was}")`);
-  assert(typeof c.pill === 'string' ? pill === c.pill : c.pill.test(pill), `${device.name} ${c.id}: the card reads "${pill}", want ${c.pill}`);
+  if (!want(pill)) bad.push(`the card reads "${pill}", want ${c.pill}${/only$/.test(pill) ? ` (it was "${c.was}")` : ''}`);
+  fs.mkdirSync(SHOTS, { recursive: true });
+  const shot = (what, loc) => loc.screenshot({ path: path.join(SHOTS, `${c.place.toLowerCase()}-${what}-${device.width}x${device.height}${TAG}.png`) }).catch(() => {});
+  await shot('card', card.first());
   // The drawer: the same figure, posted for the place, and every country's line in Pay by place.
   await drawer(page, hash, c.id);
+  await shot('drawer', page.locator('#drawer .d-salary').first());
   const amt = await text(page, '#drawer .d-sal-amt');
-  assert(typeof c.pill === 'string' ? amt === c.pill : c.pill.test(amt), `${device.name} ${c.id}: the drawer reads "${amt}"`);
+  if (!want(amt)) bad.push(`the drawer reads "${amt}"`);
   const sub = await text(page, '#drawer .d-sal-top .muted');
-  assert(sub.startsWith(`Posted for ${c.place} · EUR`), `${device.name} ${c.id}: the line under the figure reads "${sub}"`);
+  if (!sub || !sub.startsWith(`Posted for ${c.place} · EUR`)) bad.push(`the line under the figure reads "${sub}"`);
   const note = await text(page, '#drawer .d-pay-note');
-  assert(!/Posted for [^,]+, not /.test(note), `${device.name} ${c.id}: the pay note still says "${note.slice(0, 120)}"`);
+  if (/Posted for [^,]+, not /.test(note || '')) bad.push(`the pay note says "${note.slice(0, 120)}"`);
   const places = await text(page, '#drawer .d-sal-places');
-  for (const l of c.lines) assert(places && places.includes(l), `${device.name} ${c.id}: Pay by place has no ${l} line: "${places}"`);
+  for (const l of c.lines) if (!places || !places.includes(l)) bad.push(`Pay by place has no ${l} line: "${places}"`);
+  // The rank ranks the place's line among roles of the place's country, never among the headline country's.
+  const pct = await text(page, '#drawer .d-pct-text');
+  if (pct && pct.includes(c.other)) bad.push(`the rank line reads "${pct}": ${c.place}'s pay ranked among roles in ${c.other}`);
   const chips = await page.locator('#drawer .pay-labels .pay-label').allInnerTexts();
-  assert(!chips.includes('Several pay ranges'), `${device.name} ${c.id}: "Several pay ranges" beside Pay by place: ${chips.join(' | ')}`);
-  fs.mkdirSync(SHOTS, { recursive: true });
-  await page.locator('#drawer .d-salary').first().screenshot({ path: path.join(SHOTS, `${c.place.toLowerCase()}-${device.width}x${device.height}.png`) }).catch(() => {});
+  if (chips.includes('Several pay ranges')) bad.push(`"Several pay ranges" beside Pay by place: ${chips.join(' | ')}`);
+  assert(!bad.length, `${device.name} ${c.id} (l=${c.place}): ${bad.join('; ')}`);
   assert(!errors.length, errors.join('; '));
 }
 
