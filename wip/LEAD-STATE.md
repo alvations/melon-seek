@@ -94,11 +94,11 @@ persona-beta-2-18-24, -25-34, -35-44, -45-54, -55-plus (logs on the branch, 5502
 - qa-ci-6 b-1 (CI failure 3): bare ISO codes from Eightfold boards filed as US states (microsoft:1970393557021098 AL=Albania -> Alabama; also ME, MD, MT, PA, GA, MA, MN, SC, VA, NE; LA -> Los Angeles) -> fix-data-6 as G-2. Test stays red, no expected-red entry.
 - 00:4x the user (iPhone mini screenshots): 'charts and view way too noisy ... information scales per phone/iPad size from iPhone mini to iPhone 18 Pro Max or Duo'. Launched ux-density-6 (size matrix with visible viewports + iPads + Pro Max; per-size density spec with checks; mockups); fix-ui-6 phase 2 implements it. User's mini: 375x812, page gets ~375x625 with browser bars; first screen shows no job. qa-ci-6 b-2 (Bayshore Shopping Centre store as a place) and Monterrey N.L. -> fix-data-6 G-3.
 
-### Agents at 2026-10-24T00:45:31Z
+### Agents at 2026-10-24T00:58:35Z
 agent fix-ui-6 add67b9453342f4ba transcript-age=1min head=0596d1f
-agent fix-data-6 a08f9659d62990db4 transcript-age=0min head=b2a684e
-agent fix-app-6 af65001c61c5e8b4f transcript-age=0min head=ed53ac0
-agent fix-salary-6 a29d354058b1f01b7 transcript-age=0min head=015d801
-agent fix-juice-6 aab76ab3a12b3f957 transcript-age=0min head=72998c6
+agent fix-data-6 a08f9659d62990db4 transcript-age=3min head=29250f0
+agent fix-app-6 af65001c61c5e8b4f transcript-age=0min head=0c06bb2
+agent fix-salary-6 a29d354058b1f01b7 transcript-age=0min head=6926984
+agent fix-juice-6 aab76ab3a12b3f957 transcript-age=3min head=b8ae128
 agent ux-density-6 a8d30680c4dcc21d7 transcript-age=0min head=f52d08c
 agent qa-ci-6 a6d5736b954b39411 transcript-age=0min head=d04035a
