@@ -1145,10 +1145,10 @@ title has the number of companies and the big-tech boards the beta adds. The mai
 (`PIN_TIP`, 7 px), with `CONTROL_GAP` (2 px) of air from each control; a small pan is tried before zooming out, and a re-check
 after a resize starts from unmerged pins.
 
-## fix-app-6 additions (2026-10-23): facet counts per place, medians in the pay's currency, posted minimums, carried filters and posted levels (fix-app-6 lane)
+## fix-app-6 additions (2026-10-23): facet counts per place, medians in the pay's currency, posted minimums, carried filters, posted levels and typed currencies (fix-app-6 lane)
 
-Findings BN-1 to BN-7 from the persona reviews (wave 2) on e800c43. Log: [docs/process/fix-app-6.md](process/fix-app-6.md). Job fields and
-`NORMALIZER_VERSION` are unchanged; every addition is optional for readers. Nothing is dropped: the filters only filter, and every posting and
+Findings BN-1 to BN-8 from the persona reviews (wave 2) on e800c43. Log: [docs/process/fix-app-6.md](process/fix-app-6.md). Job fields and
+`NORMALIZER_VERSION` are unchanged; every addition is optional for readers (URL state gains `sc`). Nothing is dropped: the filters only filter, and every posting and
 pay row is kept.
 
 **Facet counts (`public/app.js derive`, BN-1):** a facet's counts ignore its own selection, so a place's count is what picking that place alone
@@ -1158,6 +1158,12 @@ listed elsewhere failed both the Location and the pay filter and was never count
 in Warsaw and Dublin counted for Dublin at Warsaw's pay. Every other facet (department, company, level, employment type, Remote, listing date,
 Juice) was checked the same way and was already right. The Location list's search box shows by the board's own number of places
 (`boardOptions(facet)`), not by how many the filters leave.
+
+**Country- and state-wide postings in the place counts (BN-1, the lead's addition):** I-6 (fix-app) stands: a city pick finds postings listed
+only for its country or region, and the count it shows is what the pick finds. `derive().fc.lWide` (key -> n) is that part, and the Location
+list shows a place's own postings with it beside them, "Palmetto 3 +294" (`.check-count` is the own count, `.check-wide` the rest; the row's
+title says what the second number is); the list sorts by the own count. Under a Location filter the map's pins do the same (`pinCount(c)`:
+"83+294"; `aggregate`'s `wide` no longer holds a posting that also names the place, and a cluster drops one that names any of its places).
 
 **Pay filter (`salWhy(j, F)`, BN-6):** `'none' | 'elsewhere' | 'under' | 'over' | null`, why the pay filter hides a posting. A posted minimum
 (`salary.kind: 'minimum'`, "from €31,100") states no top, so a minimum never hides it; pay stated "up to" one figure (`shiftRange(s).upTo`) states
@@ -1173,6 +1179,14 @@ chart's caption (`headPay`, `capMedian`) and the map's pins (`summarize()` adds 
 approx-USD figure stays for positions and colours. When every figure is part-time hourly pay (a year if full-time), the median is per hour as
 posted ("$28.41/hour posted pay median"); when only some are, the line says "median, a year if full-time" (shorter where it would wrap), and
 its Details never call it base pay. `basePayStats` adds `pool` (the items its median is of).
+
+**Typed currency (BN-8):** URL state `sc` (the currency the pay bounds were typed in) with `smin`/`smax` as typed ("smin=150000&sc=PLN");
+`S.smin`/`S.smax` stay approx US dollars (`usdOf`, rounded to $1K, as before), so the filter is unchanged, and a link without `sc` is in
+dollars and opens the same filter as before. `S.smn`/`S.smx` hold the typed amounts; `payNative(st)` returns `{ cur, min, max }` while they
+still give the dollar bounds (a bound set since by the slider is moved in that currency; a reset falls back to dollars). The chip, the saved
+search's name and the company switch's toast read `quickLabel('salary')` ("PLN 150K+", "£75K+"); the boxes, the Salary note and the empty
+state read `boundText`. `parsePay` reads "zł" and thousands grouped by spaces, dots or apostrophes, and returns `given` (the text named a
+currency); a bare number takes the currency of the pay in view when it is all in one (`viewPayCurrency`, BN-2's rule), else dollars.
 
 **Locale (BN-3):** the stats line's count is the word alone ("roles"); it cut the number off `plural()` with a digits-and-commas pattern, so
 any locale whose separator isn't a comma showed it twice ("3.821 3.821 roles" in de-DE, "3 821 3 821" in fr-FR, "3’821" in de-CH).

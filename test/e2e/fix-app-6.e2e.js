@@ -368,6 +368,61 @@ export function registerFixApp6Tests(suite) {
     });
   }
 
+  for (const viewport of [{ width: 375, height: 812 }, { width: 1280, height: 800 }]) {
+    suite.test(`fix-app-6: [BN-8] ${viewport.width}x${viewport.height}: a minimum typed in PLN, € or £ (or bare, in a view paid in złoty) stays in that currency in the chip, the link and the saved search's name; the filter is the dollar one`, async (ctx) => {
+      const { st, page, errors } = await open(ctx, { viewport });
+      const bad = [];
+      const typeMin = async (txt) => {
+        if (viewport.width <= 860) {
+          await page.evaluate(() => document.querySelector('#quickChips [data-pop=salary]')?.scrollIntoView({ inline: 'center' }));
+          await page.locator('#quickChips [data-pop=salary]').click(); await sleep(600);
+        }
+        const box = page.locator(viewport.width <= 860 ? '#popover input.range-val' : '#filterBody input.range-val').first();
+        await box.fill(txt); await box.press('Enter'); await sleep(700);
+        if (viewport.width <= 860) { await page.keyboard.press('Escape').catch(() => {}); await sleep(400); }
+      };
+      const chip = () => text(page, '#quickChips [data-pop=salary] .chip-label');
+      for (const [hash, typed, label, cur, amount] of [
+        ['c=google&l=Warsaw', 'PLN 150,000', 'PLN 150K+', 'PLN', 150000],
+        ['c=google&l=Warsaw', '360 000 zł', 'PLN 360K+', 'PLN', 360000],
+        ['c=google&l=Warsaw', '150000', 'PLN 150K+', 'PLN', 150000], // a bare number takes the view's one currency
+        ['c=google&l=Dublin', '€40,000', '€40K+', 'EUR', 40000],
+        ['c=microsoft&l=London', '£75,000', '£75K+', 'GBP', 75000],
+      ]) {
+        await board(page, st, hash);
+        await typeMin(typed);
+        const p = await params(page);
+        if (p.get('sc') !== cur || Number(p.get('smin')) !== amount) bad.push(`${hash} "${typed}": the link reads smin=${p.get('smin')}&sc=${p.get('sc')}`);
+        const c = await chip();
+        if (c !== label) bad.push(`${hash} "${typed}": the chip reads "${c}"`);
+        const n = await roleCount(page);
+        // The same filter as a dollar link (an older link): the same roles.
+        const usd = await page.evaluate(async ({ base, v, cur }) => { const pal = await import(`${base}/viz/palette.js`); return Math.round(pal.toUSD(v, cur) / 1000) * 1000; }, { base: st.beta, v: amount, cur });
+        await board(page, st, `${hash}&smin=${usd}`);
+        const m = await roleCount(page);
+        if (m !== n) bad.push(`${hash} "${typed}": ${n} roles, the dollar link ($${usd / 1000}K) ${m}`);
+        if (typed === '£75,000') {
+          // The saved search's name, as Save stores it in this browser.
+          await board(page, st, `${hash}&smin=75000&sc=GBP`);
+          await page.evaluate(() => document.querySelector('#saveSearch')?.click());
+          await sleep(500);
+          const names = await page.evaluate(() => { const out = []; for (let i = 0; i < localStorage.length; i++) { const v = localStorage.getItem(localStorage.key(i)) || ''; for (const m of v.matchAll(/"name":"([^"]*)"/g)) out.push(m[1]); } return out; });
+          const saved = names.find((x) => /^Microsoft/.test(x));
+          if (!saved || !/£75K\+/.test(saved)) bad.push(`saved search name "${saved}" (all: ${names.join(' | ')})`);
+        }
+      }
+      // A bare number where the pay in view mixes currencies stays dollars, and the chip says so.
+      await board(page, st, 'c=google');
+      await typeMin('150000');
+      const p = await params(page);
+      if (p.get('sc') || Number(p.get('smin')) !== 150000) bad.push(`Google, whole board, "150000": smin=${p.get('smin')}&sc=${p.get('sc')}`);
+      if ((await chip()) !== '$150K+') bad.push(`Google, whole board, "150000": the chip reads "${await chip()}"`);
+      await shot(page, `bn8-chip-${viewport.width}`);
+      assert(!bad.length, bad.join('; '));
+      noErrors(errors);
+    });
+  }
+
   // [phone] Every line this lane added or changed, at every phone size: the stats line and the chart caption over Canadian
   // pay (Amazon interns in Vancouver) and over part-time hourly pay (Apple), and Insights' tiles.
   for (const d of ALL_SIZES) {

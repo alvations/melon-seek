@@ -33,7 +33,8 @@ const MACHINE = ['salActive', 'salWhy', 'jgFails', 'AT_PLACE', 'failures', 'deri
   'placeIndexes', 'placeIndex', 'placeCover', 'coveredBy', 'coverLoc', 'locMatches', 'filterSpec', 'placePayCache', 'placePay', 'payHere', 'usdHere',
   'gradeOf', 'shownJuice', 'empKey', 'isMinimum', 'shiftRange', 'senKey', 'senKeys', 'locKey', 'stats', 'quantile', 'isOte', 'isPartTime',
   'isPartTimeHourly', 'FACET_OFF', 'activeFacets', 'andList', 'dropFacet', 'emptyState', 'plural', 'money', 'CUR_SYM',
-  'held', 'facetSnap', 'dropHeld', 'heldLabels', 'heldLabel', 'heldToast', 'HELD_OF', 'settleKeep', 'clearFilters', 'clearPopoverFacet'];
+  'held', 'facetSnap', 'dropHeld', 'heldLabels', 'heldLabel', 'heldToast', 'HELD_OF', 'settleKeep', 'clearFilters', 'clearPopoverFacet',
+  'usdOf', 'payNative', 'boundText'];
 const BODY = MACHINE.map(fnSource).filter(Boolean).join('\n');
 function machine() {
   // eslint-disable-next-line no-new-func
@@ -403,6 +404,50 @@ test('BN-7 the Seniority filter\'s words say the company\'s own level comes firs
   assert.match(note, /Microsoft, Amazon and NVIDIA postings use the company’s own level/);
   assert.match(note, /counts under both/);
   assert.match(fnSource('senChip') || '', /p\.text/, 'drawer chip: "Manager · Microsoft M5–M6"');
+});
+
+/* ------------------------------------------------------------ BN-8 */
+
+// The URL state block (DEFAULTS, parseHash, serialize, payNative), the salary box's reader and the chip's label.
+function urlState() {
+  const a = APP.indexOf('/* ----------------------------------------------------------------- state */');
+  const b = APP.indexOf('const hashUrl =');
+  const extra = ['CUR_SYM', 'money', 'rangeEnd', 'compactRange', 'quickLabel'].map(fnSource).filter(Boolean).join('\n')
+    + APP.slice(APP.indexOf('const CUR_CODES = ['), APP.indexOf('/** The last typed bounds'));
+  // eslint-disable-next-line no-new-func
+  return new Function('location', 'palette', `
+    const { toUSD, hasFx, formatMoney } = palette;
+    const loadBoards = () => [], levelFromKey = (x) => x, levelKey = (x) => x, isCustomKey = () => false;
+    const VIEWS = ['clusters', 'ranges'], DEFAULT_VIEW = 'clusters', PAGE = 50;
+    const summarize = () => null, senLabel = (x) => x;
+    ${APP.slice(a, b)}
+    ${extra}
+    return { parseHash, serialize, parsePay, label: (st) => { S = st; return quickLabel('salary'); }, payNative: typeof payNative === 'function' ? payNative : null };`)({ hash: '' }, { toUSD, hasFx: (c) => FX_PER_USD[String(c || 'USD').toUpperCase()] != null, formatMoney });
+}
+
+test('BN-8 the pay box reads "360 000 zł", "360.000" and "360’000"; a typed currency is kept in the chip and the link, which still filters in dollars', () => {
+  const u = urlState();
+  assert.equal(typeof u.payNative, 'function', 'app.js payNative');
+  const z = u.parsePay('360 000 zł');
+  assert.ok(z, '"360 000 zł" is refused');
+  assert.deepEqual([z.value, z.currency, z.given], [360000, 'PLN', true]);
+  assert.equal(u.parsePay('360.000').value, 360000);
+  assert.equal(u.parsePay('360’000').value, 360000);
+  assert.equal(u.parsePay('150000').given, false, 'a bare number names no currency');
+  const st = u.parseHash('#c=google&l=Warsaw&smin=150000&sc=PLN');
+  assert.equal(st.smin, Math.round(toUSD(150000, 'PLN') / 1000) * 1000, 'the filter compares in dollars');
+  assert.equal(st.smn, 150000);
+  assert.equal(u.serialize(st), 'c=google&smin=150000&sc=PLN&l=Warsaw', 'the link keeps the amount as typed');
+  assert.equal(u.label(st), 'PLN 150K+', 'the chip: "$40K+" for PLN 150,000');
+  assert.equal(u.label(u.parseHash('#c=microsoft&smin=75000&sc=GBP')), '£75K+');
+  assert.equal(u.label(u.parseHash('#c=google&smin=40000&smax=60000&sc=EUR')), '€40–60K', 'the chip writes a range as it writes dollars ("$40–60K")');
+  // An older link in dollars opens the same filter.
+  const old = u.parseHash('#c=google&l=Warsaw&smin=40000');
+  assert.deepEqual([old.smin, old.sc, old.smn], [40000, '', null]);
+  assert.equal(u.serialize(old), 'c=google&smin=40000&l=Warsaw');
+  assert.equal(u.label(old), '$40K+');
+  // A bound set another way since (the slider: dollars) is shown in dollars.
+  assert.equal(u.label({ ...st, smin: 50000 }), '$50K+');
 });
 
 test('fix-app-6: nothing is dropped: every posting stays on the board, whatever the filters (the machine filters, never removes)', () => {

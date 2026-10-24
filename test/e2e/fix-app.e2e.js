@@ -243,7 +243,11 @@ export function registerFixAppTests(suite) {
     ];
     for (const [typed, want, note] of cases) {
       await box.fill(typed); await box.press('Enter'); await sleep(450);
-      assertEq(Number((await params(page)).get('smin')), want, `"${typed}" -> smin`);
+      // fix-app-6 (BN-8): a bound typed in another currency stays in it in the link (smin=80000&sc=GBP); the filter's
+      // dollar bound is the same as before.
+      const hp = await params(page);
+      const got = hp.get('sc') ? k(toUSD(Number(hp.get('smin')), hp.get('sc'))) : Number(hp.get('smin'));
+      assertEq(got, want, `"${typed}" -> smin`);
       const read = await filterSec(page, 'Salary').locator('.salary-read').innerText();
       assert(note.test(read), `"${typed}": understood "${read}"`);
     }

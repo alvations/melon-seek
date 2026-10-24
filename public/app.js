@@ -3,7 +3,7 @@
 // list, the job drawer and the company switcher. Rendering of the salary
 // chart and the map is delegated to ./viz/* (see docs/CONTRACT.md).
 
-import { colorFor, formatMoney, resetColors, assignColors, otherColor, toUSD, SLOT_COUNT, hasFx, juiceNetForScore, JUICE_BREAKS, FX_AS_OF, FX_SOURCE } from './viz/palette.js';
+import { colorFor, formatMoney, resetColors, assignColors, otherColor, toUSD, SLOT_COUNT, hasFx, juiceNetForScore, JUICE_BREAKS, FX_AS_OF, FX_SOURCE, FX_PER_USD } from './viz/palette.js';
 import { createChart, keyOf, VIEWS, DEFAULT_VIEW, payBasisPlace } from './viz/chart.js';
 import { renderNote, noteLine, fitLine as fitOneLine } from './viz/note.js';
 import { createMap } from './viz/map.js';
@@ -268,8 +268,8 @@ function shiftTip(s) {
 }
 
 /** "$137K"–"$338K" -> "$137–338K" when units match; one figure when both ends show the same ("$44K", never "$44K–44K"). */
-function compactRange(a, b) {
-  const x = money(a), y = money(b);
+function compactRange(a, b, currency = 'USD') {
+  const x = money(a, currency), y = money(b, currency);
   if (x === y) return x;
   const ux = x.slice(-1), uy = y.slice(-1);
   return ux === uy && /[KM]/.test(ux) ? `${x.slice(0, -1)}–${y.replace(/^[^\d]+/, '')}` : `${x}–${y.replace(/^[^\d]+/, '')}`;
@@ -381,12 +381,15 @@ function jobsQuery(key) {
 
 const ARRAYS = ['d', 'b', 'l', 's', 'e', 'kr', 'kf', 'ks', 'jg'];
 const DEFAULTS = {
-  c: '', cn: '', m: 'chart', q: '', smin: null, smax: null, so: false,
+  c: '', cn: '', m: 'chart', q: '', smin: null, smax: null, so: false, sc: '', smn: null, smx: null,
   d: [], b: [], l: [], s: [], e: [], r: 'any', p: 0, ho: false, rf: '', kr: [], kf: [], ks: [], jg: [],
   v: DEFAULT_VIEW, g: 'department', sort: 'best', mc: 'pay', job: null,
 };
-const FILTER_KEYS = ['q', 'smin', 'smax', 'so', 'd', 'b', 'l', 's', 'e', 'r', 'p', 'ho', 'rf', 'kr', 'kf', 'ks', 'jg'];
-const ORDER = ['c', 'cn', 'm', 'q', 'smin', 'smax', 'so', 'd', 'b', 'l', 's', 'e', 'r', 'p', 'ho', 'rf', 'kr', 'kf', 'ks', 'jg', 'v', 'g', 'sort', 'mc', 'job'];
+// BN-8 (fix-app-6): `sc` is the currency the pay bounds were typed in, `smn`/`smx` the amounts as typed; `smin`/`smax`
+// stay approx US dollars, which the filter compares. A link holds the typed amounts with `sc` ("smin=150000&sc=PLN"); an
+// older link (no `sc`) holds dollars and opens the same filter as before.
+const FILTER_KEYS = ['q', 'smin', 'smax', 'so', 'sc', 'smn', 'smx', 'd', 'b', 'l', 's', 'e', 'r', 'p', 'ho', 'rf', 'kr', 'kf', 'ks', 'jg'];
+const ORDER = ['c', 'cn', 'm', 'q', 'smin', 'smax', 'sc', 'so', 'd', 'b', 'l', 's', 'e', 'r', 'p', 'ho', 'rf', 'kr', 'kf', 'ks', 'jg', 'v', 'g', 'sort', 'mc', 'job'];
 
 let S = structuredClone(DEFAULTS);
 let companies = [];
@@ -396,6 +399,25 @@ let area = null; // { label, ids:Set } from map onAreaSelect — not shareable, 
 let hoverId = null;
 let resultsLimit = PAGE;
 let lastHash = '';
+
+/** BN-8: a typed amount in approx US dollars, as the salary box reads it (rounded to $1K). */
+const usdOf = (v, cur) => (v == null ? null : !cur || cur === 'USD' ? v : Math.round(toUSD(v, cur) / 1000) * 1000);
+/**
+ * BN-8: the pay bounds as typed, { cur, min, max }, when they are in force (each typed amount still gives the dollar bound
+ * the filter uses); null for bounds in US dollars, or set another way since (the slider, a reset).
+ */
+function payNative(st = S) {
+  if (!st.sc || st.sc === 'USD' || (st.smin == null && st.smax == null)) return null;
+  const ok = (usd, nat) => (usd == null ? nat == null : nat != null && usdOf(nat, st.sc) === usd);
+  return ok(st.smin, st.smn) && ok(st.smax, st.smx) ? { cur: st.sc, min: st.smn, max: st.smx } : null;
+}
+
+/** BN-8: a pay bound ('min' | 'max') as the person typed it ("PLN 150K"), else in US dollars; null when unset. */
+function boundText(which, st = S) {
+  const nat = payNative(st);
+  const v = nat ? nat[which] : st[which === 'min' ? 'smin' : 'smax'];
+  return v == null ? null : money(v, nat ? nat.cur : 'USD');
+}
 
 function parseHash(hash = location.hash) {
   const p = new URLSearchParams(String(hash).replace(/^#/, ''));
@@ -414,6 +436,11 @@ function parseHash(hash = location.hash) {
   if (!VIEWS.includes(st.v)) st.v = DEFAULT_VIEW;
   if (!p.has('g') || !GROUPS.includes(st.g)) st.g = groupDefault(st.v);
   if (st.p === 0) st.p = 0;
+  // BN-8: bounds typed in another currency come with it ("smin=150000&sc=PLN"); the filter compares them in dollars.
+  const sc = String(st.sc || '').toUpperCase();
+  if (sc && sc !== 'USD' && /^[A-Z]{3}$/.test(sc) && hasFx(sc) && (st.smin != null || st.smax != null)) {
+    st.sc = sc; st.smn = st.smin; st.smx = st.smax; st.smin = usdOf(st.smn, sc); st.smax = usdOf(st.smx, sc);
+  } else { st.sc = ''; st.smn = null; st.smx = null; }
   return st;
 }
 
@@ -440,8 +467,11 @@ function effectiveSort() {
 
 function serialize(st = S) {
   const p = new URLSearchParams();
+  const nat = payNative(st); // BN-8: the bounds as typed, with their currency
   for (const k of ORDER) {
     const v = st[k];
+    if (nat && (k === 'smin' || k === 'smax')) { const x = k === 'smin' ? nat.min : nat.max; if (x != null) p.set(k, String(x)); continue; }
+    if (k === 'sc') { if (nat) p.set('sc', nat.cur); continue; }
     if (ARRAYS.includes(k)) { for (const x of v) p.append(k, k === 's' ? levelKey(x) : x); continue; }
     if (k === 'g') { if (v !== groupDefault(st.v)) p.set('g', v); continue; }
     if (v == null || v === '' || v === false || v === DEFAULTS[k]) continue;
@@ -2287,11 +2317,15 @@ function summarize(list, noun) {
 
 function quickLabel(id) {
   switch (id) {
-    case 'salary':
-      if (S.smin != null && S.smax != null) return compactRange(S.smin, S.smax);
-      if (S.smin != null) return `${money(S.smin)}+`;
-      if (S.smax != null) return `Up to ${money(S.smax)}`;
+    case 'salary': {
+      // BN-8 (fix-app-6): as typed ("PLN 150K+", "£75K+"); the chip, the saved-search name and the kept toast read this.
+      const nat = payNative();
+      const cur = nat ? nat.cur : 'USD', lo = nat ? nat.min : S.smin, hi = nat ? nat.max : S.smax;
+      if (lo != null && hi != null) return compactRange(lo, hi, cur);
+      if (lo != null) return `${money(lo, cur)}+`;
+      if (hi != null) return `Up to ${money(hi, cur)}`;
       return S.so ? 'Has salary' : null;
+    }
     case 'dept': return summarize([...S.b, ...S.d], S.d.length ? 'Departments' : 'Companies'); // google-grouping: Company is in this menu
     case 'loc': return summarize(S.l, 'Locations');
     case 'sen': return summarize(S.s.map(senLabel), 'Seniority');
@@ -2379,12 +2413,16 @@ function section(title, body, { open = true, badge = null } = {}) {
 const CUR_CODES = [
   [/^(?:us\$|usd)/, 'USD'], [/^(?:a\$|au\$|aud)/, 'AUD'], [/^(?:c\$|ca\$|cad)/, 'CAD'], [/^(?:nz\$|nzd)/, 'NZD'], [/^(?:s\$|sgd)/, 'SGD'],
   [/^(?:hk\$|hkd)/, 'HKD'], [/^(?:£|gbp)/, 'GBP'], [/^(?:€|eur)/, 'EUR'], [/^(?:¥|jpy)/, 'JPY'], [/^(?:₹|inr)/, 'INR'], [/^chf/, 'CHF'],
-  [/^(?:₩|krw)/, 'KRW'], [/^(?:₪|ils)/, 'ILS'], [/^(?:sek|nok|dkk|pln|czk|aed|sar|brl|mxn|twd)/, null], [/^\$/, 'USD'],
+  [/^(?:₩|krw)/, 'KRW'], [/^(?:₪|ils)/, 'ILS'], [/^(?:zł|zl)/, 'PLN'], [/^(?:sek|nok|dkk|pln|czk|aed|sar|brl|mxn|twd)/, null], [/^\$/, 'USD'],
 ];
 const CUR_TAILS = CUR_CODES.map(([re, cur]) => [new RegExp(`(?:${re.source.slice(1)})$`), cur]);
-/** "£80,000" -> { usd: 108000, value: 80000, currency: 'GBP', read: true }; "" / "any" -> null; not understood -> undefined. */
+/**
+ * "£80,000" -> { usd: 108000, value: 80000, currency: 'GBP', read: true, given: true }; "" / "any" -> null; not understood
+ * -> undefined. BN-8 (fix-app-6): "zł" is PLN ("360 000 zł"), and thousands grouped by spaces, dots or apostrophes
+ * ("360 000", "360.000", "360’000") are read; `given` says whether the text named a currency.
+ */
 function parsePay(txt) {
-  let t = String(txt).trim().toLowerCase().replace(/\s+/g, '').replace(/(?:\/|per|a)?(?:yr|year|annum)$/, '');
+  let t = String(txt).trim().toLowerCase().replace(/\s+/g, '').replace(/[’']/g, '').replace(/(?:\/|per|a)?(?:yr|year|annum)$/, '');
   if (!t || t === 'any') return null;
   let currency = null;
   for (const [re, cur] of CUR_CODES) {
@@ -2411,9 +2449,19 @@ function parsePay(txt) {
   else if (value > 0 && value < 1000) { value *= 1e3; read = true; } // "400" reads as $400K (the box is yearly pay)
   value = Math.round(value);
   const cur = currency || 'USD';
-  const usd = cur === 'USD' ? value : Math.round(toUSD(value, cur) / 1000) * 1000;
-  return { usd, value, currency: cur, read: read || cur !== 'USD' };
+  const usd = usdOf(value, cur);
+  return { usd, value, currency: cur, read: read || cur !== 'USD', given: !!currency };
 }
+/**
+ * BN-8: the currency of the pay in view when it is all in one (BN-2's rule: stats' `cur` with no basis), over the roles
+ * every other filter leaves (the pay filter aside); null when the view mixes currencies or shows no pay.
+ */
+function viewPayCurrency() {
+  const st = stats(compVisible());
+  return st.withSalary && !st.basis ? st.cur : null;
+}
+/** BN-8: an amount in US dollars as `cur`, rounded to a thousand (a bound the slider set, shown in the typed currency). */
+const fromUSDRound = (usd, cur) => (usd == null ? null : Math.round((usd * (FX_PER_USD[cur] ?? 1)) / 1000) * 1000);
 /** The last typed bounds and how they were read, shown under the boxes while they stay in force. */
 const typedPay = { lo: null, hi: null };
 
@@ -2449,7 +2497,13 @@ function makeSalary({ compact = false } = {}) {
     let smin = S.smin, smax = S.smax;
     if (which === 'lo') smin = a <= dom.lo ? null : a;
     else { smax = b >= dom.hi ? null : b; if (smin != null && smax != null && smin > smax) smin = smax; }
-    set({ smin, smax }, { replace: true });
+    // BN-8: bounds typed in another currency stay in it: the moved one is that currency's round amount.
+    const nat = payNative();
+    if (nat) {
+      const smn = which === 'lo' ? fromUSDRound(smin, nat.cur) : smin === S.smin ? nat.min : fromUSDRound(smin, nat.cur);
+      const smx = which === 'hi' ? fromUSDRound(smax, nat.cur) : nat.max;
+      set({ smin: usdOf(smn, nat.cur), smax: usdOf(smx, nat.cur), smn, smx }, { replace: true });
+    } else set({ smin, smax }, { replace: true });
     paint(true);
   };
   lo.addEventListener('input', onInput('lo'));
@@ -2464,13 +2518,28 @@ function makeSalary({ compact = false } = {}) {
     const v = parsePay(raw);
     if (v === undefined) { junk = raw; paint(true); return; } // not understood: say so, keep the bound in force
     junk = '';
+    // BN-8: a bare number takes the currency of the pay in view when it is all in one (BN-2's rule), else dollars.
+    if (v && !v.given) {
+      const vc = viewPayCurrency();
+      if (vc && vc !== 'USD' && hasFx(vc)) Object.assign(v, { currency: vc, usd: usdOf(v.value, vc), read: true, inView: true });
+    }
     let a = S.smin, b = S.smax;
     const x = v == null || !(v.usd > 0) ? null : v.usd;
     if (which === 'lo') { a = x; if (a != null && b != null && a > b) b = a; }
     else { b = x; if (a != null && b != null && b < a) a = b; }
     typedPay[which] = x != null && (v.read || x < dom.lo || x > dom.hi) ? { usd: x, raw, v } : null;
-    lo.value = a ?? dom.lo; hi.value = b ?? dom.hi;
-    set({ smin: a, smax: b });
+    // BN-8: the bounds are kept as typed, in one currency: the one just typed (the other bound is re-expressed in it).
+    const was = payNative();
+    const cur = x == null ? (was ? was.cur : '') : v.currency === 'USD' ? '' : v.currency;
+    let patch = { smin: a, smax: b, sc: cur, smn: null, smx: null };
+    if (cur) {
+      const other = (usd, prev) => (usd == null ? null : was && was.cur === cur && prev != null && usdOf(prev, cur) === usd ? prev : fromUSDRound(usd, cur));
+      const smn = which === 'lo' ? (x == null ? null : v.value) : other(a, was?.min);
+      const smx = which === 'hi' ? (x == null ? null : v.value) : other(b, was?.max);
+      patch = { sc: cur, smn, smx, smin: usdOf(smn, cur), smax: usdOf(smx, cur) };
+    }
+    lo.value = patch.smin ?? dom.lo; hi.value = patch.smax ?? dom.hi;
+    set(patch);
     paint(true);
   };
   for (const [inp, which] of [[minOut, 'lo'], [maxOut, 'hi']]) {
@@ -2488,7 +2557,8 @@ function makeSalary({ compact = false } = {}) {
       const t = typedPay[which];
       if (!t || cur !== t.usd) continue;
       const usd = money(t.usd);
-      const how = t.v.currency !== 'USD' ? `${postedMoney(t.v.value, t.v.currency)} ≈ ${usd} a year` : t.v.read ? `“${t.raw}” read as ${usd} a year` : `${usd} a year`;
+      const how = t.v.inView ? `${postedMoney(t.v.value, t.v.currency)} ≈ ${usd} a year, as the pay here`
+        : t.v.currency !== 'USD' ? `${postedMoney(t.v.value, t.v.currency)} ≈ ${usd} a year` : t.v.read ? `“${t.raw}” read as ${usd} a year` : `${usd} a year`;
       const edge = which === 'lo' && t.usd < dom.lo ? `, below the lowest pay listed here (${money(dom.lo)})`
         : which === 'hi' && t.usd > dom.hi ? `, above the highest pay listed here (${money(dom.hi)})` : '';
       out.push(`${name}: ${how}${edge}`);
@@ -2506,8 +2576,8 @@ function makeSalary({ compact = false } = {}) {
     // right end (both thumbs together) can still be dragged back; otherwise max stays on top.
     lo.classList.toggle('is-top', pct(a) > 50);
     // The text follows the state, so a typed bound stays exact (the slider snaps to $5K).
-    const minShow = S.smin == null ? 'Any' : money(S.smin);
-    const maxShow = S.smax == null ? 'Any' : money(S.smax);
+    const minShow = boundText('min') ?? 'Any'; // BN-8: as typed ("PLN 150K"), else dollars
+    const maxShow = boundText('max') ?? 'Any';
     if (force || document.activeElement !== minOut) minOut.value = minShow;
     if (force || document.activeElement !== maxOut) maxOut.value = maxShow;
     lo.setAttribute('aria-valuetext', minShow);
@@ -2535,8 +2605,8 @@ function makeSalary({ compact = false } = {}) {
     const is = (n) => (n === 1 ? 'is' : 'are');
     // M-36 (fix-phone-text): one line, the reasons behind its Details.
     renderNote(noPay, { key: 'fnote-nopay', line: all ? `${plural(all, 'role')} hidden by the pay filter` : '', details: [
-      why.under ? `${plural(why.under, 'role')} whose posted pay is all under ${money(S.smin)} a year ${is(why.under)} hidden. Posted minimums (“from …”) are kept: their top isn’t stated.` : '',
-      why.over ? `${plural(why.over, 'role')} whose posted pay is all over ${money(S.smax)} a year ${is(why.over)} hidden.` : '',
+      why.under ? `${plural(why.under, 'role')} whose posted pay is all under ${boundText('min')} a year ${is(why.under)} hidden. Posted minimums (“from …”) are kept: their top isn’t stated.` : '',
+      why.over ? `${plural(why.over, 'role')} whose posted pay is all over ${boundText('max')} a year ${is(why.over)} hidden.` : '',
       hidden ? `${plural(hidden, 'role')} that ${hidden === 1 ? 'lists' : 'list'} no pay ${is(hidden)} hidden while a pay filter is on.` : '',
       elsewhere ? `${plural(elsewhere, 'role')} whose pay is posted for another country ${is(elsewhere)} hidden${hidden ? ' too' : ' while a pay filter is on'}: that pay isn’t for ${placesPicked()}.` : ''] });
     noPay.hidden = !all;
@@ -3639,8 +3709,8 @@ function emptyState() {
   const only = derived.fc?.only || {};
   const why = derived.fc?.salWhy || { none: derived.fc?.noPayHidden || 0, elsewhere: derived.fc?.elsewhereHidden || 0, under: 0, over: 0 };
   const noPay = why.none, elsewhere = why.elsewhere;
-  const payNote = [why.under ? `${plural(why.under, 'role')} whose posted pay is all under ${money(S.smin)} a year ${why.under === 1 ? 'is' : 'are'} hidden by the pay filter.` : '',
-    why.over ? `${plural(why.over, 'role')} whose posted pay is all over ${money(S.smax)} a year ${why.over === 1 ? 'is' : 'are'} hidden by the pay filter.` : '',
+  const payNote = [why.under ? `${plural(why.under, 'role')} whose posted pay is all under ${boundText('min')} a year ${why.under === 1 ? 'is' : 'are'} hidden by the pay filter.` : '',
+    why.over ? `${plural(why.over, 'role')} whose posted pay is all over ${boundText('max')} a year ${why.over === 1 ? 'is' : 'are'} hidden by the pay filter.` : '',
     noPay ? `${plural(noPay, 'role')} that ${noPay === 1 ? 'lists' : 'list'} no pay ${noPay === 1 ? 'is' : 'are'} hidden by the pay filter.` : '',
     elsewhere ? `${plural(elsewhere, 'role')} whose pay is posted for another country ${elsewhere === 1 ? 'is' : 'are'} hidden by the pay filter.` : ''].filter(Boolean);
   if (on.length === 1) {
@@ -5102,7 +5172,7 @@ function payLabels(job) {
 /** Jobs passing every non-salary filter (Compstimate's auto title only; never its pool). Cached per state. */
 let compVisCache = { key: null, list: null };
 function compVisible() {
-  const key = `${dataSeq}|${JSON.stringify(FILTER_KEYS.filter((k) => !['smin', 'smax', 'so'].includes(k)).map((k) => S[k]))}`;
+  const key = `${dataSeq}|${JSON.stringify(FILTER_KEYS.filter((k) => !['smin', 'smax', 'so', 'sc', 'smn', 'smx'].includes(k)).map((k) => S[k]))}`;
   if (compVisCache.key !== key) {
     const F = filterSpec(S), now = Date.now();
     compVisCache = { key, list: data.jobs.filter((j) => failures(j, F, now).every((f) => f === 'sal')) };
