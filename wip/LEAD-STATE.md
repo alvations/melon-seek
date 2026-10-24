@@ -109,10 +109,11 @@ persona-beta-2-18-24, -25-34, -35-44, -45-54, -55-plus (logs on the branch, 5502
 - 01:0x the user: 'Make sure you don't get interrupted by session or token limit'. Paced: at most 5 agents at once; fix-juice-6 and qa-ci-6 paused at a safe point (resume order qa-ci-6, fix-juice-6, one per finished lane); economy rules sent to the five running. Hourly resume task stays as the backstop.
 - 01:1x fix-juice-6 paused at c4c84ab: J-1..J-5 fixed with red tests (unit 4/9, e2e 16/16 red on base); Juice/tax unit tests unchanged; next: rebuild via heavy.sh, e2e green, related groups, screenshots, send SHA.
 - 01:1x qa-ci-6 paused at 5f24b37 (2c5eecd WIP test fixes not yet run: don't integrate). Classified: (a) pinned to 10-16, tests fixed WIP: fix3-data, D-41, MR-34, UX-59, Duo strip, 21 D-50 skips, BP-10 skip; (b) b-1, b-2 (+Monterrey) sent; (c) CI-only: UI badge (CI server fetched live boards -> MELON_OFFLINE default in harness), [cuts], 280 phone-text guard, razr landscape pass on CI's data here, suspect CI Chromium 153 vs 141 here -> pin Playwright 1.56.1 in e2e.yml; open: Badge swap. Step 4 WIP: per-shard verdict, summary fails on stopped runs and over --max-skips.
+- 01:2x ux-density-6 spec (43ddac0): before, 0 of 104 (26 phone sizes x 4 boards) show a job on the first screen; at 375x625 first title 45 px below. Visible viewports: Chrome iOS smallest (SE 375x544, mini 375x625, 17 Pro Max 440x757; iPads with Mac UA). Lead decision: ALL_SIZES = PHONES+POSTURES+TABLETS (31); VISIBLE (21) for first-screen/density checks and phone-smoke. Forwarded D-1..D-14 to fix-ui-6 phase 2.
 
-### Agents at 2026-10-24T01:13:30Z
-agent fix-ui-6 add67b9453342f4ba transcript-age=7min head=9d188a1
-agent fix-data-6 a08f9659d62990db4 transcript-age=3min head=5bf929d
-agent fix-app-6 af65001c61c5e8b4f transcript-age=1min head=559e6e5
-agent fix-salary-6 a29d354058b1f01b7 transcript-age=5min head=3931eb4
-agent ux-density-6 a8d30680c4dcc21d7 transcript-age=0min head=6ae424b
+### Agents at 2026-10-24T01:28:36Z
+agent fix-ui-6 add67b9453342f4ba transcript-age=2min head=2f245aa
+agent fix-data-6 a08f9659d62990db4 transcript-age=0min head=5bf929d
+agent fix-app-6 af65001c61c5e8b4f transcript-age=5min head=e856d8d
+agent fix-salary-6 a29d354058b1f01b7 transcript-age=0min head=e23dddf
+agent ux-density-6 a8d30680c4dcc21d7 transcript-age=7min head=40c1bf4
