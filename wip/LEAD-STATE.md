@@ -125,7 +125,7 @@ persona-beta-2-18-24, -25-34, -35-44, -45-54, -55-plus (logs on the branch, 5502
 - 06:3x fix-app-6 done (42b2a59, 28 commits on 94d65d0): BN-1 counts per place (Dublin 2->137; Vancouver 22->178, Seattle 3,668; 'Palmetto 3 +294'); BN-2 median in the pay's currency, one wording function chart.js medianWording; BN-3 once in every locale; BN-4 hourly median; BN-5 set-aside places survive; BN-6 minimums survive a floor (Milan 54->84, EU 185->313); BN-7 two-level postings count under both (MS 102, NVIDIA 51), chip 'Manager · Microsoft M5–M6'; BN-8 typed currency kept (smin+sc), zł and grouped thousands; V-44 short maps '9 with no place'. npm test 1,359/0 fail. Picked clean -> f13ebd6. qa-ci-6 resumed on f13ebd6.
 - fix-app-6 final report: known gaps: chart row medians still US$ with a country label (sent to fix-ui-6 for D-5); one-level Microsoft chips name the posted level only after the posting text loads. Pre-rebase states kept as branches fix-app-6-pre-rebase(2).
 
-### Agents at 2026-10-24T06:58:46Z
-agent fix-ui-6 add67b9453342f4ba transcript-age=4min head=6d82ea4
-agent fix-data-6 a08f9659d62990db4 transcript-age=3min head=6c8f4ca
-agent qa-ci-6 a6d5736b954b39411 transcript-age=3min head=b9baf8d
+### Agents at 2026-10-24T07:13:50Z
+agent fix-ui-6 add67b9453342f4ba transcript-age=0min head=6d82ea4
+agent fix-data-6 a08f9659d62990db4 transcript-age=8min head=6c8f4ca
+agent qa-ci-6 a6d5736b954b39411 transcript-age=7min head=b9baf8d
