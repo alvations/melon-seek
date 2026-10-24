@@ -403,7 +403,10 @@ export function registerUiTests(suite) {
       const before = await resultCount(page);
       const row = filterSection(page, 'Department').locator('label.check').nth(1);
       const dept = (await row.locator('.check-label').innerText()).trim();
-      const expectedCount = Number((await row.locator('.check-count').innerText()).trim());
+      // fix-app-6 (BN-1): a place's own count, with the roles listed only for its country or state beside it ("481 +18"); a pick
+      // finds both (I-6).
+      const wide = (await row.locator('.check-wide').count()) ? Number((await row.locator('.check-wide').innerText()).replace(/\D/g, '')) : 0;
+      const expectedCount = Number((await row.locator('.check-count').innerText()).trim()) + wide;
       await row.click();
       const after = await countChange(page, before);
       assert(after < before && after > 0, `department "${dept}" should narrow (${before} -> ${after})`);

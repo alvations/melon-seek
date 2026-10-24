@@ -237,7 +237,7 @@ function shownRows(sel) {
     const input = row?.querySelector('input');
     // The checkbox's name from its <label>: the name, then the count.
     const named = input?.labels?.[0]?.cloneNode(true);
-    named?.querySelectorAll('.check-count').forEach((e) => e.remove());
+    named?.querySelectorAll('.check-count, .check-wide').forEach((e) => e.remove()); // fix-app-6 (BN-1): "3 +294"
     const lh = parseFloat(getComputedStyle(label).lineHeight) || parseFloat(getComputedStyle(label).fontSize) * 1.3;
     return {
       full: label.textContent.replace(/\s+/g, ' ').trim(),
