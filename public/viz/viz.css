@@ -668,6 +668,8 @@
   pointer-events: none;
 }
 .ms-map .ms-map__unplaced[hidden] { display: none; }
+/* fix-app-6: a short map (the Razr cover screen) hangs it under the Pay | Juice switch, off the pins at the bottom left. */
+.ms-map .ms-map__unplaced.ms-map__unplaced--in-modes { position: absolute; top: 100%; right: 0; margin-top: 4px; }
 
 .ms-map .ms-pin-icon { outline: none; }
 .ms-map .ms-pin-icon:focus-visible .ms-pin { box-shadow: 0 0 0 2px var(--_surface), 0 0 0 4px var(--_accent), 0 2px 6px rgba(0, 0, 0, .22); }
