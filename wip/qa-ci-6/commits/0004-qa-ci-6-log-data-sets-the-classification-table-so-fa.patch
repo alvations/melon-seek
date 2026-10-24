@@ -1,0 +1,125 @@
+From 5f24b372eb57ba4f874af432d2d496c480b5b1c0 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 24 Oct 2026 01:05:33 +0000
+Subject: [PATCH 4/4] qa-ci-6: log: data sets, the classification table so far,
+ State (paused)
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+---
+ docs/process/qa-ci-6.md | 80 +++++++++++++++++++++++++++++++++++------
+ 1 file changed, 70 insertions(+), 10 deletions(-)
+
+diff --git a/docs/process/qa-ci-6.md b/docs/process/qa-ci-6.md
+index 111962b..3ec6643 100644
+--- a/docs/process/qa-ci-6.md
++++ b/docs/process/qa-ci-6.md
+@@ -1,20 +1,37 @@
+ # Process log: qa-ci-6 (test-suite engineer: the first sharded CI run of the e2e suite, 2026-10-24)
+ 
+ ## State
+-- **In progress.** Worktree on fd9da2f (same code as e800c43, the CI run's commit: `git diff e800c43 fd9da2f` touches
+-  only docs/ and wip/), plus this lane's commits.
++- **Paused by the lead (2026-10-24 ~01:05, usage limit).** Worktree on fd9da2f (same code as e800c43, the CI run's
++  commit: `git diff e800c43 fd9da2f` touches only docs/ and wip/), plus this lane's commits.
+ - **Done:**
+   - brief saved verbatim (5e20d9e);
+   - the CI run's four shard logs read (GitHub job logs; the artifacts cannot be downloaded here, a 403 at the proxy);
+-  - newest data restored (`local-data.js --date 2026-10-23`) and built; the 2026-10-16 crawl linked into a second
+-    worktree and built;
+-  - finding b-1 sent (Microsoft's bare "AL" filed as Alabama; routed to fix-data-6 as G-2).
+-- **Next:** reproduce the rest on the newest data, classify, fix the tests, step 4 (shard verdicts).
++  - three data sets built (section 2): the newest (`local-data.js --date 2026-10-23`), the CI run's exact
++    observations (rebuilt from the archive with reconstruct.js `--at`), and the 2026-10-16 crawl;
++  - every failure and skip reproduced on the newest data, and the original tests run on the CI run's exact data
++    (runs/new-repro1.log, runs/ci-repro1.log), classification in section 3.1;
++  - findings sent: b-1 (Microsoft "AL" filed as Alabama, fix-data-6 G-2), b-2 (Apple "Bayshore Shopping Centre" as
++    a place, and Microsoft "Monterrey, N.L." as the Netherlands, fix-data-6 G-3);
++  - **written, not yet run** (WIP commit): the test fixes for (a) in fix3-data, fix-data-3, fix-pay-at-place,
++    fix-viz-5, fix-touch-tips, fix-qa4, fix3-app; the harness's MELON_OFFLINE default (c); step 4 in e2e.yml (a
++    shard verdict step) and e2e-summary.mjs (stopped runs, --max-skips, multi-line errors). The summary was run on
++    the CI logs: 953 tests, 916 passed, 12 failed, 25 skipped, exit 1, shard 4 over --max-skips.
++- **Open:** Badge [static] swap (fails on the CI data here too: a data case, cause not yet found); [cuts], the 280
++  phone-text guard and razr landscape pass here on the CI data, so they are CI-only; the Chromium difference (141
++  here, 153 in CI) is the main suspect, and the fix is to pin CI's Playwright to 1.56.1. Then run every touched group on the newest and
++  the 10-16 data; `npm test` in the clean checkout; send SHAs.
++- **Next:** finish the Badge swap and [cuts] analysis; pin Playwright in e2e.yml if the evidence holds; run the
++  touched groups (through `heavy.sh`) on both data sets; npm test; send the SHAs.
+ - **Scratch:** `<scratch>/qci6/`, where `<scratch>` is
+   `/tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92f3-f582ebca24d9/scratchpad`:
+   - `ci/shard<n>.job.log`: the CI shard logs; `runs/`: my runs; `tools/`: the probes and the runner wrapper;
+   - `wt16/`: the second worktree, with the 2026-10-16 crawl linked from `<scratch>/wt-data2` (read-only use);
++    `wt16/dist -> dist-16` (its build). The CI-data build (dist-ci) and the CI beta snapshots are deleted (disk);
++    `data-ci/snapshots` keeps the CI run's 8 stable boards for the Badge check;
+   - `clean/`: the CI-like checkout for `npm test`.
++  - `tools/e2e-run.sh <checkout> <log> <s> <args>`, `tools/e2e-run-ci.sh`, `tools/rebuild-ci.sh` (reconstruct.js
++    `--at` for each CI observation), `tools/pwprobe.mjs` (a page probe), `tools/probe*.mjs` (bundle queries).
++  - Heavy jobs go through `<scratch>/heavy.sh` (the lead, 01:00).
+ 
+ ## 1. Brief
+ - Prompt (verbatim): [prompts/qa-ci-6.md](prompts/qa-ci-6.md).
+@@ -31,14 +48,57 @@
+   e2e-summary.mjs, scripts/cycle/local-data.js, pages.yml, PLAYBOOK.md ("Checkpoints", "Known traps"), TEMPLATE.md,
+   scripts/e2e.js and test/e2e/harness.js.
+ - The CI run: jobs 120656161917 (build), 120658168308/139/266/284 (shards 1-4), 120671702851 (summary).
+-- Data:
++- Data (observation time, postings). The live site deploys from fresh crawls (pages.yml), so it serves data newer
++  than the 2026-10-16 crawl every reviewer used:
+ 
+-  | Board | CI run (archive at 21:05 UTC) | newest here (`--date 2026-10-23`) | 2026-10-16 crawl |
++  | Board | CI run (its build job's local-data lines) | newest here (`--date 2026-10-23`, archive at 22:13) | 2026-10-16 crawl |
+   |---|---|---|---|
+-  | (filled in below) | | | |
++  | Amazon | 2026-10-23T17:36 21,721 | 2026-10-23T21:49 21,687 | 10-16T12:03 22,179 |
++  | Apple | 17:38 4,944 | 22:07 4,952 | 12:14 4,851 |
++  | Google | 17:32 3,672 | 21:48 3,596 | 12:04 3,821 |
++  | Meta | 17:53 1,279 | 22:07 1,282 | 12:16 1,208 |
++  | Microsoft | 17:37 2,461 | 21:52 2,467 | 12:06 2,435 |
++  | Netflix | 17:30 386 | 21:44 387 | 11:58 414 |
++  | NVIDIA | 17:38 2,690 | 21:49 2,627 | 12:07 2,711 |
++  | Anthropic | 17:54 680 | 22:09 678 | (wt-data2) |
++  | Anduril | 17:54 2,502 | 22:09 2,505 | 2,537 |
++  | OpenAI, Scale AI, xAI, Cohere, Palantir, Shield AI | 17:54-17:55: 800, 171, 296, 114, 309, 654 | 22:09: 797, 171, 297, 116, 309, 663 | (wt-data2) |
++
++- Environments: the local gate ran Playwright core 1.56.1 driving Chromium 141.0.7390.37 (/opt/pw-browsers
++  chromium-1194); CI installs playwright@1.63.0 and its Chromium 153.0.8010.12 (`e2e: chromium 153.0.8010.12
++  (playwright default)` in every shard log), on 2-CPU runners with network access.
+ 
+ ## 3. Decisions and rationale
+-(to come)
++### 3.1 The 12 failures and the 22 extra skips
++"Newest" = my run on the newest data (runs/new-repro1.log); "CI data" = the original tests on the CI run's exact
++data, here (runs/ci-repro1.log); "10-16" = the lead's gate (passed).
++
++| # | Test | Class | Cause and evidence | What I did |
++|---|---|---|---|---|
++| 1 | UI: loads with no console errors | c | CI's server fetched Anthropic's board live (a runner has network; the sandbox does not), so the API said "live" next to a "Cached" badge. Passes here on the newest and the CI data. The suite was crawling real boards in CI | harness.js: startServer sets MELON_OFFLINE=1 unless the environment sets it (WIP, to run) |
++| 2 | Badge: [static] the swap keeps the user in place | a or c | Fails here on the CI data too (the same 30 s wait for the 3rd card after a click on the 3rd cluster), but at load 20-24, so timing is not ruled out; passes on the newest (load 9) and 10-16. The test clicks cluster 2 and the swap drops the bundle's first 5 roles | open: the cluster's size on the CI Anthropic list (kept: `<scratch>/qci6/data-ci/snapshots`), and a re-run at low load |
++| 3 | fix-pay-data [static beta] | b | microsoft:1970393557021098 lists HR, RS, SI, AL; "AL" (Albania) is filed as Alabama, US. server/geo.js: a bare code is a country only when the gazetteer has the country; Albania is missing, and the fallback skips codes that are US states | b-1 sent; fix-data-6 G-2. Test left red (lead) |
++| 4 | fix3-data [static beta] | a | apple:200691069-3956 "Creative Director, Head of Emerging Experiences" ($267,800-$401,700) is Director+ by "Head of" (keywords.js EXEC_WORD_RE), not by the BP-11 phrase; its pay sits at Apple's Director median ($404K), not its IC creative directors' ($222K). The newest data adds amazon:10507605 (CAD pay, "CAD" skill): its description is trimmed to 800 characters by snapshot.js, so the stored text cannot show where the crawl read "CAD"; the current extractor on the stored text gives no "CAD" | test: BP-11 counts only titles with no other executive word; a trimmed description is judged by re-running the extractor on what is stored (WIP) |
++| 5 | Beta desktop QA 2 [D-32] | b | apple:200678227-2709 "CA-Technical Specialist" at "Bayshore Shopping Centre, Canada" (Apple Bayshore, Ottawa), new since 10-16; not an alias in geo.js, so a place of its own at Canada's centre | b-2 sent; fix-data-6 G-3. Test left red (lead) |
++| 6 | Fix touch tips: Surface Duo spanned 1114x720 | a | The test taps the 7th strip bar. On Google's 10-23 list it holds 5 postings and is 2 px tall; a CDP touch at its middle lands on `.ms-chart__axis` (probe: pointerdown on the axis; bars of 7 px and 5 px get their tip). Fails on the newest and the CI data | fix-touch-tips: the strip checks tap the tallest bars first (all five uses of the 7th bar) (WIP) |
++| 7 | Fix touch tips: razr inner landscape 1005x412 | c | Passes here on the newest and the CI data; failed only in CI. Same symptom as 6, so the short-bar choice is the likely trigger with CI's Chromium; fixed by 6's change | covered by 6; re-check in CI |
++| 8 | fix-data-3 [D-41] | a | The newest Google data has one St. George (SC, "Saint George, SC", 1 posting); D-16 (app.js disambiguateLocations) adds a state only when two places share the name, so "St. George" is right. 10-16 had SC (both spellings) and UT | test: the state check applies when the board names two towns; the SC check takes the one label (WIP) |
++| 9 | Fix phone text [guard, size] amazon 280x653 | c | Passes here on the newest and the CI data (the same "Non-Technical Project, Program and Product Management" department is in all three crawls): the CI-only difference is the browser (fitCheckLabels measures the text) | open: pin CI's Chromium to the local gate's |
++| 10 | fix-pay-at-place [MR-34] | a | Pins microsoft:1970393556619327, gone from the 10-23 crawls (in 10-16: "USD $119,800 - $234,700 per year", 2 zones). Fails on both | test: picks Microsoft postings with zones > 1 whose pay line states one range, opens up to 5 (WIP) |
++| 11 | fix-viz-5 [UX-59] | a | Google's 10-23 list has five $550K postings (a Distinguished Engineer, a Fellow, three VPs) in three rows, plus a $364K-$505K one; the axis ends at $500K (P99 of range tops $432K, padded and snapped). 4 rows, 2 posted ranges. 10-16: two $550K postings in one row | test: counts posted ranges among the first 10 rows past the axis, not rows (WIP) |
++| 12 | fix-viz-5 [cuts] map Pay scale at 390 and 540 | c | Passes here on the newest and on the CI data (50 s): the CI-only difference is the browser, as 9 | open: pin CI's Chromium to the local gate's |
++| S1 | fix-qa4 [D-50] × 21 sizes | a | Pins netflix:790298021069 ($71,040-$464,000, "Pay unclear"), gone; on the 10-23 crawls no beta board has a "Pay unclear" posting with stated pay (Anduril has 4, Anthropic 1, on the main site) | test: picks a "Pay unclear" posting whose estimate is capped at its stated maximum, beta boards first, then the main site; skips with a reason if none (WIP) |
++| S2 | Fix3 app [BP-10] set aside | a | Microsoft lists 1 Munich posting on 10-23 (0 on 10-16) | test: picks the boards by property (Munich at the first and last, not the middle) (WIP) |
++| S3-S5 | D-11, Methodology screenshots, P-2 | known | the local gate's 3 skips (qa-suite-beta T-19) | none (P-2 and D-11 are T-19's open items) |
++
++### 3.2 Step 4: the shard jobs
++- In run 40024210372 every shard job was green: the runner step had `continue-on-error: true`, and only the summary
++  job read the logs. Shard 4's runner also exited 1 for 21 skips over `--max-skips=20`, and nothing failed on it:
++  the summary did not read the skip limit.
++- Change (WIP): the runner step records its exit code and never fails; a new "Shard verdict" step runs
++  e2e-summary.mjs on the shard's own log, with the same rules as the summary job. A known red-by-design failure
++  keeps the shard green; an unexpected one turns that shard red. e2e-summary.mjs now also fails on a log that says
++  "e2e: stopped by <signal>", and on "more than --max-skips"; its error excerpt keeps the first 4 lines.
+ 
+ ## 4. Replayable steps
+ (to come)
+-- 
+2.43.0
+

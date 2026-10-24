@@ -1,7 +1,7 @@
 From f52d08cc9cca369bfec928f4787a68b9bc36bf9c Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 24 Oct 2026 00:45:12 +0000
-Subject: [PATCH] ux-density-6: save brief verbatim
+Subject: [PATCH 1/3] ux-density-6: save brief verbatim
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc

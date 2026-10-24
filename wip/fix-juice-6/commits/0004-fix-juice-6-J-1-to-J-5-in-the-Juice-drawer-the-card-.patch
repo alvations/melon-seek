@@ -1,7 +1,7 @@
 From dfc3b4eb014f479cfe878a05a1e61bec26422556 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 24 Oct 2026 00:50:37 +0000
-Subject: [PATCH 4/5] fix-juice-6: J-1 to J-5 in the Juice drawer, the card
+Subject: [PATCH 4/7] fix-juice-6: J-1 to J-5 in the Juice drawer, the card
  badge and the chart's tips
 
 J-1 each tax part on its own line, named as the country names it (provincial tax, regional and

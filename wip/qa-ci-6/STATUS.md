@@ -2,23 +2,19 @@
 
 - Worktree: `/home/user/melon-seek/.claude/worktrees/agent-a6d5736b954b39411`
 - Base (on claude/stoic-ride-54ddxp): `fd9da2fcb960ddc2ca5b3d21f7ade88ac229164f`
-- Head: `d04035a6f6fc249240e9123d245594da1374788f`
+- Head: `5f24b372eb57ba4f874af432d2d496c480b5b1c0`
 - Restore: `bash scripts/cycle/restore-wip.sh qa-ci-6 <new worktree dir>`
 
 ## Commits since the base
 ```
+5f24b37 qa-ci-6: log: data sets, the classification table so far, State (paused)
+2c5eecd WIP qa-ci-6: case selection by property for the 10-23 data, offline server in e2e, shard verdicts (not yet run)
 d04035a qa-ci-6: log skeleton with State
 5e20d9e qa-ci-6: brief verbatim
 ```
 
 ## Uncommitted and new files
 ```
- M docs/screenshots/chart.png
- M test/e2e/fix-data-3.e2e.js
- M test/e2e/fix-pay-at-place.e2e.js
- M test/e2e/fix-qa4.e2e.js
- M test/e2e/fix-viz-5.e2e.js
- M test/e2e/fix3-data.e2e.js
 ```
 
 ## Left out (not in untracked.tgz)

@@ -1,7 +1,7 @@
 From b60b702510a21be2f75a46add4da8aed9099d2f0 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 24 Oct 2026 00:49:03 +0000
-Subject: [PATCH 3/5] fix-juice-6: red tests for J-1 to J-5, and the words
+Subject: [PATCH 3/7] fix-juice-6: red tests for J-1 to J-5, and the words
  module they read
 
 test/fix-juice-6.test.js (unit) and test/e2e/fix-juice-6.e2e.js (registered in scripts/e2e.js):

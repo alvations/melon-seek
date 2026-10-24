@@ -1,7 +1,7 @@
 From 93b8979182045e442d15f2f9425f95bc9a3188b1 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 24 Oct 2026 00:46:46 +0000
-Subject: [PATCH 4/5] fix-salary-6: norm-14; golden re-baselined (0 of 300
+Subject: [PATCH 4/8] fix-salary-6: norm-14; golden re-baselined (0 of 300
  hashes changed) and refresh fixtures regenerated with their tooling
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

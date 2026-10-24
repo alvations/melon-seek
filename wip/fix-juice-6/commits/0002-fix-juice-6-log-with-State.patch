@@ -1,7 +1,7 @@
 From 72998c6c676fcafd8564468305c77464aebf6b8b Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 24 Oct 2026 00:30:16 +0000
-Subject: [PATCH 2/5] fix-juice-6: log with State
+Subject: [PATCH 2/7] fix-juice-6: log with State
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
