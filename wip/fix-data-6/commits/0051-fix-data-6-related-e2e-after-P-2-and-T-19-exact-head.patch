@@ -1,7 +1,7 @@
-From 799a1648f4b0ee614511c8b82724207095c9421a Mon Sep 17 00:00:00 2001
+From 57d6b833a415e35c89d74c83dc4d2012de2865b4 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 24 Oct 2026 02:14:17 +0000
-Subject: [PATCH 27/29] fix-data-6: related e2e after P-2 and T-19: exact
+Subject: [PATCH 51/54] fix-data-6: related e2e after P-2 and T-19: exact
  headings in fix-pay-at-place, a programme's per-place rates exact, Fix app
  [P-2] picks what the drawer shows; phone lines one line at every size
 
@@ -15,10 +15,10 @@ Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
  4 files changed, 31 insertions(+), 17 deletions(-)
 
 diff --git a/public/app.js b/public/app.js
-index 154f839..3533623 100644
+index 3e2d956..7d7e378 100644
 --- a/public/app.js
 +++ b/public/app.js
-@@ -5050,8 +5050,9 @@ function drawerContent(job) {
+@@ -5190,8 +5190,9 @@ function drawerContent(job) {
      : fullHourly ? `from ${postedMoney(sal.min / 2080, sal.currency)} an hour`
      : term ? `${term.amount}${perText(term.per)}` : isMinimum(job) ? `from ${money(sal.min, sal.currency)}` : salaryRange(sal);
    // P-2 (fix-data-6): the heading gives a yearly figure the posting states exactly ("€46,400", "$119,800–234,700"), as
@@ -31,7 +31,7 @@ index 154f839..3533623 100644
    const subText = !sal ? null : (ph?.picked ? `Posted for ${ph.picked.label} · ` : ph?.sub ? `${ph.sub} · ` : '') + (partHourly ? `${cur} · part-time, paid by the hour` : fullHourly ? `${cur} · paid by the hour`
      : term?.fixed ? `${cur} · ${term.unstated ? 'length not stated' : `for ${termText(term.weeks)}`}` : term ? `${cur} · ${programText(job, term)}` : `${cur} · per year`);
 diff --git a/test/e2e/fix-app.e2e.js b/test/e2e/fix-app.e2e.js
-index 1fd5240..cc579bd 100644
+index 114bcc4..06f4fc0 100644
 --- a/test/e2e/fix-app.e2e.js
 +++ b/test/e2e/fix-app.e2e.js
 @@ -146,11 +146,15 @@ export function registerFixAppTests(suite) {

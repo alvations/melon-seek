@@ -1,7 +1,7 @@
-From 8afc8a36758cef6ddde05e8a934f4e9b8dd81f1c Mon Sep 17 00:00:00 2001
+From 98853033739b1d56654ad40df4674bb491c7ff5f Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 23 Oct 2026 22:03:22 +0000
-Subject: [PATCH 20/29] fix-data-6: R-1/R-3 operations and data-center
+Subject: [PATCH 44/54] fix-data-6: R-1/R-3 operations and data-center
  families, R-2 lead associates are Mid, K-1 stated bonus targets as posted,
  P-1 pay places named, P-2 exact posted pay on the job page
 
@@ -83,10 +83,10 @@ index d55b2a4..5be074e 100644
  - **Validator:** scripts/refresh/jobs.js role-families; test/features.test.js roleFamily; yearly 100-title hand check (docs/process/product.md)
  - **Before:** one-off hand checks (92/100 on 2026-10-02)
 diff --git a/public/app.js b/public/app.js
-index 3cc32ee..cb12dbf 100644
+index 72e3668..7f6dd15 100644
 --- a/public/app.js
 +++ b/public/app.js
-@@ -153,6 +153,8 @@ function termFactor(s) {
+@@ -154,6 +154,8 @@ function termFactor(s) {
    const m = Math.round((w * 12) / 52);
    return m > 0 && Math.abs((m * 52) / 12 - w) < 0.5 ? 12 / m : 52 / w;
  }
@@ -95,7 +95,7 @@ index 3cc32ee..cb12dbf 100644
  /** Two posted amounts, both with cents when either has them: "$22.00–28.88", "$40–55", "$3,850". */
  function postedPair(lo, hi, currency) {
    const cents = (v) => Math.abs(v - Math.round(v)) >= 0.005;
-@@ -3890,13 +3892,21 @@ function cardTerm(job) {
+@@ -3977,13 +3979,21 @@ function cardTerm(job) {
    const text = programText(job, t);
    return { text, tip: t.fixed ? `${t.amount}${perText(t.per)}: fixed-term pay for a ${text}, not a yearly salary` : `${t.amount}${perText(t.per)} for a ${text}` };
  }
@@ -121,7 +121,7 @@ index 3cc32ee..cb12dbf 100644
    }
    const cs = [...new Set((job._payLocs || payLocations(job)).map((l) => l?.country && String(l.country).toUpperCase()).filter(Boolean))];
    if (!cs.length) return 'other places';
-@@ -4601,7 +4611,7 @@ const rangeText = (r, cur) => moneyRange(Number(r.min), Number(r.max ?? r.min),
+@@ -4741,7 +4751,7 @@ const rangeText = (r, cur) => moneyRange(Number(r.min), Number(r.max ?? r.min),
  function payPlacesLine(s, job = null) {
    const rs = payRanges(s);
    if (!rs) return null;
@@ -130,7 +130,7 @@ index 3cc32ee..cb12dbf 100644
    const rowCur = (r) => String(r?.currency || s?.currency || 'USD').toUpperCase(); // S-1: each row in its own currency
    const pay = (r) => (unit ? unit.fmt(Number(r.min), Number(r.max ?? r.min), rowCur(r)) : rangeText(r, s.currency));
    // fix-pay-at-place: one line per range, with no place name cut off (rangeName); the pay block's Details list every place.
-@@ -4669,15 +4679,17 @@ function placeCount(rs) {
+@@ -4809,15 +4819,17 @@ function placeCount(rs) {
   * hourly pay as an hourly rate, fixed-term pay per week, month or for the whole term, a programme's yearly rate with
   * "/year", any other pay as a yearly range. `note` says what the unit is, for tips.
   */
@@ -151,7 +151,7 @@ index 3cc32ee..cb12dbf 100644
    const f = PER_YEAR[term.per] || 1;
    return { fmt: (a, b, cur = cur0) => `${postedPair(a / f, b / f, cur)}/${term.per}`, note: term.fixed ? (term.unstated ? 'fixed-term pay, length not stated' : `fixed-term pay for a ${prog}`) : prog };
  }
-@@ -4690,11 +4702,11 @@ function payUnit(job) {
+@@ -4830,11 +4842,11 @@ function payUnit(job) {
   * drawer's rank and strip use (the posting's headline row: Amazon's search city, Microsoft's U.S. range), '' when
   * that is the span. null for a posting with one range.
   */
@@ -165,7 +165,7 @@ index 3cc32ee..cb12dbf 100644
    const rowCur = (r) => String(r?.currency || s?.currency || 'USD').toUpperCase(); // S-1: each row in its own currency
    const byPlace = `Pay by place: ${rs.map((r) => `${rangeLabel(r)} ${unit.fmt(Number(r.min), Number(r.max ?? r.min), rowCur(r))}`).join(' · ')}`;
    const what = unit.note ? ` (${unit.note})` : '';
-@@ -4754,7 +4766,10 @@ function payLabels(job) {
+@@ -4894,7 +4906,10 @@ function payLabels(job) {
      lo === hi ? ['One number, not a range', ph ? 'The posting gives one number, not a range, for this place' : 'The posting gives one number, not a range'] : null,
      job.extras?.equity ? ['+ equity mentioned', 'The description mentions equity; it isn\u2019t in this figure'] : null,
      // P-1: on-target earnings already include the commission at target, so a "bonus" note would be wrong.
@@ -177,7 +177,7 @@ index 3cc32ee..cb12dbf 100644
    ].filter(Boolean).slice(0, 2);
    return labels.length ? h('div', { class: 'pay-labels' }, ...labels.map(([t, tip]) => h('span', { class: 'pay-label', title: tip }, t))) : null;
  }
-@@ -4986,7 +5001,10 @@ function drawerContent(job) {
+@@ -5126,7 +5141,10 @@ function drawerContent(job) {
      : partHourly ? 'Posted hourly pay for a part-time role. Equity and bonus aren’t included.'
        : term?.fixed ? 'Fixed-term pay as posted. Equity and bonus aren’t included.' : 'Posted base pay. Equity and bonus aren’t included.') + elsewhere;
    // fix-density: the caption's one line: what the pay is, or, under a Location filter, where it is for.
@@ -189,7 +189,7 @@ index 3cc32ee..cb12dbf 100644
      : isOte(job) ? 'On-target earnings' : isMinimum(job) ? 'Posted minimum base pay' : sal.includesShiftDifferential ? 'Posted pay, including shift pay'
        : partHourly ? 'Posted hourly pay, part-time' : term?.fixed ? 'Fixed-term pay as posted' : 'Posted base pay';
    // UX-22: under a Location filter, the range posted for the place picked.
-@@ -4994,6 +5012,7 @@ function drawerContent(job) {
+@@ -5134,6 +5152,7 @@ function drawerContent(job) {
    // span of its ranges ("$60K–129K · 5 places"), or under a Location filter the range posted for the place picked,
    // which the line under it names. The rank and the strip say in Details whose range they use.
    const ph = sal && !isOte(job) && !isMinimum(job) ? payHeadline(job) : null;
@@ -197,7 +197,7 @@ index 3cc32ee..cb12dbf 100644
    // Shared decisions 3 and 4: the amount as it was stated. Fixed-term pay: "$3,850 a week · for about 17
    // weeks"; a rate for a programme: "€72,000 a year · 13-week internship"; part-time: "$22.00–28.88 an hour".
    // S-1 (fix-salary-6): under a Location filter, the currency of the line posted for the place picked.
-@@ -5002,6 +5021,10 @@ function drawerContent(job) {
+@@ -5142,6 +5161,10 @@ function drawerContent(job) {
    const shiftR = sal && !ph ? shiftRange(sal) : null;
    const amountText = !sal ? null : ph ? ph.range : shiftR ? shiftText(job, shiftR, ' an hour') : partHourly ? `${postedPair(sal.min / 2080, sal.max / 2080, sal.currency)} an hour`
      : term ? `${term.amount}${perText(term.per)}` : isMinimum(job) ? `from ${money(sal.min, sal.currency)}` : salaryRange(sal);
@@ -208,7 +208,7 @@ index 3cc32ee..cb12dbf 100644
    const subText = !sal ? null : (ph?.picked ? `Posted for ${ph.picked.label} · ` : ph?.sub ? `${ph.sub} · ` : '') + (partHourly ? `${cur} · part-time, paid by the hour`
      : term?.fixed ? `${cur} · ${term.unstated ? 'length not stated' : `for ${termText(term.weeks)}`}` : term ? `${cur} · ${programText(job, term)}` : `${cur} · per year`);
    // Whose range the rank and the strip use: the place picked, the posting's headline row (Bellevue), or its span.
-@@ -5010,7 +5033,7 @@ function drawerContent(job) {
+@@ -5150,7 +5173,7 @@ function drawerContent(job) {
    const salaryBlock = h('section', { class: 'd-salary' },
      sal ? h('div', { class: 'd-sal-top' },
        h('div', null,
@@ -319,21 +319,21 @@ index fc0e08f..d0d3663 100644
  
  /** Similarity of two family ids in [0,1] (0.35 when either is unknown). */
 diff --git a/scripts/e2e.js b/scripts/e2e.js
-index 7c97c0f..1717919 100644
+index 853a370..14694e1 100644
 --- a/scripts/e2e.js
 +++ b/scripts/e2e.js
-@@ -60,6 +60,7 @@ import { registerBetaDesktopQa4Tests } from '../test/e2e/beta-desktop-qa-4.e2e.j
- import { registerFixQa4Tests } from '../test/e2e/fix-qa4.e2e.js';
- import { registerFixMr3Tests } from '../test/e2e/fix-mr-3.e2e.js';
+@@ -62,6 +62,7 @@ import { registerFixMr3Tests } from '../test/e2e/fix-mr-3.e2e.js';
  import { registerFixSalary6Tests } from '../test/e2e/fix-salary-6.e2e.js';
+ import { registerFixUi6Tests } from '../test/e2e/fix-ui-6.e2e.js';
+ import { registerFixJuice6Tests } from '../test/e2e/fix-juice-6.e2e.js';
 +import { registerFixData6Tests } from '../test/e2e/fix-data-6.e2e.js';
  
  const args = new Set(process.argv.slice(2));
  const apiOnly = args.has('--api-only');
-@@ -199,6 +200,7 @@ if (!apiOnly) {
-   registerFixQa4Tests(suite);
-   registerFixMr3Tests(suite);
+@@ -203,6 +204,7 @@ if (!apiOnly) {
    registerFixSalary6Tests(suite);
+   registerFixUi6Tests(suite);
+   registerFixJuice6Tests(suite);
 +  registerFixData6Tests(suite);
  }
  

@@ -1,0 +1,135 @@
+From 48987125fc0695f8900b53c6830bbf92c94908e1 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 24 Oct 2026 00:51:57 +0000
+Subject: [PATCH 32/54] fix-juice-6: log, State and decisions
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+(cherry picked from commit f83c9ae99651e65cbeb42cd9d0097ea03104791b)
+---
+ docs/process/fix-juice-6.md | 91 +++++++++++++++++++++++++++++++++++--
+ 1 file changed, 87 insertions(+), 4 deletions(-)
+
+diff --git a/docs/process/fix-juice-6.md b/docs/process/fix-juice-6.md
+index f5d61a6..70b84d0 100644
+--- a/docs/process/fix-juice-6.md
++++ b/docs/process/fix-juice-6.md
+@@ -3,28 +3,111 @@
+ ## State
+ 
+ - **Base:** origin/claude/stoic-ride-54ddxp at fd9da2f (batch 3, e800c43, plus persona wave-2 logs and wip/ checkpoints).
+-- **Done:** prompt saved (docs/process/prompts/fix-juice-6.md); data and node_modules linked; baseline build in dist/.
+-- **In progress:** measuring the drawer's Juice lines at 280, 352, 375 and 1280 on the baseline build; then red tests.
++- **Done:**
++  - e2a1ab2 prompt; 72998c6 log; b60b702 red tests and the words module; dfc3b4e the fixes for J-1 to J-5;
++  - red runs: unit 4 of 9 fail on the base app code; e2e 16 of 16 fail on the base build.
++- **In progress:** the build of dfc3b4e (dist/), then my e2e green run and the related groups; npm test in the clean
++  checkout (`<scratch>/fj6/clean`).
+ - **List:** J-1 tax row names outside the US; J-2 the household tax line; J-3 remember Monthly/Yearly; J-4 jargon tips
+   (grades, Clusters/Ranges, the chart's ‹n/›n chips); J-5 (by message from the lead) a card's Juice grade names its place.
+-- **Next:** test/fix-juice-6.test.js and test/e2e/fix-juice-6.e2e.js red, then the fixes.
++- **Next:** green e2e, related groups (Juice, drawer, Fix phone text guard, Beta mobile QA 4), screenshots, SendMessage
++  the SHA to the lead.
+ 
+ ## 1. Brief
+ 
+ [prompts/fix-juice-6.md](prompts/fix-juice-6.md). Fix the words of the drawer's Juice section found by persona wave 2 (J-1 to
+-J-4) and the card grade's place (J-5), with a red test per ID first, keeping every tax number unchanged.
++J-4) and the card grade's place (J-5, from the lead), with a red test per ID first, keeping every tax number unchanged.
++Files: `public/features/juice-drawer.js` (new, pure), the Juice parts of `public/app.js` (`juiceBlock`, `HOUSEHOLDS`,
++`juicePeriod`, `juiceBadge`, `locSummary`, the Juice filter's grade tips), the view switch's tips in `public/index.html`,
++the edge chips' words in `public/viz/chart.js` (text only), `test/fix-juice-6.test.js`, `test/e2e/fix-juice-6.e2e.js`
++and its registration in `scripts/e2e.js`, one expectation in `test/e2e/fix-app.e2e.js` ([P-15], whose words J-2 replaces).
+ 
+ ## 2. Inputs and sources
+ 
++- docs/CONTRACT.md: `job.juice` (`best.taxParts`, `taxBasis`, `inputs.tax.jurisdiction`), the Juice and drawer sections.
++- docs/METHODOLOGY_GUIDE.md §3 (tax model: income, regional, social; "For a Couple or a Family, we assume one person earns
++  the whole salary") and §4 (households).
++- server/juice.js: `RULES` (what each part holds per country), `TAX_HOUSEHOLD` (joint / individual / single per level),
++  `taxKeys`, `computeJuice` (`taxParts`, `inputs.tax`), `attachJuice` (`byLocation`, the best place). Read only.
++- data/cities.json: every city's `tax` jurisdiction (89 cities, 33 countries; the key's last part is the country).
++- docs/process/PLAYBOOK.md (Checkpoints, Known traps), TEMPLATE.md, lead.md from "Fix wave 5" on.
++- The persona wave-2 logs (35-44, 25-34, 55-plus; 45-54 for J-5) and their screenshots in the lead's integration worktree.
++- test/e2e/fix-phone-text.e2e.js (`scanText`, `CAPTION_SEL`), test/e2e/phone-sizes.mjs, public/viz/note.js (`fitLine`).
++
+ ## 3. Decisions and rationale
+ 
++1. **The words live in one pure module, `public/features/juice-drawer.js`.** app.js renders them; the unit tests and the
++   e2e test read the same module, so a test checks the rule rather than a copy of a string. server/juice.js is untouched
++   (the tax arithmetic is not this lane's, and nothing there names a row).
++2. **J-1, one line per tax part.** At 280 px the Tax row's detail column is 128 px (12 px text, about 24 characters), so
++   three named parts can never share one line; at 1280 px it is 383 px. Each part is its own line ("federal income tax
++   $3,150", "provincial tax $2,010", "CPP and EI $340"), and `fitLine` picks the first of its names that fits
++   ("prov. tax", "NI", "FICA", "payroll tax"). Names, per server/juice.js `RULES`:
++   - US: federal income tax; state or local tax (kept, as the brief says); Social Security and Medicare, plus the state's
++     payroll contributions where the rule has them (CA SDI, NY paid leave and disability, WA Cares and paid leave, MA and
++     MN paid leave, Paid Leave Oregon, PA unemployment);
++   - Canada: federal income tax, provincial tax, CPP and EI (Quebec: Quebec income tax; QPP, QPIP and EI);
++   - UK: income tax (Scottish income tax in Edinburgh), National Insurance (NI); Ireland: income tax and Universal Social
++     Charge, PRSI; Germany: income tax and solidarity surcharge, social insurance; France: social contributions, CSG and
++     CRDS; Netherlands: income tax and national insurance (Box 1 holds both); Spain: state and regional income tax,
++     Social Security; Italy: income tax (IRPEF), regional and municipal surcharges, INPS social security; Switzerland:
++     federal income tax, cantonal and communal tax, AHV, unemployment and accident insurance (Geneva's combined schedule:
++     federal, cantonal and communal tax); Sweden: state income tax, municipal tax after the job tax credit; Denmark:
++     state income tax, municipal tax, labour market contribution; Norway: income tax and bracket tax, national
++     insurance; Japan: resident tax; Korea: local income tax; India: professional tax; Australia: Medicare levy; New
++     Zealand: ACC earners' levy; Israel: National Insurance and health tax; Poland: PIT, ZUS and health insurance;
++     Mexico ISR and IMSS; Brazil IRPF and INSS; Hong Kong salaries tax. Belgium's own term is social security.
++   - The place: the best place's `inputs.tax.jurisdiction`, else the city record (`api.getCities`, already loaded for
++     Juice), else the city key's last part.
++3. **J-2, the household's tax line says what the country does, not "each person is taxed separately".** Per
++   `TAX_HOUSEHOLD` basis: joint ("Germany splits the pay between the couple, which lowers the tax", "The US taxes a married
++   couple jointly, which lowers the tax", "Joint filing and the child tax credit lower the US tax"); individual ("Canada
++   taxes each person on their own pay, as if single"); not modelled ("Poland’s joint filing isn’t counted here, so taxed
++   as if single"). Shorter forms down to "Taxed as if single" / "Taxed jointly" for 280 px. The household line under the
++   buttons says the assumption plainly: "2 adults, 1 earner (the other not working), 2 bedrooms" (short "2 adults, 1
++   working, 2 bedrooms"), and the buttons' tips no longer say "married, filing jointly" (true only in the US).
++4. **J-3, Monthly/Yearly kept like the household:** `melon-seek.juicePeriod.v1` through app.js's `lsGet`/`lsSet` (the
++   household's helpers, try/catch inside), and the same fallback: anything but year, month or term reads as Yearly.
++   Fixed-term pay still never shows a year (`shownPeriod`).
++5. **J-4, the grades say what they mean where they first show,** with no new control: the card badge's tip starts "42 ·
++   Dry: a thin margin left (under $47K a year)", its accessible name says the meaning, the job page's score tip the
++   same, and the Juice text adds "Dry means a thin margin is left". The Dry filter's tip says Rind is counted there. The
++   view switch's tips are plainer ("Clusters: each bubble is a group of roles with about the same pay, and its number is
++   how many roles it holds"). The edge chips' accessible name and hover tip say "2 roles paid below $50K, past the left
++   edge of the chart". No native title on the chips: the chart's own tip already shows on hover, and a second one would
++   cover it.
++6. **J-5, the card names the graded place first.** The lead asked to prefer the card's place for the grade. The grade
++   also drives the Juice sort, the Juice filter and the facet counts (`shownJuice`, owned by derive's lane), so grading
++   the badge for another place than those use would show a "41 · Dry" card in a Ripe-filtered list sorted by its 63.
++   Instead `locSummary` puts the graded place first among places of the same rank (pay places, the Location filter's
++   places): Google's Key Account Executive now reads "Chicago, IL +1 · 63 · Ripe". Nothing is dropped or hidden. The
++   badge's tip and accessible name lead with "63 · Ripe, for Chicago" on every posting with more than one place.
++7. **Data notes for the lead (not changed):** Microsoft's "CE" in titles and Google's "IAM" tag on a controls technician
++   are data (titles and keyword tags), left as posted.
++
+ ## 4. Replayable steps
+ 
++1. `git fetch origin claude/stoic-ride-54ddxp && git checkout --detach origin/claude/stoic-ride-54ddxp` (fd9da2f).
++2. Link the crawl: `ln -s <scratch>/wt-data2/data/snapshots data/snapshots`, the same for `data/beta/snapshots`, and
++   `ln -s /home/user/melon-seek/node_modules node_modules`.
++3. `node scripts/build-static.js` (about 7 minutes at load 7 to 19).
++4. Red: `NODE_PATH=<scratch>/pw/node_modules node scripts/e2e.js --grep='fix-juice-6: \[J-'` on the base build: 0/16 pass.
++   `node --test test/fix-juice-6.test.js` with the base app.js, index.html and chart.js: 4 of 9 fail.
++5. Fix, rebuild, re-run.
++
+ ## 5. Verification
+ 
++(filled as runs finish)
++
+ ## 6. Known gaps and follow-ups
+ 
++- The rent and living-cost lines under the waterfall ("everyday costs for two adults and two children, excluding rent")
++  still wrap to 4 lines at 280 px; they are not this lane's IDs.
++- The `TAX_HOUSEHOLD` notes in server/juice.js ("Canada taxes each person separately; …") still say "separately"; they
++  show only in the tax line's hover tip after the new sentence.
++
+ ## 7. Change log
+ 
+ - 2026-10-23 22:00 UTC: started on fd9da2f.
+ - 2026-10-24 00:30 UTC: resumed after the container restart; J-5 added by the lead.
++- 2026-10-24 00:50 UTC: red tests (b60b702), fixes (dfc3b4e).
+-- 
+2.43.0
+

@@ -1,0 +1,125 @@
+From b68f2375f89bf94bbace85dcdc97f0051c8aeae6 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 24 Oct 2026 04:50:52 +0000
+Subject: [PATCH 27/54] fix-ui-6: log: the rebase, the related groups, the
+ three follow-ups, B-12's timing
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+(cherry picked from commit f6fa15529535445858cc11a645d148ce208a8b7e)
+---
+ docs/process/fix-ui-6.md | 69 ++++++++++++++++++++++++++--------------
+ 1 file changed, 46 insertions(+), 23 deletions(-)
+
+diff --git a/docs/process/fix-ui-6.md b/docs/process/fix-ui-6.md
+index d0beb65..8109596 100644
+--- a/docs/process/fix-ui-6.md
++++ b/docs/process/fix-ui-6.md
+@@ -2,16 +2,12 @@
+ 
+ ## State
+ 
+-- **Done (in the worktree, not yet sent):**
+-  - prompt (814f6f1); baseline build of 00bd52c (e800c43 plus the checkpoint retirements) kept hard-linked at
+-    `<scratch>/fui6/dist-before`; baselines there: phone smoke 147/147 (21 sizes x 7 boards), phone matrix 60/60;
+-  - fixes for B-1 to B-12 in public/app.js, public/styles.css and public/viz/map.js (section 3), CONTRACT section;
+-  - test/e2e/fix-ui-6.e2e.js (127 tests), registered in scripts/e2e.js;
+-  - B-4 measured before/after (section 5).
+-- **In progress (2026-10-24 00:45, after the container restart at 00:23):** the red run of the group on the baseline build
+-  (`<scratch>/fui6/fui6-before.log`).
+-- **Next:** the green run on dist/, the B-12 first-card timing (`probes/firstcard.cjs`), phone smoke and the matrix after,
+-  the related groups, screenshots (FUI6_SHOTS=before|after), npm test in `<scratch>/fui6/clean`, then send the SHAs.
++- **B-1 to B-12: done and sent** (rebased onto fix-salary-6's e77cd41; the last B commit 7e19e64). Section 5 has the
++  runs: the group, the related groups, npm test in a clean checkout, B-12's timing.
++- **Phase 2 (ux-density-6's spec, D-1 to D-14): in progress**, developed in `<scratch>/fui6/p2/` (a copy of public/
++  synced into a hard-linked copy of dist/), then moved into the worktree with the phone-sizes.mjs patch.
++- Baseline build of 00bd52c (e800c43's code) kept hard-linked at `<scratch>/fui6/dist-before`: phone smoke 147/147
++  (21 sizes x 7 boards), phone matrix 60/60.
+ 
+ ## 1. Brief
+ 
+@@ -94,19 +90,25 @@ caption's label text (fix-app-6), data files.
+    layout applies there from the Duo's own sizes (540 | 34 | 540), and app.js `screenSegments()` gives positionPopover
+    the same two screens. A browser that reports the screens gets env()'s numbers, the same.
+ 9. **B-9, the Razr cover screen.** The company menu scrolls the current company into view no further than keeps the
+-   first saved search whole (saved searches are listed first and carry "N new"). The toast shows over the top bar, full
++   first saved search with new roles whole (saved searches are listed first and carry "N new"). Saved searches with
++   nothing new leave the current company centred, as before: five of them in landscape (beta mobile QA 2's M-28) put the
++   current company and the end of the list five rows further away, past the test's eight swipes. The toast shows over the top bar, full
+    width, on short portrait screens, so a "2 new roles…" toast no longer covers the first card for 4.5 s.
+-10. **B-12 and B-10, a card on the first screen.** The phone's results sheet peeks at 156 px (was 84): the count and Sort,
+-    the Juice line and the first card's title and pay (149 px under the sheet's top at 390x844). The chart gives up that
+-    room; at 320x568 its rows keep 54 px. Landscape keeps 64. The Razr cover screen peeks at 104 px with the Juice line
+-    shown once the sheet is raised: the first card's title and pay show, and the chart keeps its caption and scale (it
+-    held half a row before). With few roles (B-10), app.js `fitSheetToChart` raises the peek into the room the chart's
+-    rows leave, as a body-level `--sheet-peek` (the chart's box shrinks to its rows, its notes line follows them), never
+-    above half the screen; it comes back down when the rows need it.
++10. **B-12 and B-10, a card on the first screen.** The phone's results sheet peeks as far as the first card's pay,
++    measured from the card (`fitSheet`; the grip, the count row, the Juice line and the title's lines differ by size), so
++    the chart gives up only that room; styles.css's 156 px stands until a card is there, landscape keeps 64, the map 84,
++    the Razr cover screen 104 with the Juice line shown once the sheet is raised. With few roles (B-10) the peek also rises
++    into the room the chart's rows leave, as a body-level `--sheet-peek` (the chart's box shrinks to its rows, its notes
++    line follows them), never above half the screen; it comes back down when the rows need it. The chart's scroll box now
++    has its sticky axis as `scroll-padding-top`, so a row scrolled into view (find in page, a screen reader's focus, a
++    tap's target) lands under the axis, not behind it: at 280x653 the box is 108 px under a 73 px axis, and fix-viz-5's
++    A-8 tapped the axis instead of the fold row.
+ 11. **B-11, the arrival line.** It said what the beta adds, not what the site is for. The beta line now reads "Job
+-    postings and their posted pay, and what's left after tax and rent, at 15 companies" (desktop), "Job postings and
+-    their posted pay" (phone) and "Jobs and their posted pay" (narrowest); its title adds "Beta: adds Amazon, Apple, …, NVIDIA
+-    from their own careers sites". The main site's line is unchanged. The line is built in public/app.js `renderTagline`.
++    postings, their posted pay, and what's left after tax and rent" (desktop; 12 words, fix-phone-text's limit: the Duo
++    spanned gives it a whole row, and the 16-word first draft failed the guard there), "Job postings and their posted pay"
++    (phone) and "Jobs and their posted pay" (narrowest); its title has the long form with the number of companies and
++    "Beta: adds Amazon, Apple, …, NVIDIA from their own careers sites". The main site's line is unchanged. The line is
++    built in public/app.js `renderTagline`.
+ 
+ ## 4. Replayable steps
+ 
+@@ -154,7 +156,20 @@ after the last two fixes, and 19/19 for the screenshot subset). Per item, before
+ 
+ **npm test** in a clean checkout with no data links (`MELON_BETA_SNAPSHOT_DIR=`): on 9d188a1 1297 pass and 1 fail
+ (fix-qa4's UX-50 source test pinned the old line; updated in 2f245aa to read cardMetaItems); on 9b86087 **1308 tests,
+-1298 pass, 0 fail**, 10 skipped.
++1298 pass, 0 fail**, 10 skipped; rebased onto e77cd41, at the last B commit (this log's): **1328 tests, 1318 pass, 0 fail**, 10 skipped (05:03–05:04 UTC).
++
++**The related groups** on the rebased build (fix-ui-6, fix-salary-6, fix-qa4, Fix phone text, fix-viz-5, the beta mobile
++and desktop QA groups, Mobile QA, Fix company scroll, Badge, Fix beta app, fix-density, Fix touch tips, Fix phone controls'
++UX-56, M-43 and A-11; 593 tests, 02:32–03:59, load 5–9): **589 pass, 3 fail, 1 skipped** ("this size shows no line above
++the chart", the cover screen). The 3: beta mobile QA 2's M-28 (B-9 opened the menu at the top with five saved searches),
++Fix phone text's size guard at the Duo spanned (B-11's 16-word line), fix-viz-5's A-8 at 280 px (B-12's smaller chart
++box: the tap landed on the sticky axis). All three fixed in 7e19e64; the rerun of those groups and the B-9, B-11 and
++B-12 tests: **75 of 76 pass, 0 fail, 1 skipped (B-11 at the cover screen, which shows no line above the chart)**.
++
++**B-12, the time to the first visible card** (a throttled Pixel 8, 412x915, 4x CPU, Fast 4G; Google; cold, A/B
++interleaved, 3 each; 02:59–03:00 UTC, load 7.1 at the end, so indicative): before, no card's title ever showed on the
++first screen (0 of 3 within 20 s; the first card was in the page at 2.3–2.5 s, under the sheet); after, median 2.44 s
++(2.13–2.50 s), as soon as the first card is in the page (2.12–2.49 s).
+ 
+ Screenshots (shrunk 11.8 → 2.7 MB): docs/screenshots/fix-ui-6/before-*.png and after-*.png for each item at the sizes
+ that show it (B-1 Apple and Amazon at 1440, B-2 at 280, 390 and 1440, B-3 at 1005x412, B-5 at 932x430 and 1005x412, B-6
+@@ -170,9 +185,14 @@ at 861, B-7 the cover screen, B-8 the Duo, B-9 the cover screen's menu and toast
+ - **The cover screen's chart at the peek** keeps its caption and part of its scale (34–37 px) so that the first card's
+   title and pay show (B-12). The peek is the sheet's lowest state, so there the chart is a glance at its scale (it held
+   half a row before); ux-density-6's spec allows 0 rows on the cover screen.
+-- **Phase 2 (ux-density-6's spec, D-1 to D-14)** comes next: the measured peek without the Juice line from half up, the
++- **Phase 2 (ux-density-6's spec, D-1 to D-14)** is next: the measured peek without the Juice line from half up, the
+   compact chart rows, the median once, the tagline on the first visit only, the one-row top bar from 640 px, the
+   phone-sizes.mjs patch.
++- On the B build (a hard-linked copy, dist-b): the phone matrix **60 of 60 pass** (04:50–05:03) and phone smoke **147 of
++  147 ok** (21 sizes x 7 boards, Chromium; 04:58–05:04): no page error, no horizontal scroll, every main control on screen.
++  Its "text cut" notes are all chart row names with an ellipsis, which fix-phone-text's ALLOW lists: none now on the Duo
++  spanned (8 before), Amazon's long department names on its phone first screens (2 to 5 a screen; none were listed on the
++  baseline's), and one or two more at 280 px.
+ - `node scripts/refresh/registry.js --lines --write` was not run here (map.js and app.js lines moved; the lead runs it at
+   integration, and many of its references had already moved).
+ - WebKit: not installed here; webkit-phone.yml runs phone-smoke and the matrix in WebKit.
+@@ -186,3 +206,6 @@ at 861, B-7 the cover screen, B-8 the Duo, B-9 the cover screen's menu and toast
+   the Duo's left screen drops the wordmark, CONTRACT (0596d1f); red run 84/127 on the baseline.
+ - 2026-10-24 01:00–01:30: green run 125/129, then the measured peek and the map's one-pan fit (9b86087): 53/53;
+   fix-qa4's source test (2f245aa); npm test 1298/0; screenshots (402a02e).
++- 2026-10-24 02:10: rebased onto fix-salary-6's e77cd41 (scripts/e2e.js and CONTRACT kept both sides); rebuilt; the
++  related groups 589/593 (02:32–03:59); the container restarted at 04:33.
++- 2026-10-24 04:40: M-28, the 12-word line and the scroll padding (7e19e64); npm test; the rerun; SHAs sent.
+-- 
+2.43.0
+

@@ -1,7 +1,7 @@
-From 3115ae88df5b237053b74c1ce83561a90e02464e Mon Sep 17 00:00:00 2001
+From a9fed1d516bf09214ed575db1104622e89b59475 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 24 Oct 2026 00:40:16 +0000
-Subject: [PATCH 24/29] fix-data-6: CONTRACT, DATA_SOURCES and the methodology
+Subject: [PATCH 48/54] fix-data-6: CONTRACT, DATA_SOURCES and the methodology
  guide for G-1, K-1, P-1 to P-3, R-1 to R-3 and C-1
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
@@ -13,7 +13,7 @@ Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
  3 files changed, 62 insertions(+), 5 deletions(-)
 
 diff --git a/docs/CONTRACT.md b/docs/CONTRACT.md
-index 8ae7289..ec6f0a0 100644
+index 3539768..8c355bf 100644
 --- a/docs/CONTRACT.md
 +++ b/docs/CONTRACT.md
 @@ -145,7 +145,7 @@ freshness: "new"|"active"|"stale"|"evergreen"|null,   // F4 (≤7, 8–59, 60–
@@ -25,10 +25,10 @@ index 8ae7289..ec6f0a0 100644
  juice: { best, byLocation, household } | null,        // livability, attached in public/api.js; household = 'single'|'couple'|'family' (default single; app.js re-attaches for the chosen household). best.taxBasis = 'single'|'joint'|'individual'|'partial' (server/juice.js taxFor)
  ```
  
-@@ -1102,3 +1102,54 @@ else `salary.country`) and scored on that row's midpoint in its currency: Milan
- degree: 68500-68500 EUR"), and the salary's levels are then not listed again; `salary.unlisted` lines follow, marked "(not a
- listed place)": "Spain (not a listed place): 38000-59700 EUR". `salary_min` / `salary_max` still span only rows in the salary's
- currency.
+@@ -1142,3 +1142,54 @@ title has the number of companies and the big-tech boards the beta adds. The mai
+ **The map's fit (`public/viz/map.js clearOfControls`, B-7):** a pin is its price tag and its pointer, down to the place
+ (`PIN_TIP`, 7 px), with `CONTROL_GAP` (2 px) of air from each control; a small pan is tried before zooming out, and a re-check
+ after a resize starts from unmerged pins.
 +
 +## fix-data-6 additions (2026-10-24): towns near the hubs, bonus targets, families, levels, pay as posted (fix-data-6 lane)
 +

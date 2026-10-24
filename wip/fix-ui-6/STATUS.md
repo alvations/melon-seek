@@ -52,16 +52,40 @@ ed32bf1 fix-salary-6: norm-14; golden re-baselined (0 of 300 hashes changed) and
 ```
  M docs/screenshots/fix-ui-6/after-B-1-cards-level-apple.png
  M docs/screenshots/fix-ui-6/after-B-1-cards-location-amazon.png
+ M docs/screenshots/fix-ui-6/after-B-10-few-roles-375x625.png
+ M docs/screenshots/fix-ui-6/after-B-10-few-roles-412x915.png
+ M docs/screenshots/fix-ui-6/after-B-11-arrival-1440x900.png
+ M docs/screenshots/fix-ui-6/after-B-11-arrival-390x844.png
+ M docs/screenshots/fix-ui-6/after-B-12-first-screen-galaxy-fold-folded-280x653.png
+ M docs/screenshots/fix-ui-6/after-B-12-first-screen-iphone-13-14-390x844.png
+ M docs/screenshots/fix-ui-6/after-B-12-first-screen-iphone-13-mini-safari-toolbars-shown-375x625.png
+ M docs/screenshots/fix-ui-6/after-B-12-first-screen-motorola-razr-cover-screen-352x355.png
  M docs/screenshots/fix-ui-6/after-B-2-meta-desktop-1440x900.png
  M docs/screenshots/fix-ui-6/after-B-2-meta-galaxy-fold-folded-280x653.png
  M docs/screenshots/fix-ui-6/after-B-2-meta-iphone-13-14-390x844.png
+ M docs/screenshots/fix-ui-6/after-B-5-chart-1005x412-touch.png
+ M docs/screenshots/fix-ui-6/after-B-5-chart-932x430-touch.png
+ M docs/screenshots/fix-ui-6/after-B-6-topbar-861-mouse.png
+ M docs/screenshots/fix-ui-6/after-B-6-topbar-861-touch.png
+ M docs/screenshots/fix-ui-6/after-B-7-map-razr-cover-apple.png
+ M docs/screenshots/fix-ui-6/after-B-8-duo-spanned-google.png
+ M docs/screenshots/fix-ui-6/after-B-9-cover-menu-meta.png
+ M docs/screenshots/fix-ui-6/after-B-9-cover-menu-netflix.png
+ M docs/screenshots/fix-ui-6/after-B-9-cover-toast-meta.png
+ M docs/screenshots/fix-ui-6/after-B-9-cover-toast-netflix.png
  M public/app.js
  M public/styles.css
+ M public/viz/map.js
  M test/e2e/fix-density.e2e.js
  M test/e2e/fix-phone-controls.e2e.js
+ M test/e2e/fix-ui-6.e2e.js
 ?? docs/screenshots/fix-ui-6/after-B-3-keyboard-ipad-pro-12-9-ipad-air-13-landscape-1366x914.png
+?? docs/screenshots/fix-ui-6/after-B-3-keyboard-ipad-pro-13-m4-landscape-1376x922.png
+?? docs/screenshots/fix-ui-6/after-B-7-map-netflix-280x653.png
 ```
 
 ## Left out (not in untracked.tgz)
 - docs/screenshots/fix-ui-6/after-B-3-keyboard-ipad-pro-12-9-ipad-air-13-landscape-1366x914.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-ui-6/after-B-3-keyboard-ipad-pro-13-m4-landscape-1376x922.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-ui-6/after-B-7-map-netflix-280x653.png (screenshot; the lane's tests regenerate it)
 - node_modules (symlink)
