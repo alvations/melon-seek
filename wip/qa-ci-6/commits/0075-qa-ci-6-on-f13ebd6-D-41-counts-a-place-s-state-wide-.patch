@@ -1,7 +1,7 @@
 From a5bdbc9f088c2d75ce874a1b19efacc65d9809e1 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 24 Oct 2026 07:17:57 +0000
-Subject: [PATCH 75/75] qa-ci-6: on f13ebd6: D-41 counts a place's state-wide
+Subject: [PATCH 75/76] qa-ci-6: on f13ebd6: D-41 counts a place's state-wide
  roles (BN-1); V-43 reads pins in any currency (fix-salary-6's rows per
  country)
 

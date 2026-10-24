@@ -1,0 +1,54 @@
+From 6bea94e45feb8e545f9fba14b36ee30cc1271a0f Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 24 Oct 2026 06:32:20 +0000
+Subject: [PATCH 74/76] qa-ci-6: log verification table and known gaps
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+(cherry picked from commit b9baf8d3ae85333062a76da505ee7f3d4933ad19)
+---
+ docs/process/qa-ci-6.md | 26 ++++++++++++++++++++++++--
+ 1 file changed, 24 insertions(+), 2 deletions(-)
+
+diff --git a/docs/process/qa-ci-6.md b/docs/process/qa-ci-6.md
+index f0795e2..af8cee0 100644
+--- a/docs/process/qa-ci-6.md
++++ b/docs/process/qa-ci-6.md
+@@ -150,10 +150,32 @@ cd $Q/clean && bash $S/heavy.sh env MELON_BETA_SNAPSHOT_DIR= timeout 1500 npm te
+ ```
+ 
+ ## 5. Verification
+-(to come)
++| Run | Tree, data | Load | Result |
++|---|---|---|---|
++| runs/new-repro1.log | 5e20d9e (= e800c43's code), newest | 9 | the 36 failing and skipping tests: 7 pass, 5 fail (D-32, Duo strip, D-41, MR-34, UX-59), 24 skip; UI, Badge swap, razr landscape, 280 guard and [cuts] pass |
++| runs/ci-repro1.log | 5e20d9e, the CI run's exact data | 8-24 | 17 tests: 8 fail (Badge swap, fix-pay-data, fix3-data, D-32, Duo strip, D-41, MR-34, UX-59), 3 skip; UI, razr landscape, 280 guard and [cuts] pass |
++| runs/ci-badge-orig.log | 5e20d9e's badge test, CI data | 3.8 | the swap test fails (32 s): data, not load |
++| runs/ci-badge.log | 78a6117, CI data | 4.6 | Badge 9/9 and UI's first test pass |
++| runs/new-touched.log | 78a6117, newest | 6-9 | the 8 groups whose tests changed (fix3-data, fix-data-3, fix-pay-at-place, fix-viz-5, Fix touch tips, fix-qa4, Fix3 app, Badge): **192/192 pass, 0 skipped**, 29 min |
++| runs/npm-test-1.log | 78a6117, clean checkout, no data | 6-9 | 1,308 tests: 1,298 pass, **0 fail**, 10 skipped; 95 s |
++| e2e-summary on the 4 CI logs | 2c5eecd's script | - | 953 tests, 916 passed, 12 failed, 25 skipped; exit 1; shard 4 over --max-skips; the error excerpt carries the problems under "2 problem(s):" |
++| runs/w16-touched.log | 8d6dcc3, 2026-10-16 crawl | | the changed groups and every server-mode group (harness.js): 364 tests (to come) |
++| runs/new-server.log | 8d6dcc3, newest | | every server-mode group, D-50 and MR-34: 195 tests (to come) |
++
++Timings taken at a load over 8 are noise (the lead, 01:00).
+ 
+ ## 6. Known gaps and follow-ups
+-(to come)
++- No Chromium 153 here (never `playwright install`), so the CI-only failures 7, 9 and 12 are attributed to the
++  browser by elimination: the same code and the same data pass with Chromium 141. The next CI run on the pin is the
++  test of that. If one still fails there, the 2-CPU runner's timing is next (the guard measures after fixed waits).
++- Moving CI to a newer Chromium needs its own pass over the phone and layout groups (Fix phone text, fix-viz-5
++  [cuts], Fix touch tips), with the sandbox's browser moved too, so CI and the local gate stay one browser.
++- The (b) tests stay red until fix-data-6's G-2 and G-3 land: fix-pay-data [static beta] and Beta desktop QA 2
++  [D-32]. CI's e2e summary is red until then.
++- Seen while probing, not in any failing test: a 2-px strip bar cannot be tapped (a touch at its middle lands on
++  `.ms-chart__axis`). A bar of 5 postings on Google is that short; a hit area taller than the bar would fix it
++  (layout lane, if wanted).
++- D-11 and P-2 still skip on every run (qa-suite-beta T-19).
+ 
+ ## 7. Change log
+ - 00:30 Resumed after the container restart (no local-data run had started, so nothing to clean up).
+-- 
+2.43.0
+

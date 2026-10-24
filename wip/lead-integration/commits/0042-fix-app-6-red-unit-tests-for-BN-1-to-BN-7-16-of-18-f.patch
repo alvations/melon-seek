@@ -1,7 +1,7 @@
 From cd85e03f5f4c9165c176097b295dcc6a8e278f6d Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 23 Oct 2026 21:52:35 +0000
-Subject: [PATCH 42/67] fix-app-6: red unit tests for BN-1 to BN-7 (16 of 18
+Subject: [PATCH 42/76] fix-app-6: red unit tests for BN-1 to BN-7 (16 of 18
  fail on 4ebe24f)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

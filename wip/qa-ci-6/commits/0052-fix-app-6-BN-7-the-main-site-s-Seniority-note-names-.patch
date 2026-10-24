@@ -1,7 +1,7 @@
 From 1adeb586ae59255fc61fb49d9956fbf578278bc0 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 24 Oct 2026 00:47:09 +0000
-Subject: [PATCH 52/75] fix-app-6: BN-7 the main site's Seniority note names no
+Subject: [PATCH 52/76] fix-app-6: BN-7 the main site's Seniority note names no
  beta company; log gaps
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

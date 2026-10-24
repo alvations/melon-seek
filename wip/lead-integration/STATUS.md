@@ -2,11 +2,20 @@
 
 - Worktree: `/tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92f3-f582ebca24d9/scratchpad/wt-int`
 - Base (on claude/stoic-ride-54ddxp): `a0763eceb553a3da77408fd81acf018174302bbc`
-- Head: `f13ebd68347a7a73605e98980af12c8ecb22d9d5`
+- Head: `505a4df05ba92707898b55630e7275abc31c7979`
 - Restore: `bash scripts/cycle/restore-wip.sh lead-integration <new worktree dir>`
 
 ## Commits since the base
 ```
+505a4df qa-ci-6: log: verification on f13ebd6, State done, change log
+132b2bf qa-ci-6: on f13ebd6: D-41 counts a place's state-wide roles (BN-1); V-43 reads pins in any currency (fix-salary-6's rows per country)
+6bea94e qa-ci-6: log verification table and known gaps
+a112686 qa-ci-6: D-50 and MR-34 name the case they picked in the run's notes; log decisions and steps
+e0d5ba3 WIP qa-ci-6: Badge swap picks its cluster and card by property; CI pins Playwright 1.56.1 (Chromium 141, the local gate's)
+084b695 qa-ci-6: log: data sets, the classification table so far, State (paused)
+35d6c57 WIP qa-ci-6: case selection by property for the 10-23 data, offline server in e2e, shard verdicts (not yet run)
+546f3d3 qa-ci-6: log skeleton with State
+2f427a6 qa-ci-6: brief verbatim
 f13ebd6 fix-app-6: log State: done on 94d65d0
 6dfbbd4 fix-app-6: log State on 94d65d0
 f753bb7 fix-app-6: V-44 on a short map: the short line hangs under the Pay | Juice switch, off the pins (the Razr cover's Menlo Park pin)
@@ -78,6 +87,15 @@ ed32bf1 fix-salary-6: norm-14; golden re-baselined (0 of 300 hashes changed) and
 
 ## Uncommitted and new files
 ```
+ M docs/screenshots/chart.png
+ M docs/screenshots/dark-drawer.png
+ M docs/screenshots/dark.png
+ M docs/screenshots/drawer-juice.png
+ M docs/screenshots/drawer.png
+ M docs/screenshots/insights.png
+ M docs/screenshots/map-juice.png
+ M docs/screenshots/map.png
+ M docs/screenshots/mobile.png
 ```
 
 ## Left out (not in untracked.tgz)

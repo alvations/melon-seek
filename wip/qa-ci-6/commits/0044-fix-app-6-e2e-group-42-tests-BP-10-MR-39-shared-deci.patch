@@ -1,7 +1,7 @@
 From 8eee01d2ddb073d33b6280c34017b31ba5acc077 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 23 Oct 2026 21:56:59 +0000
-Subject: [PATCH 44/75] fix-app-6: e2e group (42 tests),
+Subject: [PATCH 44/76] fix-app-6: e2e group (42 tests),
  BP-10/MR-39/shared-decision tests on the new rules, CONTRACT and methodology
  guide
 

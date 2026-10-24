@@ -120,6 +120,7 @@ ed32bf1 fix-salary-6: norm-14; golden re-baselined (0 of 300 hashes changed) and
  M docs/screenshots/fix-salary-6/paris-drawer-1280x800.png
  M docs/screenshots/fix-salary-6/paris-drawer-352x355.png
  M docs/screenshots/fix-salary-6/paris-drawer-375x812.png
+ M test/e2e/fix-juice-6.e2e.js
 ```
 
 ## Left out (not in untracked.tgz)

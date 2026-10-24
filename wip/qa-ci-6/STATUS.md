@@ -2,11 +2,12 @@
 
 - Worktree: `/home/user/melon-seek/.claude/worktrees/agent-a6d5736b954b39411`
 - Base (on claude/stoic-ride-54ddxp): `a0763eceb553a3da77408fd81acf018174302bbc`
-- Head: `a5bdbc9f088c2d75ce874a1b19efacc65d9809e1`
+- Head: `1dde1eb0d26f3657de2b18ebc3885a11873a43c4`
 - Restore: `bash scripts/cycle/restore-wip.sh qa-ci-6 <new worktree dir>`
 
 ## Commits since the base
 ```
+1dde1eb qa-ci-6: log: verification on f13ebd6, State done, change log
 a5bdbc9 qa-ci-6: on f13ebd6: D-41 counts a place's state-wide roles (BN-1); V-43 reads pins in any currency (fix-salary-6's rows per country)
 b9baf8d qa-ci-6: log verification table and known gaps
 e3b9c56 qa-ci-6: D-50 and MR-34 name the case they picked in the run's notes; log decisions and steps
@@ -86,7 +87,6 @@ ed32bf1 fix-salary-6: norm-14; golden re-baselined (0 of 300 hashes changed) and
 
 ## Uncommitted and new files
 ```
- M docs/process/qa-ci-6.md
 ```
 
 ## Left out (not in untracked.tgz)

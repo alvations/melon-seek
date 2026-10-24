@@ -1,0 +1,127 @@
+From 505a4df05ba92707898b55630e7275abc31c7979 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 24 Oct 2026 08:14:08 +0000
+Subject: [PATCH 76/76] qa-ci-6: log: verification on f13ebd6, State done,
+ change log
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+(cherry picked from commit 1dde1eb0d26f3657de2b18ebc3885a11873a43c4)
+---
+ docs/process/qa-ci-6.md | 71 ++++++++++++++++++++++++-----------------
+ 1 file changed, 42 insertions(+), 29 deletions(-)
+
+diff --git a/docs/process/qa-ci-6.md b/docs/process/qa-ci-6.md
+index f7ea1a6..43236ea 100644
+--- a/docs/process/qa-ci-6.md
++++ b/docs/process/qa-ci-6.md
+@@ -1,38 +1,27 @@
+ # Process log: qa-ci-6 (test-suite engineer: the first sharded CI run of the e2e suite, 2026-10-24)
+ 
+ ## State
+-- **Resumed 06:30 after the container restart; rebased onto the lead's f13ebd6** (fix-salary-6, fix-ui-6, fix-juice-6,
+-  fix-app-6). One conflict, BP-10: kept fix-app-6's BN-5 rule (a place picked in between joins what was set aside,
+-  and Munich still comes back) with this lane's boards chosen by property. Rebuilding both data sets on the new code
+-  and re-running the touched groups on both; npm test queued.
+-- Before the rebase (8d6dcc3): newest 192/192 and 10-16 361/364 (3 known skips), npm test 0 fail.
+-- (Earlier: paused by the lead, 2026-10-24 ~01:05, usage limit. The reproduction ran on fd9da2f, the same code as
+-  e800c43, the CI run's commit: `git diff e800c43 fd9da2f` touches only docs/ and wip/.)
+-- **Done:**
+-  - brief saved verbatim (5e20d9e);
+-  - the CI run's four shard logs read (GitHub job logs; the artifacts cannot be downloaded here, a 403 at the proxy);
+-  - three data sets built (section 2): the newest (`local-data.js --date 2026-10-23`), the CI run's exact
+-    observations (rebuilt from the archive with reconstruct.js `--at`), and the 2026-10-16 crawl;
+-  - every failure and skip reproduced on the newest data, and the original tests run on the CI run's exact data
+-    (runs/new-repro1.log, runs/ci-repro1.log), classification in section 3.1;
+-  - findings sent: b-1 (Microsoft "AL" filed as Alabama, fix-data-6 G-2), b-2 (Apple "Bayshore Shopping Centre" as
+-    a place, and Microsoft "Monterrey, N.L." as the Netherlands, fix-data-6 G-3);
+-  - **written, not yet run** (WIP commit): the test fixes for (a) in fix3-data, fix-data-3, fix-pay-at-place,
+-    fix-viz-5, fix-touch-tips, fix-qa4, fix3-app; the harness's MELON_OFFLINE default (c); step 4 in e2e.yml (a
+-    shard verdict step) and e2e-summary.mjs (stopped runs, --max-skips, multi-line errors). The summary was run on
+-    the CI logs: 953 tests, 916 passed, 12 failed, 25 skipped, exit 1, shard 4 over --max-skips.
+-- **Open:** Badge [static] swap (fails on the CI data here too: a data case, cause not yet found); [cuts], the 280
+-  phone-text guard and razr landscape pass here on the CI data, so they are CI-only; the Chromium difference (141
+-  here, 153 in CI) is the main suspect, and the fix is to pin CI's Playwright to 1.56.1. Then run every touched group on the newest and
+-  the 10-16 data; `npm test` in the clean checkout; send SHAs.
+-- **Next:** finish the Badge swap and [cuts] analysis; pin Playwright in e2e.yml if the evidence holds; run the
+-  touched groups (through `heavy.sh`) on both data sets; npm test; send the SHAs.
++- **Done; on the lead's f13ebd6** (rebased 06:30; fix-salary-6, fix-ui-6, fix-juice-6, fix-app-6). Head: see the
++  change log. One rebase conflict, BP-10: kept fix-app-6's BN-5 rule (a place picked in between joins what was set
++  aside, and Munich still comes back) with this lane's boards chosen by property.
++- **The 12 failures and 22 extra skips** are classified with evidence in section 3.1: 8 (a) with tests fixed, 2 (b)
++  sent (b-1, b-2: fix-data-6 G-2 and G-3, tests left red), 4 (c) fixed in the harness and the workflow. Three more
++  in the touched groups came with f13ebd6: D-41 and V-43 fixed here (a5bdbc9), BP-2 Zurich routed by the lead to
++  fix-data-6 as P-4.
++- **Step 4:** each shard job gets a verdict step (e2e-summary.mjs on its own log); the summary also fails on a stopped
++  run and on a shard over `--max-skips`. CI pins Playwright 1.56.1 (Chromium 141, the local gate's browser).
++- **Verification on the rebased head** (section 5): newest 366/374 (the 4 red: b-1, b-2, BP-2 P-4, and D-41, which
++  passes on a5bdbc9), 10-16 371/374 with the 3 known skips, npm test 0 fail.
++- **Waiting on others:** G-2 and G-3 (fix-data-6) turn fix-pay-data [static beta] and D-32 green; P-4 turns BP-2
++  Zurich green. If they do not, the cause is in section 3.1.
++- **Next:** nothing in this lane, unless the next CI run on the pin still shows 7, 9 or 12 (then the 2-CPU timing
++  is next, section 6).
+ - **Scratch:** `<scratch>/qci6/`, where `<scratch>` is
+   `/tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92f3-f582ebca24d9/scratchpad`:
+   - `ci/shard<n>.job.log`: the CI shard logs; `runs/`: my runs; `tools/`: the probes and the runner wrapper;
+   - `wt16/`: the second worktree, with the 2026-10-16 crawl linked from `<scratch>/wt-data2` (read-only use);
+-    `wt16/dist -> dist-16` (its build). The CI-data build (dist-ci) and the CI beta snapshots are deleted (disk);
+-    `data-ci/snapshots` keeps the CI run's 8 stable boards for the Badge check;
++    `wt16/dist -> dist-16` (its build). The CI-data builds and snapshots are deleted (disk; rebuild with
++    tools/rebuild-ci.sh and tools/build-ci-stable.sh);
+   - `clean/`: the CI-like checkout for `npm test`.
+   - `tools/e2e-run.sh <checkout> <log> <s> <args>`, `tools/e2e-run-ci.sh`, `tools/rebuild-ci.sh` (reconstruct.js
+     `--at` for each CI observation), `tools/pwprobe.mjs` (a page probe), `tools/probe*.mjs` (bundle queries).
+@@ -96,6 +85,14 @@ data, here (runs/ci-repro1.log); "10-16" = the lead's gate (passed).
+ | S2 | Fix3 app [BP-10] set aside | a | Microsoft lists 1 Munich posting on 10-23 (0 on 10-16) | test: picks the boards by property (Munich at the first and last, not the middle) (WIP) |
+ | S3-S5 | D-11, Methodology screenshots, P-2 | known | the local gate's 3 skips (qa-suite-beta T-19) | none (P-2 and D-11 are T-19's open items) |
+ 
++After the rebase onto f13ebd6 (fix-salary-6, fix-ui-6, fix-juice-6, fix-app-6), three more in the touched groups:
++
++| Test | Class | Cause | What I did |
++|---|---|---|---|
++| fix-data-3 [D-41] | interaction | fix-app-6 BN-1: a place shows its own count with its state-wide roles beside it ("1 +11"), and a pick lists both; the test compared the list with the own count | the options helper reads `.check-wide`; the pick must list count + wide (a5bdbc9) |
++| fix-viz-5 [V-43] (new skip) | interaction | fix-salary-6: pins outside the US are priced in their own currency ("median A$106K from 4 with pay for here"); the test's `\$`-only label match found no low-share pin and skipped | the match takes any currency (a5bdbc9). The case exists: Sydney "A$106K 4 of 404", London "€36K 31 of 2.9K" |
++| Fix3 app [BP-2] Zurich "Pay posted for … only" | not this lane's | fix-salary-6's rows per country give google:108135834237969094 a German and a US row; payPlaceText names the priced places ("San Jose, Munich and 2 more"), and features/shared.js payLocations, the test's reference, still gives only the US places | reported to the lead: payLocations or the test, a product decision |
++
+ ### 3.2 Step 4: the shard jobs
+ - In run 40024210372 every shard job was green: the runner step had `continue-on-error: true`, and only the summary
+   job read the logs. Shard 4's runner also exited 1 for 21 skips over `--max-skips=20`, and nothing failed on it:
+@@ -166,6 +163,11 @@ cd $Q/clean && bash $S/heavy.sh env MELON_BETA_SNAPSHOT_DIR= timeout 1500 npm te
+ | e2e-summary on the 4 CI logs | 2c5eecd's script | - | 953 tests, 916 passed, 12 failed, 25 skipped; exit 1; shard 4 over --max-skips; the error excerpt carries the problems under "2 problem(s):" |
+ | runs/w16-touched.log | 8d6dcc3, 2026-10-16 crawl | 5-6 | the changed groups and every server-mode group (harness.js): **361/364 pass, 0 fail, 3 skipped** (D-11, screenshots, P-2), 42 min. The new selections pick the old cases on the old crawl: MR-34 microsoft:1970393556619327 (of 918 candidates), D-50 netflix:790298021069 (of 6) |
+ | (after the rebase onto f13ebd6: product code changed, so both builds and the runs are repeated) | | | |
++| builds | b9baf8d | 2-5 | newest 260 s, 10-16 361 s, 7/7 beta boards each |
++| runs/npm-test-2.log | b9baf8d, clean checkout | 3-5 | 1,359 tests: 1,349 pass, **0 fail**, 10 skipped; 100 s |
++| runs/r-new.log | b9baf8d, newest | 4-8 | 374 tests (touched groups, server-mode groups, Beta desktop QA 2), 38 min: 366 pass, 4 fail, 4 skip. The cases picked: D-50 anduril:5078772007 (main site, "Pay unclear", states up to $167,000; no beta board has one), MR-34 microsoft:1970393556627708 (of 960). fix-pay-data and D-32 are b-1 and b-2 (G-2 and G-3 not landed yet). D-41 broke on BN-1 (own count + state-wide) and V-43 newly skipped on fix-salary-6's local-currency pins: both fixed in a5bdbc9. Fix3 app [BP-2] Zurich broke on fix-salary-6's rows per country (not this lane's: reported) |
++| runs/r-16.log | a5bdbc9, 2026-10-16 crawl | 4-8 | the same 374 tests: **371/374 pass, 0 fail, 3 skipped** (D-11, screenshots, P-2), 50 min (it overlapped r-new.log's last minutes). BP-2 Zurich, D-32 and fix-pay-data pass on this crawl (none of their postings exists in it). The cases picked: MR-34 microsoft:1970393556619327 (of 890), D-50 netflix:790298021069 (of 6), the old tests' own |
++| runs/r-new2.log | a5bdbc9, newest | 6.5 | D-41 and V-43: 2/2 pass |
+ 
+ Timings taken at a load over 8 are noise (the lead, 01:00).
+ 
+@@ -176,7 +178,8 @@ Timings taken at a load over 8 are noise (the lead, 01:00).
+ - Moving CI to a newer Chromium needs its own pass over the phone and layout groups (Fix phone text, fix-viz-5
+   [cuts], Fix touch tips), with the sandbox's browser moved too, so CI and the local gate stay one browser.
+ - The (b) tests stay red until fix-data-6's G-2 and G-3 land: fix-pay-data [static beta] and Beta desktop QA 2
+-  [D-32]. CI's e2e summary is red until then.
++  [D-32]; and Fix3 app [BP-2] Zurich until P-4 (payLocations follows the rows per country, the lead's decision).
++  CI's e2e summary is red until then.
+ - Seen while probing, not in any failing test: a 2-px strip bar cannot be tapped (a touch at its middle lands on
+   `.ms-chart__axis`). A bar of 5 postings on Google is that short; a hit area taller than the bar would fix it
+   (layout lane, if wanted).
+@@ -186,3 +189,13 @@ Timings taken at a load over 8 are noise (the lead, 01:00).
+ - 00:30 Resumed after the container restart (no local-data run had started, so nothing to clean up).
+ - 00:31 Data restored; builds of both data sets (2 min 53 s and 3 min 52 s at load 7-13).
+ - 00:37 b-1 confirmed and sent.
++- 00:4x-01:00 The CI run's exact data rebuilt from the archive (reconstruct.js --at), built, and the original tests run
++  on it; b-2 sent; test fixes written; step 4 written and run on the CI logs.
++- 01:05 Paused by the lead (usage limit); log State and the table so far (5f24b37).
++- 01:39 Resumed. Badge swap settled as (a) at low load (the original fails on the CI data at load 3.8); its fix and the
++  Playwright pin (78a6117). Newest 192/192, npm test 0 fail; 10-16 361/364 (8d6dcc3).
++- 02:45 Stopped by the usage limit; the container restarted at 04:33.
++- 06:30 Resumed; rebased onto f13ebd6 (one conflict, BP-10 with BN-5). Both builds redone; npm test 0 fail.
++- 07:05 Three new reds in the touched groups on f13ebd6: D-41 (BN-1) and V-43 (local-currency pins) fixed (a5bdbc9);
++  BP-2 Zurich reported, routed to fix-data-6 as P-4.
++- 08:13 10-16 371/374 (3 known skips); newest: D-41 and V-43 pass.
+-- 
+2.43.0
+
