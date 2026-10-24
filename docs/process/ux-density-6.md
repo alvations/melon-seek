@@ -7,9 +7,12 @@
   (3.1) and its patch for test/e2e/phone-sizes.mjs (3.2, docs/process/patches/ux-density-6-phone-sizes.diff); the
   density spec with checks D-1 to D-14 (3.3) and its positions (3.4); the before audit (5.1: 560 pages; no phone
   screen shows a job, 104 of 104).
-- **In progress:** the mockups (CSS injected on e800c43's build, scratch `ux6/mock.mjs`), after counts per size.
-- **Next:** annotated boards in docs/screenshots/ux-density-6/ (the mini, a Pro Max, the Duo spanned, an iPad), the
-  after table (5.2), shrink, commit; answer fix-ui-6's questions through the lead.
+  The lead's matrix decision is in the patch (ALL_SIZES = PHONES + POSTURES + TABLETS, 31; VISIBLE apart, 21). The
+  mockups and the after counts (5.2): four annotated boards in docs/screenshots/ux-density-6/ (375x625, 440x757,
+  1114x616, 820x1070), shrunk.
+- **In progress:** nothing.
+- **Next, if resumed:** answer fix-ui-6's questions through the lead. Re-run `audit.mjs` on fix-ui-6's build to check
+  D-1 to D-14 once it lands.
 
 ## 1. Brief
 
@@ -174,7 +177,7 @@ bar, three cards, then the desktop's side-by-side list.
 | Histogram strip | folded | **folded: opens with the caption's Details** | shown | shown | shown | D-4 |
 | Ranges' legend line ("Striped … · Colour: department") | folded | **folded into Details** | shown | shown | shown | D-4 |
 | Chart rows | as compact | **52 px rows: the label line (name · N roles · median) and the band, the median tick and a thin line from the lowest to the highest pay on the axis; no circles** | today's rows: circles with their counts | today's (wide) rows | today's | D-5 |
-| Whole rows on the first screen (Apple) | 0 is allowed (cover screen: a glance at the header and one card) | **≥ 3 from 600 px tall, ≥ 2 below** | **≥ 3** | **≥ 6** | ≥ 5 | D-6 |
+| Whole rows on the first screen (Apple) | 0 is allowed (cover screen: a glance at the header and one card) | **≥ 3 from 600 px tall, ≥ 2 below, ≥ 1 under 360 px wide** | **≥ 3** | **≥ 6** | ≥ 5 (the Duo spanned: ≥ 5 on its chart screen) | D-6 |
 | "›N" edge chips | kept | **kept**, at the line's end | kept | kept | kept | D-13 |
 | With / without pay line | folded | **folded: the first line of the caption's Details** | shown | shown | shown | D-7 |
 | Sheet peek | fix-ui-6's 104 (cover), 64 (landscape) | **grip 20 + count row 48 + the first card down to its pay + 8 (measured, ~130 px)**; the Juice line shows from half up; Map view too | same rule (~130–150 px) | **three whole cards** (~40 % of the height) | no sheet: the list column | D-1 |
@@ -197,7 +200,8 @@ bar, three cards, then the desktop's side-by-side list.
 - **D-5 Compact rows.** Compact and short: no `.ms-bin` other than the edge chips is visible; every row with pay has a
   visible band, median tick and range line; a row is at most 52 px tall. Tall and up: circles as today.
 - **D-6 Rows on the first screen.** Whole `.ms-crow` between the axis and the sheet's top, on Apple: the minimums in the
-  table (375x625: ≥ 3; 375x544: ≥ 2; 440x757: ≥ 3; 744x1023: ≥ 6).
+  table (375x625: ≥ 3; 375x544: ≥ 2; 280x549: ≥ 1; 440x757: ≥ 3; 744x1023: ≥ 6; 1114x616: ≥ 5). The mockups reach
+  4, 2, 1, 4, 7 and 6 (5.2).
 - **D-7 The notes line.** Compact: `.ms-chart__foot` is not visible, and the first item of the caption's Details has
   both numbers ("2,781 … with pay", "2,070 without"). Tall and up: visible, one line.
 - **D-8 One Details.** Compact, Chart view: exactly one visible "Details" control in the toolbar and the chart.
@@ -258,7 +262,9 @@ bar, three cards, then the desktop's side-by-side list.
     layout there fits all of Apple's 8 rows with 140 px of blank space and no card (iPad mini). So: the top bar in
     one row, the stats line's count and share beside the chart controls, and the sheet resting at three whole cards.
 11. **Wide (over 860 px): the desktop layout, unchanged** except the median once (the caption's). fix-ui-6's B-8 gives
-    the Duo spanned its two screens without the Viewport Segments API.
+    the Duo spanned its two screens without the Viewport Segments API. Each of those screens is 540x616 (compact), so
+    the chart screen takes the compact rules: no tagline after the first visit, the strip and the notes line in the
+    caption's Details, compact rows (5 → 6 whole rows in the mock). The list screen keeps its cards.
 
 ## 4. Replayable steps
 
@@ -340,7 +346,39 @@ and `before-other.md`):
 
 ### 5.2 After: the mockups
 
-(filled in when the mock runs finish)
+The proposed density, mocked on e800c43's build with injected CSS and a few mock-only DOM moves (`<S>/ux6/mock.mjs`:
+the compact rows are restacked to 52 px, the range line spans the drawn circles, the foot's Details moves into the
+caption, and the peek is set from the first card's measured pay line). No product file changed. Apple, first screen,
+dark, 2026-10-24 01:32–01:37 UTC, load 6–7. The Duo spanned gets fix-ui-6's B-8 two-screen block (from its WIP) and,
+since one of its screens is 540x616, the compact rows on its chart screen.
+
+| Size | Class | Card on the first screen | Lines outside the chart above the card | Whole rows | Circles | "median" said | Peek |
+|---|---|---|---|---|---|---|---|
+| Fold folded 280x549 | compact | no → **yes** | 10 → 7 | 0 → 1 | 0 → 0 | 2 → 1 | 84 → 155 (3-line title) |
+| razr cover 352x275 | short | no → **yes** | 5 → 4 | 0 → 0 | 0 → 0 | 0 → 0 | 64 → 130 |
+| SE 3rd gen 375x544 | compact | no → **yes** | 10 → 7 | 0 → 2 | 5 → 0 | 2 → 1 | 84 → 130 |
+| **13 mini 375x625** | compact | no → **yes** | **10 → 7** | **2 → 4** | 12 → 0 | **2 → 1** | 84 → 130 |
+| 13/14 390x660 | compact | no → **yes** | 10 → 7 | 2 → 5 | 19 → 0 | 2 → 1 | 84 → 130 |
+| Pixel 8 412x811 | tall | no → **yes** | 10 → 8 | 5 → 5 | 31 → 31 | 2 → 1 | 84 → 130 |
+| **17 Pro Max 440x757** | tall | no → **yes** | 10 → 8 | 4 → 4 | 27 → 27 | 2 → 1 | 84 → 130 |
+| **Duo spanned 1114x616** | duo (compact screen) | yes → yes | 6 → 6 | 5 → 6 | 49 → 0 | 2 → 1 | (list column) |
+| iPad mini portrait 744x1023 | tablet | no → **yes** (3 cards) | 10 → 7 | 8 → 7, then the cards | 62 → 62 | 2 → 1 | 84 → 372 |
+| **iPad / Air 11" portrait 820x1070** | tablet | no → **yes** (3 cards) | 10 → 7 | 8 → 8 (all) | 71 → 71 | 2 → 1 | 84 → 372 |
+
+- Every mocked phone and tablet size now shows a card's title and pay, and the median is said once.
+- The compact phones gain rows: the mini goes from 2 to 4, the 13/14 from 2 to 5 and the SE from 0 to 2. Their circles
+  go and the range line takes their place.
+- On the tall phones, the tagline and the stats line pay for the card, so the rows stay as they are (4 on the Pro Max, 5 on
+  the Pixel 8).
+- On the Fold folded (280 px), titles wrap to three lines, so one whole row is left. D-6 asks for ≥ 1 under 360 px wide.
+- On the iPads, the top bar takes one row (company, search, views, "● Oct 16", theme) and three whole cards rest under
+  all eight rows.
+
+Annotated boards (today on the left, proposed on the right; numbered callouts), shrunk 936 → 260 KB:
+- [iPhone 13 mini, 375x625](../screenshots/ux-density-6/iphone-13-mini-chrome-bars-shown-apple-first.png)
+- [iPhone 16/17 Pro Max, 440x757](../screenshots/ux-density-6/iphone-16-17-pro-max-chrome-bars-shown-apple-first.png)
+- [Surface Duo spanned, 1114x616](../screenshots/ux-density-6/surface-duo-spanned-bars-shown-apple-first.png)
+- [iPad / iPad Air 11", 820x1070](../screenshots/ux-density-6/ipad-ipad-air-11-portrait-safari-apple-first.png)
 
 ## 6. Known gaps and follow-ups
 
@@ -372,3 +410,5 @@ and `before-other.md`):
 - 00:59–01:17: the before audit (560 pages), moved to the shared queue at 01:04 when the lead asked.
 - 01:05–01:16: the size matrix, the patch, the spec (D-1 to D-14), positions; sent to the lead (43ddac0).
 - 01:20: the lead's matrix decision (ALL_SIZES 31, VISIBLE apart) in the patch (9a55793); the mockups.
+- 01:31–01:38: the mock runs went direct (11 pages; the shared queue was full for 25 minutes); the Duo spanned's chart
+  screen takes the compact rules; D-6's minimums set from the mocks (≥ 1 under 360 px wide); four boards, shrunk.
