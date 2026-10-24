@@ -13,12 +13,21 @@ const DESKTOP = { width: 1440, height: 900 };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const isExternal = (url, base) => !!url && !url.startsWith(base) && !url.startsWith('data:') && !url.startsWith('blob:');
 
-async function openDesk(ctx, { hash = 'c=anthropic', viewport = DESKTOP, colorScheme = 'light', base = ctx.baseUrl, storageState } = {}) {
+/** `patch(slug, body)` may rewrite a /api/jobs?company= answer (a fixture), as fix-app.e2e.js openFx does. */
+async function openDesk(ctx, { hash = 'c=anthropic', viewport = DESKTOP, colorScheme = 'light', base = ctx.baseUrl, storageState, patch = null } = {}) {
   const context = await ctx.browser.newContext({ viewport, colorScheme, deviceScaleFactor: 1, acceptDownloads: true, ...(storageState ? { storageState } : {}) });
   ctx.cleanup.push(() => context.close());
   const origin = new URL(base).origin;
   await context.grantPermissions(['clipboard-read', 'clipboard-write'], { origin });
   await context.route((u) => isExternal(u.href, origin), (r) => r.abort('blockedbyclient'));
+  if (patch) {
+    await context.route(/\/api\/jobs\?company=/, async (route) => {
+      const r = await route.fetch();
+      const body = await r.json();
+      patch(new URL(route.request().url()).searchParams.get('company'), body);
+      route.fulfill({ response: r, body: JSON.stringify(body) });
+    });
+  }
   const page = await context.newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
@@ -381,12 +390,20 @@ export function registerDesktopQaTests(suite) {
     assert(/2 new/.test(row), `saved row "${row.replace(/\n/g, ' ')}" has no "2 new"`);
   });
 
+  // T-19 (fix-data-6): every crawl since 2026-10 has listing dates, so this skipped on every run. The board's dates are
+  // taken out by a fixture (ageDays, postedAt, firstSeenAt and updatedAt), as fix-app's openFx patches a board.
+  const undated = (slug, body) => { for (const j of body.jobs || []) { j.ageDays = null; delete j.ageIsMinimum; delete j.postedAt; delete j.firstSeenAt; delete j.updatedAt; } };
   suite.test('Desktop QA: [D-11] "Newest" is not offered as a working sort when no role has a listing date', async (ctx) => {
-    const { page, base } = await openDesk(ctx);
+    const { page, base } = await openDesk(ctx, { patch: undated });
     const jobs = await needReal(page, base, 'anthropic');
-    if (jobs.some((j) => j.age != null)) skip('this data has listing dates');
+    assert(jobs.length && jobs.every((j) => j.age == null), `the fixture left ${jobs.filter((j) => j.age != null).length} dated roles`);
     const opt = page.locator('#sortBy option[value=newest]');
     assert(!(await opt.count()) || await opt.isDisabled(), '"Newest" is selectable but every role has an unknown date (order = board order)');
+    // A "Newest" link sorts as the default does (effectiveSort), and the same board with its dates offers "Newest".
+    const { page: linked } = await openDesk(ctx, { hash: 'c=anthropic&sort=newest', patch: undated });
+    assert(!(await linked.locator('#sortBy option[value=newest]').count()), '"Newest" offered from a link on an undated board');
+    const { page: dated } = await openDesk(ctx);
+    if ((await needReal(dated, base, 'anthropic')).some((j) => j.age != null)) assertEq(await dated.locator('#sortBy option[value=newest]').count(), 1, '"Newest" on the dated board');
   });
 
   suite.test('Desktop QA: [D-12] an unknown sort= in the URL falls back to a visible sort option', async (ctx) => {

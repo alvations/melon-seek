@@ -140,14 +140,24 @@ export function registerFixAppTests(suite) {
   suite.test('Fix app: [P-2] the drawer estimate shows no accuracy claim at low confidence, and builds no level or place text of its own', async (ctx) => {
     const jobs = await needReal(ctx, 'anthropic');
     const { readableTitle } = await lib('features/roles.js');
-    const noPay = jobs.filter((j) => !j.salary && !j.salaryFlag && readableTitle(j.title) === j.title).slice(0, 12);
+    const noPay = jobs.filter((j) => !j.salary && !j.salaryFlag && readableTitle(j.title) === j.title);
     if (!noPay.length) skip('no Anthropic role without pay');
     // A board whose back-test error is above 25% makes every estimate "Low confidence".
     const lowMeta = (slug, body) => { if (body.meta) body.meta.compstimate = { ...(body.meta.compstimate || {}), medianAbsPctError: 31, n: 400 }; };
-    const { page, errors } = await openFx(ctx, { hash: `c=anthropic&job=${encodeURIComponent(noPay[0].id)}`, patch: lowMeta });
+    const { page, errors } = await openFx(ctx, { hash: 'c=anthropic', patch: lowMeta });
+    // T-19 (fix-data-6): the first role without pay gets no estimate, so this skipped on every run. The page's own
+    // estimate (compstimateForJob) picks the first candidate that has one.
+    const pick = await page.evaluate(async ({ ids }) => {
+      const api = await import('./api.js'); const m = await import('./features/compstimate.js');
+      const res = await api.getJobs({ company: 'anthropic' });
+      for (const id of ids) { const j = res.jobs.find((x) => x.id === id); const r = j && m.compstimateForJob(res.jobs, j); if (r && r.mid != null) return id; }
+      return null;
+    }, { ids: noPay.map((j) => j.id) });
+    if (!pick) skip(`none of Anthropic's ${noPay.length} roles without pay gets an estimate`);
+    await page.evaluate((h) => { location.hash = h; }, `c=anthropic&job=${encodeURIComponent(pick)}`);
     await page.locator('#drawer .d-title').waitFor({ timeout: 8000 }); await sleep(600);
     const comp = page.locator('#drawer .d-comp');
-    if (!(await comp.count())) skip('no estimate for this role');
+    assert(await comp.count(), `${pick}: compstimateForJob gives an estimate, but the drawer shows none`);
     const t = (await comp.innerText()).replace(/\s+/g, ' ');
     assert(/low confidence/i.test(t), `forced low confidence: "${t}"`);
     assert(!/Typically within/.test(t), `accuracy claim next to low confidence: "${t}"`);
@@ -158,7 +168,7 @@ export function registerFixAppTests(suite) {
       const res = await api.getJobs({ company: 'anthropic' });
       const r = m.compstimateForJob(res.jobs, res.jobs.find((j) => j.id === id));
       return { basis: typeof r.basis === 'string' ? r.basis : null };
-    }, { id: noPay[0].id });
+    }, { id: pick });
     if (est.basis) assert(t.includes(est.basis.replace(/\.$/, '')), `drawer basis "${t}" is not the estimate's "${est.basis}"`);
     else assert(/Based on \d[\d,]* similar roles? at Anthropic\. An estimate/.test(t), `app-built level/place in the basis line: "${t}"`);
     noErrors(errors);
