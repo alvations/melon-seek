@@ -1555,3 +1555,31 @@ screenshots in `docs/screenshots/`.
   - The one failure was [MR-28]'s stale reference, fixed in fc8980e and passing alone.
   - T21 passed (28 s), with its CPU-time patch.
 - **npm test on the push head ea0af07:** 1,308 tests, 1,298 pass, 0 fail, 0 to-do. Every review to-do is now a real test.
+
+### Fix wave 6, batch 1: persona wave 2's fixes, the CI suite, multi-country pay (2026-10-24)
+- **Persona wave 2** (5 age groups, e800c43's build): wave 1's Broken items fixed in every group; 14 new Broken items and the
+  cross-group Improve items routed to six lanes. Logs: docs/process/persona-beta-2-*.md. Feature asks are in the backlog below.
+- **Lanes integrated** (each rebased onto the previous head, picked with $S/pick.sh):
+  - fix-salary-6: every pay line for a country or area is a salary.ranges row (Google: 62 dropped lines → 0; Microsoft 58 → 0;
+    1,083 unlisted-area lines kept in salary.unlisted and shown in the drawer); weak "kr"/"$" read by the line's country;
+    nothing dropped (paid 28,176 → 28,176; rows 6,673 → 6,843); norm-14.
+  - fix-ui-6 B-1..B-12: the first card on the first screen (measured sheet peek), cover-screen and Duo-hinge fixes, the map fit,
+    "Show N roles" over the keyboard above 860 px, the beta tagline.
+  - fix-juice-6: tax rows named as each country names them; the household line; Monthly/Yearly remembered; grade tips.
+  - fix-app-6: Location counts per place (Dublin 2 → 137); medians in the pay's currency; the count once in every locale;
+    hourly medians; set-aside places survive; posted minimums survive a pay floor; two-level postings; typed currencies kept.
+  - fix-data-6: 359 towns at their own place; AL = Albania; Monterrey N.L. = Mexico; Bogotá, D.C. = Colombia; 0% bonus targets;
+    pay places named (532 cards); exact job-page pay (16,414); hourly cards lead with the posted rate (2,442); payLocations follows
+    the rows; role families (Amazon with no family 2,332 → 881); Lead Associates Mid; comparables spread; T-19's two skips run.
+  - qa-ci-6: CI's 12 failures classified; tests choose cases from the data; the e2e server runs offline; Playwright pinned to
+    1.56.1; each shard job goes red on its own unexpected failure.
+  - ux-density-6: the size matrix (visible viewports under the browser's bars; iPads; Pro Max) and the density spec D-1..D-14,
+    for the user's iPhone mini request. fix-ui-6's implementation (D-1..D-15) is written; it waits for its related groups.
+- **Gates:** gate 1 on 505a4df and gate 2 on 5de0efc (SHARDS=2): npm 1,382/0 fail, build clean, e2e 1,223 passed, 6 failed, all
+  test drift: UX-17 (a clipped chip, d2c0fc6), four card-vs-job-page tests after P-2 (36d8d81), T21 (load). Their groups re-run:
+  68/68, npm 1,382/0.
+- **Machine and usage:** heavy jobs go through $S/heavy.sh (3 slots); the checkpoint is a shell loop ($S/tick-loop.sh), not a
+  model turn; an hourly scheduled task resumes the lead from wip/LEAD-STATE.md after any stop. The usage limit stopped every agent
+  three times; the weekly limit stopped fix-ui-6 (reset 2026-10-30 13:00 UTC).
+- **Backlog (features):** Juice in the reader's currency and terms; more households; search across companies; "within N km" and
+  states as places; Amazon's speed on phones; tests should remove their temp folders.
