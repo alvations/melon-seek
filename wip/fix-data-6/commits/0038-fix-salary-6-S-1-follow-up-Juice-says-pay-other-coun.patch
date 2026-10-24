@@ -1,7 +1,7 @@
 From aec5de1f5b4a45856f4aae6622da8247a322ad4f Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 24 Oct 2026 05:10:00 +0000
-Subject: [PATCH 38/84] fix-salary-6 S-1 follow-up: Juice says
+Subject: [PATCH 38/86] fix-salary-6 S-1 follow-up: Juice says
  'pay-other-country' again when every place with a city record is in a country
  no row prices (Cohere's London)
 

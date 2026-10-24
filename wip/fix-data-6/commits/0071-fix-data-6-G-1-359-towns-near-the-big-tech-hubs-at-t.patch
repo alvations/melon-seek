@@ -1,7 +1,7 @@
 From 7a71dd0690cab6c61c0d85d044501da574869c0e Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 23 Oct 2026 21:38:35 +0000
-Subject: [PATCH 71/84] fix-data-6: G-1 359 towns near the big-tech hubs at
+Subject: [PATCH 71/86] fix-data-6: G-1 359 towns near the big-tech hubs at
  their own place (Bay Area first), K-1 '+ 0% bonus target' is no bonus;
  norm-14
 

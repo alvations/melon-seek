@@ -1,7 +1,7 @@
 From d3ce3601b388612eb39fa71af207f1ea05f21211 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 24 Oct 2026 02:14:17 +0000
-Subject: [PATCH 81/84] fix-data-6: related e2e after P-2 and T-19: exact
+Subject: [PATCH 81/86] fix-data-6: related e2e after P-2 and T-19: exact
  headings in fix-pay-at-place, a programme's per-place rates exact, Fix app
  [P-2] picks what the drawer shows; phone lines one line at every size
 

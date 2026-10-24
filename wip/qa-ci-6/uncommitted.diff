@@ -1,5 +1,5 @@
 diff --git a/docs/process/qa-ci-6.md b/docs/process/qa-ci-6.md
-index f7ea1a6..5962bc9 100644
+index f7ea1a6..e78cf23 100644
 --- a/docs/process/qa-ci-6.md
 +++ b/docs/process/qa-ci-6.md
 @@ -96,6 +96,14 @@ data, here (runs/ci-repro1.log); "10-16" = the lead's gate (passed).
@@ -23,7 +23,7 @@ index f7ea1a6..5962bc9 100644
  | (after the rebase onto f13ebd6: product code changed, so both builds and the runs are repeated) | | | |
 +| builds | b9baf8d | 2-5 | newest 260 s, 10-16 361 s, 7/7 beta boards each |
 +| runs/npm-test-2.log | b9baf8d, clean checkout | 3-5 | 1,359 tests: 1,349 pass, **0 fail**, 10 skipped; 100 s |
-+| runs/r-new.log | b9baf8d, newest | 4-7 | 381 tests (touched groups, server-mode groups, Beta desktop QA 2): 4 fail, 4 skip. fix-pay-data and D-32 are b-1 and b-2 (G-2 and G-3 not landed yet). D-41 broke on BN-1 (own count + state-wide) and V-43 newly skipped on fix-salary-6's local-currency pins: both fixed in a5bdbc9. Fix3 app [BP-2] Zurich broke on fix-salary-6's rows per country (not this lane's: reported) |
++| runs/r-new.log | b9baf8d, newest | 4-8 | 374 tests (touched groups, server-mode groups, Beta desktop QA 2), 38 min: 366 pass, 4 fail, 4 skip. The cases picked: D-50 anduril:5078772007 (main site, "Pay unclear", states up to $167,000; no beta board has one), MR-34 microsoft:1970393556627708 (of 960). fix-pay-data and D-32 are b-1 and b-2 (G-2 and G-3 not landed yet). D-41 broke on BN-1 (own count + state-wide) and V-43 newly skipped on fix-salary-6's local-currency pins: both fixed in a5bdbc9. Fix3 app [BP-2] Zurich broke on fix-salary-6's rows per country (not this lane's: reported) |
  
  Timings taken at a load over 8 are noise (the lead, 01:00).
  

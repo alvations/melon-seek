@@ -1,7 +1,7 @@
 From d483337c0d928be498983ce7fd1fe67eda6e4334 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 24 Oct 2026 04:39:02 +0000
-Subject: [PATCH 82/84] =?UTF-8?q?fix-data-6:=20on=20top=20of=20fix-salary-?=
+Subject: [PATCH 82/86] =?UTF-8?q?fix-data-6:=20on=20top=20of=20fix-salary-?=
  =?UTF-8?q?6,=20one=20line=20at=20280=20and=20320=20px:=20the=20hourly=20h?=
  =?UTF-8?q?eading=20($27.98=E2=80=9348.99/hour,=20then=20whole=20dollars),?=
  =?UTF-8?q?=20the=20yearly=20line=20(hours=20in=20Details),=20P-1's=20line?=

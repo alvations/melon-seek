@@ -1,7 +1,7 @@
 From abccc1623d37ec5cbea1ce536b95688ccb791445 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 23 Oct 2026 21:12:07 +0000
-Subject: [PATCH 15/84] fix-ui-6: prompt, verbatim
+Subject: [PATCH 15/86] fix-ui-6: prompt, verbatim
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
