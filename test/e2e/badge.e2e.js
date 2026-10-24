@@ -261,11 +261,21 @@ export function registerBadgeTests(suite) {
       const { page, errors } = await openStatic(ctx, st, { live: { delay: 4500 } });
       await page.locator('#dataBadge.is-pending').waitFor({ timeout: 15000 });
       await page.evaluate(() => { window.__ready = true; });
+      // qa-ci-6: the cluster and the card by their property, from the list in front of the test. The 3rd cluster held
+      // one role on the 2026-10-23 Anthropic lists (it took the 3rd card of a one-card list and waited 30 s). Now: the
+      // cluster with the most roles, and its first card from the 3rd on that the simulated live board keeps (it drops
+      // the bundle's first DROP roles), so the swap can keep that card in place.
       const bins = page.locator('#chartHost .ms-bin:not(.ms-bin--overflow)');
-      if (await bins.count() > 2) { await bins.nth(2).click(); await sleep(400); }
+      const sizes = await bins.evaluateAll((bs) => bs.map((b) => Number(/^(\d+) roles?\b/.exec(b.getAttribute('aria-label') || '')?.[1] || 0)));
+      const big = sizes.indexOf(Math.max(0, ...sizes));
+      if (big >= 0 && sizes[big] >= 3) { await bins.nth(big).click(); await sleep(400); }
       const selected = await page.locator('#chartHost .is-selected').count();
       await page.locator('#resultsList').evaluate((el) => { el.scrollTop = 240; });
-      const card = page.locator('#resultsList .card[data-id]').nth(2);
+      const dropped = new Set(bundle('anthropic').jobs.slice(0, DROP).map((j) => j.id));
+      const ids = await page.locator('#resultsList .card[data-id]').evaluateAll((cs) => cs.map((c) => c.dataset.id));
+      const k = ids.findIndex((x, i) => i >= 2 && !dropped.has(x));
+      assert(k >= 0, `no third card the live board keeps (cluster sizes ${sizes.join(', ')}; ${ids.length} cards)`);
+      const card = page.locator('#resultsList .card[data-id]').nth(k);
       const id = await card.getAttribute('data-id');
       await card.focus();
       const before = { hash: await page.evaluate(() => location.hash), top: await page.locator('#resultsList').evaluate((el) => el.scrollTop) };

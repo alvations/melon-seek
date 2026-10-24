@@ -72,9 +72,13 @@ jobs:
         with:
           name: e2e-input
       - run: tar -xzf e2e-input.tgz
+      # The local gate's browser: Playwright 1.56.1 and its Chromium 141 (chromium-1194, /opt/pw-browsers in the sandbox).
+      # qa-ci-6: with playwright@1.63.0 the shards ran Chromium 153, and three layout checks that pass on the same build
+      # and data with Chromium 141 failed ([cuts] at 390 and 540, the 280 px phone-text guard, a strip tap at 1005x412).
+      # Move both together, after a run of the phone and layout groups on the new browser.
       - name: Playwright (not a repo dependency) and Chromium
         run: |
-          npm i --no-save playwright@1.63.0
+          npm i --no-save playwright@1.56.1
           npx playwright install --with-deps chromium
       # --timings: a test's duration in test/e2e/timings.log (a past run's log, refreshed by hand) balances the shards
       # by time; without it they split by test count. --max-skips: a build without a board turns its tests into skips.
