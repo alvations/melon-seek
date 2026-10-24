@@ -113,6 +113,39 @@ bash scripts/cycle/shrink-screenshots.sh docs/screenshots/fix-app-6
 ```
 
 ## 5. Verification
+- **Unit tests:** test/fix-app-6.test.js, 20 tests: on 4ebe24f 18 fail (the two that pass are guards: the other facets' counts were already
+  right, and nothing is dropped); at 5ceb621 20 pass. Three tests of other lanes pinned the old rules' source or behaviour and were updated
+  to the new rules: fix-mr-3 MR-39 (`headlineMedian(` now holds `mainPayCurrency(`), fix3-app's shared decisions (the pay filter's test is
+  `salWhy`), and the e2e BP-10 and P-5 (below).
+- **npm test, CI-like** (clean checkout, no data links): at 30fc159 1,326 tests, 1,316 pass, 0 fail, 10 skipped.
+- **Before → after on the 2026-10-16 crawl** (`scratchpad/fa6/dist-base` vs the rebuilt dist; probes `tools/probe-bn1.mjs`,
+  `tools/probe-lines.mjs`, `tools/minimums.mjs`, `tools/two-levels.mjs`):
+  - **BN-1**, the count listed for a place vs the roles shown after picking it alone, the pay floor kept:
+    - Google + Warsaw + $40K: before 5 places listed and no search box; Dublin 2 (alone 137), Krakow 7 (14), Wrocław 4 (6), London 1 (0).
+      After 191 places and the box; Dublin 137 = 137, London 0 = 0, Mountain View 634 = 634.
+    - Amazon + Toronto + $50K: before 7 places; Vancouver 22 (178), Montreal 10 (29), Ottawa 6 (17), Seattle not listed (3,668). After
+      895 places; Vancouver 178 = 178, Seattle 3,668 = 3,668.
+    - Apple + Cupertino + $100K: before Sunnyvale 32 (421), San Diego 103 (361), Austin 164 (0). After Sunnyvale 421 = 421, San Diego
+      361 = 361, Austin not listed (no Austin pay passes).
+    - Country-wide postings: Microsoft, no filter: before Atlanta 377, Austin 370, Palmetto 297 (3 name it); after Atlanta 108 +269,
+      Austin 86 +284, Palmetto 3 +294, "United States" 294 its own row; a Palmetto pick still shows 297, and its map pin reads "3+294"
+      (was "297").
+  - **BN-2:** Amazon interns in Vancouver "$72K base pay median" → "CA$101K base pay median", chart "Median base pay CA$101K"; the
+    Toronto pin "$72K · 5" → "CA$101K · 5"; Google Warsaw "$75K" → "PLN 283K"; Google Dublin "$88K" → "€77K"; Microsoft Canada "$114K"
+    → "CA$159K". Mixed boards keep MR-39: Amazon "$152K base pay median (US)" before and after.
+  - **BN-3:** de-DE 1114x720, Google: "3.821 3.821 roles · …" → "3.821 roles · …".
+  - **BN-4:** Apple, Part-time, Arlington + Washington DC + Fairfax + Tysons + McLean (12 roles): "$56K posted pay median" → "$26.80/hour
+    posted pay median"; chart "Median posted pay $56K" → "Median posted pay $26.80/hour".
+  - **BN-6:** Amazon has 285 posted minimums. Under a €35,000 floor ($40K): Milan (89 postings that name it) 54 shown → 84 (the 30 posted
+    minimums under the floor are kept; 1 no pay, 3 paid elsewhere and 1 range under the floor stay hidden); the EU (2,113 postings) 185 →
+    313 (128 minimums kept). The Salary note now counts every role the floor hides ("N roles hidden by the pay filter" = before − after).
+  - **BN-7:** postings whose posted levels are two of ours, now found and counted under both: Microsoft 102 (Mid+Senior 40, Senior+Staff+
+    59, Manager+Director+ 3), NVIDIA 51 (Mid+Senior 39, Senior+Staff+ 12); Amazon, Apple, Google, Meta and Netflix 0 (no posted ladder
+    in the pay: Amazon's and Google's levels come from title numerals, one level each). Microsoft "Director" titles: Director+ 52, Staff+
+    45, Manager 21, Senior 1, Not stated 1, unchanged (VT-8); 0 postings whose shown level is outside their posted levels.
+  - **BN-8:** "PLN 150,000" → chip "PLN 150K+" (was "$40K+"), link `smin=150000&sc=PLN` (was `smin=40000`), the same 60 Warsaw roles as the
+    dollar link; "360 000 zł" read (was refused); a bare "150000" in Warsaw → PLN 150K (was $150K); "£75,000" at Microsoft London saved
+    as "Microsoft · £75K+ · London" (was "$101K+").
 
 ## 6. Known gaps and follow-ups
 

@@ -165,13 +165,15 @@ export function registerFixApp6Tests(suite) {
     const { st, page, errors } = await open(ctx);
     await board(page, st, 'c=microsoft');
     const opts = await locationOptions(page);
-    const wide = opts.filter((o) => o.wide > 0);
-    if (!wide.length) skip('no Microsoft place gets postings listed only for its country or state in this build');
     const names = await appJobs(page, st, 'microsoft', `(j) => ({ cities: (j.locations || []).filter((l) => l && l.city && !l.remote).map((l) => l.city) })`);
     const own = (city) => names.filter((j) => j.cities.includes(city)).length;
-    const pick = wide.find((o) => /^Palmetto\b/.test(o.label)) || wide.sort((a, b) => a.own - b.own)[0];
-    const city = pick.label.split(',')[0];
-    assertEq(pick.own, own(city), `${pick.label}: its own count is the postings that name it`);
+    // The places a pick finds more of than name them: postings listed only for their country or state (I-6).
+    const cityOf = (o) => o.label.split(',')[0];
+    const inflated = opts.filter((o) => own(cityOf(o)) > 0 && o.count > own(cityOf(o)));
+    if (!inflated.length) skip('no Microsoft place gets postings listed only for its country or state in this build');
+    const pick = inflated.find((o) => /^Palmetto\b/.test(o.label)) || inflated.sort((a, b) => own(cityOf(a)) / a.count - own(cityOf(b)) / b.count)[0];
+    const city = cityOf(pick);
+    assertEq(pick.own, own(city), `${pick.label} reads ${pick.own}${pick.wide ? ` +${pick.wide}` : ''}: its own count is the ${own(city)} postings that name it`);
     await go(page, `c=microsoft&l=${encodeURIComponent(pick.key)}`);
     assertEq(await roleCount(page), pick.own + pick.wide, `${pick.label} ${pick.own} +${pick.wide}: a pick finds both (I-6)`);
     await go(page, `c=microsoft&l=${encodeURIComponent(pick.key)}&m=map`);
@@ -283,26 +285,34 @@ export function registerFixApp6Tests(suite) {
   });
 
   for (const viewport of [{ width: 375, height: 812 }, { width: 1280, height: 800 }]) {
-    suite.test(`fix-app-6: [BN-5] ${viewport.width}x${viewport.height}: Kraków set aside at NVIDIA comes back at Google after ticking Warsaw; Clear all drops it, with a toast`, async (ctx) => {
+    suite.test(`fix-app-6: [BN-5] ${viewport.width}x${viewport.height}: Kraków set aside at NVIDIA comes back at Google after another place is ticked; Clear all drops it, with a toast`, async (ctx) => {
       const { st, page, errors } = await open(ctx, { viewport });
       await board(page, st, 'c=google&l=Krakow');
       if (!(await roleCount(page))) skip('no Google roles in Krakow in this build');
+      // The place to tick at NVIDIA: one both boards list (the reviewer ticked Warsaw; NVIDIA lists none there today).
+      const cities = async (slug) => new Set((await appJobs(page, st, slug, `(j) => (j.locations || []).filter((l) => l && l.city && !l.remote).map((l) => l.city)`)).flat());
+      const [g, n] = [await cities('google'), await cities('nvidia')];
+      const tick = ['Warsaw', 'Munich', 'Zurich', 'London', 'Austin', 'Seattle'].find((c) => g.has(c) && n.has(c));
+      if (!tick) skip('no place both Google and NVIDIA list');
       await switchTo(page, 'NVIDIA', 'nvidia');
       const t1 = await page.locator('#toast').innerText();
       assert(/[Dd]ropped Krakow \(not at NVIDIA\) for now/.test(t1), `drop toast "${t1}"`);
-      // Tick Warsaw at NVIDIA (the filter panel on a desktop; a link's change on a phone, as the sheet's tick commits).
+      // Tick it at NVIDIA (the filter panel on a desktop; a link's change on a phone, as the sheet's tick commits).
       if (viewport.width > 860) {
         await locSection(page).evaluate((d) => { d.open = true; });
-        const box = locSection(page).locator('input[value="Warsaw"]');
-        if (!(await box.count())) skip('no NVIDIA roles in Warsaw in this build');
-        await box.check(); await sleep(800);
+        const sec = locSection(page);
+        const search = sec.locator('input.fsearch');
+        if (await search.isVisible().catch(() => false)) { await search.fill(tick); await sleep(400); }
+        const box = sec.locator(`input[value="${tick}"]`);
+        if (!(await box.count())) skip(`NVIDIA's Location list has no ${tick}`);
+        await box.check(); await sleep(900);
       } else {
-        await go(page, 'c=nvidia&l=Warsaw');
+        await go(page, `c=nvidia&l=${tick}`);
       }
-      assertEq((await params(page)).getAll('l').join(), 'Warsaw', 'Warsaw ticked at NVIDIA');
+      assertEq((await params(page)).getAll('l').join(), tick, `${tick} ticked at NVIDIA`);
       await switchTo(page, 'Google', 'google');
       const l = (await params(page)).getAll('l');
-      assert(l.includes('Krakow') && l.includes('Warsaw'), `Google: l=${l.join(',')}`);
+      assert(l.includes('Krakow') && l.includes(tick), `Google: l=${l.join(',')}`);
       const t2 = await page.locator('#toast').innerText();
       assert(/[Pp]ut back Krakow/.test(t2), `toast "${t2}"`);
       await shot(page, `bn5-krakow-back-${viewport.width}`);
@@ -324,13 +334,17 @@ export function registerFixApp6Tests(suite) {
       await board(page, st, 'c=amazon&l=Milan');
       const before = await roleCount(page);
       if (!before) skip('no Amazon roles in Milan in this build');
-      const mins = await appJobs(page, st, 'amazon', `(j) => j.salary && j.salary.kind === 'minimum' && j.locations.some((l) => l.city === 'Milan') ? { id: j.id, min: j.salary.min, cur: j.salary.currency } : null`);
+      const mins = await appJobs(page, st, 'amazon', `(j) => j.salary && j.salary.kind === 'minimum' && j.locations.some((l) => l.city === 'Milan') ? { id: j.id, title: j.title, min: j.salary.min, cur: j.salary.currency } : null`);
       await go(page, 'c=amazon&l=Milan&smin=41000'); // €35,000 is about $41K at the build's rates
       const after = await roleCount(page);
-      const ids = await page.evaluate(() => [...document.querySelectorAll('#resultsList .card[data-id]')].map((c) => c.dataset.id));
-      const shownMins = mins.filter((m) => ids.includes(m.id)).length;
-      const visible = Math.min(ids.length, mins.length);
-      assert(mins.length === 0 || shownMins > 0 || visible === 0, `none of Amazon's ${mins.length} posted minimums in Milan is listed under the floor`);
+      // A posted minimum under the floor ("from €31,100") is still listed: found by its title under the same filters.
+      const under = mins.find((m) => m.cur === 'EUR' && m.min < 35000 && m.title);
+      if (under) {
+        await go(page, `c=amazon&l=Milan&smin=41000&q=${encodeURIComponent(under.title)}`);
+        const ids = await page.evaluate(() => [...document.querySelectorAll('#resultsList .card[data-id]')].map((c) => c.dataset.id));
+        assert(ids.includes(under.id), `${under.id} "${under.title}" (from €${under.min.toLocaleString('en-US')}) is hidden by a €35,000 floor`);
+        await go(page, 'c=amazon&l=Milan&smin=41000');
+      }
       // The note counts every role the floor hides.
       const hidden = before - after;
       const note = await page.evaluate(() => {
