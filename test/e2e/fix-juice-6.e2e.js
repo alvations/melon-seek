@@ -21,7 +21,8 @@ import zlib from 'node:zlib';
 import { ROOT, assert, assertEq, skip } from './harness.js';
 import { ALL_SIZES, contextFor } from './phone-sizes.mjs';
 import { scanText, CAPTION_SEL } from './fix-phone-text.e2e.js';
-import { taxRowNames, householdTaxLine, HOUSEHOLD_LINES, PERIOD_KEY, gradeMeaning, gradeShort } from '../../public/features/juice-drawer.js';
+import { taxRowNames, householdTaxLine, PERIOD_KEY, gradeMeaning, gradeShort } from '../../public/features/juice-drawer.js';
+import { extractConst } from '../../scripts/refresh/lib.js';
 import { taxFor } from '../../server/juice.js';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -40,6 +41,8 @@ const PLACES = [
 ];
 const BOARDS = ['netflix', 'meta', 'nvidia', 'microsoft', 'google', 'apple', 'amazon'];
 const HH_KEY = 'melon-seek.household.v1';
+/** The household line's variants, from app.js HOUSEHOLDS (a literal: [key, label, tip, bedrooms, people, line variants]). */
+const HOUSEHOLD_LINES = Object.fromEntries((extractConst(fs.readFileSync(path.join(ROOT, 'public/app.js'), 'utf8'), 'HOUSEHOLDS') || []).map((x) => [x[0], [].concat(x[5])]));
 
 let shared = null;
 /** Serve the build under /melon-seek/ (gzip, like Pages); null without a beta build. One server for the whole file. */

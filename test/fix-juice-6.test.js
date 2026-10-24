@@ -15,10 +15,11 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import {
-  taxRowNames, taxRows, jurisdictionOf, householdTaxLine, HOUSEHOLD_LINES, HOUSEHOLD_TIPS,
+  taxRowNames, taxRows, jurisdictionOf, householdTaxLine,
   PERIOD_KEY, periodOf, shownPeriod, gradeMeaning, gradeShort, countryWords,
 } from '../public/features/juice-drawer.js';
 import { computeJuice, TAX_COUNTRIES, TAX_HOUSEHOLD } from '../server/juice.js';
+import { extractConst } from '../scripts/refresh/lib.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
@@ -150,12 +151,18 @@ test('J-2: the household tax line says how the country taxes one earner, and nev
 });
 
 test('J-2: the household line and the buttons\' tips say one adult earns and the other is not working, with no US filing status', () => {
-  assert.match(HOUSEHOLD_LINES.couple[0], /1 earner \(the other not working\)/);
-  assert.match(HOUSEHOLD_LINES.family[0], /1 earner, 1 not working/);
+  // app.js HOUSEHOLDS stays a literal (test/freshness-policy.test.js reads it): [key, label, tip, bedrooms, people, line variants].
+  const hh = extractConst(APP, 'HOUSEHOLDS');
+  assert.ok(Array.isArray(hh), 'app.js HOUSEHOLDS is a literal');
+  const tip = Object.fromEntries(hh.map((x) => [x[0], x[2]])), line = Object.fromEntries(hh.map((x) => [x[0], x[5]]));
+  assert.ok(Array.isArray(line.couple) && Array.isArray(line.family), 'the household line has variants (one line at every size)');
+  assert.match(line.couple[0], /1 earner \(the other not working\)/);
+  assert.match(line.family[0], /1 earner, 1 not working/);
   for (const k of ['couple', 'family']) {
-    assert.match(HOUSEHOLD_TIPS[k], /one earning and the other not working/);
-    assert.doesNotMatch(HOUSEHOLD_TIPS[k], /filing jointly/);
-    for (const v of HOUSEHOLD_LINES[k]) assert.ok(words(v) <= 12, v);
+    assert.match(tip[k], /one earning and the other not working/);
+    assert.doesNotMatch(tip[k], /filing jointly/);
+    for (const v of line[k]) assert.ok(words(v) <= 12, v);
+    assert.ok(line[k][line[k].length - 1].length <= 42, `${k}: the shortest line fits a 280 px drawer at 13 px`);
   }
   hasNot(/here means one earner; each person is taxed separately/);
   hasNot(/one earner \(married, filing jointly\)/);

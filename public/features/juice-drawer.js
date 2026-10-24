@@ -136,7 +136,7 @@ export function jurisdictionOf(entry, city = null) {
 
 /*
  * J-2: how a one-earner couple or family is taxed there (server/juice.js taxFor `basis`), one line under the Tax row.
- * The household line under the buttons says who is in the household ("2 adults, 1 earner (the other not working)").
+ * The household line under the buttons (app.js HOUSEHOLDS) says who is in it ("2 adults, 1 earner (the other not working)").
  *   joint       the country taxes the household together and the model applies it: the tax goes down
  *   individual  the country taxes each person on their own pay: the earner pays what a single person does
  *   single      the country has joint or family rules the model leaves out: taxed as a single person
@@ -185,19 +185,6 @@ export function householdTaxLine(hhKey, basis, jur) {
   if (basis === 'partial') return N(`Some of ${where}’s household tax rules are counted`, 'Some household rules counted', 'Partly taxed jointly');
   return N('Taxed on the one earner’s pay');
 }
-
-/** J-2: the household line under the buttons, as variants (longest first): who is in it and who earns. */
-export const HOUSEHOLD_LINES = Object.freeze({
-  single: N('1 adult, 1 bedroom'),
-  couple: N('2 adults, 1 earner (the other not working), 2 bedrooms', '2 adults, 1 working, 2 bedrooms'),
-  family: N('2 adults (1 earner, 1 not working), 2 children, 3 bedrooms', '2 adults (1 working), 2 children, 3 bedrooms', '2 adults (1 working), 2 kids, 3 bedrooms'),
-});
-/** J-2: the household buttons' tips (no filing status: that depends on the country, and the line under Tax says it). */
-export const HOUSEHOLD_TIPS = Object.freeze({
-  single: 'One adult in a 1-bedroom home',
-  couple: 'Two adults, one earning and the other not working, in a 2-bedroom home',
-  family: 'Two adults, one earning and the other not working, and two children, in a 3-bedroom home',
-});
 
 /* J-3: Monthly / Yearly, remembered in this browser like the household (app.js HOUSEHOLD_KEY). */
 export const PERIOD_KEY = 'melon-seek.juicePeriod.v1';

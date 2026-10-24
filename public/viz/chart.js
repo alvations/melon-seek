@@ -771,6 +771,10 @@ function textWidth(text, font) {
     return Math.ceil(measureCtx.measureText(String(text)).width);
   } catch { return String(text).length * 7; }
 } // pad the robust span by 4% on each side before snapping to ticks
+/** J-4 (fix-juice-6): where an axis-edge chip's roles are ("past the right edge of the chart"). */
+const edgeWords = (hi) => `past the ${hi ? 'right' : 'left'} edge of the chart`;
+/** J-4: an edge chip in words, for its accessible name: "13 roles paid above $400K, past the right edge of the chart". */
+const edgeChipWords = (n, hi, end) => `${plural(n, 'role')} paid ${hi ? 'above' : 'below'} ${formatMoney(end)}, ${edgeWords(hi)}`;
 /** UX-17: the width of an axis-edge chip ("›19": its text plus 5px padding a side, at least 18px). */
 // UX-43 (fix-viz-5): the chip always says its count ("›1"); a bare "›" read as "next".
 const chipWidth = (n, font) => Math.max(18, textWidth(`›${Number(n).toLocaleString()}`, font) + 10);
@@ -1554,7 +1558,8 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
     bin.setAttribute('role', 'option');
     bin.setAttribute('aria-selected', 'false');
     const vals = b.items.slice(0, 3).map(p => formatMoney(p.mid)).join(', ') + (n > 3 ? `, +${n - 3} more` : '');
-    bin.setAttribute('aria-label', `${plural(n, 'role')} ${hi ? 'above' : 'below'} ${formatMoney(b.end)}: ${vals}, ${b.row.name}`);
+    // J-4 (fix-juice-6): the "‹2" / "›13" chip says what it is: roles paid beyond the axis, at that edge.
+    bin.setAttribute('aria-label', `${edgeChipWords(n, hi, b.end)}: ${vals}, ${b.row.name}`);
     bin.id = `${uid}-${ri}-${bi}`;
     bin.dataset.r = ri; bin.dataset.i = bi;
     // UX-17: the chip sits in its gutter, 6px outside the plot, never centred on the edge.
@@ -1612,7 +1617,7 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
     const approx = b.items.some(p => isForeign(p.cur) && hasFx(p.cur));
     if (b.overflow) {
       // Beyond the axis: give the real values, one line per posting.
-      tip.append(el('div', 'ms-tip__sub', `${b.overflow === 'hi' ? 'above' : 'below'} ${formatMoney(b.end)}, past the edge of the chart${approx ? ' · converted to US$' : ''}`));
+      tip.append(el('div', 'ms-tip__sub', `paid ${b.overflow === 'hi' ? 'above' : 'below'} ${formatMoney(b.end)}, ${edgeWords(b.overflow === 'hi')}${approx ? ' · converted to US$' : ''}`));
       tip.append(el('div', 'ms-tip__title', b.row.name));
       const list = el('ul', 'ms-tip__roles');
       for (const p of b.items.slice(0, 5)) {

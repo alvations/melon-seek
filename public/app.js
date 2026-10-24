@@ -14,6 +14,7 @@ import { loadFreshness, freshnessDoc, juiceAsOfText, juiceSpanText, marketAsOfTe
 import { createCompsChart } from './viz/comps.js';
 import { roleFamily, FAMILY_LABELS, readableTitle, levelLabel, displayLevel, NOT_STATED, DISPLAY_LEVEL_ORDER, levelKey, levelFromKey } from './features/roles.js';
 import { payLocations, payRank, rankText, samePayCountry, countryInSentence, payAt, pricedPlaces, placeLabel, notBasePay, isTermUnstated, mainPayCurrency } from './features/shared.js';
+import { taxRows, jurisdictionOf, householdTaxLine, PERIOD_KEY, periodOf, shownPeriod, gradeMeaning, gradeShort } from './features/juice-drawer.js';
 // ./features/insights.js is imported on first use (Insights mode), see renderInsights.
 // api.js: getCompanies, getJobs, getJobDetail (namespace import: tolerate a missing optional export)
 
@@ -2706,7 +2707,7 @@ function makeCloud({ cat, key }, { limit = 14 } = {}) {
 const JUICE_GRADES = [
   ['Juicy', 'Plenty left after tax, rent and living costs (score 70+)'],
   ['Ripe', 'Comfortable margin (45–69)'],
-  ['Dry', 'Thin margin or less (under 45)'],
+  ['Dry', 'A thin margin or nothing left (under 45); Rind, nothing left, is counted here'],
 ];
 /** Juice grade chips (OR within the group), with faceted counts. */
 function makeJuiceChips() {
@@ -3810,18 +3811,22 @@ const HH_FOR = { single: 'for one person', couple: 'for a couple', family: 'for 
 const hhFor = (key) => HH_FOR[key] || HH_FOR.single;
 /** I-3: the grade scale in dollars, from the same score curve the map legend uses (palette.js). */
 function juiceScaleText() {
-  const [ripe, juicy] = JUICE_BREAKS;
-  const r = money(juiceNetForScore(ripe)), j = money(juiceNetForScore(juicy));
+  const { ripe: r, juicy: j } = juiceScale();
   return `Juicy: ${j} or more a year · Ripe: ${r}–${j.replace(/^\$/, '')} · Dry: under ${r} · Rind: nothing left`;
 }
 function juiceBadge(job) {
   const b = shownJuice(job);
   if (!b) return null;
   const place = b.locationName || b.cityName;
+  // J-5 (fix-juice-6): a posting with several places says which one its grade is for, first in the tip and the
+  // accessible name ("63 · Ripe, for Chicago"); locSummary names that place first on the card.
+  const at = job.locations.length > 1 ? job.locations.find((l) => l && l.name === b.locationName)?.city || b.cityName || place : null;
+  const head = `${b.score} · ${b.grade}${at ? `, for ${at}` : ''}`;
+  // J-4: the grade says what it means ("Rind: nothing left …"), before the scale.
   // I-3: no bare "≈" before the score; "estimated" is said in words in the tooltip.
   return h('span', { class: `juice-badge juice--${String(b.grade).toLowerCase()}`,
-    title: `${JUICE_TIP}${isTerm(job) ? ` (while the ${isFixedPay(job.salary) ? 'fixed-term pay' : programNoun(job)} lasts)` : ''}. ${b.grade} ${hhFor(job.juice.household)} in ${place}: ${stepMoney(b.net, 100)} a year left${b.estimated ? ' (some costs estimated)' : ''}. ${juiceScaleText()}.`,
-    'aria-label': `Juice Score ${b.score}, ${b.grade}, ${hhFor(job.juice.household)} in ${place}` }, `🍉 ${b.score} · ${b.grade}`);
+    title: `${head}: ${gradeMeaning(b.grade, juiceScale())}. ${JUICE_TIP}${isTerm(job) ? ` (while the ${isFixedPay(job.salary) ? 'fixed-term pay' : programNoun(job)} lasts)` : ''}. ${b.grade} ${hhFor(job.juice.household)} in ${place}: ${stepMoney(b.net, 100)} a year left${b.estimated ? ' (some costs estimated)' : ''}. ${juiceScaleText()}.`,
+    'aria-label': `Juice Score ${b.score}, ${b.grade}${at ? `, for ${at}` : ''}: ${gradeMeaning(b.grade)}, ${hhFor(job.juice.household)} in ${place}` }, `🍉 ${b.score} · ${b.grade}`);
 }
 
 /**
@@ -3837,7 +3842,13 @@ function locSummary(job, max = 1, { coloured = false } = {}) {
   if (locs.length > 1) {
     const pay = job._usd && job._payLocs && job._payLocs.length < locs.length ? job._payLocs : null;
     const rank = (l) => (viewSpec?.l.size && locMatches(job, viewSpec, [l]) ? 0 : 2) + (pay && !pay.includes(l) ? 1 : 0);
-    if (pay || viewSpec?.l.size) locs = locs.map((l, i) => [rank(l), i, l]).sort((a, b) => a[0] - b[0] || a[1] - b[1]).map((x) => x[2]);
+    // J-5 (fix-juice-6): among places of the same rank, the one the Juice grade is for comes first, so the card's
+    // grade is for the place it names ("Chicago, IL +1 · 63 · Ripe", not "New York, NY +1"). Nothing is dropped.
+    const graded = shownJuice(job)?.locationName || null;
+    const g = (l) => (graded && l && l.name === graded ? 0 : 1);
+    if (pay || viewSpec?.l.size || graded) locs = locs.map((l, i) => [rank(l), g(l), i, l]).sort((a, b) => a[0] - b[0] || a[1] - b[1] || a[2] - b[2]).map((x) => x[3]);
+    // B-1 (fix-ui-6): under colouring by place the coloured key comes first, so the dot names its place; the badge's
+    // tip and accessible name still name the graded place (J-5).
     const key = coloured ? job.locations.find((l) => l && !l.remote) : null;
     if (key && locs[0] !== key) locs = [key, ...locs.filter((l) => l !== key)];
   }
@@ -4332,7 +4343,9 @@ function salaryDistribution(job) {
 
 const INTERVAL_ADJ = { hour: 'hourly', day: 'daily', week: 'weekly', month: 'monthly', year: 'annual', term: 'fixed-term' };
 
-let juicePeriod = 'year'; // drawer waterfall: per year or per month (kept for the session); 'term' for fixed-term pay
+// Drawer waterfall: per year or per month, 'term' for fixed-term pay. J-3 (fix-juice-6): remembered in this browser like
+// the household (PERIOD_KEY, read with the same helper and the same fallback to the default).
+let juicePeriod = periodOf(lsGet(PERIOD_KEY, 'year'));
 const JUICE_DOC = 'methodology/#1-the-formula'; // site page rendered from docs/LIVABILITY.md (scripts/methodology.js); never off-site
 // MR-3: the same guide explains posted pay (ranges, levels, part-time and fixed-term pay), the pay estimate,
 // the grades and how often the data is read (docs/METHODOLOGY_GUIDE.md §2, §7 and §8).
@@ -4349,11 +4362,14 @@ const fxAsOf = () => formatAsOf(asOf('fx-per-usd') || FX_AS_OF);
    juice for one person; other households are re-attached here with the same juice.js. */
 const HOUSEHOLD_KEY = 'melon-seek.household.v1';
 const HOUSEHOLDS = [
-  // [key, button label, tooltip, bedrooms, people (living-cost row), the one line under the buttons (fix-touch-tips:
-  //  it fits a 320 px phone's drawer, about 260 px at 13 px)]
-  ['single', 'Just me', 'One adult in a 1-bedroom home', 1, 'one person', '1 adult, 1 bedroom'],
-  ['couple', 'Couple', 'Two adults, one earner (married, filing jointly), in a 2-bedroom home', 2, 'two adults', '2 adults, 1 earner, 2 bedrooms'],
-  ['family', 'Family', 'Two adults and two children, one earner (married, filing jointly), in a 3-bedroom home', 3, 'two adults and two children', '2 adults, 2 children, 1 earner, 3 bedrooms'],
+  // [key, button label, tooltip, bedrooms, people (living-cost row), the one line under the buttons (fix-touch-tips;
+  //  J-2, fix-juice-6: variants, longest first, so it is one line at every phone size and says the other adult is not
+  //  working; the tooltip names no filing status, which depends on the country)]
+  ['single', 'Just me', 'One adult in a 1-bedroom home', 1, 'one person', ['1 adult, 1 bedroom']],
+  ['couple', 'Couple', 'Two adults, one earning and the other not working, in a 2-bedroom home', 2, 'two adults',
+    ['2 adults, 1 earner (the other not working), 2 bedrooms', '2 adults, 1 working, 2 bedrooms']],
+  ['family', 'Family', 'Two adults, one earning and the other not working, and two children, in a 3-bedroom home', 3, 'two adults and two children',
+    ['2 adults (1 earner, 1 not working), 2 children, 3 bedrooms', '2 adults (1 working), 2 children, 3 bedrooms', '2 adults (1 working), 2 kids, 3 bedrooms']],
 ];
 const householdInfo = (key) => HOUSEHOLDS.find(([k]) => k === key) || HOUSEHOLDS[0];
 let juiceHousehold = householdInfo(lsGet(HOUSEHOLD_KEY, 'single'))[0];
@@ -4419,15 +4435,26 @@ function asOfNote(cls, text) {
   return p;
 }
 
-/** P-15: how a couple or family was taxed, in plain words (households are always one earner, server/juice.js). */
-function taxHowText(hhKey, basis, note) {
-  if (hhKey === 'single') return null;
-  const who = hhKey === 'couple' ? 'Couple' : 'Family';
-  if (basis === 'joint') return `${who} here means one earner, married and filing jointly${hhKey === 'family' ? ', with two children' : ''}. Joint tax rates are why a couple can keep more than one person.`;
-  if (basis === 'single') return `${who} here means one earner, taxed as a single filer (household tax rules aren’t modeled here).`;
-  if (basis === 'individual') return `${who} here means one earner; each person is taxed separately here.`;
-  if (basis === 'partial') return `${who} here means one earner. ${note || ''}`.trim();
-  return `${who} here means one earner.`;
+/**
+ * J-1 (fix-juice-6): the city records (data/cities.json), by key, for the tax names of a place other than the posting's
+ * best (which keeps its own jurisdiction in `inputs`). api.js has already loaded them for Juice; until they are here,
+ * the city key gives the country (features/juice-drawer.js jurisdictionOf).
+ */
+let cityRecords = null, cityRecordsLoading = false;
+function cityRecord(key) {
+  if (!cityRecords && !cityRecordsLoading && api.getCities) {
+    cityRecordsLoading = true;
+    api.getCities().then((doc) => {
+      const list = Array.isArray(doc) ? doc : doc?.cities;
+      if (Array.isArray(list)) cityRecords = new Map(list.map((c) => [c.key, c]));
+    }, () => {}).finally(() => { cityRecordsLoading = false; });
+  }
+  return cityRecords?.get(key) || null;
+}
+/** J-4 (fix-juice-6): the grades' yearly breaks in dollars ({ ripe: "$43K", juicy: "$116K" }), from the map legend's curve. */
+function juiceScale() {
+  const [ripe, juicy] = JUICE_BREAKS;
+  return { ripe: money(juiceNetForScore(ripe)), juicy: money(juiceNetForScore(juicy)) };
 }
 
 /**
@@ -4474,7 +4501,8 @@ function juiceBlock(job) {
   const elsewhere = noneHere && !payHere(job) ? payPlaceText(job) : null;
   const where = [
     standIn ? `${own} uses ${b.cityName}’s rent and living costs, the nearest city with cost data.` : null,
-    'Juice: what’s left after tax, rent and living costs (in US dollars).',
+    // J-4 (fix-juice-6): the grade says what it means here, where it first shows on the job page.
+    `Juice: what’s left after tax, rent and living costs (in US dollars); ${b.grade} means ${gradeShort(b.grade)}.`,
     termNote,
     isOte(job) ? 'The pay is on-target earnings, so this assumes commission at target.' : null,
     b.estimated ? 'Some costs here are estimates.' : null,
@@ -4486,13 +4514,13 @@ function juiceBlock(job) {
     h('details', { class: 'juice-details' },
       h('summary', null,
         h('span', { id: 'juiceTitle', class: 'juice-title' }, '🍉 Juice'),
-        h('span', { class: `juice-score juice--${grade}`, title: `${JUICE_TIP}. ${juiceScaleText()}` }, `${b.score} · ${b.grade}`),
+        h('span', { class: `juice-score juice--${grade}`, title: `${b.score} · ${b.grade}: ${gradeMeaning(b.grade, juiceScale())}. ${JUICE_TIP}. ${juiceScaleText()}.` }, `${b.score} · ${b.grade}`),
         headNet,
         h('span', { class: 'fsec-caret', html: ICON.chevron })),
       h('p', { class: 'juice-where' }, where),
       body));
   const render = (focusPeriod) => {
-    const period = term ? (juicePeriod === 'term' && !term.unstated ? 'term' : 'month') : juicePeriod === 'month' ? 'month' : 'year';
+    const period = shownPeriod(juicePeriod, term);
     const div = period === 'month' ? 12 : period === 'term' ? term.toTerm : 1;
     const per = period === 'month' ? '/mo' : period === 'term' ? ' total' : '/yr';
     const step = period === 'year' ? 100 : 10;
@@ -4510,12 +4538,17 @@ function juiceBlock(job) {
     const rentWhere = b.rentBasis === 'override' ? 'your rent' : `${beds}-bedroom, ${b.rentBasis === 'outside' ? 'outside the centre' : 'city centre'}`;
     // How the tax model treated a couple or family here (server/juice.js TAX_HOUSEHOLD).
     const taxBasis = b.inputs?.tax?.basis || b.taxBasis, taxNote = b.inputs?.tax?.note || null;
-    const taxHow = !(b.tax > 0) ? null : taxHowText(hhKey, taxBasis, taxNote);
-    const taxParts = tp ? [['income tax', tp.income], ['state or local tax', tp.regional], ['social security', tp.social]]
-      .filter(([, v]) => v > 0).map(([label, v]) => `${label} ${fmt(r(v))}`).join(' · ') : null;
+    // J-1 (fix-juice-6): each part of the tax on a line of its own, named as the country names it ("provincial tax",
+    // "National Insurance"; a US row stays "state or local tax"), the first name that fits on one line (fitLine).
+    const jur = jurisdictionOf(b, cityRecord(b.city));
+    const taxLines = taxRows(tp, jur, (v) => fmt(r(v))).map((t) => fitOneLine(
+      h('span', { class: 'wf-detail wf-tax-part', dataset: { part: t.part }, title: t.variants.length > 1 ? t.variants[0] : null }), t.variants));
+    // J-2: how that country taxes a one-earner couple or family, in words that can't be read as two earners.
+    const how = !(b.tax > 0) ? null : householdTaxLine(hhKey, taxBasis, jur);
+    const taxHow = how ? fitOneLine(h('span', { class: 'wf-detail wf-tax-basis', title: [how[0], taxNote].filter(Boolean).join('. ') }), how) : null;
     const rows = [
       ['Gross pay', amt(gv), seg(0, b.gross), 'gross', isOte(job) ? 'on-target earnings: assumes commission at target' : null],
-      ['Tax', amt(tv, '−'), seg(afterTax, b.gross), 'tax', taxParts || null, taxHow],
+      ['Tax', amt(tv, '−'), seg(afterTax, b.gross), 'tax', taxLines.length ? taxLines : null, taxHow],
       ['Rent', amt(rv, '−'), seg(afterRent, afterTax), 'rent', rentWhere],
       ['Living costs', amt(lv, '−'), seg(b.net, afterRent), 'living', `everyday costs for ${people}, excluding rent`],
       ['Juice left', `${nv < 0 ? '−' : ''}${fmt(Math.abs(nv))}${per}`, seg(0, b.net), nv < 0 ? 'net is-neg' : 'net', null],
@@ -4525,7 +4558,7 @@ function juiceBlock(job) {
     const toggle = !periods.length ? null : h('div', { class: 'seg seg--sm', role: 'group', 'aria-label': 'Show amounts per' },
       ...periods.map(([v, label]) => h('button', {
         type: 'button', 'aria-pressed': String(period === v), dataset: { period: v },
-        onclick: () => { juicePeriod = v; render(v); }, // V5: re-render this block only and keep focus here
+        onclick: () => { juicePeriod = v; lsSet(PERIOD_KEY, v); render(v); }, // V5: re-render this block only and keep focus here; J-3: remembered
       }, label)));
     const household = h('div', { class: 'seg seg--sm juice-household', role: 'group', 'aria-label': 'Household: who the rent and living costs are for' },
       ...HOUSEHOLDS.map(([k, label, tip]) => h('button', {
@@ -4533,10 +4566,10 @@ function juiceBlock(job) {
         onclick: () => { setHousehold(k); },
       }, label)));
     // fix-touch-tips: the picked household's meaning in one muted line (a hover title is out of reach on a phone).
-    const hhLine = HOUSEHOLDS.find(([k]) => k === hhKey)?.[5] || '';
+    const hhLine = HOUSEHOLDS.find(([k]) => k === hhKey)?.[5] || null;
     body.replaceChildren(...nn(
       h('div', { class: 'juice-controls' }, household, toggle),
-      hhLine ? h('p', { class: 'fnote juice-hh-note' }, hhLine) : null,
+      hhLine ? fitOneLine(h('p', { class: 'fnote juice-hh-note' }), hhLine) : null,
       grossNote ? h('p', { class: 'fnote juice-gross' }, grossNote) : null,
       h('div', { class: 'waterfall', role: 'table', 'aria-label': 'Juice breakdown' },
         ...rows.map(([label, value, style, kind, detail, extra]) => h('div', { class: `wf-row ${kind.split(' ').map((k, i) => (i ? k : `wf--${k}`)).join(' ')}`, role: 'row' },
@@ -4545,8 +4578,8 @@ function juiceBlock(job) {
           h('span', { class: 'wf-value', role: 'cell' }, value),
           // A-6: a row owns only cells, so the details (tax split, rent basis) are a cell of their own.
           detail || extra ? h('span', { class: 'wf-details', role: 'cell' },
-            detail ? h('span', { class: 'wf-detail' }, detail) : null,
-            extra ? h('span', { class: 'wf-detail wf-tax-basis', title: taxNote && extra !== taxNote ? taxNote : null }, extra) : null) : null))),
+            Array.isArray(detail) ? detail : detail ? h('span', { class: 'wf-detail' }, detail) : null,
+            extra || null) : null))),
       b.rentBurden != null ? h('p', { class: 'juice-facts' }, 'Rent takes ', h('strong', null, `${Math.round(b.rentBurden * 100)}%`), ' of take-home pay.') : null,
       others.length ? h('details', { class: 'juice-compare' }, h('summary', null, `Compare locations (${others.length + 1})`),
         h('ul', null, ...[b, ...others].map((l) => h('li', null,

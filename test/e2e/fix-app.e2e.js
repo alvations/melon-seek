@@ -347,6 +347,8 @@ export function registerFixAppTests(suite) {
     assert(/2 new roles since you last opened this search/.test(await p2.locator('#toast').innerText()), 'toast says where they are');
   });
 
+  // fix-juice-6 J-2: the line now says how the US taxes a one-earner couple ("The US taxes a married couple jointly, which
+  // lowers the tax", or a shorter form where that doesn't fit one line); "one earner" is the household line's.
   suite.test('Fix app: [P-15] Couple says it means one earner, married and filing jointly', async (ctx) => {
     await needReal(ctx, 'anthropic');
     const { page, errors } = await openFx(ctx, { hash: 'c=anthropic&l=San+Francisco', storage: { 'melon-seek.household.v1': JSON.stringify('couple') } });
@@ -354,7 +356,8 @@ export function registerFixAppTests(suite) {
     if (!(await page.locator('#drawer .d-juice').count())) skip('no Juice on the first San Francisco role');
     await openJuice(page);
     const how = await page.locator('#drawer .wf-tax-basis').innerText();
-    assert(/one earner, married and filing jointly/.test(how) && /couple can keep more than one person/.test(how), `tax note "${how}"`);
+    assert(/^(The US taxes a married couple jointly, which lowers the tax|Filing jointly lowers the tax|Taxed jointly)$/.test(how.trim()), `tax note "${how}"`);
+    assert(/1 (earner|working)/.test(await page.locator('#drawer .juice-hh-note').innerText()), 'the household line says one earner');
     assert(/left for a couple in /.test(await page.locator('#drawer .juice-head-net').innerText()), 'headline names the household');
     noErrors(errors);
   });
