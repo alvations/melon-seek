@@ -1,7 +1,7 @@
 From 4d675bb6434b6a73aa4ce312fa4e760ad11ffdd0 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 23 Oct 2026 21:12:08 +0000
-Subject: [PATCH 01/11] fix-data-6: the brief, verbatim
+Subject: [PATCH 01/12] fix-data-6: the brief, verbatim
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc

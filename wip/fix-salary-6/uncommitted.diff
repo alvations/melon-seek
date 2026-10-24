@@ -1,31 +1,23 @@
-diff --git a/public/app.js b/public/app.js
-index bd72c9d..a2f2623 100644
---- a/public/app.js
-+++ b/public/app.js
-@@ -4587,7 +4587,8 @@ function payPlacesLine(s, job = null) {
-   const rs = payRanges(s);
-   if (!rs) return null;
-   const unit = job ? payUnit(job) : null;
--  const pay = (r) => (unit ? unit.fmt(Number(r.min), Number(r.max ?? r.min), rowCurrency(r, s)) : rangeText(r, s.currency));
-+  const rowCur = (r) => String(r?.currency || s?.currency || 'USD').toUpperCase(); // S-1: each row in its own currency
-+  const pay = (r) => (unit ? unit.fmt(Number(r.min), Number(r.max ?? r.min), rowCur(r)) : rangeText(r, s.currency));
-   // fix-pay-at-place: one line per range, with no place name cut off (rangeName); the pay block's Details list every place.
-   // D-39: ranges posted for the same places (Amazon's two hourly rates for Boardman, Hermiston and Umatilla) share one
-   // row that names the places once and gives each posted range, "or" between them.
-@@ -4679,13 +4680,14 @@ function payHeadline(job, F = viewSpec) {
-   const rs = s ? payRanges(s) : null;
-   if (!rs) return null;
-   const unit = payUnit(job);
--  const byPlace = `Pay by place: ${rs.map((r) => `${rangeLabel(r)} ${unit.fmt(Number(r.min), Number(r.max ?? r.min), rowCurrency(r, s))}`).join(' · ')}`;
-+  const rowCur = (r) => String(r?.currency || s?.currency || 'USD').toUpperCase(); // S-1: each row in its own currency
-+  const byPlace = `Pay by place: ${rs.map((r) => `${rangeLabel(r)} ${unit.fmt(Number(r.min), Number(r.max ?? r.min), rowCur(r))}`).join(' · ')}`;
-   const what = unit.note ? ` (${unit.note})` : '';
-   const picked = pickedRange(job, F);
-   if (picked) { const text = unit.fmt(picked.min, picked.max, picked.currency); return { text, range: text, sub: '', tip: `The range posted for ${picked.label}${what}. ${byPlace}`, picked, rankPlace: picked.label, min: picked.min, max: picked.max, across: false }; }
-   // S-1 (fix-salary-6): the span covers the rows in the salary's currency only; another country's line in its own
-   // currency is listed in the tip and the drawer's Pay by place, never mixed into the figure.
--  const same = rs.filter((r) => rowCurrency(r, s) === String(s.currency || 'USD').toUpperCase());
-+  const same = rs.filter((r) => rowCur(r) === String(s.currency || 'USD').toUpperCase());
-   const lo = Math.min(s.min, ...same.map((r) => Number(r.min))), hi = Math.max(s.max, ...same.map((r) => Number(r.max ?? r.min)));
-   const span = unit.fmt(lo, hi);
-   const n = placeCount(rs);
+diff --git a/docs/process/fix-salary-6.md b/docs/process/fix-salary-6.md
+index ce17f20..d418858 100644
+--- a/docs/process/fix-salary-6.md
++++ b/docs/process/fix-salary-6.md
+@@ -7,11 +7,13 @@
+   - Base copy of the code in `<scratch>/fs6/base` (git archive 37f54e4); served salaries of every stored posting at the
+     base in `<scratch>/fs6/served-before.json` (`tools/served.mjs`, the build's readSnapshot path).
+   - Census before (`tools/census.mjs`, `tools/breakdown.mjs`, `<scratch>/fs6/census-before.json`), see §5.
+-- **In progress:** the parser change (server/salary.js `byPlace` lines, weak "kr"/"$" read by the line's own country,
+-  "[Degree]" header lines), then normalize.js (rows per country tied to the places, `salary.unlisted` for lines of
+-  places the posting does not list, labelled structured rows tied to places).
+-- **Next step:** red tests in test/fix-salary-6.test.js, then the fix, then the client (rows in another currency) and
+-  Juice (a row's own currency and country), CSV, docs, golden and fixtures, build, e2e.
++  - The lead approved the plan (00:3x): rows per country line, kr by line country, main-site rows tied, and
++    `salary.unlisted` shown in the drawer's pay Details, not only the CSV.
++  - Fix committed: 015d801 (parser, normalize, Juice, app, CSV, 18 red tests), 93b8979 (norm-14, golden 0/300 changed,
++    refresh fixtures), 6926984 (bulleted degree lines, e2e file registered).
++- **In progress:** census after, backtest before/after, docs (DATA_SOURCES §7a, CONTRACT), build, e2e.
++- **Next step:** build (`node scripts/build-static.js`), `--grep=fix-salary-6` and the related e2e groups, clean-checkout
++  npm test, then send the SHA to the lead.
+ 
+ ## 1. Brief
+ - Prompt: [prompts/fix-salary-6.md](prompts/fix-salary-6.md). S-1 (persona-beta-2-45-54): pay posted for two or more

@@ -2,11 +2,12 @@
 
 - Worktree: `/home/user/melon-seek/.claude/worktrees/agent-a08f9659d62990db4`
 - Base (on claude/stoic-ride-54ddxp): `00bd52cc29ee94513234f39beed686d7cd111d33`
-- Head: `b2a684ebe64de0b2bc669328dfb720f1f2831cde`
+- Head: `29250f0151bcb60747b1273d682b294cb3fbb63e`
 - Restore: `bash scripts/cycle/restore-wip.sh fix-data-6 <new worktree dir>`
 
 ## Commits since the base
 ```
+29250f0 fix-data-6: G-2 bare ISO codes that are US state codes are countries; G-3 dotted state abbreviations, Monterrey and Apple Bayshore
 b2a684e fix-data-6: CONTRACT, DATA_SOURCES and the methodology guide for G-1, K-1, P-1 to P-3, R-1 to R-3 and C-1
 7b3a06a fix-data-6: P-3 full-time hourly pay at its posted rate; C-1 equally similar comparables spread across the estimate's pay
 0f007cc fix-data-6: log state after the restart
@@ -23,8 +24,6 @@ cb71da7 fix-data-6: G-1 359 towns near the big-tech hubs at their own place (Bay
 ## Uncommitted and new files
 ```
  M docs/process/fix-data-6.md
- M test/fix-pay-at-place.test.js
- M test/salary-audit.test.js
 ```
 
 ## Left out (not in untracked.tgz)

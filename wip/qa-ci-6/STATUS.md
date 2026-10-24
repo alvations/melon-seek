@@ -14,6 +14,11 @@ d04035a qa-ci-6: log skeleton with State
 ## Uncommitted and new files
 ```
  M docs/screenshots/chart.png
+ M test/e2e/fix-data-3.e2e.js
+ M test/e2e/fix-pay-at-place.e2e.js
+ M test/e2e/fix-qa4.e2e.js
+ M test/e2e/fix-viz-5.e2e.js
+ M test/e2e/fix3-data.e2e.js
 ```
 
 ## Left out (not in untracked.tgz)

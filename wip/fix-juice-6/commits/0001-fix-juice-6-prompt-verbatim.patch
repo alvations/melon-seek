@@ -1,7 +1,7 @@
 From e2a1ab2f41be3c036b25cde8133a97af54d47dc9 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 23 Oct 2026 21:58:52 +0000
-Subject: [PATCH 1/2] fix-juice-6: prompt verbatim
+Subject: [PATCH 1/5] fix-juice-6: prompt verbatim
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc

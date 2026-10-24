@@ -13,3 +13,6 @@ f52d08c ux-density-6: save brief verbatim
 ## Uncommitted and new files
 ```
 ```
+
+## Left out (not in untracked.tgz)
+- node_modules (symlink)

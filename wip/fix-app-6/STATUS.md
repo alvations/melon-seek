@@ -2,11 +2,12 @@
 
 - Worktree: `/home/user/melon-seek/.claude/worktrees/agent-af65001c61c5e8b4f`
 - Base (on claude/stoic-ride-54ddxp): `db38a3042a057155ac8f7ef45a65d54552046662`
-- Head: `ed53ac0f065a4e05e02330673142b58ce7cd6dfa`
+- Head: `0c06bb23c239077f018d67815cba5e5f1cc78a15`
 - Restore: `bash scripts/cycle/restore-wip.sh fix-app-6 <new worktree dir>`
 
 ## Commits since the base
 ```
+0c06bb2 fix-app-6: BN-7 the main site's Seniority note names no beta company; log gaps
 ed53ac0 fix-app-6: e2e: BN-1 country-wide, BN-5 and BN-6 checks fail on the base build too; log before and after
 21e80e1 fix-app-6: BN-2 the chart caption's median in the plotted pay's currency (a place's own row); log steps
 f4c1a72 fix-app-6: log State after the restart
@@ -23,7 +24,24 @@ d9d050e fix-app-6: log State
 
 ## Uncommitted and new files
 ```
+?? docs/screenshots/fix-app-6/
 ```
 
 ## Left out (not in untracked.tgz)
+- docs/screenshots/fix-app-6/bn1-amazon-toronto.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-app-6/bn1-apple-cupertino.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-app-6/bn1-google-warsaw.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-app-6/bn1-microsoft-wide-map.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-app-6/bn2-amazon-toronto-interns-map.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-app-6/bn2-amazon-vancouver-interns-insights.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-app-6/bn3-de-DE-1114.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-app-6/bn3-de-DE-375.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-app-6/bn4-apple-parttime-dc.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-app-6/bn5-krakow-back-1280.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-app-6/bn5-krakow-back-375.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-app-6/bn6-amazon-milan-1280.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-app-6/bn6-amazon-milan-375.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-app-6/bn7-microsoft-m5m6-1280.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-app-6/bn7-microsoft-m5m6-375.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-app-6/bn8-chip-1280.png (screenshot; the lane's tests regenerate it)
 - node_modules (symlink)

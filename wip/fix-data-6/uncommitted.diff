@@ -201,31 +201,3 @@ index 7e78aab..cd5cc58 100644
 +- 22:00–23:00: P-1, P-2, R-1, R-2, R-3, K-1's stated targets (from the lead); families renamed to the operations family; 5440eba.
 +- 2026-10-24 00:23: the container restarted; resumed at 00:30 with every commit intact (build and npm test of 5440eba had finished).
 +- 00:30–01:10: T-19 (5e29ff4); P-3 and C-1 (7b3a06a); docs (b2a684e); rebuild; e2e.
-diff --git a/test/fix-pay-at-place.test.js b/test/fix-pay-at-place.test.js
-index 02d6978..6843648 100644
---- a/test/fix-pay-at-place.test.js
-+++ b/test/fix-pay-at-place.test.js
-@@ -278,7 +278,8 @@ function fnSource(name) {
- }
- const CARD = ['payPill', 'salaryRange', 'money', 'moneyRange', 'payRanges', 'rangeLabel', 'rangeText', 'pickedRange', 'payLevels', 'isMinimum', 'MINIMUM_TIP', 'rangeEnd',
-   'postedTerm', 'termFactor', 'postedPair', 'postedMoney', 'isFixedPay', 'PER_UNIT', 'PER_YEAR', 'termText', 'programNoun', 'programText', 'perText',
--  'isPartTime', 'isPartTimeHourly', 'isOte', 'rangePlaceKeys', 'placeCount', 'payUnit', 'severalRangesTip', 'payHeadline', 'rangeName'];
-+  'isPartTime', 'isPartTimeHourly', 'isOte', 'rangePlaceKeys', 'placeCount', 'payUnit', 'severalRangesTip', 'payHeadline', 'rangeName',
-+  'isFullTimeHourly', 'wholeHourly', 'narrowCard', 'statedYearly']; // fix-data-6: P-3 and P-2's helpers
- function liftApp(names) {
-   const body = names.map(fnSource).filter(Boolean).join('\n');
-   // eslint-disable-next-line no-new-func
-diff --git a/test/salary-audit.test.js b/test/salary-audit.test.js
-index 5e19944..5e12c4c 100644
---- a/test/salary-audit.test.js
-+++ b/test/salary-audit.test.js
-@@ -53,7 +53,8 @@ const CARD = ['payPill', 'salaryRange', 'money', 'moneyRange', 'payRanges', 'ran
- // fix-pay-at-place: payHeadline and its helpers (a range per place, counted by distinct places, in the posted unit).
- // fix-qa4 (UX-51): shift pay (shiftRange, which payPill asks of every posting) and its text and tip (MR-35: postedPair).
- const CARD_IF_PRESENT = ['isMinimum', 'MINIMUM_TIP', 'rangeEnd', 'payHeadline', 'payUnit', 'placeCount', 'rangePlaceKeys', 'rangeName',
--  'shiftRange', 'SHIFT_SUB', 'shiftText', 'shiftTip', 'hourlyText', 'postedPair', 'postedMoney'].filter((n) => new RegExp(`^(?:const ${n} = |function ${n}\\()`, 'm').test(APP));
-+  'shiftRange', 'SHIFT_SUB', 'shiftText', 'shiftTip', 'hourlyText', 'postedPair', 'postedMoney',
-+  'isPartTime', 'isFullTimeHourly', 'wholeHourly', 'narrowCard', 'statedYearly'].filter((n) => new RegExp(`^(?:const ${n} = |function ${n}\\()`, 'm').test(APP));
- // eslint-disable-next-line no-new-func
- const { payPill } = new Function('formatMoney', 'payAt', `
-   const CUR_SYM = { USD: '$', GBP: '£', EUR: '€', CAD: 'CA$', AUD: 'A$', JPY: '¥', INR: '₹', CHF: 'CHF ', SGD: 'S$' };
