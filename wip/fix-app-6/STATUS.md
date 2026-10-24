@@ -2,11 +2,12 @@
 
 - Worktree: `/home/user/melon-seek/.claude/worktrees/agent-af65001c61c5e8b4f`
 - Base (on claude/stoic-ride-54ddxp): `a0763eceb553a3da77408fd81acf018174302bbc`
-- Head: `b8171bd23befbb67da89b6d5b5f43f4ca71ed862`
+- Head: `26ad524db64e1fa66942e6ec1568e27c6e005797`
 - Restore: `bash scripts/cycle/restore-wip.sh fix-app-6 <new worktree dir>`
 
 ## Commits since the base
 ```
+26ad524 fix-app-6: BN-7 the chip is replaced only when the loaded posting names another level, and keeps B-2's spacing (fitMetaLine)
 b8171bd fix-app-6: log State after the rebase onto 94d65d0
 29df67d fix-app-6: V-44 at the Razr cover (from fix-ui-6): a short map's 'N postings list no place' line is short, the sentence in its title
 26fb92b fix-app-6: log State after the rebase onto e77cd41

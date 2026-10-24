@@ -53,9 +53,24 @@ ed32bf1 fix-salary-6: norm-14; golden re-baselined (0 of 300 hashes changed) and
 ```
  M docs/CONTRACT.md
  M docs/process/fix-ui-6.md
+ M public/app.js
+ M public/viz/map.js
+ M test/e2e/fix-ui-6.e2e.js
 ?? docs/screenshots/fix-ui-6/after-B-7-map-netflix-280x653.png
+?? docs/screenshots/fix-ui-6/after-B-7-map-netflix-932x430.png
+?? docs/screenshots/fix-ui-6/after-D-12-duo-stacked-720x1010.png
+?? docs/screenshots/fix-ui-6/after-D-rows-1114x616.png
+?? docs/screenshots/fix-ui-6/after-D-rows-375x625.png
+?? docs/screenshots/fix-ui-6/after-D-rows-440x757.png
+?? docs/screenshots/fix-ui-6/after-D-rows-820x1070.png
 ```
 
 ## Left out (not in untracked.tgz)
 - docs/screenshots/fix-ui-6/after-B-7-map-netflix-280x653.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-ui-6/after-B-7-map-netflix-932x430.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-ui-6/after-D-12-duo-stacked-720x1010.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-ui-6/after-D-rows-1114x616.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-ui-6/after-D-rows-375x625.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-ui-6/after-D-rows-440x757.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-ui-6/after-D-rows-820x1070.png (screenshot; the lane's tests regenerate it)
 - node_modules (symlink)

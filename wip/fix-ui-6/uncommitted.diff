@@ -50,3 +50,73 @@ index b36ae85..f1f3a46 100644
      Apple as the spec's audit; D-5 also checks each folded line against `chartPay`'s own `lo`/`hi` of the board's list
      (Apple, Meta, Netflix); D-12 emulates the stacked Duo's hinge (CDP displayFeature) at 720x1010; D-13 compares the
      folded rows' counts, medians and chips with the unfolded rows of the same build (412x901) and the board's count. D-14 is
+diff --git a/public/app.js b/public/app.js
+index 3dff0ee..e79d318 100644
+--- a/public/app.js
++++ b/public/app.js
+@@ -3283,6 +3283,7 @@ function onInsightFilter({ type, value } = {}) {
+  * a tablet's (the phone layout 960 px tall and up) rests on three whole cards, at most half the screen.
+  */
+ let sheetPeekSet = null;
++const MAP_ROOM = 300; // px of map a card peek must leave in Map view
+ function fitSheet() {
+   // Measured at the peek only: a raised sheet can show more above the first card (the Juice line).
+   if (sheetPeekSet != null && /^(half|full)$/.test(document.body.dataset.sheet || '')) return;
+@@ -3303,6 +3304,9 @@ function fitSheet() {
+       // Never more than the room under the bars (the Razr cover screen under its bars: 118 px), or the page scrolls.
+       const room = Math.floor(innerHeight - ($('.layout')?.getBoundingClientRect().top || 0));
+       if (room > 64) peek = Math.min(peek, room);
++      // The map keeps at least 300 px for its pins and controls (ux-density-6's gap: "if fix-ui-6 finds pins crowded, keep
++      // its 84 px on the map"): at 280x653 a five-line title left it 190 px and Netflix's pins ran under the sheet.
++      if (S.m === 'map' && room - peek < MAP_ROOM) peek = null;
+       const host = $('#chartHost');
+       const scroll = host?.querySelector('.ms-chart__scroll'), sticky = host?.querySelector('.ms-chart__sticky'), body = host?.querySelector('.ms-chart__body');
+       const h = body ? parseFloat(body.style.height) : NaN;
+diff --git a/public/viz/map.js b/public/viz/map.js
+index 3fe15bf..8337059 100644
+--- a/public/viz/map.js
++++ b/public/viz/map.js
+@@ -1194,8 +1194,6 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
+   map.on('zoomend', draw);
+ 
+   // fix-viz-5: until the user moves the map, a resize after the fit (the phone's sheet settling) re-checks the controls.
+-  // fix-ui-6 phase 2: and fits the pins to the new box first (the sheet's measured peek can take 70 px from a 280 px wide
+-  // map after its first fit, and the fit's minimum zoom kept the zoom-out from reaching the pins it put out of the map).
+   let fitFresh = false;
+   for (const ev of ['pointerdown', 'wheel', 'keydown']) container.addEventListener(ev, () => { fitFresh = false; mergeCovered = false; }, { passive: true });
+   const ro = new ResizeObserver(() => {
+@@ -1203,7 +1201,7 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
+     if (pendingFit && map.getSize().x && map.getSize().y) { fitToData(); draw(); clearOfControls(); }
+     else {
+       if (placeLabels().length) draw(); // the map's edges moved; a name with no room merges its pin
+-      if (fitFresh && map.getSize().x && map.getSize().y) { fitToData(); draw(); clearOfControls(); }
++      if (fitFresh && map.getSize().x && map.getSize().y) clearOfControls();
+     }
+   });
+   ro.observe(container);
+diff --git a/test/e2e/fix-ui-6.e2e.js b/test/e2e/fix-ui-6.e2e.js
+index 1054feb..eb7f1ef 100644
+--- a/test/e2e/fix-ui-6.e2e.js
++++ b/test/e2e/fix-ui-6.e2e.js
+@@ -1033,9 +1033,11 @@ export function registerFixUi6Tests(suite) {
+     suite.test(`fix-ui-6: [D-1] [${label(size)}, ${c}] the first card's title (every line) and pay are on the first screen and uncovered, on a first and a return visit, in Chart view${c === 'short' ? '' : size.height >= 600 ? ' and Map view' : ''} and with few roles${c === 'tablet' ? ', and the third card is whole' : ''} (Apple)`, async (ctx) => {
+       const back = await survey(ctx, size), firstVisit = await survey(ctx, size, { visited: false });
+       const bad = [];
+-      const need = (m, what) => {
++      const need = (m, what, map = false) => {
+         if (!m) { bad.push(`${what}: not measured`); return; }
+         if (m.first.ok) return;
++        // Map view: the card peeks only where the map keeps 300 px (app.js MAP_ROOM; ux-density-6's gap on crowded pins).
++        if (map && m.first.room - m.first.need < 300) { notes.push(`${what}: the card would leave the map ${m.first.room - m.first.need} px, so the map keeps its 84 px peek`); return; }
+         // A short screen with less room under its bars than the card needs (a three-line title on the Razr cover under its
+         // bars: 132 px in 118): the sheet stops under the quick bar, so its pay and its title's first line must show.
+         if (c === 'short' && m.first.need > m.first.room && m.first.payOk && m.first.firstLine) { notes.push(`${what}: ${m.first.lines}-line title needs ${m.first.need} px, ${m.first.room} under the bars: its pay and first line show`); return; }
+@@ -1045,7 +1047,7 @@ export function registerFixUi6Tests(suite) {
+       need(firstVisit.load, 'first visit, Chart view');
+       need(back.load, 'return visit, Chart view');
+       need(back.few, `few roles (${back.few?.count}), Chart view`);
+-      if (c !== 'short' && size.height >= 600) { need(back.map, 'Map view'); need(back.fewMap, `few roles (${back.fewMap?.count}), Map view`); }
++      if (c !== 'short' && size.height >= 600) { need(back.map, 'Map view', true); need(back.fewMap, `few roles (${back.fewMap?.count}), Map view`, true); }
+       if (c === 'tablet') for (const [m, what] of [[firstVisit.load, 'first visit'], [back.load, 'return visit']]) if (m && m.cardsWhole < 3) bad.push(`${what}: ${m.cardsWhole} whole card(s) on the first screen, not 3`);
+       bad.push(...back.errors, ...firstVisit.errors);
+       for (const n of notes) ctx.notes?.push?.(`${label(size)}: ${n}`);

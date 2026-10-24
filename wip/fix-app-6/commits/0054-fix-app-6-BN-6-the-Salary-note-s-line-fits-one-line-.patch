@@ -1,7 +1,7 @@
 From b2bd886d98978917ef72d91bdc2afa5837ee15d8 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 24 Oct 2026 01:03:50 +0000
-Subject: [PATCH 54/63] fix-app-6: BN-6 the Salary note's line fits one line
+Subject: [PATCH 54/64] fix-app-6: BN-6 the Salary note's line fits one line
  with a big count; screenshots (shrunk)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

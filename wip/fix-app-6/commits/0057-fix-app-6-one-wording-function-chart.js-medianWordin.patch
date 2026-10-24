@@ -1,7 +1,7 @@
 From 5c023b3e74ccf6efea39209a7d11804e2a36cc37 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 24 Oct 2026 01:42:21 +0000
-Subject: [PATCH 57/63] fix-app-6: one wording function (chart.js
+Subject: [PATCH 57/64] fix-app-6: one wording function (chart.js
  medianWording) for the stats line's median and the chart caption
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
