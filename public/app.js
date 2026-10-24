@@ -4,7 +4,7 @@
 // chart and the map is delegated to ./viz/* (see docs/CONTRACT.md).
 
 import { colorFor, formatMoney, resetColors, assignColors, otherColor, toUSD, SLOT_COUNT, hasFx, juiceNetForScore, JUICE_BREAKS, FX_AS_OF, FX_SOURCE, FX_PER_USD } from './viz/palette.js';
-import { createChart, keyOf, VIEWS, DEFAULT_VIEW, payBasisPlace } from './viz/chart.js';
+import { createChart, keyOf, VIEWS, DEFAULT_VIEW, payBasisPlace, medianWording } from './viz/chart.js';
 import { renderNote, noteLine, fitLine as fitOneLine } from './viz/note.js';
 import { createMap } from './viz/map.js';
 import * as api from './api.js';
@@ -3219,7 +3219,6 @@ function renderKpis() {
   // MR-39 (fix-mr-3): which country the median is for, when the pay in view is in more than one currency.
   // The line says it short ("(US)", "(euro area)"), so a filtered desktop line stays within fix-density's 12 words.
   const basisWhere = st.basis ? ` ${payBasisPlace(st.basis)}` : '';
-  const basisShort = st.basis ? ` (${payBasisPlace(st.basis).replace(/^(?:paid )?in (?:the )?/, '')})` : '';
   const basisTip = st.basis ? `; of the ${st.basisN.toLocaleString()} roles paid ${payBasisPlace(st.basis).replace(/^paid /, '')}, as the chart rows compare one country's pay; ${plural(st.basisLeft, 'role')} paid in other currencies left out` : '';
   // fix-density: one line (roles · share with pay · median); the rest in the list behind "Details" (viz/note.js).
   const line = [
@@ -3234,7 +3233,7 @@ function renderKpis() {
     // BN-2 (fix-app-6): in the currency of the pay it is of (CA$101K over Canadian pay; MR-39's main currency when the
     // view mixes them), as the cards show it. BN-4: part-time hourly pay only is per hour, as posted; a median that is
     // partly a full-time year of part-time pay says so, and an annualised figure is never "posted pay".
-    st.median != null ? medianItem(st, basisShort,
+    st.median != null ? medianItem(st,
       `Half of these roles pay more than this and half less (the middle of each posted range, ${ote || (st.notBaseOnly ? '' : 'base pay, ')}${medianUnitTip(st)}${here}${left}${basisTip})`) : null,
   ].filter(Boolean);
   // M-46 (fix-phone-text): a phone shows only the median, so with no pay in view its line said nothing but "Details".
@@ -3280,12 +3279,11 @@ function medianUnitTip(st) {
  * part of it is a full-time year of part-time hourly pay, "$56K median, a year if full-time" (shorter where that would
  * wrap: fitOneLine). MR-39's "(US)" when the view mixes currencies.
  */
-function medianItem(st, basisShort, title) {
-  const v = medianText(st.hm);
-  // [long, short]: the short words show only where the line would wrap (fitStatsLine).
-  const words = st.oteOnly ? ['median on-target earnings'] : st.fullTime ? ['median, a year if full-time', 'median if full-time']
-    : st.notBaseOnly ? ['posted pay median', 'median'] : ['base pay median'];
-  return h('span', { class: 'stat stat--median', title }, h('strong', null, v), ' ', tightWords(words.map((w) => `${w}${basisShort}`)));
+function medianItem(st, title) {
+  // chart.js medianWording: the chart caption's words too. [long, short]: the short ones only where the line would wrap.
+  const w = medianWording(st, 'line');
+  const [long, short] = w.words.map((x) => `${x}${w.where}`);
+  return h('span', { class: 'stat stat--median', title }, h('strong', null, w.value), ' ', tightWords(short !== long ? [long, short] : [long]));
 }
 /** A stats-line phrase with a shorter form for a line that would wrap: [long] or [long, short] -> text, or a span fitStatsLine fits. */
 function tightWords([long, short]) {

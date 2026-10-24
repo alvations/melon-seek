@@ -317,8 +317,25 @@ function headPay(items) {
 }
 /** MR-39: " US" after the caption's median when it is one currency's pay of several ("Median base pay $152K US"). */
 const medianBasis = (pay) => (pay?.basis && pay.basis !== 'mixed' && pay.basisLeft ? ` ${basisShort(pay.basis)}` : '');
-/** BN-2: the caption's median as the stats line writes it ("CA$101K", "$28.41/hour", "$152K US"). */
-const capMedian = (pay, med) => `${pay?.hm && pay.hm.median != null ? medianText(pay.hm) : formatMoney(med)}${medianBasis(pay)}`;
+/**
+ * BN-2, BN-4 (fix-app-6): the words of a headline median, for the stats line (form 'line': "CA$101K base pay median",
+ * "$152K base pay median (US)", "$26.80/hour posted pay median") and the chart's caption (form 'caption': "Median base pay $152K
+ * US"), one function so the two never disagree. `pay`: app.js stats() or headPay() figures ({ oteOnly, notBaseOnly, hm, basis,
+ * basisLeft, median }). -> { value ("CA$101K", "$26.80/hour"), words: [long, short] (the short form where it would not fit),
+ * where (MR-39's basis: " (US)" on the line, " US" in the caption) }.
+ */
+export function medianWording(pay, form = 'line', med = pay?.median) {
+  const hm = pay?.hm;
+  const value = hm && hm.median != null ? medianText(hm) : formatMoney(med);
+  const kind = pay?.oteOnly ? 'ote' : hm?.fullTime ? 'fullTime' : pay?.notBaseOnly ? 'posted' : 'base';
+  const words = form === 'line'
+    ? { ote: ['median on-target earnings', 'median on-target earnings'], fullTime: ['median, a year if full-time', 'median if full-time'], posted: ['posted pay median', 'median'], base: ['base pay median', 'base pay median'] }[kind]
+    : { ote: ['Median on-target earnings ', 'Median '], fullTime: ['Median if full-time ', 'Median '], posted: ['Median posted pay ', 'Median '], base: ['Median base pay ', 'Median '] }[kind];
+  const place = pay?.basis && pay.basis !== 'mixed' && pay.basisLeft ? payBasisPlace(pay.basis).replace(/^(?:paid )?in (?:the )?/, '') : '';
+  return { value, words, where: place ? (form === 'line' ? ` (${place})` : ` ${place}`) : '' };
+}
+/** BN-2: the caption's median and its basis ("CA$101K", "$28.41/hour", "$152K US"). */
+const capMedian = (pay, med) => { const w = medianWording(pay, 'caption', med); return `${w.value}${w.where}`; };
 /** " in the US" after a median, "" when the row has no basis; "mixed" names its currencies. */
 const basisWords = (r) => (r.basis === 'mixed' ? ', several countries’ pay' : r.basis ? ` ${payBasisPlace(r.basis)}` : '');
 const basisWordsShort = (r) => (r.basis === 'mixed' ? ' mixed' : r.basis ? ` ${basisShort(r.basis)}` : '');
@@ -1103,9 +1120,10 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
   }
 
   /** BP-13: what the median caption says ("Median base pay", or on-target earnings when that is all). */
-  function medianCaption(pay) {
-    // BN-4 (fix-app-6): a median partly of part-time hourly pay as a full-time year is never "posted pay".
-    return pay?.oteOnly ? 'Median on-target earnings ' : pay?.hm?.fullTime ? 'Median if full-time ' : pay?.notBaseOnly ? 'Median posted pay ' : 'Median base pay ';
+  function medianCaption(pay, short = false) {
+    // BN-4 (fix-app-6): medianWording, as the stats line; a median partly of part-time hourly pay as a full-time year is never
+    // "posted pay".
+    return medianWording(pay, 'caption').words[short ? 1 : 0];
   }
   function medianTitle(pay) {
     const where = placesPhrase(opts.places);
@@ -1148,7 +1166,7 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
       cap.style.width = labelW + 'px';
       // BN-4 (fix-app-6): "Median posted pay $28.50/hour" is wider than a narrow label column: then "Median $28.50/hour".
       const sub = capMedian(pay, med), long = medianCaption(pay);
-      const title = textWidth(`${long}${sub}`, `600 12px ${curFam}`) > labelW - 16 - 4 ? 'Median ' : long;
+      const title = textWidth(`${long}${sub}`, `600 12px ${curFam}`) > labelW - 16 - 4 ? medianCaption(pay, true) : long;
       cap.append(el('span', 'ms-hist__title', title), el('span', 'ms-hist__sub', sub));
       cap.title = medianTitle(pay);
       hist.append(cap);

@@ -9,6 +9,7 @@ import * as shared from '../public/features/shared.js';
 import * as roles from '../public/features/roles.js';
 import * as insights from '../public/features/insights.js';
 import * as mapViz from '../public/viz/map.js';
+import * as chartViz from '../public/viz/chart.js';
 import { toUSD, FX_PER_USD, formatMoney } from '../public/viz/palette.js';
 import { seniorityFromPay } from '../server/keywords.js';
 
@@ -298,8 +299,14 @@ test('BN-4 part-time hourly pay only: the median is per hour as posted ("$28.41/
   const st2 = m.stats(m.run({}).filtered);
   assert.equal(st2.perHour, false);
   assert.equal(st2.fullTime, true, 'stats().fullTime: part of the median is a full-time year of part-time pay');
-  const k = APP.slice(APP.indexOf('function medianItem('), APP.indexOf('function medianItem(') + 900);
-  assert.match(k, /a year if full-time/, 'the stats line never says the annualised figure is "posted pay"');
+  // One wording for the stats line and the chart caption (chart.js medianWording), so they can't disagree.
+  assert.equal(typeof chartViz.medianWording, 'function', 'chart.js medianWording');
+  const line = chartViz.medianWording(st, 'line'), cap = chartViz.medianWording(st, 'caption');
+  assert.deepEqual([line.value, line.words[0], cap.words[0].trim()], ['$30.50/hour', 'posted pay median', 'Median posted pay']);
+  const line2 = chartViz.medianWording(st2, 'line'), cap2 = chartViz.medianWording(st2, 'caption');
+  assert.match(line2.words.join('|'), /a year if full-time/, 'the stats line says the figure is a year if full-time');
+  assert.doesNotMatch(`${line2.words.join('|')}|${cap2.words.join('|')}`, /posted pay/, 'an annualised figure is never "posted pay"');
+  assert.match(APP.slice(APP.indexOf('function medianItem('), APP.indexOf('function medianItem(') + 600), /medianWording\(st, 'line'\)/, 'the stats line uses medianWording');
 });
 
 /* ------------------------------------------------------------ BN-5 */
