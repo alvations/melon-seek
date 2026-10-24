@@ -1,0 +1,55 @@
+# Process log: qa-ci-6 (test-suite engineer: the first sharded CI run of the e2e suite, 2026-10-24)
+
+## State
+- **In progress.** Worktree on fd9da2f (same code as e800c43, the CI run's commit: `git diff e800c43 fd9da2f` touches
+  only docs/ and wip/), plus this lane's commits.
+- **Done:**
+  - brief saved verbatim (5e20d9e);
+  - the CI run's four shard logs read (GitHub job logs; the artifacts cannot be downloaded here, a 403 at the proxy);
+  - newest data restored (`local-data.js --date 2026-10-23`) and built; the 2026-10-16 crawl linked into a second
+    worktree and built;
+  - finding b-1 sent (Microsoft's bare "AL" filed as Alabama; routed to fix-data-6 as G-2).
+- **Next:** reproduce the rest on the newest data, classify, fix the tests, step 4 (shard verdicts).
+- **Scratch:** `<scratch>/qci6/`, where `<scratch>` is
+  `/tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92f3-f582ebca24d9/scratchpad`:
+  - `ci/shard<n>.job.log`: the CI shard logs; `runs/`: my runs; `tools/`: the probes and the runner wrapper;
+  - `wt16/`: the second worktree, with the 2026-10-16 crawl linked from `<scratch>/wt-data2` (read-only use);
+  - `clean/`: the CI-like checkout for `npm test`.
+
+## 1. Brief
+- Prompt (verbatim): [prompts/qa-ci-6.md](prompts/qa-ci-6.md).
+- Goal: GitHub Actions run 40024210372 (e2e.yml on e800c43, data of about 2026-10-23) had 12 unexpected failures and
+  25 skips where the local gate on the 2026-10-16 crawl had 1 and 3. Reproduce each, classify it (a: the test pins
+  the 10-16 crawl; b: a real bug on new data, to the lead; c: CI-only), fix the tests and the workflow, and make the
+  shard jobs fail visibly.
+- Files owned: the failing and skipping e2e tests (case selection only), test/e2e/harness.js, scripts/e2e.js,
+  .github/workflows/e2e.yml, .github/scripts/e2e-summary.mjs, docs/process/e2e-expected-red.txt, this log and the
+  prompt.
+
+## 2. Inputs and sources
+- Read: docs/process/qa-suite-beta.md (T-1 to T-20, the shards, `--max-skips`, the expected-red list), e2e.yml,
+  e2e-summary.mjs, scripts/cycle/local-data.js, pages.yml, PLAYBOOK.md ("Checkpoints", "Known traps"), TEMPLATE.md,
+  scripts/e2e.js and test/e2e/harness.js.
+- The CI run: jobs 120656161917 (build), 120658168308/139/266/284 (shards 1-4), 120671702851 (summary).
+- Data:
+
+  | Board | CI run (archive at 21:05 UTC) | newest here (`--date 2026-10-23`) | 2026-10-16 crawl |
+  |---|---|---|---|
+  | (filled in below) | | | |
+
+## 3. Decisions and rationale
+(to come)
+
+## 4. Replayable steps
+(to come)
+
+## 5. Verification
+(to come)
+
+## 6. Known gaps and follow-ups
+(to come)
+
+## 7. Change log
+- 00:30 Resumed after the container restart (no local-data run had started, so nothing to clean up).
+- 00:31 Data restored; builds of both data sets (2 min 53 s and 3 min 52 s at load 7-13).
+- 00:37 b-1 confirmed and sent.
