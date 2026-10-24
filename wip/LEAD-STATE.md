@@ -125,8 +125,9 @@ persona-beta-2-18-24, -25-34, -35-44, -45-54, -55-plus (logs on the branch, 5502
 - 06:3x fix-app-6 done (42b2a59, 28 commits on 94d65d0): BN-1 counts per place (Dublin 2->137; Vancouver 22->178, Seattle 3,668; 'Palmetto 3 +294'); BN-2 median in the pay's currency, one wording function chart.js medianWording; BN-3 once in every locale; BN-4 hourly median; BN-5 set-aside places survive; BN-6 minimums survive a floor (Milan 54->84, EU 185->313); BN-7 two-level postings count under both (MS 102, NVIDIA 51), chip 'Manager · Microsoft M5–M6'; BN-8 typed currency kept (smin+sc), zł and grouped thousands; V-44 short maps '9 with no place'. npm test 1,359/0 fail. Picked clean -> f13ebd6. qa-ci-6 resumed on f13ebd6.
 - fix-app-6 final report: known gaps: chart row medians still US$ with a country label (sent to fix-ui-6 for D-5); one-level Microsoft chips name the posted level only after the posting text loads. Pre-rebase states kept as branches fix-app-6-pre-rebase(2).
 - 07:2x qa-ci-6 on f13ebd6: BP-2 fails (google:108135834237969094 under Zurich: card 'Pay posted for San Jose, Munich and 2 more only' is right with rows per country; features/shared.js payLocations still returns only US places). Decision: payLocations follows the rows -> fix-data-6 P-4 (updates BP-2's expectation). qa-ci-6 a5bdbc9: D-41 counts state-wide roles (BN-1), V-43 reads pins in any currency.
+- 07:5x fix-ui-6: the iPad Pro 11" portrait touch-tips strip failure is the 2 px bar case (half-pixel offset after the one-row top bar moved the strip up 86 px; the touch lands on the axis); qa-ci-6's a5bdbc9 tallest-bar pick fixes it. Not a D-4 regression.
 
-### Agents at 2026-10-24T07:43:55Z
-agent fix-ui-6 add67b9453342f4ba transcript-age=24min head=5e2c252 STALE
-agent fix-data-6 a08f9659d62990db4 transcript-age=0min head=6963435
-agent qa-ci-6 a6d5736b954b39411 transcript-age=4min head=a5bdbc9
+### Agents at 2026-10-24T07:58:43Z
+agent fix-ui-6 add67b9453342f4ba transcript-age=9min head=5e2c252
+agent fix-data-6 a08f9659d62990db4 transcript-age=3min head=6963435
+agent qa-ci-6 a6d5736b954b39411 transcript-age=9min head=a5bdbc9
