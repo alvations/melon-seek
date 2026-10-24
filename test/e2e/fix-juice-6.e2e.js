@@ -198,7 +198,7 @@ export function registerFixJuice6Tests(suite) {
           if (!want || !want.includes(n)) bad.push(`${p.name} ${c.id}: the Tax row reads "${l.text}", not ${l.part ? `one of ${JSON.stringify(names[l.part])}` : `a row of its own (${JSON.stringify(names)})`}`);
           if (jur.country !== 'US' && /state or local tax|social security/.test(l.text)) bad.push(`${p.name} ${c.id}: "${l.text}"`);
         }
-        if (jur.country === 'US' && !lines.some((l) => l.part === 'regional' && /^state (or|\/)local tax/.test(l.text))) bad.push(`${p.name} ${c.id}: no "state or local tax" row (${JSON.stringify(lines)})`);
+        if (jur.country === 'US' && !lines.some((l) => l.part === 'regional' && /^state( or |\/)local/.test(l.text))) bad.push(`${p.name} ${c.id}: no "state or local tax" row (${JSON.stringify(lines)})`);
         bad.push(...await oneLine(page, '#drawer .wf--tax .wf-detail', `${p.name} ${c.id}`));
         checked += 1;
       }

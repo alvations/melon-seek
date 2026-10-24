@@ -4369,7 +4369,7 @@ const HOUSEHOLDS = [
   ['couple', 'Couple', 'Two adults, one earning and the other not working, in a 2-bedroom home', 2, 'two adults',
     ['2 adults, 1 earner (the other not working), 2 bedrooms', '2 adults, 1 working, 2 bedrooms']],
   ['family', 'Family', 'Two adults, one earning and the other not working, and two children, in a 3-bedroom home', 3, 'two adults and two children',
-    ['2 adults (1 earner, 1 not working), 2 children, 3 bedrooms', '2 adults (1 working), 2 children, 3 bedrooms', '2 adults (1 working), 2 kids, 3 bedrooms']],
+    ['2 adults (1 earner, 1 not working), 2 children, 3 bedrooms', '2 adults (1 working), 2 children, 3 bedrooms', '2 adults (1 working), 2 kids, 3 bedrooms', '2 adults (1 working), 2 kids, 3 beds']],
 ];
 const householdInfo = (key) => HOUSEHOLDS.find(([k]) => k === key) || HOUSEHOLDS[0];
 let juiceHousehold = householdInfo(lsGet(HOUSEHOLD_KEY, 'single'))[0];

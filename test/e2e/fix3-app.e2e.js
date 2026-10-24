@@ -255,8 +255,9 @@ export function registerFix3AppTests(suite) {
     if (!job) skip('no Google role listed first in a country its pay is not for');
     const { page, errors } = await open(ctx, st, { url: `${st.beta}/#c=google&q=${encodeURIComponent(job.title)}&sort=title` });
     const loc = (await page.locator(`#resultsList .card[data-id="${job.id}"] .card-loc`).innerText()).trim();
-    const first = payLocations(job)[0];
-    assert(loc.startsWith(first.city), `card location "${loc}" starts with ${first.city} (${job.salary.currency} pay; listed ${job.locations.map((l) => l.name).join(' | ')})`);
+    // fix-juice-6 J-5: among the pay's places, the one its Juice grade is for comes first, so any of them may lead.
+    const pay = payLocations(job).filter((l) => l.city);
+    assert(pay.some((l) => loc.startsWith(l.city)), `card location "${loc}" starts with a place its pay is for: ${pay.map((l) => l.city).join(', ')} (${job.salary.currency} pay; listed ${job.locations.map((l) => l.name).join(' | ')})`);
     noErrors(errors);
   });
 
