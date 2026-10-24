@@ -1086,7 +1086,9 @@ interval, in posted order; `head` marks the headline's line. New export `nationC
 split, which `withAreaRanges` still exports) and `tieRangePlaces(salary, locations, text)` (structured rows named for places).
 
 **Juice (`server/juice.js#attachJuice`):** a place with its own row is matched to the row's currency and country (`ranges[].country`,
-else `salary.country`) and scored on that row's midpoint in its currency: Milan on Italy's line, Toronto on the CAD line.
+else `salary.country`) and scored on that row's midpoint in its currency: Milan on Italy's line, Toronto on the CAD line. When the
+posting's priced places have no city record and every place that has one is in a country no row prices (Cohere's London beside its
+"Canada" and "United States" rows), `juiceMissing` is `pay-other-country` again, as before the rows were tied.
 
 **App (`public/app.js`):**
 - `payRanges(s)` returns rows in any currency. `payHeadline` spans only the rows in `salary.currency`; with one such row the

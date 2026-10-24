@@ -166,3 +166,11 @@ tests, 1,331 pass, 0 fail, 2 skipped (load 15–29, so its timings are noise).
 - 2026-10-24 00:30: resumed after the container restart; nothing was lost. Plan sent to the lead, approved.
 - 00:44: the fix and 18 red tests (015d801); 00:46 norm-14 and re-baselines (93b8979).
 - 00:55: bulleted degree lines; e2e file (6926984). 01:00: Amazon guard (2b92966). 01:05: docs (da401d7).
+- 02:0x: the drawer's rank by the picked line's country (8a8fee6); screenshots; 49e86ee sent to the lead.
+- Follow-up from the lead (fix-juice-6 found it on e77cd41): "fix3-data: [browser] lib/juice.js gives no Juice from another
+  country's pay…" failed. Cohere's "Head of Corporate Development" has rows tied to "Canada" and "United States", places with no
+  city record, so attachJuice returned with no `juiceMissing` for London. Fixed on the lead's head 942db8a (3462319): when every
+  place with a city record is in a country no row (nor the headline) prices, `juiceMissing` is `pay-other-country`, with the old
+  text ("the pay is posted in Canadian dollars (for Canada), and London, UK uses another currency"). The e2e test was right and is
+  unchanged; a unit test in test/fix-salary-6.test.js fails on 942db8a and passes now. Cohere on the built list: 67 postings
+  with Juice (65 on e800c43's), the 2 London postings say why, and the 13 with neither are the same as before.
