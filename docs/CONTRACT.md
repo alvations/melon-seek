@@ -1221,7 +1221,16 @@ or country's centre within about 80 km (85 km at most) of a city with 200+ big-t
 GeoNames cities1000, CC BY 4.0, or the town's usual coordinates; a county at its seat). A `?` entry with no region ("Thane",
 "Sagamihara-shi") is read with its own country named, and only as its own place's first part (never a later token, never to split
 a list). A `?` entry never decides what a two-letter code means in `finalCountry` ("Ontario, CA" stays Ontario, Canada).
-`GAZETTEER_SIZE` is 743 cities. On the crawl 359 results in 2,206 postings change, latitude and longitude only.
+On the crawl 359 results in 2,206 postings change, latitude and longitude only.
+
+**Locations (`server/geo.js`, G-2, G-3):** in `geocodeMany` a bare two-letter part that is both an ISO country code and a US state
+code (`AL ME MD MT PA GA MA MN SC VA NE`, and `LA`, a city alias; not `PR`) is that country, at its centre (`TWIN_CENTRES`, from
+Google's countries.csv), unless another part of the same job's places is in the US ("HR | RS | SI | AL" is Albania; "Austin |
+TX | AL" stays Alabama). `regionInfo` and `finalCountry` do not read a dotted two-letter abbreviation as a country code ("N.L.",
+Nuevo León, is not NL; "U.S." and "U.K." still are). New entries `Monterrey||MX` and the alias "Bayshore Shopping Centre" on
+Ottawa. `GAZETTEER_SIZE` is 744 cities. On the 2026-10-16 crawl 2 results in 9 postings change (Monterrey, latitude and longitude
+only); on the 2026-10-23 crawl 5 results in 11 postings (Monterrey 8, Apple's Bayshore 1, Microsoft's "AL" 1 and "Monterrey,
+N.L." 1, these two from the wrong country to the right one).
 
 **Compensation extras (`server/keywords.js`, K-1):** `compExtrasEvidence(text, { title, zeroIsBonus = false })` removes a stated 0%
 bonus target before matching; `zeroBonusOnly(text, opts)` is true when that was the only bonus wording; `statedBonusTarget(text)`
