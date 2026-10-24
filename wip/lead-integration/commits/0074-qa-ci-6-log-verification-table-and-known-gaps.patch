@@ -1,7 +1,7 @@
 From 6bea94e45feb8e545f9fba14b36ee30cc1271a0f Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 24 Oct 2026 06:32:20 +0000
-Subject: [PATCH 74/98] qa-ci-6: log verification table and known gaps
+Subject: [PATCH 074/100] qa-ci-6: log verification table and known gaps
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc

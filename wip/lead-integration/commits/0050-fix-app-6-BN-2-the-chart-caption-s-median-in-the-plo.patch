@@ -1,7 +1,7 @@
 From 24ccfc763b3234c4f063d61abfd6a707df351d56 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 24 Oct 2026 00:37:40 +0000
-Subject: [PATCH 50/98] fix-app-6: BN-2 the chart caption's median in the
+Subject: [PATCH 050/100] fix-app-6: BN-2 the chart caption's median in the
  plotted pay's currency (a place's own row); log steps
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

@@ -1,8 +1,9 @@
 From 41dba4cae490ae32aa127e3b0045b7da16252222 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 24 Oct 2026 00:52:49 +0000
-Subject: [PATCH 88/98] fix-data-6: G-2 bare ISO codes that are US state codes
- are countries; G-3 dotted state abbreviations, Monterrey and Apple Bayshore
+Subject: [PATCH 088/100] fix-data-6: G-2 bare ISO codes that are US state
+ codes are countries; G-3 dotted state abbreviations, Monterrey and Apple
+ Bayshore
 
 G-2 (server/geo.js geocodeMany): a bare two-letter ISO country code that is also
 a US state's ('AL' Albania, 'ME', 'MD', 'MT', 'PA', 'GA', 'MA', 'MN', 'SC', 'VA',

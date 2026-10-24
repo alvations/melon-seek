@@ -1,7 +1,7 @@
 From 7387c8e5db8e501f76be1f7ce2d958624ab5ae74 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 24 Oct 2026 07:33:10 +0000
-Subject: [PATCH 94/98] fix-data-6: P-4 payLocations follows the rows (every
+Subject: [PATCH 094/100] fix-data-6: P-4 payLocations follows the rows (every
  place a row prices has posted pay, Munich beside the US row);
  headlinePayLocations keeps payCountry and the pay estimate on the headline;
  BP-2 and VT-5 read the rows

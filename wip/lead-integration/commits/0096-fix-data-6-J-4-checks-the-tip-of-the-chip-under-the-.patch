@@ -1,7 +1,7 @@
 From 5794e3aee9f1b72a6dc2daa6344ece667b535dda Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 24 Oct 2026 08:47:29 +0000
-Subject: [PATCH 96/98] fix-data-6: J-4 checks the tip of the chip under the
+Subject: [PATCH 096/100] fix-data-6: J-4 checks the tip of the chip under the
  mouse; log: the three rebases, P-4, the one-line forms and every run's result
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

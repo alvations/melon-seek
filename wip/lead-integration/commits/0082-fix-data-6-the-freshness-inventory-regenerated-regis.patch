@@ -1,7 +1,7 @@
 From f6649f5faef3bdc087c2d6b36591cc7964e89cca Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 23 Oct 2026 21:46:45 +0000
-Subject: [PATCH 82/98] fix-data-6: the freshness inventory regenerated
+Subject: [PATCH 082/100] fix-data-6: the freshness inventory regenerated
  (registry.js --docs --write) for the gazetteer size
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

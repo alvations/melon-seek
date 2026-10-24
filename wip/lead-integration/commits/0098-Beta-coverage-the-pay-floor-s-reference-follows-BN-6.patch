@@ -1,7 +1,7 @@
 From 5de0efc42a3fdb240e3e881570c0babaee4d86b8 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 24 Oct 2026 10:02:03 +0000
-Subject: [PATCH 98/98] Beta coverage: the pay floor's reference follows BN-6
+Subject: [PATCH 098/100] Beta coverage: the pay floor's reference follows BN-6
  (fix-app-6): a posted minimum states no top, so a floor never hides it
  (Amazon's 285 minimums under $160K)
 

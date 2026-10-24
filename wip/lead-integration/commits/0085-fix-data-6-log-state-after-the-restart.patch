@@ -1,7 +1,7 @@
 From de2a38777588f100ef418e634fcf5f22ed943d19 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 24 Oct 2026 00:30:43 +0000
-Subject: [PATCH 85/98] fix-data-6: log state after the restart
+Subject: [PATCH 085/100] fix-data-6: log state after the restart
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc

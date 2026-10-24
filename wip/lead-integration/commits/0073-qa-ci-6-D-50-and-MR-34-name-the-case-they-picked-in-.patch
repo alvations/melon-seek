@@ -1,7 +1,7 @@
 From a112686c214387c39fe6a60050414711d50f3180 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 24 Oct 2026 02:18:12 +0000
-Subject: [PATCH 73/98] qa-ci-6: D-50 and MR-34 name the case they picked in
+Subject: [PATCH 073/100] qa-ci-6: D-50 and MR-34 name the case they picked in
  the run's notes; log decisions and steps
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
