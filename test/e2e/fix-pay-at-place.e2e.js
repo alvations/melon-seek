@@ -348,13 +348,36 @@ export function registerFixPayAtPlaceTests(suite) {
     void row;
   });
 
-  suite.test('fix-pay-at-place: [MR-34] "Several pay ranges" says the figure is one of them when it is (microsoft:1970393556619327)', async (ctx) => {
-    const { page } = await openBeta(ctx, `c=microsoft&job=${encodeURIComponent('microsoft:1970393556619327')}`);
-    const d = await drawerPay(page);
-    const chip = d.chips.find((c) => c.text === 'Several pay ranges');
-    if (!chip) skip('microsoft:1970393556619327 has no "Several pay ranges" chip today');
-    assert(!/span of all of them|lowest to the highest/.test(chip.title), `chip: "${chip.title}"`);
-    assert(/one of them/.test(chip.title), `chip: "${chip.title}"`);
+  // qa-ci-6: the case by its property, from the board in front of the test. The fix lane used
+  // microsoft:1970393556619327 (a Senior Software Engineer, "USD $119,800 - $234,700 per year", 2 zones), gone from the
+  // 2026-10-23 crawl. Any Microsoft posting with several stated ranges (salary.zones > 1) whose pay line states one
+  // range (two amounts, one line, no "lowest … market") shows one of its ranges; the first few such postings with the
+  // "Several pay ranges" chip are opened.
+  suite.test('fix-pay-at-place: [MR-34] "Several pay ranges" says the figure is one of them when it is (Microsoft\'s U.S. range of a posting with several)', async (ctx) => {
+    const { page, base } = await openBeta(ctx, 'c=microsoft');
+    const ids = await page.evaluate(async ({ base }) => {
+      const jobs = (await (await import(`${base}/api.js`)).getJobs({ company: 'microsoft' })).jobs || [];
+      return jobs.filter((j) => {
+        const s = j.salary, t = String(s?.text || '');
+        return s && s.zones > 1 && !(Array.isArray(s.levels) && s.levels.length > 1) && !(Array.isArray(s.ranges) && s.ranges.length > 1)
+          && (t.match(/\d[\d,.']*\d|\d/g) || []).length === 2 && !/;/.test(t) && !/lowest\b[^.]*\bmarket|highest\b[^.]*\bmarket/i.test(t);
+      }).map((j) => j.id);
+    }, { base });
+    if (!ids.length) skip('no Microsoft posting with several stated ranges whose pay line states one of them');
+    let chip = null, seen = null;
+    for (const id of ids.slice(0, 5)) {
+      // Close the last drawer first, so drawerPay reads this posting's.
+      await page.evaluate(() => { location.hash = 'c=microsoft'; });
+      await page.waitForFunction(() => !document.querySelector('#drawer.is-open'), null, { timeout: 10000 }).catch(() => {});
+      await page.evaluate((h) => { location.hash = h; }, `c=microsoft&job=${encodeURIComponent(id)}`);
+      await page.waitForSelector('#drawer.is-open', { timeout: 30000 });
+      const d = await drawerPay(page);
+      chip = d.chips.find((c) => c.text === 'Several pay ranges');
+      if (chip) { seen = id; break; }
+    }
+    assert(chip, `none of ${Math.min(5, ids.length)} Microsoft postings with several stated ranges and one stated on its pay line (${ids.slice(0, 5).join(', ')}) shows the "Several pay ranges" chip`);
+    assert(!/span of all of them|lowest to the highest/.test(chip.title), `${seen}: chip: "${chip.title}"`);
+    assert(/one of them/.test(chip.title), `${seen}: chip: "${chip.title}"`);
   });
 
   // One check per size (the suite gives each check 120 s; sixteen cold loads of Amazon's board do not fit in one).

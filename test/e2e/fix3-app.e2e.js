@@ -358,25 +358,38 @@ export function registerFix3AppTests(suite) {
     noErrors(errors);
   });
 
+  // qa-ci-6: the boards by their property, from the build in front of the test: Munich at the first and the last board,
+  // not at the one between. Microsoft, the board between since BP-10, lists one Munich posting on 2026-10-23.
   suite.test('Fix3 app: [BP-10] a filter a board does not have is set aside, and put back at the next board that has it', async (ctx) => {
     const st = await setup(ctx);
-    const [google, ms, oa] = await Promise.all([plainList(st, 'google'), plainList(st, 'microsoft'), plainList(st, 'openai')]);
+    const names = new Map(JSON.parse(fs.readFileSync(path.join(st.dist, 'beta', 'api', 'companies.json'), 'utf8')).map((c) => [c.slug, c.name]));
+    const lists = new Map();
+    const listOf = async (slug) => { if (!lists.has(slug)) lists.set(slug, names.has(slug) ? await plainList(st, slug) : null); return lists.get(slug); };
     const has = (b, c) => b.jobs.some((j) => (j.locations || []).some((l) => l.city === c));
-    if (!google || !ms || !oa || !has(google, 'Munich') || has(ms, 'Munich') || !has(oa, 'Munich')) skip('needs Munich at Google and OpenAI, not at Microsoft');
-    const { page, errors } = await open(ctx, st, { url: `${st.beta}/#c=google&l=Munich` });
-    await switchTo(page, 'Microsoft', 'microsoft');
-    assertEq((await params(page)).getAll('l').join(), '', 'Microsoft has no Munich');
+    const pick = async (slugs, want) => { for (const s of slugs) { const b = await listOf(s); if (b && has(b, 'Munich') === want) return s; } return null; };
+    const from = await pick(['google', 'apple', 'nvidia', 'amazon'], true);
+    const back = await pick(['openai', 'anthropic', 'cohere', 'shieldai'].filter((s) => s !== from), true);
+    const mid = await pick(['microsoft', 'netflix', 'meta', 'xai', 'scaleai', 'anduril'], false);
+    if (!from || !back || !mid) skip('needs Munich at two boards of the beta site and a third board without it');
+    // The person's own place at the board between: its most common city.
+    const cities = new Map();
+    for (const j of (await listOf(mid)).jobs) for (const l of j.locations || []) if (l.city && !l.remote) cities.set(l.city, (cities.get(l.city) || 0) + 1);
+    const own = [...cities].sort((a, b) => b[1] - a[1])[0]?.[0];
+    if (!own) skip(`${names.get(mid)} lists no city`);
+    const { page, errors } = await open(ctx, st, { url: `${st.beta}/#c=${from}&l=Munich` });
+    await switchTo(page, names.get(mid), mid);
+    assertEq((await params(page)).getAll('l').join(), '', `${names.get(mid)} has no Munich`);
     const t1 = await page.locator('#toast').innerText();
-    assert(/[Dd]ropped Munich \(not at Microsoft\) for now/.test(t1), `drop toast "${t1}"`);
-    await switchTo(page, 'OpenAI', 'openai');
-    assertEq((await params(page)).getAll('l').join(), 'Munich', 'Munich is back at OpenAI');
+    assert(new RegExp(`[Dd]ropped Munich \\(not at ${names.get(mid)}\\) for now`).test(t1), `drop toast "${t1}"`);
+    await switchTo(page, names.get(back), back);
+    assertEq((await params(page)).getAll('l').join(), 'Munich', `Munich is back at ${names.get(back)}`);
     const t2 = await page.locator('#toast').innerText();
     assert(/[Pp]ut back Munich/.test(t2), `restore toast "${t2}"`);
     // fix-app-6 (BN-5): a place the person adds in between is added to what was set aside, which still comes back where
     // it exists ("for now", as the toast said); only Clear all or the Location Reset drops it.
-    await switchTo(page, 'Microsoft', 'microsoft');
-    await page.evaluate(() => { location.hash = location.hash.replace(/&?l=[^&]*/g, '') + '&l=Redmond'; }); await sleep(800);
-    await switchTo(page, 'Google', 'google');
+    await switchTo(page, names.get(mid), mid);
+    await page.evaluate((own) => { location.hash = location.hash.replace(/&?l=[^&]*/g, '') + `&l=${encodeURIComponent(own)}`; }, own); await sleep(800);
+    await switchTo(page, names.get(from), from);
     assert((await params(page)).getAll('l').includes('Munich'), 'Munich, set aside "for now", is lost once another place is picked');
     noErrors(errors);
   });

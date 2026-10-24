@@ -21,6 +21,7 @@ import path from 'node:path';
 import { ROOT, assert, assertEq, skip } from './harness.js';
 import { ALL_SIZES, contextFor } from './phone-sizes.mjs';
 import { scanText, CAPTION_SEL } from './fix-phone-text.e2e.js';
+import { unpackJobs } from '../../public/api.js';
 
 const DESKTOP = { width: 1440, height: 900 };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -106,6 +107,51 @@ async function drawer(page, st, company, id, site = 'beta') {
 async function oneLine(page, sel, maxLines = 1) {
   const r = await page.evaluate(scanText, { roots: [sel], captionSel: `${CAPTION_SEL}, ${sel}`, allow: [], words: 12, maxLines });
   return [...r.lines.map((m) => `${m.lines} lines, ${m.words} words: "${m.text}"`), ...r.cut.map((m) => `cut by ${m.over} px: "${m.text}"`)];
+}
+
+/* --------------------------------------------------------------- D-50: the phone sizes' case */
+
+/**
+ * The posting the phone sizes check D-50 on, by its property (qa-ci-6): a "Pay unclear" posting whose maximum passed
+ * the checks (flagged only below_min or range_ratio, in US dollars a year, as the Anduril test above reads them) and
+ * whose estimate the app caps at that maximum. QA round 4 used netflix:790298021069 ($71,040–$464,000, the 2026-10-16
+ * crawl). It is gone from the 2026-10-23 crawls, where no beta board has a "Pay unclear" posting with stated pay, so
+ * the main site's boards are searched too (beta boards first). Found once per run at desktop width, since an
+ * estimate does not depend on the screen; null when no posting has the property.
+ */
+async function cappedCase(ctx) {
+  if (ctx.data.fixQa4D50 !== undefined) return ctx.data.fixQa4D50;
+  const dist = path.resolve(process.env.BETA_QA_DIST || path.join(ROOT, 'dist'));
+  const slugsOf = (dir) => (fs.existsSync(path.join(dir, 'api', 'companies.json')) ? JSON.parse(fs.readFileSync(path.join(dir, 'api', 'companies.json'), 'utf8')).map((c) => c.slug) : []);
+  const main = slugsOf(dist);
+  const cands = [];
+  // The beta boards (the beta copy also lists the main site's boards), then the main site's.
+  for (const [site, slugs] of [['beta', slugsOf(path.join(dist, 'beta')).filter((s) => !main.includes(s))], ['main', main]]) {
+    for (const slug of slugs) {
+      const file = path.join(dist, site === 'beta' ? 'beta' : '', 'api', 'jobs', `${slug}.json`);
+      if (!fs.existsSync(file)) continue;
+      const body = JSON.parse(fs.readFileSync(file, 'utf8'));
+      if (body.mode !== 'snapshot') continue;
+      for (const j of unpackJobs(body)) {
+        const raw = j.salaryRaw;
+        if (!j.salaryFlag || !raw || raw.currency !== 'USD' || raw.interval !== 'year' || !(raw.max >= 15000)) continue;
+        if (!(j.salaryFlag.codes || []).every((c) => c === 'below_min' || c === 'range_ratio')) continue;
+        cands.push({ company: slug, site, id: j.id, max: raw.max });
+      }
+    }
+  }
+  let found = null;
+  if (cands.length) {
+    const { st, page } = await open(ctx, null);
+    for (const c of cands.slice(0, 12)) {
+      await drawer(page, st, c.company, c.id, c.site);
+      const amt = (await page.locator('#drawer .d-comp-amt').textContent().catch(() => '')) || '';
+      const m = /about \$([\d.]+)([KM])/.exec(amt);
+      if (m && Number(m[1]) * (m[2] === 'M' ? 1e6 : 1e3) >= Math.floor(c.max / 1000) * 1000) { found = c; break; }
+    }
+  }
+  ctx.data.fixQa4D50 = found;
+  return found;
 }
 
 /* --------------------------------------------------------------- D-48: the rank line's roles */
@@ -411,12 +457,14 @@ export function registerFixQa4Tests(suite) {
     });
   }
   for (const size of ALL_SIZES) {
-    suite.test(`fix-qa4: [D-50] ${size.name} ${size.width}x${size.height}: netflix:790298021069's estimate stops at the $464K it states, and its line is one line`, async (ctx) => {
-      const id = 'netflix:790298021069';
-      const { st, page, errors } = await open(ctx, 'c=netflix', { size });
-      const j = (await board(page, st, 'netflix')).find((x) => x.id === id);
-      if (!j || !j.salaryFlag || !j.salaryRaw) skip(`${id} is not a "Pay unclear" posting today`);
-      await drawer(page, st, 'netflix', id);
+    suite.test(`fix-qa4: [D-50] ${size.name} ${size.width}x${size.height}: a "Pay unclear" posting's estimate stops at the maximum it states, and its line is one line`, async (ctx) => {
+      const c = await cappedCase(ctx);
+      if (!c) skip('no "Pay unclear" posting in this build whose estimate is capped at the maximum it states');
+      const { id, company, site } = c;
+      const { st, page, errors } = await open(ctx, `c=${company}`, { size, site });
+      const j = (await board(page, st, company, site)).find((x) => x.id === id);
+      if (!j || !j.salaryFlag || !j.salaryRaw) skip(`${id} is not a "Pay unclear" posting in this build`);
+      await drawer(page, st, company, id, site);
       const amt = (await page.locator('#drawer .d-comp-amt').textContent().catch(() => '')).trim();
       const m = /about \$([\d.]+)([KM])/.exec(amt);
       if (!m) skip(`no estimate for ${id} ("${amt}")`);
@@ -435,7 +483,7 @@ export function registerFixQa4Tests(suite) {
       await note.locator('.ms-note__more').click({ timeout: 5000 }).catch(() => {});
       await sleep(200);
       const det = (await note.locator('.ms-note__list').textContent().catch(() => '')) || '';
-      if (!/Similar roles suggest about \$\d+K/.test(det) || !/states up to \$464K/.test(det)) bad.push(`Details: "${det.slice(0, 200)}"`);
+      if (!/Similar roles suggest about \$\d+K/.test(det) || !new RegExp(`states up to \\$${Math.round(j.salaryRaw.max / 1000)}K`).test(det)) bad.push(`Details: "${det.slice(0, 200)}"`);
       if (size.width === 280 || size.width === 390 || size.width === 1114) await shot(page, `D-50-${size.width}x${size.height}`, page.locator('#drawer .d-salary'));
       assert(!bad.length, `${size.name}: ${bad.join('; ')}`);
       assert(!errors.length, errors.join(' | '));

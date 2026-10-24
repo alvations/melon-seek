@@ -9,6 +9,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { ROOT, assert, skip } from './harness.js';
 import { unpackJobs, descPath } from '../../public/api.js';
+import { extractKeywords, descriptionText } from '../../server/keywords.js';
 
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png' };
 const DIST = () => path.resolve(process.env.BETA_QA_DIST || path.join(ROOT, 'dist'));
@@ -30,17 +31,34 @@ function sectionsOf(site, job) {
   return JSON.parse(fs.readFileSync(file, 'utf8')).sections || s;
 }
 
-/** True when every "CAD" in the title and description is within 30 characters of an amount. */
+// scripts/snapshot.js keeps a big board's descriptions to their first 800 characters plus the pay line, and marks the cut.
+const TRIMMED_RE = /\[…\] Full description on the posting page\./;
+
+/**
+ * True when the "CAD" skill can only have come from the currency: every "CAD" in the title and description is within
+ * 30 characters of an amount. A trimmed description (every Amazon one) no longer holds the text the crawl read its
+ * skills from, so its "CAD" may come from the part cut off (qa-ci-6, the 2026-10-23 crawl: Amazon's
+ * "Sr. Manager, Physical Design Engineering", whose only "CAD" left is "347,100.00 CAD annually"). There the
+ * question is asked of what is left: the currency alone gives the skill when the extractor finds "CAD" in the
+ * stored title, sections and text.
+ */
 function onlyCurrencyCad(site, job) {
   const file = path.join(DIST(), site, descPath(job));
   const html = typeof job.descriptionHtml === 'string' && job.descriptionHtml ? job.descriptionHtml : fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')).descriptionHtml || '' : '';
   const text = `${job.title}\n${html.replace(/<[^>]+>/g, ' ')}`;
   const hits = [...text.matchAll(/\bCAD\b/g)];
-  return hits.length > 0 && hits.every((m) => /[\d$]/.test(text.slice(Math.max(0, m.index - 30), m.index + 33)));
+  const currencyOnly = hits.length > 0 && hits.every((m) => /[\d$]/.test(text.slice(Math.max(0, m.index - 30), m.index + 33)));
+  if (!currencyOnly || !TRIMMED_RE.test(html)) return currencyOnly;
+  return extractKeywords({ title: job.title, department: job.department, sections: sectionsOf(site, job), text: descriptionText(html) }).skills.includes('CAD');
 }
 
 const ABBREV_RE = /\b(?:Mgmt|Mgr|SW|Sys|Eng|Engng|Engr|Ops|Bus|Mktg|Prod)\b/;
 const IC_DIRECTOR_RE = /\b(?<!executive\s)(?:art|creative|technical)\s+director\b/i;
+// The executive words of server/keywords.js (EXEC_WORD_RE). BP-11 is about the IC director phrase alone: a title that
+// also says "Head of" ("Creative Director, Head of Emerging Experiences", Apple, 2026-10-23, $267,800-$401,700) is
+// Director+ by that word, as any "Head of" title is.
+const EXEC_WORD_RE = /\b(?:director|vp|svp|evp|vice[- ]president|head of|chief|cto|cfo|ceo|coo|ciso|cmo|cpo|president|general manager)\b/i;
+const icDirectorOnly = (title) => IC_DIRECTOR_RE.test(title) && !EXEC_WORD_RE.test(String(title).replace(new RegExp(IC_DIRECTOR_RE.source, 'gi'), ' '));
 const STORES = { 'Piazza Liberty, Italy': 'Milan', 'Via del Corso, Italy': 'Rome', 'Shinsaibashi, Japan': 'Osaka', 'Umeda, Japan': 'Osaka', 'Rosny 2, France': 'Paris', 'Campania, Italy': 'Naples', 'Dublinas, Ireland': 'Dublin' };
 
 /** Problems with one bundled board (empty = all good). */
@@ -69,7 +87,7 @@ function problems(site, slug, jobs) {
   }
   // BP-11: creative and technical directors are not Director+ from the title alone. VT-8 (fix wave 5, lead
   // decision): a level the company states itself wins, so Microsoft's "Art M6" (its manager track) stays Director+.
-  const dir = jobs.filter((j) => IC_DIRECTOR_RE.test(j.title) && j.seniority === 'Director+' && j.seniorityBasis !== 'pay');
+  const dir = jobs.filter((j) => icDirectorOnly(j.title) && j.seniority === 'Director+' && j.seniorityBasis !== 'pay');
   if (dir.length) p.push(`${dir.length} art/creative/technical directors are Director+, e.g. ${dir[0].title}`);
   // BP-14: Google separates required and preferred qualifications.
   if (slug === 'google') {

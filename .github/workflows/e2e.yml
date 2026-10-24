@@ -84,11 +84,17 @@ jobs:
           # A fresh runner has a cold data/cache: the server re-normalizes every board the crawl stored at an older
           # normalizer version (D-20 took 101 s of the default 120 s on a cold cache, qa-suite-beta section 6).
           E2E_TEST_TIMEOUT: '240000'
+        # The runner exits 1 on a known red-by-design failure too, so its exit code does not decide; the verdict below does.
         run: |
-          set -o pipefail
           timings=""; [ -f test/e2e/timings.log ] && timings="--timings=test/e2e/timings.log"
-          node scripts/e2e.js --shard=${{ matrix.shard }}/4 $timings --max-skips=20 | tee e2e-shard-${{ matrix.shard }}.log
-        continue-on-error: true # the summary job decides: known red-by-design failures are expected
+          set +e
+          node scripts/e2e.js --shard=${{ matrix.shard }}/4 $timings --max-skips=20 2>&1 | tee e2e-shard-${{ matrix.shard }}.log
+          echo "scripts/e2e.js exit code: ${PIPESTATUS[0]}"
+      # This shard's verdict, by the summary's rules: a failure not in docs/process/e2e-expected-red.txt, a run cut short,
+      # more skips than --max-skips, or a stale expected-red entry turns this shard's job red, so the shard that broke is
+      # the one marked (qa-ci-6: run 40024210372 had four green shards and 12 unexpected failures among them).
+      - name: Shard verdict
+        run: node .github/scripts/e2e-summary.mjs --expected docs/process/e2e-expected-red.txt --summary "$GITHUB_STEP_SUMMARY" e2e-shard-${{ matrix.shard }}.log
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
@@ -114,6 +120,7 @@ jobs:
           pattern: e2e-shard-*
           merge-multiple: true
       # Every shard's results in one table; exit 1 on a failure that is not in docs/process/e2e-expected-red.txt,
-      # on a shard that never finished, or on a test that passes while listed as expected red (its lane landed:
-      # take it off the list).
+      # on a shard that never finished or was stopped, on a shard over --max-skips, or on a test that passes while
+      # listed as expected red (its lane landed: take it off the list). The same rules as each shard's verdict, so
+      # this job is red exactly when a shard is, and it also says so when a shard job died before its verdict.
       - run: node .github/scripts/e2e-summary.mjs --expected docs/process/e2e-expected-red.txt --summary "$GITHUB_STEP_SUMMARY" e2e-shard-*.log

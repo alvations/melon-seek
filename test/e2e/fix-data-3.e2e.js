@@ -167,7 +167,10 @@ export function registerFixData3Tests(suite) {
     assert(!bad.length, `${bad.length} postings get Juice at a place with no pay row: ${bad.slice(0, 4).join('; ')}`);
   });
 
-  suite.test('fix-data-3: [D-41] one place per town however "Saint" is spelled: Google\'s St. George, SC (both spellings) and St. George, UT; Amazon\'s St. Louis, MO and MI', async (ctx) => {
+  // qa-ci-6: the cases come from the board in front of the test. On the 2026-10-16 crawl Google had St. George, SC
+  // (written both ways) and St. George, UT; on 2026-10-23 only St. George, SC ("Saint George, SC", 1 posting), which
+  // D-16 labels "St. George" with no state, since no other place on the board shares the name.
+  suite.test('fix-data-3: [D-41] one place per town however "Saint" is spelled (Google\'s St. George, Amazon\'s St. Louis), with a state when two towns share the name', async (ctx) => {
     const { st, page } = await open(ctx, 'c=google');
     const opts = await options(page, 'Location');
     const fold = (s) => s.toLowerCase().replace(/\./g, '').replace(/^saint\s/, 'st ').replace(/,.*$/, '');
@@ -178,12 +181,17 @@ export function registerFixData3Tests(suite) {
     assert(!spelled.length, `one town under two spellings: ${spelled.map((v) => v.map((o) => `"${o.label}" (${o.count})`).join(' / ')).join('; ')}`);
     const george = saints.filter((o) => fold(o.label) === 'st george');
     if (george.length) {
-      assert(george.every((o) => /, [A-Z]{2}$/.test(o.label)), `St. George labels without a state: ${george.map((o) => o.label).join(', ')}`);
-      const sc = george.find((o) => /, SC$/.test(o.label));
+      // The towns the board's postings name (each "Saint"/"St"/"St." George, by state): a state tells two apart (D-16).
+      const towns = new Set((await appJobs(page, st, 'google', '(j) => j.locations.filter((l) => !l.remote && /^(saint|st\\.?)\\s+george\\b/i.test(l.rawName || "")).map((l) => `${l.region}|${l.country}`).join(";") || null')).join(';').split(';'));
+      if (towns.size > 1) assert(george.every((o) => /, [A-Z]{2}$/.test(o.label)), `St. George labels without a state, with ${towns.size} towns of that name on the board: ${george.map((o) => o.label).join(', ')}`);
+      else assert(george.length === 1, `one St. George on the board, ${george.length} labels: ${george.map((o) => o.label).join(', ')}`);
+      // St. George, SC's postings, however written: under one label, "St. George, SC" or, as the only St. George, "St. George".
+      const both = await appJobs(page, st, 'google', '(j) => j.locations.some((l) => /^(saint|st\\.?)\\s+george, sc\\b/i.test(l.rawName || "")) ? j.id : null');
+      const sc = both.length ? george.find((o) => /, SC$/.test(o.label)) || (towns.size === 1 ? george[0] : null) : null;
+      if (both.length) assert(sc, `no Location label for St. George, SC's ${both.length} postings: ${george.map((o) => o.label).join(', ')}`);
       if (sc) {
         // Both spellings' postings are under the one label (its count also holds the postings that name only the state
         // or the country, as every city's does).
-        const both = await appJobs(page, st, 'google', '(j) => j.locations.some((l) => /^(saint|st\\.?)\\s+george, sc\\b/i.test(l.rawName || "")) ? j.id : null');
         const keyed = await page.evaluate(async ({ base }) => {
           const res = await (await import(`${base}/api.js`)).getJobs({ company: 'google' });
           return res.jobs.filter((j) => j.locations.some((l) => /^(saint|st\.?)\s+george, sc\b/i.test(l.rawName || ''))).map((j) => j.locations.filter((l) => /george/i.test(l.rawName || '')).map((l) => `${l.city}|${l.region}`).join(','));

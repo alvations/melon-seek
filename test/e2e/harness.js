@@ -70,13 +70,19 @@ function freePort() {
   });
 }
 
-/** Spawn the real server (`node server/index.js`) on a free port; resolves {baseUrl, stop, logs}. */
+/**
+ * Spawn the real server (`node server/index.js`) on a free port; resolves {baseUrl, stop, logs}.
+ * Offline (MELON_OFFLINE=1, server/index.js) unless the caller's environment sets MELON_OFFLINE itself: the suite never
+ * fetches a real job board. The sandbox cannot reach them, so its live attempts fail and the server serves the stored
+ * snapshot; a GitHub runner can, and in the first CI run (40024210372, qa-ci-6) the server fetched Anthropic's board
+ * live, so "UI: loads with no console errors" saw mode "live" against a "Cached" badge, and the run crawled real boards.
+ */
 export async function startServer({ timeoutMs = 20000, env = {} } = {}) {
   const port = await freePort();
   const logs = [];
   const child = spawn(process.execPath, [path.join(ROOT, 'server', 'index.js')], {
     cwd: ROOT,
-    env: { ...process.env, ...env, PORT: String(port) },
+    env: { MELON_OFFLINE: '1', ...process.env, ...env, PORT: String(port) },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   child.stdout.on('data', (d) => logs.push(String(d)));

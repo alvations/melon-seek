@@ -7,7 +7,13 @@
 // red by design until its lane lands. An entry whose reason starts with `flaky` is a known flake: it may pass or fail.
 // Lines starting with # are notes.
 // Exit 1 when a test fails that no entry expects, when a shard log has no final "e2e: N/M passed" line (it timed out or
-// crashed), or when an expected-red test passes (the entry is stale: remove it). Exit 0 otherwise.
+// crashed) or says "e2e: stopped by <signal>" (it was cut short), when a shard skipped more tests than its --max-skips
+// (scripts/e2e.js prints "more than --max-skips=N: the run fails"), or when an expected-red test passes (the entry is
+// stale: remove it). Exit 0 otherwise.
+// e2e.yml runs this on each shard's own log (the shard job's verdict, so the shard that broke is the red one) and on
+// all of them in the summary job. qa-ci-6: the first CI run (40024210372) showed four green shards with 12 unexpected
+// failures between them, and shard 4's 21 skips over --max-skips=20 failed nothing, since the runner's exit code was
+// ignored (continue-on-error) and this script did not read the skip limit.
 import fs from 'node:fs';
 
 const args = process.argv.slice(2);
@@ -35,15 +41,23 @@ const expectedFor = (name) => idsOf(name).find((id) => expected.has(id)) || null
 
 const tests = [];
 const unfinished = [];
+const overSkips = [];
 for (const f of logs) {
   const text = fs.readFileSync(f, 'utf8');
   const lines = text.split('\n');
-  if (!/^e2e: \d+\/\d+ passed/m.test(text)) unfinished.push(f);
+  if (!/^e2e: \d+\/\d+ passed/m.test(text) || /^e2e: stopped by /m.test(text)) unfinished.push(f);
+  const limit = /^e2e: skipped, by reason \(more than --max-skips=(\d+): the run fails\)/m.exec(text);
+  if (limit) overSkips.push(`${f} (more than ${limit[1]})`);
   lines.forEach((l, i) => {
     let m = /^ {2}✓ (.*?) \((\d+)ms\)$/.exec(l);
     if (m) return void tests.push({ log: f, name: m[1], ok: true, ms: Number(m[2]) });
     m = /^ {2}✗ (.*?)(?: \((\d+)ms\))?$/.exec(l);
-    if (m) return void tests.push({ log: f, name: m[1], ok: false, ms: m[2] ? Number(m[2]) : null, err: (lines[i + 1] || '').trim() });
+    if (m) {
+      // The error's first lines (a "2 problem(s):" header says nothing without the problems under it).
+      const err = [];
+      for (let k = i + 1; k < lines.length && err.length < 4 && /^ {6}/.test(lines[k]); k++) err.push(lines[k].trim());
+      return void tests.push({ log: f, name: m[1], ok: false, ms: m[2] ? Number(m[2]) : null, err: err.join(' / ') });
+    }
     m = /^ {2}- (.*) \(skipped: (.*)\)$/.exec(l);
     if (m) tests.push({ log: f, name: m[1], ok: true, skipped: m[2] });
   });
@@ -58,10 +72,16 @@ const minutes = tests.reduce((a, t) => a + (t.ms || 0), 0) / 60000;
 const out = [];
 out.push(`### E2E: ${tests.length} tests in ${logs.length} shard(s), ${tests.length - failed.length - skipped.length} passed, ${failed.length} failed (${known.length} expected), ${skipped.length} skipped; ${minutes.toFixed(0)} min of test time`);
 if (unfinished.length) out.push(`\n**Shards that did not finish:** ${unfinished.join(', ')}`);
-if (unexpected.length) { out.push('\n**Unexpected failures**'); for (const t of unexpected) out.push(`- ${t.name}\n  \`${String(t.err || '').slice(0, 200)}\``); }
+if (overSkips.length) {
+  out.push(`\n**Shards with more skips than --max-skips:** ${overSkips.join(', ')}`);
+  const why = new Map();
+  for (const t of skipped) why.set(t.skipped, (why.get(t.skipped) || 0) + 1);
+  for (const [r, k] of [...why].sort((a, b) => b[1] - a[1])) out.push(`- ${k} × ${r}`);
+}
+if (unexpected.length) { out.push('\n**Unexpected failures**'); for (const t of unexpected) out.push(`- ${t.name}\n  \`${String(t.err || '').slice(0, 300)}\``); }
 if (stale.length) { out.push('\n**Expected red but passing (take the entry off docs/process/e2e-expected-red.txt)**'); for (const t of stale) out.push(`- [${expectedFor(t.name)}] ${t.name}`); }
 if (known.length) { out.push('\n<details><summary>Expected: red by design or a known flake</summary>\n'); for (const t of known) out.push(`- [${expectedFor(t.name)}: ${expected.get(expectedFor(t.name))}] ${t.name}`); out.push('\n</details>'); }
 const text = out.join('\n');
 console.log(text);
 if (summaryFile) fs.appendFileSync(summaryFile, text + '\n');
-process.exit(unexpected.length || unfinished.length || stale.length ? 1 : 0);
+process.exit(unexpected.length || unfinished.length || overSkips.length || stale.length ? 1 : 0);

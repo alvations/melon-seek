@@ -163,6 +163,14 @@ async function open(ctx, hash, { phone = true, size = PHONE, dark = DARK, device
       await sleep(300);
       return down;
     },
+    /**
+     * The pay strip's bars, tallest (most postings) first: the bars a finger can hit. qa-ci-6: the checks took the 7th
+     * bar; on the 2026-10-23 Google list it holds 5 postings and is 2 px tall at 1114x720, and a touch at its middle
+     * lands on the axis under it, so the check tested the data, not the tips.
+     */
+    async stripBars() {
+      return page.$$eval('#chartHost .ms-hist__bin', (bs) => bs.map((b, i) => [i, b.getBoundingClientRect().height]).sort((a, b) => b[1] - a[1] || a[0] - b[0]).map(([i]) => i));
+    },
     /** The point to tap on the nth match of `sel`, scrolled into view first only when it is not fully on screen. */
     async center(sel, nth = 0) {
       const loc = page.locator(sel).nth(nth);
@@ -355,7 +363,7 @@ export function registerFixTouchTipsTests(suite) {
       if (down.length) bad.push(`${what}: ${one(down)}`);
     };
     await check('chart circle', '#chartHost .ms-bin:not(.ms-bin--overflow)', 2);
-    await check('pay strip', '#chartHost .ms-hist__bin', 6);
+    await check('pay strip', '#chartHost .ms-hist__bin', (await g.stripBars())[0]);
     const job = await compsPosting(g);
     await openDrawer(g, job.id);
     await check('Same role elsewhere', '#drawer .ms-comps__row', 0);
@@ -437,7 +445,8 @@ export function registerFixTouchTipsTests(suite) {
 
   suite.test(`Fix touch tips: chart pay strip, a tap shows the bar's tip; a tap elsewhere, the same bar again or a scroll closes it (${PHONE.width}x${PHONE.height})`, async (ctx) => {
     const g = await open(ctx, `c=${COMPANY}`);
-    const p = await g.center('#chartHost .ms-hist__bin', 6);
+    const k = (await g.stripBars())[0];
+    const p = await g.center('#chartHost .ms-hist__bin', k);
     const bin = p.box;
     await g.iosTap(p.x, p.y);
     const t1 = await tips(g.page);
@@ -454,7 +463,7 @@ export function registerFixTouchTipsTests(suite) {
     await g.iosTap(p.x, p.y);
     const row = await g.center('#chartHost .ms-crow', 1);
     await g.scroll(row.x, row.y, 120);
-    const after = await g.page.locator('#chartHost .ms-hist__bin').nth(6).boundingBox();
+    const after = await g.page.locator('#chartHost .ms-hist__bin').nth(k).boundingBox();
     const t2 = await tips(g.page);
     assert(t2.every((t) => t.bottom >= after.y - 60 && t.top <= after.y + after.height + 60), `after a scroll the tip is closed or by its bar (${Math.round(after.y)}): ${one(t2)}`);
   });
@@ -471,7 +480,7 @@ export function registerFixTouchTipsTests(suite) {
     await g.page.mouse.move(5, 5);
     await sleep(250);
     assert(!(await tips(g.page)).length, 'leaving hides it');
-    const s = await g.center('#chartHost .ms-hist__bin', 6);
+    const s = await g.center('#chartHost .ms-hist__bin', (await g.stripBars())[0]);
     await g.page.mouse.move(s.x, s.y);
     await sleep(250);
     const t2 = await tips(g.page);
@@ -709,7 +718,8 @@ function registerSizeMatrix(suite) {
         }
       };
       // The chart's pay strip shows its tip.
-      const bar = await g.reachable('#chartHost .ms-hist__bin', 6);
+      let bar = null;
+      for (const i of (await g.stripBars()).slice(0, 6)) if ((bar = await g.reachable('#chartHost .ms-hist__bin', i, 1))) break;
       if (bar) {
         await g.iosTap(bar.x, bar.y);
         const t = await tips(g.page);

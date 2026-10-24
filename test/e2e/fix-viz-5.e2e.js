@@ -313,15 +313,21 @@ export function registerFixViz5Tests(suite) {
     assert(!bad.length, bad.join('; '));
   });
 
-  suite.test('fix-viz-5: [UX-59] the Ranges axis holds the rows the list leads with (Amazon and Google, 1440 and 390: at most 3 of the first 10 run past it; all 10 did on Amazon, 8 on Google)', async (ctx) => {
+  // qa-ci-6: counted in posted ranges, not rows. One range is several rows when its postings are in different groups
+  // (Google, 2026-10-23: five $550K postings, a Distinguished Engineer, a Fellow and three VPs, in three rows), and
+  // the axis takes each range's ends: the 10-16 crawl had two such postings in one row. Amazon's 10 rows past the old
+  // axis were 10 ranges ($329.5K to $350K tops, 2026-10-16), so the check still fails the old axis.
+  suite.test('fix-viz-5: [UX-59] the Ranges axis holds the rows the list leads with (Amazon and Google, 1440 and 390: at most 3 posted ranges among the first 10 rows run past it; all 10 did on Amazon, 8 on Google)', async (ctx) => {
     const bad = [];
     for (const [company, phone] of [['amazon', false], ['amazon', true], ['google', false]]) {
       const { page, context } = await open(ctx, `c=${company}&v=ranges`, { phone });
       await page.waitForSelector('#chartHost .ms-row', { timeout: 60000 });
-      const r = await page.evaluate(() => [...document.querySelectorAll('#chartHost .ms-row')].sort((a, b) => +a.dataset.idx - +b.dataset.idx).slice(0, 10).map((x) => !!x.querySelector('.ms-row__over--hi')));
+      const r = await page.evaluate(() => [...document.querySelectorAll('#chartHost .ms-row')].sort((a, b) => +a.dataset.idx - +b.dataset.idx).slice(0, 10)
+        .map((x) => { const label = x.getAttribute('aria-label') || ''; return { past: !!x.querySelector('.ms-row__over--hi'), label, range: (/[$€£¥][\d.,]+[KM]?(?: to [$€£¥]?[\d.,]+[KM]?)?/.exec(label) || [label])[0] }; }));
       await context.close();
-      const past = r.filter(Boolean).length;
-      if (past > 3) bad.push(`${company} ${phone ? 390 : 1440}: ${past} of the first 10 rows run past the axis`);
+      const past = r.filter((x) => x.past);
+      const ranges = new Set(past.map((x) => x.range));
+      if (ranges.size > 3) bad.push(`${company} ${phone ? 390 : 1440}: ${ranges.size} posted ranges in ${past.length} of the first 10 rows run past the axis (${[...ranges].join(', ')})`);
     }
     assert(!bad.length, bad.join('; '));
   });
