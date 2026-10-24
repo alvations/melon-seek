@@ -1,7 +1,7 @@
 From 5f24b372eb57ba4f874af432d2d496c480b5b1c0 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 24 Oct 2026 01:05:33 +0000
-Subject: [PATCH 4/5] qa-ci-6: log: data sets, the classification table so far,
+Subject: [PATCH 4/6] qa-ci-6: log: data sets, the classification table so far,
  State (paused)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

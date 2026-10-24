@@ -1,0 +1,141 @@
+From d47a8ed70068a7467a46636d97b907d01ffcd875 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 24 Oct 2026 01:02:52 +0000
+Subject: [PATCH 27/35] fix-app-6: BN-4 the stats line and the chart caption
+ take short words where a long median would wrap or be cut; BN-8 e2e types in
+ the phone's filter sheet
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+---
+ public/app.js             | 46 ++++++++++++++++++++++++++++++++++-----
+ public/viz/chart.js       |  5 ++++-
+ test/e2e/fix-app-6.e2e.js | 15 ++++++++-----
+ 3 files changed, 54 insertions(+), 12 deletions(-)
+
+diff --git a/public/app.js b/public/app.js
+index b682db3..541a873 100644
+--- a/public/app.js
++++ b/public/app.js
+@@ -3184,7 +3184,7 @@ function renderKpis() {
+   const total = data.jobs.length;
+   const pct = st.n ? Math.round((st.withSalary / st.n) * 100) : 0;
+   const here = viewSpec?.l.size ? ' for the places you picked' : '';
+-  const item = (strong, rest, title, cls = '') => h('span', { class: `stat ${cls}`.trim(), title }, h('strong', null, strong), rest ? ` ${rest}` : null);
++  const item = (strong, rest, title, cls = '') => h('span', { class: `stat ${cls}`.trim(), title }, h('strong', null, strong), rest ? ' ' : null, rest || null);
+   const ote = st.oteOnly ? 'on-target earnings, ' : '';
+   const left = st.oteLeftOut ? `; ${plural(st.oteLeftOut, 'posting')} with on-target earnings (base plus commission) left out` : '';
+   const share = st.top && st.n > 1 ? st.top[1] / st.n : 0;
+@@ -3203,7 +3203,7 @@ function renderKpis() {
+     item(st.n.toLocaleString(), st.n === total ? (st.n === 1 ? 'role' : 'roles') : `of ${total.toLocaleString()} roles`, null, 'stat--count'),
+     // P-6: with a Location filter, the share counts pay that applies there ("22% show pay for London").
+     st.n ? item(capWhole ? `${capWhole.whole}%` : `${pct}%`, capWhole ? `of all ${capWhole.total.toLocaleString()} show pay`
+-      : capNote?.salariedFirst ? `of the ${capNote.kept.toLocaleString()} kept show pay` : onePlace ? `show pay for ${onePlace}` : 'show pay',
++      : capNote?.salariedFirst ? `of the ${capNote.kept.toLocaleString()} kept show pay` : onePlace ? tightWords([`show pay for ${onePlace}`, 'show pay']) : 'show pay',
+       `${st.withSalary.toLocaleString()} of ${st.n.toLocaleString()} postings include a pay range${here}${here ? ' (pay posted only for other places or another country is not counted)' : ''}${capNote ? `. ${capNote.tip}` : ''}`, 'stat--share') : null,
+     // BP-13: it says which pay the median is of; the chart's median uses the same set.
+     // MR-39: with pay in several currencies, the median is the main one's and says where ("base pay median (US)").
+@@ -3242,6 +3242,7 @@ function renderKpis() {
+   statsNotes = details;
+   chart?.setNotes?.(fold ? details : []);
+   renderNote(el, { line: [...line.flatMap((p, i) => (i ? [h('span', { class: 'stat-sep', 'aria-hidden': 'true' }, '·'), p] : [p])), noPay], details: fold ? [] : details, key: 'stats-line' });
++  requestAnimationFrame(fitStatsLine);
+ }
+ let statsNotes = []; // UX-57: the stats line's facts, for the chart notes
+ 
+@@ -3257,10 +3258,45 @@ function medianUnitTip(st) {
+  */
+ function medianItem(st, basisShort, title) {
+   const v = medianText(st.hm);
++  // [long, short]: the short words show only where the line would wrap (fitStatsLine).
+   const words = st.oteOnly ? ['median on-target earnings'] : st.fullTime ? ['median, a year if full-time', 'median if full-time']
+-    : st.notBaseOnly ? ['posted pay median'] : ['base pay median'];
+-  const rest = words.map((w) => `${w}${basisShort}`);
+-  return h('span', { class: 'stat stat--median', title }, h('strong', null, v), ' ', rest.length > 1 ? fitOneLine(h('span'), rest) : rest[0]);
++    : st.notBaseOnly ? ['posted pay median', 'median'] : ['base pay median'];
++  return h('span', { class: 'stat stat--median', title }, h('strong', null, v), ' ', tightWords(words.map((w) => `${w}${basisShort}`)));
++}
++/** A stats-line phrase with a shorter form for a line that would wrap: [long] or [long, short] -> text, or a span fitStatsLine fits. */
++function tightWords([long, short]) {
++  return short ? h('span', { class: 'stat-fit', dataset: { long, short } }, long) : long;
++}
++/**
++ * BN-4 (fix-app-6): the stats line is one line. Where it would wrap (a desktop layout from 861 px with a long filter, e.g.
++ * "10 of 4,851 roles · 100% show pay for these places · $28.50/hour posted pay median" at 932 px), the median's words
++ * go short first ("$28.50/hour median"), then the pay share's ("100% show pay"). The long words stay in their tips.
++ */
++let statsRo = null;
++function fitStatsLine() {
++  const el = $('#statsLine');
++  const line = el?.querySelector('.ms-note__line');
++  if (!line) return;
++  if (!statsRo && typeof ResizeObserver === 'function') {
++    let w = -1;
++    statsRo = new ResizeObserver(() => { const now = el.getBoundingClientRect().width; if (Math.abs(now - w) >= 0.5) { w = now; fitStatsLine(); } });
++    statsRo.observe(el);
++  }
++  const lines = () => {
++    const mids = [];
++    for (const x of line.getClientRects()) { if (x.width < 0.5) continue; const m = Math.round(x.top + x.height / 2); if (!mids.some((t) => Math.abs(t - m) < 6)) mids.push(m); }
++    const r = document.createRange();
++    r.selectNodeContents(line);
++    for (const x of r.getClientRects()) { if (x.width < 0.5) continue; const m = Math.round(x.top + x.height / 2); if (!mids.some((t) => Math.abs(t - m) < 6)) mids.push(m); }
++    return mids.length;
++  };
++  // The text itself changes (as note.js fitLine does), so what the line says is what it shows.
++  const set = (sel, which) => { for (const x of line.querySelectorAll(`${sel} .stat-fit`)) if (x.textContent !== x.dataset[which]) x.textContent = x.dataset[which]; };
++  set('.stat', 'long');
++  if (!line.getClientRects().length || lines() <= 1) return;
++  set('.stat--median', 'short');
++  if (lines() <= 1) return;
++  set('.stat--share', 'short');
+ }
+ 
+ /** I-2: one line on what the site is ("Pay, and what's left after tax and rent, for 8 tech companies' open roles"). */
+diff --git a/public/viz/chart.js b/public/viz/chart.js
+index 75dd79b..e414adc 100644
+--- a/public/viz/chart.js
++++ b/public/viz/chart.js
+@@ -1138,7 +1138,10 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } =
+     if (labelW > 0) {
+       const cap = el('div', 'ms-hist__cap');
+       cap.style.width = labelW + 'px';
+-      cap.append(el('span', 'ms-hist__title', medianCaption(pay)), el('span', 'ms-hist__sub', capMedian(pay, med)));
++      // BN-4 (fix-app-6): "Median posted pay $28.50/hour" is wider than a narrow label column: then "Median $28.50/hour".
++      const sub = capMedian(pay, med), long = medianCaption(pay);
++      const title = textWidth(`${long}${sub}`, `600 12px ${curFam}`) > labelW - 16 - 4 ? 'Median ' : long;
++      cap.append(el('span', 'ms-hist__title', title), el('span', 'ms-hist__sub', sub));
+       cap.title = medianTitle(pay);
+       hist.append(cap);
+     }
+diff --git a/test/e2e/fix-app-6.e2e.js b/test/e2e/fix-app-6.e2e.js
+index 6ad213c..a0b95ef 100644
+--- a/test/e2e/fix-app-6.e2e.js
++++ b/test/e2e/fix-app-6.e2e.js
+@@ -386,14 +386,17 @@ export function registerFixApp6Tests(suite) {
+     suite.test(`fix-app-6: [BN-8] ${viewport.width}x${viewport.height}: a minimum typed in PLN, € or £ (or bare, in a view paid in złoty) stays in that currency in the chip, the link and the saved search's name; the filter is the dollar one`, async (ctx) => {
+       const { st, page, errors } = await open(ctx, { viewport });
+       const bad = [];
++      // The Min box: the left column on a desktop, the filter sheet on a phone (as fix-app's [P-5] and the phone matrix type it).
+       const typeMin = async (txt) => {
+-        if (viewport.width <= 860) {
+-          await page.evaluate(() => document.querySelector('#quickChips [data-pop=salary]')?.scrollIntoView({ inline: 'center' }));
+-          await page.locator('#quickChips [data-pop=salary]').click(); await sleep(600);
++        const phone = viewport.width <= 860;
++        if (phone) { await page.locator('#filtersToggle').click(); await sleep(800); }
++        const box = page.locator(phone ? '#filters input.range-val' : '#filterBody input.range-val').first();
++        await box.fill(txt); await box.press('Enter'); await sleep(800);
++        if (phone) {
++          const done = page.locator('#filtersDone');
++          if (await done.isVisible().catch(() => false)) await done.click(); else await page.keyboard.press('Escape').catch(() => {});
++          await sleep(600);
+         }
+-        const box = page.locator(viewport.width <= 860 ? '#popover input.range-val' : '#filterBody input.range-val').first();
+-        await box.fill(txt); await box.press('Enter'); await sleep(700);
+-        if (viewport.width <= 860) { await page.keyboard.press('Escape').catch(() => {}); await sleep(400); }
+       };
+       const chip = () => text(page, '#quickChips [data-pop=salary] .chip-label');
+       for (const [hash, typed, label, cur, amount] of [
+-- 
+2.43.0
+

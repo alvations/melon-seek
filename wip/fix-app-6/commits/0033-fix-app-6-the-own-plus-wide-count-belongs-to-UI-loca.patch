@@ -1,0 +1,43 @@
+From a15d86104077e45fc3716d2188f1b8b765daa250 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 24 Oct 2026 01:59:58 +0000
+Subject: [PATCH 33/35] fix-app-6: the own-plus-wide count belongs to UI:
+ location filter, not the department test
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+---
+ test/e2e/ui.e2e.js | 10 +++++-----
+ 1 file changed, 5 insertions(+), 5 deletions(-)
+
+diff --git a/test/e2e/ui.e2e.js b/test/e2e/ui.e2e.js
+index c788bad..583df1c 100644
+--- a/test/e2e/ui.e2e.js
++++ b/test/e2e/ui.e2e.js
+@@ -403,10 +403,7 @@ export function registerUiTests(suite) {
+       const before = await resultCount(page);
+       const row = filterSection(page, 'Department').locator('label.check').nth(1);
+       const dept = (await row.locator('.check-label').innerText()).trim();
+-      // fix-app-6 (BN-1): a place's own count, with the roles listed only for its country or state beside it ("481 +18"); a pick
+-      // finds both (I-6).
+-      const wide = (await row.locator('.check-wide').count()) ? Number((await row.locator('.check-wide').innerText()).replace(/\D/g, '')) : 0;
+-      const expectedCount = Number((await row.locator('.check-count').innerText()).trim()) + wide;
++      const expectedCount = Number((await row.locator('.check-count').innerText()).trim());
+       await row.click();
+       const after = await countChange(page, before);
+       assert(after < before && after > 0, `department "${dept}" should narrow (${before} -> ${after})`);
+@@ -430,7 +427,10 @@ export function registerUiTests(suite) {
+       }
+       assert(row, 'no location options');
+       const loc = (await row.locator('.check-label').innerText()).trim();
+-      const expectedCount = Number((await row.locator('.check-count').innerText()).trim());
++      // fix-app-6 (BN-1): a place's own count, with the roles listed only for its country or state beside it ("481 +18"); a pick
++      // finds both (I-6).
++      const wide = (await row.locator('.check-wide').count()) ? Number((await row.locator('.check-wide').innerText()).replace(/\D/g, '')) : 0;
++      const expectedCount = Number((await row.locator('.check-count').innerText()).trim()) + wide;
+       await row.click();
+       const after = await countChange(page, before);
+       assert(after < before && after > 0, `location "${loc}" should narrow (${before} -> ${after})`);
+-- 
+2.43.0
+

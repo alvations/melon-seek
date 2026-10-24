@@ -1,0 +1,124 @@
+From 8d6dcc33a1ceb5904c6c751617e1c2a0ec9a07ef Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 24 Oct 2026 02:18:12 +0000
+Subject: [PATCH 6/6] qa-ci-6: D-50 and MR-34 name the case they picked in the
+ run's notes; log decisions and steps
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+---
+ docs/process/qa-ci-6.md          | 56 +++++++++++++++++++++++++++++---
+ test/e2e/fix-pay-at-place.e2e.js |  1 +
+ test/e2e/fix-qa4.e2e.js          |  2 ++
+ 3 files changed, 54 insertions(+), 5 deletions(-)
+
+diff --git a/docs/process/qa-ci-6.md b/docs/process/qa-ci-6.md
+index 3ec6643..f0795e2 100644
+--- a/docs/process/qa-ci-6.md
++++ b/docs/process/qa-ci-6.md
+@@ -76,17 +76,17 @@ data, here (runs/ci-repro1.log); "10-16" = the lead's gate (passed).
+ | # | Test | Class | Cause and evidence | What I did |
+ |---|---|---|---|---|
+ | 1 | UI: loads with no console errors | c | CI's server fetched Anthropic's board live (a runner has network; the sandbox does not), so the API said "live" next to a "Cached" badge. Passes here on the newest and the CI data. The suite was crawling real boards in CI | harness.js: startServer sets MELON_OFFLINE=1 unless the environment sets it (WIP, to run) |
+-| 2 | Badge: [static] the swap keeps the user in place | a or c | Fails here on the CI data too (the same 30 s wait for the 3rd card after a click on the 3rd cluster), but at load 20-24, so timing is not ruled out; passes on the newest (load 9) and 10-16. The test clicks cluster 2 and the swap drops the bundle's first 5 roles | open: the cluster's size on the CI Anthropic list (kept: `<scratch>/qci6/data-ci/snapshots`), and a re-run at low load |
++| 2 | Badge: [static] the swap keeps the user in place | a | The test clicks the 3rd Clusters bubble and focuses the 3rd card. On both 10-23 Anthropic lists that bubble holds 1 role ("1 role, midpoint $235K"; probe: 1 card after the click). The original test fails on the CI data at load 3.8 too (runs/ci-badge-orig.log, 32 s), so it is the data, not timing; it passed on the newest list only through what the live swap did to the selection | test: the bubble with the most roles, and its first card from the 3rd on that the simulated live board keeps. 10/10 Badge tests and the UI test pass on the CI data (runs/ci-badge.log) |
+ | 3 | fix-pay-data [static beta] | b | microsoft:1970393557021098 lists HR, RS, SI, AL; "AL" (Albania) is filed as Alabama, US. server/geo.js: a bare code is a country only when the gazetteer has the country; Albania is missing, and the fallback skips codes that are US states | b-1 sent; fix-data-6 G-2. Test left red (lead) |
+ | 4 | fix3-data [static beta] | a | apple:200691069-3956 "Creative Director, Head of Emerging Experiences" ($267,800-$401,700) is Director+ by "Head of" (keywords.js EXEC_WORD_RE), not by the BP-11 phrase; its pay sits at Apple's Director median ($404K), not its IC creative directors' ($222K). The newest data adds amazon:10507605 (CAD pay, "CAD" skill): its description is trimmed to 800 characters by snapshot.js, so the stored text cannot show where the crawl read "CAD"; the current extractor on the stored text gives no "CAD" | test: BP-11 counts only titles with no other executive word; a trimmed description is judged by re-running the extractor on what is stored (WIP) |
+ | 5 | Beta desktop QA 2 [D-32] | b | apple:200678227-2709 "CA-Technical Specialist" at "Bayshore Shopping Centre, Canada" (Apple Bayshore, Ottawa), new since 10-16; not an alias in geo.js, so a place of its own at Canada's centre | b-2 sent; fix-data-6 G-3. Test left red (lead) |
+ | 6 | Fix touch tips: Surface Duo spanned 1114x720 | a | The test taps the 7th strip bar. On Google's 10-23 list it holds 5 postings and is 2 px tall; a CDP touch at its middle lands on `.ms-chart__axis` (probe: pointerdown on the axis; bars of 7 px and 5 px get their tip). Fails on the newest and the CI data | fix-touch-tips: the strip checks tap the tallest bars first (all five uses of the 7th bar) (WIP) |
+-| 7 | Fix touch tips: razr inner landscape 1005x412 | c | Passes here on the newest and the CI data; failed only in CI. Same symptom as 6, so the short-bar choice is the likely trigger with CI's Chromium; fixed by 6's change | covered by 6; re-check in CI |
++| 7 | Fix touch tips: razr inner landscape 1005x412 | c | Passes here on the newest and the CI data; failed only in CI. Same symptom as 6, so the short-bar choice is the likely trigger with CI's Chromium | covered by 6's change and the Playwright pin; re-check in CI |
+ | 8 | fix-data-3 [D-41] | a | The newest Google data has one St. George (SC, "Saint George, SC", 1 posting); D-16 (app.js disambiguateLocations) adds a state only when two places share the name, so "St. George" is right. 10-16 had SC (both spellings) and UT | test: the state check applies when the board names two towns; the SC check takes the one label (WIP) |
+-| 9 | Fix phone text [guard, size] amazon 280x653 | c | Passes here on the newest and the CI data (the same "Non-Technical Project, Program and Product Management" department is in all three crawls): the CI-only difference is the browser (fitCheckLabels measures the text) | open: pin CI's Chromium to the local gate's |
++| 9 | Fix phone text [guard, size] amazon 280x653 | c | Passes here on the newest and the CI data (the same "Non-Technical Project, Program and Product Management" department is in all three crawls): the CI-only difference is the browser (fitCheckLabels measures the text) | e2e.yml: Playwright 1.56.1, the local gate's Chromium 141 |
+ | 10 | fix-pay-at-place [MR-34] | a | Pins microsoft:1970393556619327, gone from the 10-23 crawls (in 10-16: "USD $119,800 - $234,700 per year", 2 zones). Fails on both | test: picks Microsoft postings with zones > 1 whose pay line states one range, opens up to 5 (WIP) |
+ | 11 | fix-viz-5 [UX-59] | a | Google's 10-23 list has five $550K postings (a Distinguished Engineer, a Fellow, three VPs) in three rows, plus a $364K-$505K one; the axis ends at $500K (P99 of range tops $432K, padded and snapped). 4 rows, 2 posted ranges. 10-16: two $550K postings in one row | test: counts posted ranges among the first 10 rows past the axis, not rows (WIP) |
+-| 12 | fix-viz-5 [cuts] map Pay scale at 390 and 540 | c | Passes here on the newest and on the CI data (50 s): the CI-only difference is the browser, as 9 | open: pin CI's Chromium to the local gate's |
++| 12 | fix-viz-5 [cuts] map Pay scale at 390 and 540 | c | Passes here on the newest and on the CI data (50 s): the CI-only difference is the browser, as 9 | e2e.yml: Playwright 1.56.1, as 9 |
+ | S1 | fix-qa4 [D-50] × 21 sizes | a | Pins netflix:790298021069 ($71,040-$464,000, "Pay unclear"), gone; on the 10-23 crawls no beta board has a "Pay unclear" posting with stated pay (Anduril has 4, Anthropic 1, on the main site) | test: picks a "Pay unclear" posting whose estimate is capped at its stated maximum, beta boards first, then the main site; skips with a reason if none (WIP) |
+ | S2 | Fix3 app [BP-10] set aside | a | Microsoft lists 1 Munich posting on 10-23 (0 on 10-16) | test: picks the boards by property (Munich at the first and last, not the middle) (WIP) |
+ | S3-S5 | D-11, Methodology screenshots, P-2 | known | the local gate's 3 skips (qa-suite-beta T-19) | none (P-2 and D-11 are T-19's open items) |
+@@ -100,8 +100,54 @@ data, here (runs/ci-repro1.log); "10-16" = the lead's gate (passed).
+   keeps the shard green; an unexpected one turns that shard red. e2e-summary.mjs now also fails on a log that says
+   "e2e: stopped by <signal>", and on "more than --max-skips"; its error excerpt keeps the first 4 lines.
+ 
++### 3.3 Decisions
++1. **Reproduce on three data sets, not two.** The brief's newest data (`--date 2026-10-23`) is the archive at 22:13,
++   four hours after the CI run's (17:30-17:55). A failure that does not reproduce on the newest data can still be
++   a data case on the CI's. reconstruct.js `--at <the CI build log's observedAt>` rebuilt the CI's exact snapshots,
++   which split the failures cleanly: what passes here on the CI data is CI-only (1, 7, 9, 12); what fails here on
++   it is data (2, and the rest).
++2. **A case by its property, never a weaker check.** Each (a) fix keeps the assertion and changes only how the case
++   is chosen (the largest cluster, the tallest strip bar, a Microsoft posting with several ranges and one stated,
++   a capped "Pay unclear" posting, boards with and without Munich), or counts in the unit the rule is about (posted
++   ranges for UX-59, towns for D-41). Two follow the code's documented rules rather than a pinned shape: D-16
++   (a state only when two places share the name) and BP-11 (the IC director phrase alone; "Head of" is
++   Director+ in keywords.js).
++3. **fix3-data's trimmed-description case** (Amazon's descriptions are cut at 800 characters by snapshot.js): the old
++   check read the cut text and called a "CAD" skill the currency's. Re-running the extractor (server/keywords.js) on
++   the stored title, sections and text keeps the BP-5 question (does the currency text give the skill?) answerable.
++4. **The (b) tests stay red** with no expected-red entry (the lead, 2026-10-24): fix-pay-data [static beta] (G-2) and
++   D-32 (G-3). Their names hold no ID the summary could match (`[static beta]`), so an entry could not cover them anyway.
++5. **CI's browser is pinned to the local gate's** (Playwright 1.56.1, Chromium 141): three layout and touch checks
++   pass on the same code and data with 141 and failed with 153. Moving the browser is its own change, with a run of
++   the phone and layout groups on it. The alternative (loosen the checks for 153) would test a browser no reviewer
++   has looked at.
++6. **The e2e server is offline by default** (MELON_OFFLINE=1 in harness.js, overridable): the suite must not crawl
++   real boards from CI, and the sandbox never could, so offline is what the local gate always tested.
++7. **Shard verdicts** rather than the summary alone: a red shard names where to look, and the same script with the
++   same rules keeps the two in step. The summary job stays: it is the one place with all four shards, and it is still
++   red when a shard job dies before its verdict.
++
+ ## 4. Replayable steps
+-(to come)
++```sh
++S=/tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92f3-f582ebca24d9/scratchpad; Q=$S/qci6; W=<this worktree>
++cd $W && ln -s /home/user/melon-seek/node_modules node_modules
++node scripts/cycle/local-data.js --date 2026-10-23                 # 1 min; the dates in section 2
++bash $S/heavy.sh node scripts/build-static.js                       # 3 min at load 7-13
++# the 2026-10-16 crawl in a second worktree, linked read-only:
++git worktree add --detach $Q/wt16 HEAD && cd $Q/wt16 && ln -s /home/user/melon-seek/node_modules node_modules
++ln -s $S/wt-data2/data/snapshots data/snapshots && mkdir -p data/beta && ln -s $S/wt-data2/data/beta/snapshots data/beta/snapshots
++bash $S/heavy.sh node scripts/build-static.js --out dist-16 && ln -s dist-16 dist
++# the CI run's exact data: the archive in a worktree, reconstruct.js --at, then remove the archive
++git worktree add --detach $Q/archive refs/remotes/origin/data-archive
++bash $Q/tools/rebuild-ci.sh $W $Q/archive $Q/data-ci && git worktree remove --force $Q/archive
++bash $Q/tools/build-ci-stable.sh                                    # main site only, 36 s (for the Badge check)
++# a group: e2e-run.sh <checkout> <log> <timeout s> <e2e.js args>; e2e-run-ci.sh <log> <s> <args> for the CI data
++bash $S/heavy.sh bash $Q/tools/e2e-run.sh $W $Q/runs/<name>.log 5400 '--grep=^(fix3-data|...):'
++# the CI logs: GitHub job logs of run 40024210372 (mcp get_job_logs), converted by tools/joblogs.py
++bash $Q/tools/test-summary.sh $W --expected $W/docs/process/e2e-expected-red.txt $Q/ci/shard*.job.log
++# npm test, CI-like
++cd $Q/clean && bash $S/heavy.sh env MELON_BETA_SNAPSHOT_DIR= timeout 1500 npm test
++```
+ 
+ ## 5. Verification
+ (to come)
+diff --git a/test/e2e/fix-pay-at-place.e2e.js b/test/e2e/fix-pay-at-place.e2e.js
+index be2ae1b..7a14851 100644
+--- a/test/e2e/fix-pay-at-place.e2e.js
++++ b/test/e2e/fix-pay-at-place.e2e.js
+@@ -376,6 +376,7 @@ export function registerFixPayAtPlaceTests(suite) {
+       if (chip) { seen = id; break; }
+     }
+     assert(chip, `none of ${Math.min(5, ids.length)} Microsoft postings with several stated ranges and one stated on its pay line (${ids.slice(0, 5).join(', ')}) shows the "Several pay ranges" chip`);
++    ctx.notes.push(`fix-pay-at-place MR-34: checked on ${seen}, one of ${ids.length} such Microsoft postings`);
+     assert(!/span of all of them|lowest to the highest/.test(chip.title), `${seen}: chip: "${chip.title}"`);
+     assert(/one of them/.test(chip.title), `${seen}: chip: "${chip.title}"`);
+   });
+diff --git a/test/e2e/fix-qa4.e2e.js b/test/e2e/fix-qa4.e2e.js
+index 808f4b4..ab3a8c5 100644
+--- a/test/e2e/fix-qa4.e2e.js
++++ b/test/e2e/fix-qa4.e2e.js
+@@ -151,6 +151,8 @@ async function cappedCase(ctx) {
+     }
+   }
+   ctx.data.fixQa4D50 = found;
++  ctx.notes.push(found ? `fix-qa4 D-50: the phone sizes check ${found.id} (${found.site} site; it states up to $${found.max.toLocaleString('en-US')}), of ${cands.length} "Pay unclear" candidates`
++    : `fix-qa4 D-50: none of ${cands.length} "Pay unclear" candidates has its estimate capped at its maximum`);
+   return found;
+ }
+ 
+-- 
+2.43.0
+

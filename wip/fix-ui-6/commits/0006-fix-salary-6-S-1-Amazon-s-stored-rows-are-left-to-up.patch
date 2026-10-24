@@ -1,7 +1,7 @@
 From e4de986aecc68ba3d5a959a2ac510fac4cf4420c Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 24 Oct 2026 01:03:26 +0000
-Subject: [PATCH 06/14] fix-salary-6 S-1: Amazon's stored rows are left to
+Subject: [PATCH 06/23] fix-salary-6 S-1: Amazon's stored rows are left to
  upgradeAmazonJobs (no label tie); a guard test
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

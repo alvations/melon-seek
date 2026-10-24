@@ -1,7 +1,7 @@
 From 70d9214e55d34edd8cc436c50047b32afd351604 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 24 Oct 2026 01:23:28 +0000
-Subject: [PATCH 09/14] fix-salary-6: e2e Spain case reads the card's rounding
+Subject: [PATCH 09/23] fix-salary-6: e2e Spain case reads the card's rounding
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
