@@ -137,6 +137,7 @@ persona-beta-2-18-24, -25-34, -35-44, -45-54, -55-plus (logs on the branch, 5502
 - 10:3x fix-ui-6 UX-17 d2c0fc6 (test only, on 5de0efc): the '‹1' chip is clipped by the rows' scroll box (elementFromPoint returns the notes line), the test ignored clipping; now intersects with clipping boxes. Clip-aware sweep: 0 on-screen overlaps at every size. UX-17 + fix-ui-6 group 129/130 (1 skip as before). Accepted; pick after gate 2. Gate 2 so far: T21 failed at load 6-9 (load-sensitive; re-run alone after).
 - 10:4x gate 2 at 534: fails so far T21 (load), UX-17 (fixed by d2c0fc6, to pick), M-42 (Beta mobile QA 3) and Beta desktop QA 4 'one span on card and drawer headline': both compare drawer text to card text; P-2 makes the drawer exact ($60,200–128,800) vs card $60K–129K = the same range -> update both tests to compare the drawer's figures rounded to the card's precision. After the gate: pick d2c0fc6, fix the two tests, re-run T21 alone + these groups, npm test, push.
 - 11:0x fix-ui-6 D-1..D-15 on d2c0fc6: eb16ee0 (D-1..D-14 + phone-sizes patch), e8bf2a3 (screenshots), 4a4428f (D-15 pill: 10.5em -> 15.5em -> short forms; whole sentence fits 2 lines at all VISIBLE sizes; V-46 split phones/tablets). fix-ui-6 group 468/0 fail; npm test 1,381/0 fail. Related groups still running; not final.
+- 11:2x prepared 36d8d81 in $S/wt-fix (on 5de0efc): sameRange helper in M-42, D-45, UX-37 (beta-ux-review-2), Beta desktop QA 4 (card rounded vs job page exact after P-2); helper unit-checked incl. the one-place-range negative case. After gate 2: pick d2c0fc6 (UX-17) + 36d8d81, re-run T21 alone and the 5 groups, npm test, push.
 
-### Agents at 2026-10-24T11:13:43Z
-agent fix-ui-6 add67b9453342f4ba transcript-age=7min head=5e2c252
+### Agents at 2026-10-24T11:28:43Z
+agent fix-ui-6 add67b9453342f4ba transcript-age=22min head=5e2c252 STALE
