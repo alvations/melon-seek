@@ -249,14 +249,21 @@ async function openFilters(page) {
 /* ------------------------------------------------------------------------------------------------------------- B-4 */
 
 /**
- * In the page: from the tap on Filters to the start of the sheet's slide (its transform transition's transitionrun), as
- * event times; the tap is the touchstart's (or pointerdown's) time.
+ * In the page: from the tap on Filters to the start of the sheet's slide: the start time of its transform transition
+ * (the frame it began in, on the document timeline, the clock of event times), read when its transitionrun arrives (the
+ * event itself can wait behind later work). The tap is the touchstart's (or pointerdown's) time.
  */
 const SLIDE_CLOCK = () => {
   window.__fui6 = { tap: null, run: null };
   addEventListener('touchstart', (e) => { if (e.target.closest?.('#filtersToggle') && window.__fui6.tap == null) window.__fui6.tap = e.timeStamp; }, { capture: true, passive: true });
   addEventListener('pointerdown', (e) => { if (e.target.closest?.('#filtersToggle') && window.__fui6.tap == null) window.__fui6.tap = e.timeStamp; }, { capture: true, passive: true });
-  addEventListener('transitionrun', (e) => { if (e.target.id === 'filters' && e.propertyName === 'transform' && window.__fui6.run == null) window.__fui6.run = e.timeStamp; }, true);
+  addEventListener('transitionrun', (e) => {
+    if (e.target.id !== 'filters' || e.propertyName !== 'transform' || window.__fui6.run != null) return;
+    const a = e.target.getAnimations().find((x) => x.transitionProperty === 'transform');
+    if (!a) { window.__fui6.run = e.timeStamp; return; }
+    if (a.startTime != null) window.__fui6.run = a.startTime;
+    else a.ready.then(() => { window.__fui6.run = a.startTime ?? e.timeStamp; });
+  }, true);
 };
 /** One tap on Filters on a fresh page of `size`: ms from the tap to the slide's start. */
 async function slideStart(ctx, size, board) {

@@ -2853,6 +2853,18 @@ function syncPopover() {
   if (done) done.textContent = `See ${plural(visible.length, 'role')}`;
 }
 
+/**
+ * B-8 (fix-ui-6): the screens side by side, [{ x, width }], or null for one screen: the browser's viewport segments, or
+ * the Surface Duo's own two 540 px screens around its 34 px hinge when its browser reports none (styles.css: the same
+ * media query, DUO_SPANNED).
+ */
+const DUO_SPANNED = '(pointer: coarse) and (min-width: 1104px) and (max-width: 1124px) and (orientation: landscape)';
+function screenSegments() {
+  const segs = window.viewport?.segments;
+  if (segs?.length > 1) return segs;
+  return matchMedia(DUO_SPANNED).matches ? [{ x: 0, width: 540 }, { x: 574, width: innerWidth - 574 }] : null;
+}
+
 function positionPopover() {
   const el = $('#popover');
   if (!popover.anchor || el.hidden) return;
@@ -2861,8 +2873,8 @@ function positionPopover() {
   const w = el.offsetWidth;
   el.style.top = `${r.bottom + 8}px`;
   // fix-phone-sizes: on a dual screen (the Surface Duo spanned) the popover stays on its control's screen, off the hinge.
-  const segs = window.viewport?.segments;
-  const seg = segs?.length > 1 ? segs.find((s) => r.left < s.x + s.width) || segs[segs.length - 1] : { x: 0, width: innerWidth };
+  const segs = screenSegments();
+  const seg = segs ? segs.find((s) => r.left < s.x + s.width) || segs[segs.length - 1] : { x: 0, width: innerWidth };
   el.style.left = `${Math.max(seg.x + 12, Math.min(r.left, seg.x + seg.width - w - 12))}px`;
 }
 
@@ -5547,7 +5559,11 @@ function revealField(el) {
 
 let filtersOpener = null; // the chip or Filters button that opened the overlay sheet (M-4, M-15)
 function setFiltersOpen(open, { opener = null, focus = null } = {}) {
-  if (open && filtersDirty) { filtersDirty = false; renderFilterPanel(); } // PERF-2: catch up the skipped sync
+  // PERF-2: a panel hidden while the list changed catches up the skipped sync when it opens. B-4 (fix-ui-6): a sheet
+  // (below 1200 px) catches up just after the slide's first frame, so the tap's task is short and the slide starts at
+  // the next frame; the compositor runs the slide while the panel renders (60–110 ms for Apple and Amazon at load 3).
+  const catchUp = open && filtersDirty;
+  if (catchUp && !isOverlayFilters()) { filtersDirty = false; renderFilterPanel(); }
   if (isOverlayFilters()) {
     const was = document.body.classList.contains('filters-open');
     document.body.classList.toggle('filters-open', open);
@@ -5558,8 +5574,16 @@ function setFiltersOpen(open, { opener = null, focus = null } = {}) {
       if (!was || opener) filtersOpener = opener || filtersOpener;
       // M-26: the Filters button opens the sheet at its top, where focus goes (Salary); a chip passes its own section.
       if (!focus) $('#filterBody').scrollTop = 0;
-      const target = focus || $('#filters summary');
-      setTimeout(() => target?.focus({ preventScroll: true }), 50);
+      const giveFocus = () => {
+        if (!document.body.classList.contains('filters-open')) return; // closed again meanwhile
+        (focus?.isConnected ? focus : $('#filters summary'))?.focus({ preventScroll: true });
+      };
+      if (catchUp) {
+        requestAnimationFrame(() => setTimeout(() => {
+          if (filtersDirty && document.body.classList.contains('filters-open')) { filtersDirty = false; renderFilterPanel(); }
+          giveFocus();
+        }, 0));
+      } else setTimeout(giveFocus, 50);
       if (!was) overlayHistPush('filters');
     } else if (was) {
       overlayHistRelease();

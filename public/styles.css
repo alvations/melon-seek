@@ -1592,6 +1592,26 @@ html[data-mode="map"] .tagline, html[data-mode="insights"] .tagline { display: n
    nothing lies on the hinge: the top bar and the quick bar put their right-hand controls on the right screen, the
    toast shows on the right screen, and popovers open on their control's screen (app.js positionPopover). Two screens
    narrower than 861 px in all keep the phone layout. */
+/* B-8 (fix-ui-6): the Surface Duo spanned when its browser reports one screen (no viewport segments: the persona runs of
+   2026-10-23, and any browser without the Viewport Segments API): 1114 px wide on a touch screen in landscape is the Duo's
+   two 540 px screens and its 34 px hinge at 540–574, so the same layout as the block below, from those sizes. The search
+   box, the stats line and the chart crossed the hinge. A browser that reports the screens also gets the block below,
+   with the same numbers from env(). app.js screenSegments() gives positionPopover the same two screens. */
+@media (pointer: coarse) and (min-width: 1104px) and (max-width: 1124px) and (orientation: landscape) {
+  .layout, body.filters-collapsed .layout {
+    display: grid;
+    grid-template-columns: 540px 34px minmax(0, 1fr);
+    grid-template-areas: "main . results";
+  }
+  .filters, body.filters-collapsed .filters { width: 540px; }
+  .drawer { width: calc(100vw - 574px); }
+  .topbar-right { flex: none; width: calc(100vw - 574px - 24px); margin-left: 34px; }
+  .topbar-right .seg { margin-right: auto; }
+  .quickbar-end { flex: none; width: calc(100vw - 574px - 24px); justify-content: flex-start; margin-left: 42px; }
+  .quick-chips { -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 18px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 18px), transparent); padding-right: 18px; }
+  .toast { left: calc(574px + (100vw - 574px) / 2); }
+  .tagline { flex: 1 1 100%; margin: 0; text-align: left; }
+}
 @media (horizontal-viewport-segments: 2) and (min-width: 861px) {
   .layout, body.filters-collapsed .layout {
     display: grid;
