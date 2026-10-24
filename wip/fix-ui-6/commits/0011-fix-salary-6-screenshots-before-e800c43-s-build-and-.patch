@@ -1,7 +1,7 @@
 From 987b528dd8476c1802903d25a1e82bc4d06a4b2f Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 24 Oct 2026 02:08:11 +0000
-Subject: [PATCH 11/39] fix-salary-6: screenshots before (e800c43's build) and
+Subject: [PATCH 11/40] fix-salary-6: screenshots before (e800c43's build) and
  after, card and drawer, Milan, Paris and Dublin at 375x812, 352x355 and
  1280x800 (shrunk)
 

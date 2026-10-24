@@ -1,7 +1,7 @@
 From 94b1bf2e0d0b6d19505ad350d95ddaf8a1152a9a Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 24 Oct 2026 05:06:52 +0000
-Subject: [PATCH 38/39] WIP fix-ui-6: phase 2 (ux-density-6 D-1 to D-14): size
+Subject: [PATCH 38/40] WIP fix-ui-6: phase 2 (ux-density-6 D-1 to D-14): size
  classes, the folded chart (band, median, posted range; one Details), the
  median once, the tagline on a first visit, the measured peek, the one-row top
  bar from 640 px; phone-sizes VISIBLE and TABLETS; the D tests

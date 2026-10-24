@@ -1,7 +1,7 @@
 From 5fa1956f9598a962c30ea5e1f5b5bd4f383905eb Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 24 Oct 2026 04:49:59 +0000
-Subject: [PATCH 26/39] fix-ui-6: CONTRACT: the measured peek, the saved search
+Subject: [PATCH 26/40] fix-ui-6: CONTRACT: the measured peek, the saved search
  with new roles, the 12-word arrival line
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
