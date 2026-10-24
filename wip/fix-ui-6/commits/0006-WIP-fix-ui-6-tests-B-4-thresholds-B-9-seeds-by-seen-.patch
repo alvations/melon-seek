@@ -1,7 +1,7 @@
 From 9d188a1af84de466e98a6872c92ea4eae3afad34 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 24 Oct 2026 01:06:09 +0000
-Subject: [PATCH 6/8] WIP fix-ui-6: tests: B-4 thresholds, B-9 seeds by seen
+Subject: [PATCH 6/9] WIP fix-ui-6: tests: B-4 thresholds, B-9 seeds by seen
  ids, the iPhone mini as Safari leaves it (375x625)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

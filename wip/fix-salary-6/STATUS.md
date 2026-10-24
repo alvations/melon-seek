@@ -2,11 +2,12 @@
 
 - Worktree: `/home/user/melon-seek/.claude/worktrees/agent-a29d354058b1f01b7`
 - Base (on claude/stoic-ride-54ddxp): `37f54e49e888793a2d0e44ea9836aa043ced79aa`
-- Head: `e23dddff9d0204ecd258a19ee59365171ed56c88`
+- Head: `8a8fee61c1a97280e4bd27cb71e51fb4c0ec78aa`
 - Restore: `bash scripts/cycle/restore-wip.sh fix-salary-6 <new worktree dir>`
 
 ## Commits since the base
 ```
+8a8fee6 fix-salary-6 S-1: the drawer's rank and strip rank a place's own line among its country's roles; e2e collects every problem and checks the rank line
 e23dddf fix-salary-6: e2e Spain case reads the card's rounding
 3931eb4 fix-salary-6: log (decisions, census, nothing-dropped proof, backtest)
 da401d7 fix-salary-6: DATA_SOURCES §7a and CONTRACT for S-1; the CSV README names place levels and unlisted lines
@@ -20,25 +21,39 @@ da401d7 fix-salary-6: DATA_SOURCES §7a and CONTRACT for S-1; the CSV README nam
 
 ## Uncommitted and new files
 ```
- M docs/screenshots/fix-pay-at-place/e2e-card-1114x720.png
  M docs/screenshots/fix-pay-at-place/e2e-card-280x653.png
- M docs/screenshots/fix-pay-at-place/e2e-card-352x355.png
- M docs/screenshots/fix-pay-at-place/e2e-card-375x812.png
- M test/e2e/fix-salary-6.e2e.js
 ?? docs/screenshots/fix-salary-6/
 ```
 
 ## Left out (not in untracked.tgz)
+- docs/screenshots/fix-salary-6/dublin-card-1280x800.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-salary-6/dublin-card-352x355.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-salary-6/dublin-card-375x812.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-salary-6/dublin-drawer-1280x800.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-salary-6/dublin-drawer-352x355.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-salary-6/dublin-drawer-375x812.png (screenshot; the lane's tests regenerate it)
 - docs/screenshots/fix-salary-6/milan-card-1280x800-before.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-salary-6/milan-card-1280x800.png (screenshot; the lane's tests regenerate it)
 - docs/screenshots/fix-salary-6/milan-card-352x355-before.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-salary-6/milan-card-352x355.png (screenshot; the lane's tests regenerate it)
 - docs/screenshots/fix-salary-6/milan-card-375x812-before.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-salary-6/milan-card-375x812.png (screenshot; the lane's tests regenerate it)
 - docs/screenshots/fix-salary-6/milan-drawer-1280x800-before.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-salary-6/milan-drawer-1280x800.png (screenshot; the lane's tests regenerate it)
 - docs/screenshots/fix-salary-6/milan-drawer-352x355-before.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-salary-6/milan-drawer-352x355.png (screenshot; the lane's tests regenerate it)
 - docs/screenshots/fix-salary-6/milan-drawer-375x812-before.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-salary-6/milan-drawer-375x812.png (screenshot; the lane's tests regenerate it)
 - docs/screenshots/fix-salary-6/paris-card-1280x800-before.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-salary-6/paris-card-1280x800.png (screenshot; the lane's tests regenerate it)
 - docs/screenshots/fix-salary-6/paris-card-352x355-before.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-salary-6/paris-card-352x355.png (screenshot; the lane's tests regenerate it)
 - docs/screenshots/fix-salary-6/paris-card-375x812-before.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-salary-6/paris-card-375x812.png (screenshot; the lane's tests regenerate it)
 - docs/screenshots/fix-salary-6/paris-drawer-1280x800-before.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-salary-6/paris-drawer-1280x800.png (screenshot; the lane's tests regenerate it)
 - docs/screenshots/fix-salary-6/paris-drawer-352x355-before.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-salary-6/paris-drawer-352x355.png (screenshot; the lane's tests regenerate it)
 - docs/screenshots/fix-salary-6/paris-drawer-375x812-before.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-salary-6/paris-drawer-375x812.png (screenshot; the lane's tests regenerate it)
 - node_modules (symlink)

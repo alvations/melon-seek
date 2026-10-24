@@ -24,12 +24,9 @@ cb71da7 fix-data-6: G-1 359 towns near the big-tech hubs at their own place (Bay
 
 ## Uncommitted and new files
 ```
- M docs/screenshots/fix-pay-at-place/e2e-card-1114x720.png
- M docs/screenshots/fix-pay-at-place/e2e-card-280x653.png
- M docs/screenshots/fix-pay-at-place/e2e-card-352x355.png
- M docs/screenshots/fix-pay-at-place/e2e-card-375x812.png
  M public/app.js
  M test/e2e/fix-app.e2e.js
+ M test/e2e/fix-data-6.e2e.js
  M test/e2e/fix-pay-at-place.e2e.js
 ```
 

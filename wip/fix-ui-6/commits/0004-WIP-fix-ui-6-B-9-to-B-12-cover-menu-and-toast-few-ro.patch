@@ -1,7 +1,7 @@
 From 4d3fe31480bced9c9de08ce02289128325fcd454 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 24 Oct 2026 00:39:42 +0000
-Subject: [PATCH 4/8] WIP fix-ui-6: B-9 to B-12 (cover menu and toast, few
+Subject: [PATCH 4/9] WIP fix-ui-6: B-9 to B-12 (cover menu and toast, few
  roles, arrival line, a card on the first screen) and their tests
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

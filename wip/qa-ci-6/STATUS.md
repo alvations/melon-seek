@@ -16,6 +16,7 @@ d04035a qa-ci-6: log skeleton with State
 
 ## Uncommitted and new files
 ```
+ M docs/process/qa-ci-6.md
 ```
 
 ## Left out (not in untracked.tgz)
