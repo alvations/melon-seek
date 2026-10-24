@@ -1,0 +1,57 @@
+From f753bb7903fff2883172468a17bbd9472b71f105 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 24 Oct 2026 06:22:49 +0000
+Subject: [PATCH 65/99] fix-app-6: V-44 on a short map: the short line hangs
+ under the Pay | Juice switch, off the pins (the Razr cover's Menlo Park pin)
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+(cherry picked from commit 3ce7bb0245f3c4b77f7131b302bf161a8b22ed06)
+---
+ public/viz/map.js  | 10 +++++++---
+ public/viz/viz.css |  2 ++
+ 2 files changed, 9 insertions(+), 3 deletions(-)
+
+diff --git a/public/viz/map.js b/public/viz/map.js
+index 3e0823e..7b50a34 100644
+--- a/public/viz/map.js
++++ b/public/viz/map.js
+@@ -546,15 +546,19 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
+     onAdd() { const d = L.DomUtil.create('div', 'ms-map__unplaced'); d.hidden = true; return d; },
+   });
+   const unplacedEl = new UnplacedControl().addTo(map).getContainer();
++  const unplacedCorner = unplacedEl.parentElement;
+   let unplaced = 0;
+   function drawUnplaced() {
+     unplacedEl.hidden = !unplaced;
+     const long = unplaced ? `${plural(unplaced, 'posting')} ${unplaced === 1 ? 'lists' : 'list'} no place, so not on the map` : '';
+-    // fix-app-6 (fix-ui-6's Razr cover screen, 352x355: the map is about 123 px tall): the long line covered the pins, so a
+-    // short map gets the short one; the whole sentence stays in its title.
+-    const short = unplaced && container.getBoundingClientRect().height < 220;
++    // fix-app-6 (fix-ui-6's Razr cover screen, 352x355: the map is about 123 px tall): the line over the map covered a pin, so
++    // a short map says it in short under the Pay | Juice switch, which is on the map already; the sentence stays in its title.
++    const short = !!unplaced && container.getBoundingClientRect().height < 220;
+     unplacedEl.textContent = short ? `${shortCount(unplaced)} with no place` : long;
+     unplacedEl.title = long;
++    unplacedEl.classList.toggle('ms-map__unplaced--in-modes', short);
++    const home = short ? modeBox : unplacedCorner;
++    if (home && unplacedEl.parentElement !== home) home.append(unplacedEl);
+   }
+   map.on('resize', () => { if (unplaced) drawUnplaced(); });
+ 
+diff --git a/public/viz/viz.css b/public/viz/viz.css
+index 218c6f7..8da896f 100644
+--- a/public/viz/viz.css
++++ b/public/viz/viz.css
+@@ -668,6 +668,8 @@
+   pointer-events: none;
+ }
+ .ms-map .ms-map__unplaced[hidden] { display: none; }
++/* fix-app-6: a short map (the Razr cover screen) hangs it under the Pay | Juice switch, off the pins at the bottom left. */
++.ms-map .ms-map__unplaced.ms-map__unplaced--in-modes { position: absolute; top: 100%; right: 0; margin-top: 4px; }
+ 
+ .ms-map .ms-pin-icon { outline: none; }
+ .ms-map .ms-pin-icon:focus-visible .ms-pin { box-shadow: 0 0 0 2px var(--_surface), 0 0 0 4px var(--_accent), 0 2px 6px rgba(0, 0, 0, .22); }
+-- 
+2.43.0
+

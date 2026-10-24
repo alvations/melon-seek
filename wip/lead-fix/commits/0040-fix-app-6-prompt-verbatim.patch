@@ -1,0 +1,82 @@
+From 93cd8eadf6f0e4588e348664027d5997616b008e Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 23 Oct 2026 21:28:19 +0000
+Subject: [PATCH 40/99] fix-app-6: prompt verbatim
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+(cherry picked from commit e9042a1d00f5ebc2bce6f4e89bb7b3d066029131)
+---
+ docs/process/prompts/fix-app-6.md | 60 +++++++++++++++++++++++++++++++
+ 1 file changed, 60 insertions(+)
+ create mode 100644 docs/process/prompts/fix-app-6.md
+
+diff --git a/docs/process/prompts/fix-app-6.md b/docs/process/prompts/fix-app-6.md
+new file mode 100644
+index 0000000..3dad109
+--- /dev/null
++++ b/docs/process/prompts/fix-app-6.md
+@@ -0,0 +1,60 @@
++You are the front-end engineer `fix-app-6` for melon-seek (repo /home/user/melon-seek, branch claude/stoic-ride-54ddxp), a zero-build vanilla ES-module app, "the Zillow of job postings". You are in your own git worktree. First run `git fetch origin claude/stoic-ride-54ddxp && git checkout --detach origin/claude/stoic-ride-54ddxp` (e800c43, the deployed batch 3, or later). Read:
++- docs/CONTRACT.md and docs/DATA_SOURCES.md;
++- docs/process/PLAYBOOK.md ("Checkpoints", step 6 included, and "Known traps") and docs/process/TEMPLATE.md;
++- docs/process/fix-mr-3.md (MR-39, the headline median's basis) and docs/process/fix-pay-at-place.md (`payAt`, pay at a place);
++- docs/process/lead.md from "Fix wave 5" on.
++
++**Standing rules from the user** (never break them):
++- "we must present them as they are and not cut anything". Never drop or hide a posting or a posted pay row.
++- Present pay as posted, so we don't misrepresent the companies and roles. Big-tech figures are base pay only, and say so.
++- "Make sure we check for all phone sizes from iPhone mini to razr to duo or something": any line you add or change must fit test/e2e/phone-sizes.mjs's 21 sizes, one line each (fix-phone-text's density guard, fitOneLine and its short form).
++
++**Your findings** come from the persona reviews (wave 2) running now on e800c43's build (/tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92f3-f582ebca24d9/scratchpad/cycle-beta7-dist). The lead will send more as reviewers confirm them; add them to your list.
++1. **BN-1 (High), false Location counts with a pay minimum and one place picked** (persona-beta-2-18-24).
++   - Google + Warsaw + "PLN 150,000" (about $40K+): the Location popover lists only Warsaw 60, Krakow 7, Wrocław 4, Dublin 2, London 1, and its search box disappears. Ticking Dublin then gives Dublin 139; Dublin alone with the same minimum is 137 roles.
++   - The same on other boards: Amazon + Toronto + $50K shows Vancouver 22 (really 178) and no Seattle at all (really 3,668); Apple + Cupertino + $100K shows Sunnyvale 32 (really 421).
++   - Cause (the reviewer's reading; confirm it): public/app.js derive() skips a posting that fails two filters. With a place picked, 'sal' is judged at that place (payHere), so a posting in any other place fails both 'l' and 'sal' and is never counted. That breaks the rule that a facet's counts ignore its own selection.
++   - Fix: for the 'l' counts, judge 'sal' at the counted place (or without the location selection), so each place's count is what ticking it alone would give. Check every facet's counts the same way (department, level, workplace, company where present) with every other filter, and say which you checked. The search box must not disappear.
++   - A unit test over derive() if it can be reached, and e2e: the count shown for a place equals the roles shown after picking it alone, on three boards.
++2. **BN-2 (Medium), a bare "$" median over a view in one foreign currency** (persona-beta-2-18-24).
++   - Amazon interns in Vancouver: the stats line says "$72K base pay median" above cards for CA$161K, CA$101K and CA$92K. Microsoft interns in Canada read "$34K", Google Canada "$86K", Google Warsaw "$75K" over PLN cards, and Google Dublin "$88K" over € cards. The map pin in Toronto reads "$72K · 5".
++   - MR-39 adds "(US)" or "(euro area)" only when two or more currencies are in view (basisShort needs st.basis), so a view in one foreign currency gets no label. Only the tooltip, which a phone never shows, says "in US dollars". A Canadian reads "$72K" as CA$72K.
++   - Fix: when every posting in view is in one currency, give the median in that currency (CA$101K), as the cards show it; when the view mixes currencies, keep MR-39's rule and say the basis. Never a bare "$" for a converted figure. The stats line, Insights' tiles, the map's pin labels and the chart caption must agree.
++   - Owners for this item: public/app.js (the stats line and stats()' basis), public/features/insights.js (the tiles), and the label text only in the map and chart files. fix-ui-6, running beside you, owns the map's fit; don't change it.
++
++**Your job:**
++1. A red test per ID first: unit tests in test/fix-app-6.test.js where the logic is pure, and e2e in test/e2e/fix-app-6.e2e.js, registered in scripts/e2e.js, where it is visible, including the phone sizes for any line you touch.
++2. Fix, keeping every posting and pay row.
++3. Run the related e2e groups: fix-mr-3, fix-pay-at-place, fix3-app (BP-2), the Location filter's tests, fix-viz-5, Beta mobile QA 4 and Beta desktop QA 4.
++4. Update docs/CONTRACT.md and the methodology guide where a rule changes.
++
++**Data and build:**
++- The 2026-10-16 crawl is at /tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92f3-f582ebca24d9/scratchpad/wt-data2/data/snapshots and .../wt-data2/data/beta/snapshots. Symlink them as data/snapshots and data/beta/snapshots in your worktree. Never commit them, and **never move them**: a session hung twice on moving a data link.
++- For the CI-like `npm test`, use a clean checkout with no links:
++  - `git worktree add --detach /tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92f3-f582ebca24d9/scratchpad/fa6/clean HEAD`;
++  - `ln -s /home/user/melon-seek/node_modules <clean>/node_modules`;
++  - `cd <clean> && MELON_BETA_SNAPSHOT_DIR= timeout 1500 npm test > /tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92f3-f582ebca24d9/scratchpad/fa6/npm.log 2>&1`, with run_in_background;
++  - for later SHAs, `git -C <clean> checkout --detach <sha>`.
++- Symlink node_modules from /home/user/melon-seek. Build with `node scripts/build-static.js` (about 7 minutes; run it in the background); your worktree's dist/ is yours. Serve with `node scripts/cycle/serve.mjs --dist dist --pid <scratch pidfile>`.
++- e2e: `NODE_PATH=/tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92f3-f582ebca24d9/scratchpad/pw/node_modules node scripts/e2e.js --grep=<group>`; `--list` lists the groups. Chromium is at /opt/pw-browsers/chromium-1194/chrome-linux/chrome. Never `playwright install`; no `pkill -f` / `pgrep -f`.
++- Give every command a timeout. Run anything longer than a few minutes in the background (run_in_background) and poll its log; never sit in a foreground wait. Run one e2e suite at a time: five persona reviewers and two other fix lanes share this 4-CPU machine, so note `uptime` with any timing. No crawling: work from the stored snapshots and fixtures.
++
++**Ownership:**
++- Yours: public/app.js derive() and the facet counts; the stats line's median and its basis; public/features/insights.js' tiles' basis; the label text of the map pins and the chart caption.
++- Not yours: the map's fit and the layout over 860 px (fix-ui-6); server/geo.js, keywords.js, Compstimate's comparables and payPlaceText (fix-data-6).
++- Also yours:
++  - test/fix-app-6.test.js and test/e2e/fix-app-6.e2e.js;
++  - docs/process/fix-app-6.md, your log in TEMPLATE.md structure with a `## State` section at the top;
++  - docs/process/prompts/fix-app-6.md, this prompt verbatim.
++
++**Rules:**
++- Keep the UI simple: no new visible control. Use plain words.
++- Commit small and often with explicit paths; never `git add -A data`. Shrink screenshots with `bash scripts/cycle/shrink-screenshots.sh docs/screenshots/fix-app-6` before committing them.
++- Send the lead each finished, tested piece by SendMessage to "main": the SHA, what it fixes, and its tests. The lead checkpoints your worktree every 15 minutes and integrates. Never push.
++- The lead may send you more findings (from the persona reviews running now); add them to your list.
++- Before you send any SHA:
++  - npm test in the clean checkout, 0 fail;
++  - your e2e plus the related groups with data linked. S-3, S-6, PERF-1, V15 and T21 are load-sensitive; re-run them alone.
++- Skip the full e2e: the lead's batch gate runs it.
++
++Report: per ID, before → after with counts, the tests that fail before and pass after, and SHAs.
+-- 
+2.43.0
+

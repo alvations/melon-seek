@@ -1,0 +1,64 @@
+From e0d5ba3d8d699ee37240acdfb800df84d7c38055 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 24 Oct 2026 01:42:12 +0000
+Subject: [PATCH 72/99] WIP qa-ci-6: Badge swap picks its cluster and card by
+ property; CI pins Playwright 1.56.1 (Chromium 141, the local gate's)
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+(cherry picked from commit 2c3621d34b4cafaad2750c937ee72334332da5a6)
+---
+ .github/workflows/e2e.yml |  6 +++++-
+ test/e2e/badge.e2e.js     | 14 ++++++++++++--
+ 2 files changed, 17 insertions(+), 3 deletions(-)
+
+diff --git a/.github/workflows/e2e.yml b/.github/workflows/e2e.yml
+index 0e2a730..a15234a 100644
+--- a/.github/workflows/e2e.yml
++++ b/.github/workflows/e2e.yml
+@@ -72,9 +72,13 @@ jobs:
+         with:
+           name: e2e-input
+       - run: tar -xzf e2e-input.tgz
++      # The local gate's browser: Playwright 1.56.1 and its Chromium 141 (chromium-1194, /opt/pw-browsers in the sandbox).
++      # qa-ci-6: with playwright@1.63.0 the shards ran Chromium 153, and three layout checks that pass on the same build
++      # and data with Chromium 141 failed ([cuts] at 390 and 540, the 280 px phone-text guard, a strip tap at 1005x412).
++      # Move both together, after a run of the phone and layout groups on the new browser.
+       - name: Playwright (not a repo dependency) and Chromium
+         run: |
+-          npm i --no-save playwright@1.63.0
++          npm i --no-save playwright@1.56.1
+           npx playwright install --with-deps chromium
+       # --timings: a test's duration in test/e2e/timings.log (a past run's log, refreshed by hand) balances the shards
+       # by time; without it they split by test count. --max-skips: a build without a board turns its tests into skips.
+diff --git a/test/e2e/badge.e2e.js b/test/e2e/badge.e2e.js
+index 187b948..f747ac3 100644
+--- a/test/e2e/badge.e2e.js
++++ b/test/e2e/badge.e2e.js
+@@ -261,11 +261,21 @@ export function registerBadgeTests(suite) {
+       const { page, errors } = await openStatic(ctx, st, { live: { delay: 4500 } });
+       await page.locator('#dataBadge.is-pending').waitFor({ timeout: 15000 });
+       await page.evaluate(() => { window.__ready = true; });
++      // qa-ci-6: the cluster and the card by their property, from the list in front of the test. The 3rd cluster held
++      // one role on the 2026-10-23 Anthropic lists (it took the 3rd card of a one-card list and waited 30 s). Now: the
++      // cluster with the most roles, and its first card from the 3rd on that the simulated live board keeps (it drops
++      // the bundle's first DROP roles), so the swap can keep that card in place.
+       const bins = page.locator('#chartHost .ms-bin:not(.ms-bin--overflow)');
+-      if (await bins.count() > 2) { await bins.nth(2).click(); await sleep(400); }
++      const sizes = await bins.evaluateAll((bs) => bs.map((b) => Number(/^(\d+) roles?\b/.exec(b.getAttribute('aria-label') || '')?.[1] || 0)));
++      const big = sizes.indexOf(Math.max(0, ...sizes));
++      if (big >= 0 && sizes[big] >= 3) { await bins.nth(big).click(); await sleep(400); }
+       const selected = await page.locator('#chartHost .is-selected').count();
+       await page.locator('#resultsList').evaluate((el) => { el.scrollTop = 240; });
+-      const card = page.locator('#resultsList .card[data-id]').nth(2);
++      const dropped = new Set(bundle('anthropic').jobs.slice(0, DROP).map((j) => j.id));
++      const ids = await page.locator('#resultsList .card[data-id]').evaluateAll((cs) => cs.map((c) => c.dataset.id));
++      const k = ids.findIndex((x, i) => i >= 2 && !dropped.has(x));
++      assert(k >= 0, `no third card the live board keeps (cluster sizes ${sizes.join(', ')}; ${ids.length} cards)`);
++      const card = page.locator('#resultsList .card[data-id]').nth(k);
+       const id = await card.getAttribute('data-id');
+       await card.focus();
+       const before = { hash: await page.evaluate(() => location.hash), top: await page.locator('#resultsList').evaluate((el) => el.scrollTop) };
+-- 
+2.43.0
+

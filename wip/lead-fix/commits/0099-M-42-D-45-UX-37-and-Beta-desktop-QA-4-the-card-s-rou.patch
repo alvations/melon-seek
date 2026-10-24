@@ -1,0 +1,197 @@
+From 36d8d81faa5852ea7691308ef50de6691c6540f5 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 24 Oct 2026 11:14:47 +0000
+Subject: [PATCH 99/99] M-42, D-45, UX-37 and Beta desktop QA 4: the card's
+ rounded range and the job page's exact one are the same range (P-2)
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Since fix-data-6's P-2 the job page states the posted figures exactly ("$60,200–128,800") where the card rounds them
+("$60K–129K"). The four tests compared the two as strings. They now compare the currency and each figure rounded to the
+card's precision, so a job page that shows one place's range under a card's span (the bug they guard) still fails.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+---
+ test/e2e/beta-desktop-qa-3.e2e.js | 25 ++++++++++++++++++++++++-
+ test/e2e/beta-desktop-qa-4.e2e.js | 25 ++++++++++++++++++++++++-
+ test/e2e/beta-mobile-qa-3.e2e.js  | 25 ++++++++++++++++++++++++-
+ test/e2e/beta-ux-review-2.e2e.js  | 25 ++++++++++++++++++++++++-
+ 4 files changed, 96 insertions(+), 4 deletions(-)
+
+diff --git a/test/e2e/beta-desktop-qa-3.e2e.js b/test/e2e/beta-desktop-qa-3.e2e.js
+index 0631013..c1e39ae 100644
+--- a/test/e2e/beta-desktop-qa-3.e2e.js
++++ b/test/e2e/beta-desktop-qa-3.e2e.js
+@@ -12,6 +12,29 @@ import fs from 'node:fs';
+ import path from 'node:path';
+ import { ROOT, assert, assertEq, skip } from './harness.js';
+ 
++// P-2 (fix-data-6): the job page states the posted figures exactly ("$60,200–128,800") where the card rounds them
++// ("$60K–129K"). The two are the same range when the currency matches and each exact figure rounds to the card's.
++function sameRange(card, exact) {
++  const parse = (s) => {
++    s = String(s || '').replace(/\s+/g, ' ').trim();
++    const i = s.search(/\d/);
++    const toks = (s.match(/\d[\d,]*(?:\.\d+)?[KM]?/g) || []).map((t) => {
++      const [, n, u] = t.match(/^([\d,]*(?:\.\d+)?)([KM]?)$/);
++      const v = +n.replace(/,/g, '');
++      return { v: u === 'K' ? v * 1e3 : u === 'M' ? v * 1e6 : v, u };
++    });
++    return { cur: i < 0 ? '' : s.slice(0, i).trim(), toks };
++  };
++  const a = parse(card), b = parse(exact);
++  if (a.cur !== b.cur || !a.toks.length || a.toks.length !== b.toks.length) return false;
++  return a.toks.every((t, k) => {
++    const x = b.toks[k].v;
++    if (t.u === 'K') return Math.round(x / 1e3) * 1e3 === Math.round(t.v);
++    if (t.u === 'M') return (x / 1e6).toFixed(2) === (t.v / 1e6).toFixed(2);
++    return Math.abs(x - t.v) < 0.005;
++  });
++}
++
+ const DESKTOP = { width: 1440, height: 900 };
+ const BIG_TECH = ['amazon', 'apple', 'google', 'meta', 'microsoft', 'nvidia', 'netflix'];
+ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+@@ -277,7 +300,7 @@ export function registerBetaDesktopQa3Tests(suite) {
+     const top = (await page.locator('#drawer .d-sal-top').innerText()).split('Pay by place')[0];
+     const named = j.salary.ranges.some((r) => r.label && top.includes(r.label));
+     const range = pill.replace(/ · \d+ places$/, '');
+-    assert(amt === range || named, `"${j.title}" (${j.id}): the card reads "${pill}", the drawer's headline "${amt}" names no place (${cands.length} Amazon postings with pay per place have a headline that is one place's range)`);
++    assert(sameRange(range, amt) || named, `"${j.title}" (${j.id}): the card reads "${pill}", the drawer's headline "${amt}" names no place (${cands.length} Amazon postings with pay per place have a headline that is one place's range)`);
+   });
+ 
+   suite.test('Beta desktop QA 3: [D-43] the chart names a range end in the millions as the card does ("$1.07M", not "$1.1M")', async (ctx) => {
+diff --git a/test/e2e/beta-desktop-qa-4.e2e.js b/test/e2e/beta-desktop-qa-4.e2e.js
+index b7a91e3..960e2a8 100644
+--- a/test/e2e/beta-desktop-qa-4.e2e.js
++++ b/test/e2e/beta-desktop-qa-4.e2e.js
+@@ -12,6 +12,29 @@ import fs from 'node:fs';
+ import path from 'node:path';
+ import { ROOT, assert, assertEq, skip } from './harness.js';
+ 
++// P-2 (fix-data-6): the job page states the posted figures exactly ("$60,200–128,800") where the card rounds them
++// ("$60K–129K"). The two are the same range when the currency matches and each exact figure rounds to the card's.
++function sameRange(card, exact) {
++  const parse = (s) => {
++    s = String(s || '').replace(/\s+/g, ' ').trim();
++    const i = s.search(/\d/);
++    const toks = (s.match(/\d[\d,]*(?:\.\d+)?[KM]?/g) || []).map((t) => {
++      const [, n, u] = t.match(/^([\d,]*(?:\.\d+)?)([KM]?)$/);
++      const v = +n.replace(/,/g, '');
++      return { v: u === 'K' ? v * 1e3 : u === 'M' ? v * 1e6 : v, u };
++    });
++    return { cur: i < 0 ? '' : s.slice(0, i).trim(), toks };
++  };
++  const a = parse(card), b = parse(exact);
++  if (a.cur !== b.cur || !a.toks.length || a.toks.length !== b.toks.length) return false;
++  return a.toks.every((t, k) => {
++    const x = b.toks[k].v;
++    if (t.u === 'K') return Math.round(x / 1e3) * 1e3 === Math.round(t.v);
++    if (t.u === 'M') return (x / 1e6).toFixed(2) === (t.v / 1e6).toFixed(2);
++    return Math.abs(x - t.v) < 0.005;
++  });
++}
++
+ const DESKTOP = { width: 1440, height: 900 };
+ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+ const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.csv': 'text/csv', '.txt': 'text/plain', '.woff2': 'font/woff2' };
+@@ -118,7 +141,7 @@ export function registerBetaDesktopQa4Tests(suite) {
+     await card.click();
+     await page.waitForSelector('#drawer.is-open', { timeout: 20000 }); await sleep(800);
+     const amt = (await page.locator('#drawer .d-sal-amt').innerText()).trim();
+-    assertEq(amt, pill.split('\n')[0].trim(), `"${j.title}" (${j.id}): the drawer headline vs the card`);
++    assert(sameRange(pill.split('\n')[0].trim(), amt), `"${j.title}" (${j.id}): the drawer headline "${amt}" is not the card's "${pill.split('\n')[0].trim()}"`);
+     const top = await page.locator('#drawer .d-salary').innerText();
+     assert(/\d+ (places|ranges)/.test(top) && /Pay by place/.test(top), `the pay block names the count and lists Pay by place: "${top.slice(0, 160)}"`);
+   });
+diff --git a/test/e2e/beta-mobile-qa-3.e2e.js b/test/e2e/beta-mobile-qa-3.e2e.js
+index 4e085d0..59bda3d 100644
+--- a/test/e2e/beta-mobile-qa-3.e2e.js
++++ b/test/e2e/beta-mobile-qa-3.e2e.js
+@@ -18,6 +18,29 @@ import zlib from 'node:zlib';
+ import { ROOT, assert, skip } from './harness.js';
+ import { unpackJobs } from '../../public/api.js';
+ 
++// P-2 (fix-data-6): the job page states the posted figures exactly ("$60,200–128,800") where the card rounds them
++// ("$60K–129K"). The two are the same range when the currency matches and each exact figure rounds to the card's.
++function sameRange(card, exact) {
++  const parse = (s) => {
++    s = String(s || '').replace(/\s+/g, ' ').trim();
++    const i = s.search(/\d/);
++    const toks = (s.match(/\d[\d,]*(?:\.\d+)?[KM]?/g) || []).map((t) => {
++      const [, n, u] = t.match(/^([\d,]*(?:\.\d+)?)([KM]?)$/);
++      const v = +n.replace(/,/g, '');
++      return { v: u === 'K' ? v * 1e3 : u === 'M' ? v * 1e6 : v, u };
++    });
++    return { cur: i < 0 ? '' : s.slice(0, i).trim(), toks };
++  };
++  const a = parse(card), b = parse(exact);
++  if (a.cur !== b.cur || !a.toks.length || a.toks.length !== b.toks.length) return false;
++  return a.toks.every((t, k) => {
++    const x = b.toks[k].v;
++    if (t.u === 'K') return Math.round(x / 1e3) * 1e3 === Math.round(t.v);
++    if (t.u === 'M') return (x / 1e6).toFixed(2) === (t.v / 1e6).toFixed(2);
++    return Math.abs(x - t.v) < 0.005;
++  });
++}
++
+ const SHOTS = path.join(ROOT, 'docs', 'screenshots', 'qa-mobile-beta-3');
+ const IOS = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1';
+ const ANDROID = 'Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Mobile Safari/537.36';
+@@ -480,7 +503,7 @@ export function registerBetaMobileQa3Tests(suite) {
+       await openJob(go, page, j.id);
+       const amt = await page.evaluate(() => document.querySelector('#drawer .d-sal-amt')?.innerText.replace(/\s+/g, ' ').trim());
+       const cardRange = (pill || '').split(' · ')[0];
+-      if (!pill || cardRange !== amt) { bad.push(`${slug} ${j.id} "${j.title}": card "${pill}", job page "${amt}"`); await shot(page, `e2e-M-42-places-${slug}`); }
++      if (!pill || !sameRange(cardRange, amt)) { bad.push(`${slug} ${j.id} "${j.title}": card "${pill}", job page "${amt}"`); await shot(page, `e2e-M-42-places-${slug}`); }
+     }
+     assert(!bad.length, bad.join('\n  '));
+   });
+diff --git a/test/e2e/beta-ux-review-2.e2e.js b/test/e2e/beta-ux-review-2.e2e.js
+index 33c96cc..a49efc9 100644
+--- a/test/e2e/beta-ux-review-2.e2e.js
++++ b/test/e2e/beta-ux-review-2.e2e.js
+@@ -11,6 +11,29 @@ import fs from 'node:fs';
+ import path from 'node:path';
+ import { ROOT, assert, skip } from './harness.js';
+ 
++// P-2 (fix-data-6): the job page states the posted figures exactly ("$60,200–128,800") where the card rounds them
++// ("$60K–129K"). The two are the same range when the currency matches and each exact figure rounds to the card's.
++function sameRange(card, exact) {
++  const parse = (s) => {
++    s = String(s || '').replace(/\s+/g, ' ').trim();
++    const i = s.search(/\d/);
++    const toks = (s.match(/\d[\d,]*(?:\.\d+)?[KM]?/g) || []).map((t) => {
++      const [, n, u] = t.match(/^([\d,]*(?:\.\d+)?)([KM]?)$/);
++      const v = +n.replace(/,/g, '');
++      return { v: u === 'K' ? v * 1e3 : u === 'M' ? v * 1e6 : v, u };
++    });
++    return { cur: i < 0 ? '' : s.slice(0, i).trim(), toks };
++  };
++  const a = parse(card), b = parse(exact);
++  if (a.cur !== b.cur || !a.toks.length || a.toks.length !== b.toks.length) return false;
++  return a.toks.every((t, k) => {
++    const x = b.toks[k].v;
++    if (t.u === 'K') return Math.round(x / 1e3) * 1e3 === Math.round(t.v);
++    if (t.u === 'M') return (x / 1e6).toFixed(2) === (t.v / 1e6).toFixed(2);
++    return Math.abs(x - t.v) < 0.005;
++  });
++}
++
+ const VIEWPORTS = {
+   d1440: { viewport: { width: 1440, height: 900 } },
+   p390: { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 },
+@@ -169,7 +192,7 @@ export function registerBetaUxReview2Tests(suite) {
+         const cardRange = pill.split(' · ')[0];
+         // Either the same span as the card, or a headline that names the place its range is for.
+         const names = (j.salary.ranges || []).map((r) => r.label).filter(Boolean);
+-        if (head !== cardRange && !names.some((n) => head.includes(n))) bad.push(`${slug} "${j.title}": card "${pill}", drawer headline "${head}" (one place's range, no place named)`);
++        if (!sameRange(cardRange, head) && !names.some((n) => head.includes(n))) bad.push(`${slug} "${j.title}": card "${pill}", drawer headline "${head}" (one place's range, no place named)`);
+         await s.page.keyboard.press('Escape');
+       }
+     }
+-- 
+2.43.0
+

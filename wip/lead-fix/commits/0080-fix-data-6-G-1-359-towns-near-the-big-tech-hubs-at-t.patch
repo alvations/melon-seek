@@ -1,0 +1,786 @@
+From f27e17efd57704ebec6334100f052c67a88e0094 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 23 Oct 2026 21:38:35 +0000
+Subject: [PATCH 80/99] fix-data-6: G-1 359 towns near the big-tech hubs at
+ their own place (Bay Area first), K-1 '+ 0% bonus target' is no bonus;
+ norm-14
+
+G-1: every place of the 2026-10-16 crawl that geo.js put at its state's or
+country's centre, within about 80 km (85 at most) of a city with 200+ big-tech
+postings or of Washington, DC, is a '?' gazetteer entry (GeoNames coordinates,
+or the town's usual ones). A '?' entry with no region is read with its own
+country named, as its own place's name only; a '?' entry never decides what a
+two-letter code means. geodiff over all 67,372 location strings: 359 results in
+2,206 postings change, latitude and longitude only; 18 move into the SF Bay Area.
+
+K-1: compExtrasEvidence removes a stated 0% bonus target before matching;
+relabelJobs clears a stored extras.bonus whose only wording it was (zeroBonusOnly).
+Google 2,512 -> 2,462 postings with a bonus mention; every other board unchanged.
+
+norm-14 once for both; golden re-baselined with UPDATE_GOLDEN=1 (2 of 300
+hashes, both G-1 towns); refresh fixtures regenerated; version-pinning tests
+moved to norm-14; fix-pay-data's 'Dublin, CA' is now a city.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+(cherry picked from commit 7a71dd0690cab6c61c0d85d044501da574869c0e)
+---
+ data/freshness.json                 |   4 +-
+ server/geo.js                       | 380 +++++++++++++++++++++++++++-
+ server/keywords.js                  |  18 +-
+ server/normalize.js                 |   9 +-
+ test/fix-beta-pay.test.js           |   2 +-
+ test/fix-data-6.test.js             | 142 +++++++++++
+ test/fix-pay-data.test.js           |   4 +-
+ test/fixtures/golden-normalize.json |   9 +-
+ test/salary-pipeline.test.js        |   2 +-
+ 9 files changed, 556 insertions(+), 14 deletions(-)
+ create mode 100644 test/fix-data-6.test.js
+
+diff --git a/data/freshness.json b/data/freshness.json
+index ae83508..a3ef986 100644
+--- a/data/freshness.json
++++ b/data/freshness.json
+@@ -15608,7 +15608,7 @@
+         "server/geo.js:595 ISO3_TO_ISO2",
+         "server/geo.js:605 ISO3_US_TERRITORY (PRI is Puerto Rico)"
+       ],
+-      "values": "GAZETTEER_SIZE 384 cities, 52 states, 73 countries (2026-10-23; fix-mr-3 added 43 New York, New Jersey and Connecticut towns within about 80 km of Manhattan (MR-40); fix-data-3 added Cajamar, Osasco, Barueri, Embu das Artes, Jundiai, Paulinia, Sao Joao de Meriti and Belford Roxo in Brazil, Luxembourg City and Town and Country, MO; fix6-fresh-data added Jordan, Bahrain and Puerto Rico and ISO-3 codes)",
++      "values": "GAZETTEER_SIZE 743 cities, 52 states, 73 countries (2026-10-23; fix-data-6 added 359 towns within about 80 km of a big-tech hub that geocoded to their state's or country's centre (G-1); fix-mr-3 added 43 New York, New Jersey and Connecticut towns within about 80 km of Manhattan (MR-40); fix-mr-3 added 43 New York, New Jersey and Connecticut towns within about 80 km of Manhattan (MR-40); fix-data-3 added Cajamar, Osasco, Barueri, Embu das Artes, Jundiai, Paulinia, Sao Joao de Meriti and Belford Roxo in Brazil, Luxembourg City and Town and Country, MO; fix6-fresh-data added Jordan, Bahrain and Puerto Rico and ISO-3 codes)",
+       "consumers": [
+         {
+           "at": "server/normalize.js:53",
+@@ -15660,7 +15660,7 @@
+       "validator": "test/geo.test.js",
+       "before": "none",
+       "lastChecked": null,
+-      "notes": "NO SOURCE recorded for any coordinate. Coordinates do not age, but the alias coverage does (new office cities). Changes re-geocode every job (relocateJobs). Coverage is watched monthly through jobs.js job-juice (the top unmatched location strings per company) as the big-tech boards with worldwide offices arrive; a missing city drops its pins from the map and the Juice from the drawer. Methodology review beta round 3 (2026-10-16, docs/process/methodology-review-beta-2.md, MR-40): towns outside CITIES_RAW geocode to their state's centre (Garden City NY 42.17,-74.95; Fort Lee and Paramus NJ 40.3,-74.52), so distance rules such as Microsoft's PAY_AREAS cannot place them. fix-mr-3 (2026-10-23, docs/process/fix-mr-3.md, MR-40): the 43 NY, NJ and CT towns of the 2026-10-16 crawl within about 80 km of Manhattan that geocoded to their state's centre are in CITIES_RAW, so Microsoft's NYC-metro range (PAY_AREAS, 60 km) reaches Garden City, Fort Lee, Paramus and Bridgewater; NORMALIZER_VERSION norm-13 re-geocodes stored snapshots once. Other towns outside CITIES_RAW still geocode to their state's centre.",
++      "notes": "NO SOURCE recorded for any coordinate. Coordinates do not age, but the alias coverage does (new office cities). Changes re-geocode every job (relocateJobs). Coverage is watched monthly through jobs.js job-juice (the top unmatched location strings per company) as the big-tech boards with worldwide offices arrive; a missing city drops its pins from the map and the Juice from the drawer. Methodology review beta round 3 (2026-10-16, docs/process/methodology-review-beta-2.md, MR-40): towns outside CITIES_RAW geocode to their state's centre (Garden City NY 42.17,-74.95; Fort Lee and Paramus NJ 40.3,-74.52), so distance rules such as Microsoft's PAY_AREAS cannot place them. fix-mr-3 (2026-10-23, docs/process/fix-mr-3.md, MR-40): the 43 NY, NJ and CT towns of the 2026-10-16 crawl within about 80 km of Manhattan that geocoded to their state's centre are in CITIES_RAW, so Microsoft's NYC-metro range (PAY_AREAS, 60 km) reaches Garden City, Fort Lee, Paramus and Bridgewater; NORMALIZER_VERSION norm-13 re-geocodes stored snapshots once. Other towns outside CITIES_RAW still geocode to their state's centre. fix-data-6 (2026-10-23, docs/process/fix-data-6.md, G-1): the 359 other places of the 2026-10-16 crawl within about 80 km (85 at most) of a city with 200+ big-tech postings or of Washington, DC that geocoded to their state's or country's centre are \"?\" entries in CITIES_RAW (GeoNames coordinates, CC BY 4.0, or the town's usual ones), so Bay Area towns such as East Palo Alto and Burlingame are in the SF Bay Area (PAY_AREAS, 75 km); NORMALIZER_VERSION norm-14 re-geocodes stored snapshots once.",
+       "extract": [
+         {
+           "file": "server/geo.js",
+diff --git a/server/geo.js b/server/geo.js
+index 9e1541b..dfc8085 100644
+--- a/server/geo.js
++++ b/server/geo.js
+@@ -225,6 +225,20 @@ NZ|New Zealand|-40.90|174.89|NZ
+ // own state named ("Garden City, NY", "Woodside, New York, USA"): never alone, never by its country alone, never to
+ // split a comma list into two places and never in the last-resort scan, so "Greenwich, London", a bare "Oceanside" and
+ // "Edison, United States" read as they did before it was added (fix-mr-3, MR-40).
++// fix-data-6 (G-1, 2026-10-16 crawl) adds, at the end of the list, the other 359 places the boards list that the gazetteer
++// put at their state's or country's centre, within about 80 km (85 km at most) of a city with 200 or more big-tech
++// postings or of Washington, DC: the Bay Area (East Palo Alto 80 Amazon postings, Burlingame 71 Meta, Tracy, Brisbane,
++// Hayward, Newark, San Leandro, Richmond, Dublin, Milpitas, ...; California's centre is 36.12,-119.68, 200 km from San
++// Francisco), Los Angeles, San Diego, Seattle, Austin, Dallas, Houston, Boston, the DC area, Chicago, Atlanta, Denver,
++// Nashville, the last New Jersey and Hudson Valley towns, Toronto, Vancouver, London, Dublin, Munich, Tel Aviv, the north
++// of Israel, Mumbai, Delhi, Tokyo, Beijing, Taipei, Mexico City, Sydney and Melbourne. Coordinates are GeoNames' (cities
++// over 1,000 people, CC BY 4.0) or, for a place it lacks, the town's usual coordinates; a county is at its seat
++// (docs/process/fix-data-6.md lists each). Every one is a "?" entry. One with no region ("Thane, Maharashtra, IND",
++// "Sagamihara-shi, Kanagawa, JPN": the gazetteer knows neither state) is read with its own country named, as its own
++// place's name only (never a later part of another place), so "Hsinchu, Hsinchu City, TW" stays one place. A "?" entry
++// never decides what a two-letter code means ("Ontario, CA" stays Ontario, Canada, not Ontario, California). On the crawl
++// 359 results change, in 2,206 postings, latitude and longitude only. Left out: "Bogota, D.C." (Bogotá, Colombia: another
++// country, not a town at its centre), and "Monroe Twp" and "Hamilton Twp", NJ (two townships of each name).
+ // ---------------------------------------------------------------------------
+ 
+ const CITIES_RAW = `
+@@ -612,6 +626,365 @@ Nairobi||KE|-1.2921|36.8219|
+ Lagos||NG|6.5244|3.3792|
+ Accra||GH|5.6037|-0.1870|
+ Cairo||EG|30.0444|31.2357|
++?Arleta|CA|US|34.2414|-118.4325|
++?Beverly Hills|CA|US|34.0736|-118.4004|
++?Camarillo|CA|US|34.2164|-119.0376|
++?Canoga Park|CA|US|34.2011|-118.5981|
++?Encino|CA|US|34.1592|-118.5012|
++?Malibu|CA|US|34.0258|-118.7804|
++?Manhattan Beach|CA|US|33.8847|-118.4109|
++?Northridge|CA|US|34.2283|-118.5367|
++?Oxnard|CA|US|34.1975|-119.177|
++?Playa Vista|CA|US|33.974|-118.422|
++?Porter Ranch|CA|US|34.279|-118.5555|
++?Redondo Beach|CA|US|33.8492|-118.3884|
++?Santa Clarita|CA|US|34.3917|-118.5426|
++?Sherman Oaks|CA|US|34.1511|-118.4492|
++?Simi Valley|CA|US|34.2695|-118.7815|
++?Valencia|CA|US|34.4436|-118.6095|
++?Monterey|CA|US|36.6002|-121.8947|
++?Santa Clara Valley|CA|US|37.323|-122.0322|
++?Aliso Viejo|CA|US|33.565|-117.7271|
++?Bloomington|CA|US|34.0703|-117.3959|
++?Buena Park|CA|US|33.8675|-117.9981|
++?Burbank|CA|US|34.1808|-118.309|
++?Chino|CA|US|34.0122|-117.6889|
++?City of Industry|CA|US|34.0197|-117.9587|
++?Corona|CA|US|33.8753|-117.5664|
++?Eastvale|CA|US|33.9636|-117.5642|
++?Fontana|CA|US|34.0922|-117.435|
++?Fullerton|CA|US|33.8703|-117.9253|
++?Glendale|CA|US|34.1425|-118.2551|
++?Huntington Beach|CA|US|33.6603|-117.9992|
++?Jurupa Valley|CA|US|33.9925|-117.5164|
++?Ontario|CA|US|34.0633|-117.6509|
++?Pasadena|CA|US|34.1478|-118.1445|
++?Rancho Cucamonga|CA|US|34.1064|-117.5931|
++?Rialto|CA|US|34.1064|-117.3703|
++?Riverside|CA|US|33.9534|-117.3962|
++?Santa Fe Springs|CA|US|33.9472|-118.0853|
++?Tustin|CA|US|33.7459|-117.8262|
++?Vernon|CA|US|34.0039|-118.2301|
++?Dublin|CA|US|37.7022|-121.9358|
++?East Palo Alto|CA|US|37.4688|-122.1411|
++?Foster City|CA|US|37.5585|-122.2711|
++?Hayward|CA|US|37.6688|-122.0808|
++?Newark|CA|US|37.5297|-122.0402|
++?Chula Vista|CA|US|32.6401|-117.0842|
++?Escondido|CA|US|33.1192|-117.0864|
++?La Jolla|CA|US|32.8473|-117.2742|
++?Poway|CA|US|32.9628|-117.0359|
++?Vista|CA|US|33.2|-117.2425|
++?Alameda|CA|US|37.771|-122.2609|
++?American Canyon|CA|US|38.1749|-122.2608|
++?Antioch|CA|US|38.0049|-121.8058|
++?Brisbane|CA|US|37.6808|-122.4|
++?Burlingame|CA|US|37.5841|-122.3661|
++?Oakley|CA|US|37.9974|-121.7124|
++?Pleasant Hill|CA|US|37.948|-122.0608|
++?Richmond|CA|US|37.9358|-122.3477|
++?San Leandro|CA|US|37.7249|-122.1561|
++?Santa Rosa|CA|US|38.4405|-122.7144|
++?Vacaville|CA|US|38.3566|-121.9877|
++?Walnut Creek|CA|US|37.9063|-122.065|
++?Gilroy|CA|US|37.0058|-121.5683|
++?Hollister|CA|US|36.8525|-121.4016|
++?Patterson|CA|US|37.4716|-121.1297|
++?Salinas|CA|US|36.6777|-121.6555|
++?Tracy|CA|US|37.7399|-121.4262|
++?Milpitas|CA|US|37.4283|-121.9066|
++?Commerce City|CO|US|39.8083|-104.9339|
++?Englewood|CO|US|39.6478|-104.9878|
++?Glendale|CO|US|39.705|-104.9336|
++?Lakewood|CO|US|39.7047|-105.0814|
++?Loveland|CO|US|40.3978|-105.075|
++?Westminster|CO|US|39.8367|-105.0372|
++?Acworth|GA|US|34.0664|-84.6784|
++?Alpharetta|GA|US|34.0754|-84.2941|
++?Austell|GA|US|33.8126|-84.6344|
++?Braselton|GA|US|34.1093|-83.7627|
++?Cartersville|GA|US|34.1653|-84.8023|
++?Covington|GA|US|33.5968|-83.8602|
++?Doraville|GA|US|33.8982|-84.2833|
++?Douglasville|GA|US|33.7515|-84.7477|
++?Duluth|GA|US|34.0029|-84.1446|
++?East Point|GA|US|33.6796|-84.4394|
++?Fairburn|GA|US|33.5671|-84.581|
++?Fayetteville|GA|US|33.4487|-84.4549|
++?Griffin|GA|US|33.2468|-84.2641|
++?Hampton|GA|US|33.3871|-84.283|
++?Jackson|GA|US|33.2946|-83.966|
++?Lithia Springs|GA|US|33.794|-84.6605|
++?Moreland|GA|US|33.2862|-84.7677|
++?Newton County|GA|US|33.5968|-83.8602|
++?Palmetto|GA|US|33.5179|-84.6696|
++?Pendergrass|GA|US|34.1628|-83.6781|
++?Scottdale|GA|US|33.7898|-84.2641|
++?Stanton Springs|GA|US|33.6562|-83.7182|
++?Stone Mountain|GA|US|33.8082|-84.1702|
++?Union City|GA|US|33.5871|-84.5424|
++?White|GA|US|34.2831|-84.7472|
++?Arlington Heights|IL|US|42.0884|-87.9806|
++?Aurora|IL|US|41.7606|-88.3201|
++?Bloomingdale|IL|US|41.9575|-88.0809|
++?Bolingbrook|IL|US|41.6986|-88.0684|
++?Channahon|IL|US|41.4295|-88.2287|
++?Cicero|IL|US|41.8456|-87.7539|
++?Crest Hill|IL|US|41.5548|-88.0987|
++?Deerfield|IL|US|42.1711|-87.8445|
++?Downers Grove|IL|US|41.8089|-88.0112|
++?Harvey|IL|US|41.61|-87.6467|
++?Huntley|IL|US|42.1681|-88.4281|
++?Joliet|IL|US|41.5252|-88.0834|
++?Markham|IL|US|41.5936|-87.6948|
++?Matteson|IL|US|41.5039|-87.7131|
++?Melrose Park|IL|US|41.9006|-87.8567|
++?Monee|IL|US|41.42|-87.7417|
++?Naperville|IL|US|41.7859|-88.1473|
++?Northlake|IL|US|41.9173|-87.8956|
++?Oak Lawn|IL|US|41.7109|-87.7581|
++?Palatine|IL|US|42.1103|-88.0342|
++?River Grove|IL|US|41.9259|-87.8359|
++?Romeoville|IL|US|41.6475|-88.0895|
++?Schaumburg|IL|US|42.0334|-88.0834|
++?Skokie|IL|US|42.0334|-87.7334|
++?University Park|IL|US|41.443|-87.6836|
++?Waukegan|IL|US|42.3636|-87.8448|
++?West Chicago|IL|US|41.8847|-88.204|
++?Wilmington|IL|US|41.3078|-88.1467|
++?Wood Dale|IL|US|41.9634|-87.979|
++?Crown Point|IN|US|41.417|-87.3653|
++?Hobart|IN|US|41.5323|-87.255|
++?La Porte|IN|US|41.6077|-86.7139|
++?Merrillville|IN|US|41.4828|-87.3328|
++?Michigan City|IN|US|41.7075|-86.895|
++?Schererville|IN|US|41.4789|-87.4548|
++?Bellingham|MA|US|42.0868|-71.4745|
++?Beverly|MA|US|42.5584|-70.88|
++?Bridgewater|MA|US|41.9904|-70.975|
++?Brighton|MA|US|42.3501|-71.1564|
++?Canton|MA|US|42.1584|-71.1448|
++?Charlton|MA|US|42.1357|-71.9701|
++?Everett|MA|US|42.4084|-71.0537|
++?Fall River|MA|US|41.7015|-71.155|
++?Haverhill|MA|US|42.7762|-71.0773|
++?Hudson|MA|US|42.3918|-71.5662|
++?Littleton|MA|US|42.5375|-71.5111|
++?Melrose|MA|US|42.4584|-71.0662|
++?Middleborough|MA|US|41.8932|-70.9112|
++?Millbury|MA|US|42.194|-71.7601|
++?Natick|MA|US|42.2834|-71.3495|
++?Newtonville|MA|US|42.3501|-71.2037|
++?North Andover|MA|US|42.6987|-71.1351|
++?North Reading|MA|US|42.5751|-71.0787|
++?Northborough|MA|US|42.3195|-71.6412|
++?Norwood|MA|US|42.1945|-71.1995|
++?Plymouth|MA|US|41.9584|-70.6673|
++?Revere|MA|US|42.4084|-71.012|
++?Salem|MA|US|42.5198|-70.8955|
++?Stoughton|MA|US|42.1251|-71.1023|
++?Taunton|MA|US|41.9001|-71.0898|
++?Uxbridge|MA|US|42.0773|-71.6295|
++?Westborough|MA|US|42.2695|-71.6162|
++?Wilmington|MA|US|42.5465|-71.1737|
++?Woburn|MA|US|42.4793|-71.1523|
++?Worcester|MA|US|42.2626|-71.8023|
++?Waldorf|MD|US|38.6246|-76.9391|
++?Frederick|MD|US|39.4143|-77.4105|
++?Hagerstown|MD|US|39.6418|-77.72|
++?Beltsville|MD|US|39.0348|-76.9075|
++?Elkridge|MD|US|39.2126|-76.7136|
++?Glen Burnie|MD|US|39.1626|-76.6247|
++?Hyattsville|MD|US|38.9559|-76.9455|
++?Jessup|MD|US|39.1493|-76.7752|
++?Lanham|MD|US|38.9688|-76.8634|
++?Laurel|MD|US|39.0993|-76.8483|
++?Nottingham|MD|US|39.398|-76.486|
++?Sparrows Point|MD|US|39.219|-76.472|
++?Upper Marlboro|MD|US|38.816|-76.7497|
++?Hudson|NH|US|42.7648|-71.4398|
++?Manchester|NH|US|42.9956|-71.4548|
++?Milford|NH|US|42.8354|-71.649|
++?Newington|NH|US|43.1|-70.8334|
++?Lawrence Township|NJ|US|40.2968|-74.7296|
++?Robbinsville|NJ|US|40.2146|-74.6193|
++?New Windsor|NY|US|41.4768|-74.0238|
++?Rock Tavern|NY|US|41.459|-74.168|
++?Niagara Falls|NY|US|43.0945|-79.0567|
++?Tonawanda|NY|US|43.0203|-78.8803|
++?Johnston|RI|US|41.8219|-71.5067|
++?Antioch|TN|US|36.06|-86.6719|
++?Franklin|TN|US|35.9251|-86.8689|
++?Gallatin|TN|US|36.3884|-86.4467|
++?Lebanon|TN|US|36.2081|-86.2911|
++?McEwen|TN|US|36.1078|-87.6331|
++?Mt Juliet|TN|US|36.2001|-86.5186|
++?Murfreesboro|TN|US|35.8456|-86.3903|
++?Bastrop|TX|US|30.1105|-97.3153|
++?Bee Cave|TX|US|30.3085|-97.945|
++?Georgetown|TX|US|30.6327|-97.6772|
++?Hutto|TX|US|30.5427|-97.5467|
++?Kyle|TX|US|29.9891|-97.8772|
++?Pflugerville|TX|US|30.4394|-97.62|
++?Round Rock|TX|US|30.5083|-97.6789|
++?San Marcos|TX|US|29.8833|-97.9414|
++?Balch Springs|TX|US|32.7287|-96.6228|
++?Carrollton|TX|US|32.9537|-96.8903|
++?Cleburne|TX|US|32.3476|-97.3867|
++?Coppell|TX|US|32.9546|-97.015|
++?DFW Airport|TX|US|32.8998|-97.0403|
++?Flower Mound|TX|US|33.0146|-97.097|
++?Forney|TX|US|32.7482|-96.4719|
++?Frisco|TX|US|33.1507|-96.8236|
++?Garland|TX|US|32.9126|-96.6389|
++?Lancaster|TX|US|32.5921|-96.7561|
++?Mansfield|TX|US|32.5632|-97.1417|
++?McKinney|TX|US|33.1976|-96.6153|
++?Midlothian|TX|US|32.4824|-96.9944|
++?Red Oak|TX|US|32.5176|-96.8044|
++?Richardson|TX|US|32.9482|-96.7297|
++?Roanoke|TX|US|33.004|-97.2258|
++?Southlake|TX|US|32.9412|-97.1342|
++?Wilmer|TX|US|32.589|-96.6853|
++?Brookshire|TX|US|29.7861|-95.9511|
++?Cypress|TX|US|29.9691|-95.6972|
++?Fresno|TX|US|29.5389|-95.4474|
++?Humble|TX|US|29.9988|-95.2622|
++?Katy|TX|US|29.7858|-95.8244|
++?La Marque|TX|US|29.3686|-94.9713|
++?League City|TX|US|29.5075|-95.0949|
++?Missouri City|TX|US|29.6186|-95.5377|
++?Richmond|TX|US|29.5822|-95.7608|
++?Texas City|TX|US|29.3839|-94.9027|
++?Fredericksburg|VA|US|38.3032|-77.4605|
++?Stafford|VA|US|38.4221|-77.4083|
++?Woodbridge|VA|US|38.6582|-77.2497|
++?Aldie|VA|US|38.9757|-77.6414|
++?Ashburn|VA|US|39.0437|-77.4875|
++?Bristow|VA|US|38.7229|-77.5361|
++?Clear Brook|VA|US|39.2564|-78.0961|
++?Culpeper|VA|US|38.4732|-77.9967|
++?Gainesville|VA|US|38.7957|-77.6139|
++?Haymarket|VA|US|38.8121|-77.6364|
++?Leesburg|VA|US|39.1157|-77.5636|
++?Loudoun County|VA|US|39.1157|-77.5636|
++?Manassas|VA|US|38.751|-77.4753|
++?Stevensburg|VA|US|38.44|-77.87|
++?Warrenton|VA|US|38.7135|-77.7953|
++?Kent|WA|US|47.3809|-122.2348|
++?Renton|WA|US|47.4829|-122.2171|
++?Arlington|WA|US|48.1987|-122.1251|
++?Bothell|WA|US|47.7623|-122.2054|
++?Edmonds|WA|US|47.8107|-122.3774|
++?Lynnwood|WA|US|47.8209|-122.3151|
++?Bremerton|WA|US|47.5673|-122.6326|
++?Dupont|WA|US|47.0968|-122.6312|
++?Fife|WA|US|47.2393|-122.3571|
++?Kitsap|WA|US|47.5404|-122.6362|
++?Lacey|WA|US|47.0343|-122.8232|
++?Puyallup|WA|US|47.1854|-122.2929|
++?Spanaway|WA|US|47.104|-122.4346|
++?Sumner|WA|US|47.2032|-122.2404|
++?Tukwila|WA|US|47.474|-122.261|
++?Kenosha|WI|US|42.5847|-87.8212|
++?Kemps Creek|NSW|AU|-33.8806|150.7876|
++?Ravenhall|VIC|AU|-37.7655|144.7511|
++?Burnaby|BC|CA|49.2664|-122.9526|
++?Delta|BC|CA|49.0892|-123.0532|
++?Langley|BC|CA|49.1011|-122.6588|
++?New Westminster|BC|CA|49.2068|-122.9109|
++?Pitt Meadows|BC|CA|49.2212|-122.6896|
++?Richmond|BC|CA|49.17|-123.1368|
++?Sidney|BC|CA|48.6496|-123.4026|
++?Ajax|ON|CA|43.8501|-79.0329|
++?Brampton|ON|CA|43.6834|-79.7663|
++?Caledon|ON|CA|43.8654|-79.9932|
++?Cambridge|ON|CA|43.3601|-80.3127|
++?Hamilton|ON|CA|43.2501|-79.8496|
++?Mississauga|ON|CA|43.5789|-79.6583|
++?Whitby|ON|CA|43.8834|-78.9329|
++?Langfang||CN|39.5208|116.7147|
++?Neubiberg||DE|48.0771|11.6581|
++?Dachau|Bavaria|DE|48.26|11.434|
++?Erding|Bavaria|DE|48.306|11.9069|
++?Garching bei München|Bavaria|DE|48.249|11.651|
++?Gersthofen|Bavaria|DE|48.4243|10.8727|
++?Graben|Bavaria|DE|48.1873|10.8222|
++?Kaufbeuren|Bavaria|DE|47.8824|10.6219|
++?Maisach|Bavaria|DE|48.2167|11.2667|
++?Moosburg an der Isar|Bavaria|DE|48.4709|11.9381|
++?Neufahrn bei Freising|Bavaria|DE|48.3159|11.6632|
++?Olching|Bavaria|DE|48.2|11.3333|
++?Penzing|Bavaria|DE|48.0748|10.9275|
++?Untermeitingen|Bavaria|DE|48.1608|10.8069|
++?Thames Valley||GB|51.4563|-0.9711|
++?Waltham Cross||GB|51.686|-0.0357|
++?Basildon|England|GB|51.5684|0.4578|
++?Bedford|England|GB|52.1346|-0.4663|
++?Belvedere|England|GB|51.4911|0.1514|
++?Bracknell|England|GB|51.4136|-0.7505|
++?Crawley|England|GB|51.113|-0.1831|
++?Croydon|England|GB|51.3833|-0.1|
++?Dartford|England|GB|51.4466|0.2142|
++?Didcot|England|GB|51.6093|-1.2421|
++?Dunstable|England|GB|51.8857|-0.5229|
++?Enfield|England|GB|51.6515|-0.085|
++?Grays|England|GB|51.4757|0.3252|
++?Harlow|England|GB|51.7766|0.1116|
++?Hemel Hempstead|England|GB|51.7537|-0.4497|
++?Maidstone|England|GB|51.2667|0.5167|
++?Milton Keynes|England|GB|52.0417|-0.7558|
++?Orpington|England|GB|51.3746|0.0979|
++?Rochester|England|GB|51.3876|0.5055|
++?Romford|England|GB|51.5752|0.1858|
++?Shepperton|England|GB|51.3955|-0.4489|
++?Slough|England|GB|51.5095|-0.5954|
++?Tilbury|England|GB|51.4625|0.3586|
++?Welwyn Garden City|England|GB|51.8017|-0.2069|
++?Weybridge|England|GB|51.3718|-0.4597|
++?Windsor|England|GB|51.4833|-0.6|
++?Clonee||IE|53.4106|-6.4436|
++?Modi'in Makkabbim-Re'ut||IL|31.8939|35.015|
++?Ramat Gan||IL|32.0823|34.8107|
++?Nazareth||IL|32.7009|35.2972|
++?Faridabad||IN|28.4112|77.3132|
++?Navi Mumbai||IN|19.0368|73.0158|
++?Thane||IN|19.197|72.9636|
++?Ageo-shi||JP|35.9715|139.6138|
++?Chiba||JP|35.6|140.1167|
++?Chiba-shi||JP|35.6|140.1167|
++?Hiratsuka-shi||JP|35.3279|139.3373|
++?Ichikawa-shi||JP|35.7341|139.9065|
++?Inzai||JP|35.8348|140.1636|
++?Kashiwa-shi||JP|35.8622|139.9773|
++?Kawaguchi-shi||JP|35.8052|139.7107|
++?Kawajima-machi||JP|35.9806|139.4806|
++?Kawasaki-shi||JP|35.5206|139.7172|
++?Kuki-shi||JP|36.0674|139.675|
++?Matsudo-shi||JP|35.78|139.9014|
++?Misato-shi||JP|35.8437|139.8835|
++?Nagareyama-shi||JP|35.8563|139.9027|
++?Narita-shi||JP|35.7833|140.3167|
++?Nogi-machi||JP|36.2279|139.7345|
++?Odawara-shi||JP|35.2556|139.1597|
++?Sagamihara-shi||JP|35.5671|139.2417|
++?Saitama||JP|35.9081|139.6566|
++?Sakado-shi||JP|35.9569|139.3889|
++?Sayama-shi||JP|35.853|139.4121|
++?Tsukuba-shi||JP|36.0833|140.1167|
++?Yokohama-shi||JP|35.4437|139.638|
++?Yotsukaido-shi||JP|35.65|140.1667|
++?Zama-shi||JP|35.4879|139.391|
++?Cuautitlán Izcalli||MX|19.6439|-99.216|
++?Tepotzotlán||MX|19.7212|-99.2239|
++?Tepoztlán||MX|18.9856|-99.1016|
++?Toluca||MX|19.2879|-99.6532|
++?Tultitlán||MX|19.6466|-99.1679|
++?Tijuana||MX|32.5027|-117.0037|
++?Hsinchu City||TW|24.8138|120.9675|
++?Longtan||TW|24.864|121.216|
++?Taoyuan City||TW|24.9937|121.297|
++?Zhubei||TW|24.8383|121.0078|
+ `;
+ 
+ // ---------------------------------------------------------------------------
+@@ -940,7 +1313,8 @@ function pickCity(cands, ctx) {
+   // A country match only when the context names no state or region in that country:
+   // "Springfield, IL" is not Springfield, VA (P-9, norm-6).
+   const stated = new Set(ctx.filter((c) => c.region && c.kind !== 'country').map((c) => c.country));
+-  const byCountry = cands.find((c) => !c.contextOnly && countries.includes(c.country) && !stated.has(c.country));
++  // G-1: a "?" entry with no region is read with its own country named (it has no state to name).
++  const byCountry = cands.find((c) => (!c.contextOnly || !c.region) && countries.includes(c.country) && !stated.has(c.country));
+   if (byCountry) return byCountry;
+   return null; // known name but context says elsewhere
+ }
+@@ -1015,7 +1389,7 @@ function finalCountry(token, cands, tokens) {
+   if (plain && plain.kind === 'country') return null; // "UK", "NL", "FR": regionInfo already says so
+   const c = COUNTRY_BY_CODE.get(t);
+   const asCountry = { kind: 'country', region: null, country: c.code, lat: c.lat, lng: c.lng };
+-  const known = cands || [];
++  const known = openCities(cands); // a "?" entry never says which country a code is (G-1: "Ontario, CA" is Ontario, Canada)
+   if (known.some((k) => k.country === c.code)) return asCountry; // Bengaluru is in India, Jakarta in Indonesia
+   if (!plain) return tokens.length > 2 || !known.length ? asCountry : null; // "Stavanger, Rogaland, NO"; not "Adelaide, SA"
+   if (known.some((k) => k.country === plain.country)) return null; // "Columbus, IN" is Indiana, "Boise, ID" Idaho
+@@ -1109,7 +1483,7 @@ function resolvePlaceTokens(name, cleaned, extra) {
+   // city), the town is in the gazetteer, so this rule is not reached.
+   for (const t of rest) {
+     if (regionInfo(t)) continue;
+-    const later = CITY_INDEX.get(normKey(t));
++    const later = (CITY_INDEX.get(normKey(t)) || []).filter((c) => !c.contextOnly || c.region); // G-1: a "?" town with no region is only its own place's name
+     const c = later && ctx.length && pickCity(later, ctx);
+     if (c) return fromCity(name, c);
+   }
+diff --git a/server/keywords.js b/server/keywords.js
+index f39b9ee..5c844e8 100644
+--- a/server/keywords.js
++++ b/server/keywords.js
+@@ -1455,6 +1455,11 @@ const BONUS_STRONG = [
+   /\bprofit[- ]sharing\b/i,
+ ];
+ 
++// K-1 (fix-data-6): a stated 0% bonus target is not a bonus. Google writes "+ 0% bonus target" on the pay line of roles
++// with no bonus ("Canada: $99000 (CAD) + 0% bonus target", 50 postings on the 2026-10-16 crawl); "bonus target" made it
++// one. Only a figure that is zero ("0%", "0.0%", "0,00 %") is removed; "+ 15% bonus target" is still a bonus.
++const ZERO_BONUS_RE = /(?:\+\s*)?(?<![\d.,])0(?:[.,]0+)?\s*%\s*(?:(?:annual|target|performance)\s+)?(?:bonus(?:es)?|incentives?|commissions?)(?:\s+target)?\b/gi;
++
+ function compSegments(text) {
+   return String(text || '')
+     .split(/\n+|(?<=[.!?])\s+(?=[A-Z(“"])/)
+@@ -1466,7 +1471,7 @@ function compSegments(text) {
+  * Like extractCompExtras but also returns the sentences that decided each facet.
+  * @returns {{equity:boolean, bonus:boolean, evidence:{equity:string[], bonus:string[]}}}
+  */
+-export function compExtrasEvidence(text, { title = '' } = {}) {
++export function compExtrasEvidence(text, { title = '', zeroIsBonus = false } = {}) {
+   let src = String(text || '');
+   if (/<(?:p|li|ul|div|br|h[1-6])\b/i.test(src)) src = htmlToText(src);
+   const salesTitle = isSalesTitle(title);
+@@ -1476,7 +1481,8 @@ export function compExtrasEvidence(text, { title = '' } = {}) {
+ 
+   for (const seg of compSegments(src)) {
+     const eqText = seg.replace(EQUITY_NOISE_RE, ' ');
+-    const bnText = seg.replace(BONUS_NOISE_RE, ' ');
++    let bnText = seg.replace(BONUS_NOISE_RE, ' ');
++    if (!zeroIsBonus) bnText = bnText.replace(ZERO_BONUS_RE, ' '); // K-1: "+ 0% bonus target" is no bonus
+     const hasEq = /\bequity\b|\bstock\b|\bRSUs?\b|\bESPP\b|\bownership stake\b/i.test(eqText);
+     const hasBn = /\bbonus(?:es)?\b|\bcommissions?\b|\bOTE\b|on[- ]target|incentive|variable|profit[- ]sharing/i.test(bnText);
+     if (!hasEq && !hasBn) continue;
+@@ -1523,3 +1529,11 @@ export function extractCompExtras(text, opts = {}) {
+   const { equity, bonus } = compExtrasEvidence(text, opts);
+   return { equity, bonus };
+ }
++
++/**
++ * K-1: true when the posting's only bonus wording is a stated 0% bonus target, so a stored `extras.bonus` from before
++ * norm-14 is wrong (normalize.js relabelJobs clears it). Anything else that reads as a bonus keeps it.
++ */
++export function zeroBonusOnly(text, opts = {}) {
++  return compExtrasEvidence(text, { ...opts, zeroIsBonus: true }).bonus && !compExtrasEvidence(text, opts).bonus;
++}
+diff --git a/server/normalize.js b/server/normalize.js
+index 6adfa9d..5c4e853 100644
+--- a/server/normalize.js
++++ b/server/normalize.js
+@@ -47,7 +47,9 @@ import { postingRule } from './companies.js';
+  * pay line a posting states for a country or pay area is a salary.ranges row tied to the job's places there, with its
+  * country and levels, and a line for a place the job doesn't list is salary.unlisted; "kr" and "$" with no code are read
+  * by their line's own country; a "[Degree]" line heads the country lines under it; main-site rows named for places
+- * ("Canada", "USA - All Other States") are tied to them). Stored
++ * ("Canada", "USA - All Other States") are tied to them) and fix-data-6 (docs/process/fix-data-6.md, G-1: 359 more
++ * towns near the big-tech hubs are at their own place, not their state's or country's centre, East Palo Alto and
++ * Burlingame among them; K-1: a stated "+ 0% bonus target" is not a bonus mention, extras.bonus, zeroBonusOnly). Stored
+  * snapshots are upgraded with relocateJobs (which also re-derives text-sourced pay, the
+  * pay labels and the level, then re-runs the vetting gate) and rekeyBoardJobs.
+  */
+@@ -453,6 +455,11 @@ export function relabelJobs(jobs) {
+     if (typeof j.title === 'string' && title && title !== j.title) next.title = title;
+     if (lvl) { next.seniority = lvl.level; next.seniorityBasis = lvl.basis; }
+     else if (!next.seniorityBasis) next.seniorityBasis = (next.seniority || 'Mid') === 'Mid' ? 'default' : 'title';
++    // K-1 (fix-data-6): a stored bonus whose only wording is a stated 0% bonus target ("+ 0% bonus target") is no bonus.
++    if (j.extras && j.extras.bonus === true && typeof keywordsModule.zeroBonusOnly === 'function') {
++      const src = [text, j.salary && j.salary.text, j.salaryRaw && j.salaryRaw.text].filter(Boolean).join('\n');
++      if (safe(() => keywordsModule.zeroBonusOnly(src, { title }), false)) next.extras = { ...j.extras, bonus: false };
++    }
+     // (Not safe(): a fresh null, "no salary", must replace the stored one.)
+     let fresh;
+     try { fresh = rederiveTextSalary(j, text); } catch { fresh = undefined; }
+diff --git a/test/fix-beta-pay.test.js b/test/fix-beta-pay.test.js
+index 3d0b0ac..bd7d214 100644
+--- a/test/fix-beta-pay.test.js
++++ b/test/fix-beta-pay.test.js
+@@ -309,7 +309,7 @@ const stored = (over) => ({
+ const loc = (name, rawName, city, region, country, lat, lng) => ({ name, rawName, city, region, country, lat, lng, remote: false });
+ 
+ test('delivery: relocateJobs re-derives text pay, levels and seniorityBasis on stored norm-5 jobs, then re-vets', () => {
+-  assert.equal(NORMALIZER_VERSION, 'norm-14'); // fix-data-3 bumped norm-11; fix-mr-3 (MR-40, docs/process/fix-mr-3.md) norm-12; fix-salary-6 (S-1) norm-13
++  assert.equal(NORMALIZER_VERSION, 'norm-14'); // fix-data-3 bumped norm-12; fix-mr-3 (MR-40) norm-13; fix-salary-6 (S-1) and fix-data-6 (G-1, K-1, docs/process/fix-data-6.md) norm-14
+   const krakow = loc('Krakow, Poland', 'Kraków, Poland', 'Krakow', null, 'PL', 50.06, 19.94);
+   const waterloo = loc('Waterloo, Canada', 'Waterloo, ON, Canada', 'Waterloo', 'ON', 'CA', 43.46, -80.52);
+   const jobs = [
+diff --git a/test/fix-data-6.test.js b/test/fix-data-6.test.js
+new file mode 100644
+index 0000000..81418de
+--- /dev/null
++++ b/test/fix-data-6.test.js
+@@ -0,0 +1,142 @@
++// Fix lane fix-data-6 (docs/process/fix-data-6.md): G-1 (towns at their state's or country's centre near the big-tech
++// hubs), K-1 ("+ 0% bonus target" read as a bonus), and the lead's later findings. Each test fails on the code before the
++// fix (00bd52c) and passes after it. What only the built page shows (pins, the drawer's chips, at the phone sizes) is in
++// test/e2e/fix-data-6.e2e.js. Every test here reads only the repo or builds its own small input; none needs the crawl.
++import { test } from 'node:test';
++import assert from 'node:assert/strict';
++import fs from 'node:fs';
++import path from 'node:path';
++import { fileURLToPath } from 'node:url';
++
++import { geocode, geocodeMany, splitLocations, locationPrecision, GAZETTEER_SIZE } from '../server/geo.js';
++import { payAreaOf } from '../server/salary.js';
++import { NORMALIZER_VERSION, relabelJobs } from '../server/normalize.js';
++import * as keywords from '../server/keywords.js';
++
++const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
++const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
++const km = (a, b) => {
++  const r = (x) => (x * Math.PI) / 180;
++  const h = Math.sin(r(b.lat - a.lat) / 2) ** 2 + Math.cos(r(a.lat)) * Math.cos(r(b.lat)) * Math.sin(r(b.lng - a.lng) / 2) ** 2;
++  return 2 * 6371 * Math.asin(Math.sqrt(h));
++};
++
++/* ------------------------------------------------------------- G-1 */
++// California's centre is 36.12,-119.68, 200 km from San Francisco: the Bay Area towns the gazetteer did not know were
++// pinned there, outside the SF Bay Area (salary.js PAY_AREAS: 75 km around the bay) and far from a Location filter's city.
++const BAY = ['East Palo Alto, California, USA', 'Burlingame, CA', 'Brisbane, California, USA', 'Hayward, California, USA',
++  'Newark, California, USA', 'San Leandro, California, USA', 'Richmond, California, USA', 'Dublin, California, USA',
++  'Milpitas, California, USA', 'Foster City, California, USA', 'Alameda, CA, USA', 'Tracy, California, USA',
++  'Walnut Creek, California, USA', 'Oakley, California, USA', 'Antioch, California, United States',
++  'Santa Clara Valley (Cupertino), California, United States'];
++test('G-1 Bay Area towns are at their own town, inside the SF Bay Area pay area', () => {
++  for (const s of BAY) {
++    const [loc] = geocode(s);
++    assert.equal(locationPrecision(loc), 'city', `${s}: at ${loc.lat},${loc.lng} (${locationPrecision(loc)}), California's centre`);
++    assert.equal(loc.city, s.split(/,| \(/)[0], `${s}: city "${loc.city}" (the posting's name stays)`);
++    assert.equal(loc.region, 'CA');
++    assert.equal(payAreaOf(loc), 'sf-bay', `${s} at ${loc.lat},${loc.lng}`);
++  }
++  for (const s of ['Gilroy, California, USA', 'Hollister, California, USA', 'Salinas, California, USA']) {
++    const [loc] = geocode(s);
++    assert.equal(locationPrecision(loc), 'city', s);
++    assert.equal(payAreaOf(loc), null, `${s} is beyond the 75 km area`);
++  }
++});
++
++// One or more towns per hub: [string, hub centre, the hub's name]. Each is within 85 km of its hub.
++const HUB = {
++  Seattle: { lat: 47.6062, lng: -122.3321 }, Austin: { lat: 30.2672, lng: -97.7431 }, Boston: { lat: 42.3601, lng: -71.0589 },
++  DC: { lat: 38.9072, lng: -77.0369 }, Chicago: { lat: 41.8781, lng: -87.6298 }, LA: { lat: 34.0522, lng: -118.2437 },
++  London: { lat: 51.5074, lng: -0.1278 }, Dublin: { lat: 53.3498, lng: -6.2603 }, 'Tel Aviv': { lat: 32.0853, lng: 34.7818 },
++  Mumbai: { lat: 19.076, lng: 72.8777 }, Tokyo: { lat: 35.6762, lng: 139.6503 }, Atlanta: { lat: 33.749, lng: -84.388 },
++  Dallas: { lat: 32.7767, lng: -96.797 }, Toronto: { lat: 43.6532, lng: -79.3832 }, Munich: { lat: 48.1351, lng: 11.582 },
++  'Mexico City': { lat: 19.4326, lng: -99.1332 }, Taipei: { lat: 25.033, lng: 121.5654 }, NYC: { lat: 40.7128, lng: -74.006 },
++  Nashville: { lat: 36.1627, lng: -86.7816 }, Sydney: { lat: -33.8688, lng: 151.2093 },
++};
++const TOWNS = [
++  ['Kent, Washington, USA', 'Seattle'], ['Bothell, WA, US', 'Seattle'], ['Pflugerville, Texas, USA', 'Austin'],
++  ['North Reading, Massachusetts, USA', 'Boston'], ['Westborough, Massachusetts, USA', 'Boston'], ['Ashburn, Virginia, USA', 'DC'],
++  ['Jessup, Maryland, USA', 'DC'], ['Aldie, Virginia, USA', 'DC'], ['Loudoun County, VA', 'DC'], ['Skokie, Illinois, USA', 'Chicago'],
++  ['Northridge, California, USA', 'LA'], ['Pasadena, California, USA', 'LA'], ['Burbank, California, United States of America', 'LA'],
++  ['Dunstable, England, GBR', 'London'], ['Waltham Cross, UK', 'London'], ['Thames Valley, Berkshire, GBR', 'London'],
++  ['Rochester, England, GBR', 'London'], ['Clonee, Ireland', 'Dublin'], ['Ramat Gan, Israel', 'Tel Aviv'],
++  ["Modi'in Makkabbim-Re'ut, Merkaz, ISR", 'Tel Aviv'], ['Thane, Maharashtra, IND', 'Mumbai'],
++  ['Sagamihara-shi, Kanagawa, JPN', 'Tokyo'], ['Saitama, JPN', 'Tokyo'], ['Inzai, Chiba, Japan', 'Tokyo'],
++  ['Lithia Springs, Georgia, USA', 'Atlanta'], ['Garland, TX', 'Dallas'], ['Mississauga, Ontario, CAN', 'Toronto'],
++  ['Erding, Bavaria, DEU', 'Munich'], ['Neubiberg, Germany', 'Munich'], ['Tepotzotlán, Mexico, MEX', 'Mexico City'],
++  ['Taoyuan City, TW', 'Taipei'], ['Robbinsville, New Jersey, USA', 'NYC'], ['Mt Juliet, Tennessee, USA', 'Nashville'],
++  ['Kemps Creek, New South Wales, AUS', 'Sydney'],
++];
++test('G-1 towns near the other hubs are at their own town, within about 80 km of it, with the name and region they had', () => {
++  for (const [s, hub] of TOWNS) {
++    const [loc] = geocode(s);
++    assert.equal(locationPrecision(loc), 'city', `${s}: at ${loc.lat},${loc.lng} (${locationPrecision(loc)})`);
++    const d = km(loc, HUB[hub]);
++    assert.ok(d <= 85, `${s}: ${d.toFixed(0)} km from ${hub}`);
++  }
++  const [thane] = geocode('Thane, Maharashtra, IND');
++  assert.deepEqual([thane.city, thane.region, thane.country, thane.name], ['Thane', null, 'IN', 'Thane, India']);
++  const [kent] = geocode('Kent, Washington, USA');
++  assert.deepEqual([kent.city, kent.region, kent.country, kent.name], ['Kent', 'WA', 'US', 'Kent, WA']);
++});
++
++test('G-1 a place of the same name elsewhere, or a different reading, is unchanged', () => {
++  const same = [
++    ['Brisbane, Queensland, Australia', { city: 'Brisbane', country: 'AU' }],
++    ['Newark, NJ', { city: 'Newark', region: 'NJ' }],
++    ['Richmond, VA', { city: 'Richmond', region: 'VA' }],
++    ['Dublin, Ireland', { city: 'Dublin', country: 'IE' }],
++    ['Cambridge, England', { city: 'Cambridge', country: 'GB' }],
++    ['Arlington, VA', { city: 'Arlington', region: 'VA' }],
++    ['Ontario, CA', { city: null, region: 'ON', country: 'CA' }], // Google's Ontario, Canada (not Ontario, California)
++    ['Kent, England', { region: 'England', country: 'GB' }],
++    ['Delta, Colorado, USA', { region: 'CO' }],
++    ['Nazareth, PA', { region: 'PA' }],
++  ];
++  for (const [s, want] of same) {
++    const [loc] = geocode(s);
++    for (const [k, v] of Object.entries(want)) assert.equal(loc[k], v, `${s}: ${k} ${loc[k]}`);
++  }
++  // A town the gazetteer knows only by its country is never read bare, nor as a later part of another place.
++  assert.equal(geocode('Thane')[0].lat, null, 'a bare "Thane" stays unknown');
++  assert.deepEqual(splitLocations('Hsinchu, Hsinchu City, TW'), ['Hsinchu, Hsinchu City, TW'], 'one place, as before');
++  assert.equal(geocodeMany(['Hsinchu, Hsinchu City, TW'])[0].city, 'Hsinchu');
++});
++
++test('G-1 the gazetteer size is in the registry, and the change is a normalizer change (norm-14, golden re-baselined)', () => {
++  assert.equal(GAZETTEER_SIZE.cities, 743);
++  const reg = JSON.parse(read('data/freshness.json')).entries.find((e) => e.id === 'geo-gazetteer');
++  assert.match(reg.values, /^GAZETTEER_SIZE 743 cities/);
++  assert.equal(NORMALIZER_VERSION, 'norm-14');
++  assert.equal(JSON.parse(read('test/fixtures/golden-normalize.json')).normalizerVersion, 'norm-14');
++});
++
++/* ------------------------------------------------------------- K-1 */
++// Google writes "+ 0% bonus target" on the pay line of a role with no bonus. The drawer showed "+ bonus mentioned" and
++// "The description mentions a bonus; it isn't in this figure" for 50 such postings (google:114416552819729094).
++const extras = (t, title = 'Student Researcher, BS/MS, Winter-Summer 2027') => keywords.extractCompExtras(t, { title });
++test('K-1 a stated 0% bonus target is not a bonus mention', () => {
++  for (const t of ['Canada: $99000 (CAD) + 0% bonus target', 'Ireland: €47000 (EUR) + 0% bonus target',
++    'Belgium: €42655 (EUR) + 0% bonus target', 'US: $192000 - $278000 (USD) + 0.0% bonus target']) {
++    assert.equal(extras(t).bonus, false, t);
++  }
++  const both = extras('US: $192000 - $278000 (USD) + 0% bonus target + equity + benefits', 'Software Engineer');
++  assert.deepEqual(both, { equity: true, bonus: false }, 'the equity on the same line is still read');
++});
++test('K-1 a bonus that is not zero is still a bonus, as posted', () => {
++  for (const t of ['US: $171000 - $247000 (USD) + 20% bonus target + equity + benefits', 'Germany: €80000 (EUR) + 10% bonus target',
++    'US: $150000 - $200000 + 100% bonus target', 'eligible for an annual bonus of 0-15%', '+ 0% bonus target. You will also receive an annual performance bonus.']) {
++    assert.equal(extras(t, 'Software Engineer').bonus, true, t);
++  }
++});
++test('K-1 a stored bonus whose only wording is "+ 0% bonus target" is cleared on relabel (norm-14); others are kept', () => {
++  const job = (id, html) => ({ id, company: 'google', title: 'Student Researcher, BS/MS, Winter-Summer 2027', descriptionHtml: html,
++    extras: { equity: false, bonus: true }, locations: [], salary: null });
++  const [zero, real] = relabelJobs([job('g:1', '<p>Canada: $99000 (CAD) + 0% bonus target</p>'), job('g:2', '<p>Canada: $99000 (CAD) + 15% bonus target</p>')]);
++  assert.equal(zero.extras.bonus, false);
++  assert.equal(real.extras.bonus, true);
++  assert.equal(relabelJobs([zero])[0].extras.bonus, false, 'idempotent');
++  assert.equal(keywords.zeroBonusOnly('Canada: $99000 (CAD) + 0% bonus target', {}), true);
++  assert.equal(keywords.zeroBonusOnly('+ 0% bonus target, and a signing bonus', {}), false);
++});
+diff --git a/test/fix-pay-data.test.js b/test/fix-pay-data.test.js
+index 97c4d9b..fedf9e3 100644
+--- a/test/fix-pay-data.test.js
++++ b/test/fix-pay-data.test.js
+@@ -199,7 +199,7 @@ test('P-9: a final ISO country code that is also a US state is the country when
+   // US strings keep their state.
+   assert.equal(where('Chicago, IL'), 'Chicago, IL [US] city');
+   assert.equal(where('Fort Wayne, IN, USA'), 'Fort Wayne, IN [US] centroid');
+-  assert.equal(where('Dublin, CA'), 'Dublin, CA [US] centroid');
++  assert.equal(where('Dublin, CA'), 'Dublin, CA [US] city'); // in the gazetteer since fix-data-6 (G-1); before, California's centre
+   assert.equal(where('Springfield, IL, US'), 'Springfield, IL [US] centroid', 'not Springfield, VA');
+   // Other forms the big-tech boards use.
+   assert.equal(where('Sydney NSW, Australia'), 'Sydney, Australia [AU] city');
+@@ -298,7 +298,7 @@ const stored = (over) => ({
+ });
+ 
+ test('delivery: relocateJobs (the snapshot upgrade the server and the static build run) re-derives pay labels, level and locations', () => {
+-  assert.equal(NORMALIZER_VERSION, 'norm-14', 'stored older snapshots are upgraded once (norm-14: fix-salary-6, docs/process/fix-salary-6.md)');
++  assert.equal(NORMALIZER_VERSION, 'norm-14', 'stored older snapshots are upgraded once (norm-14: fix-salary-6 and fix-data-6, docs/process/fix-salary-6.md, docs/process/fix-data-6.md)');
+   const jobs = [
+     stored({ id: 'anthropic:ae', title: 'Strategic Account Executive, Banking', seniority: 'Mid', descriptionHtml: `<p>${ANTHROPIC_OTE}</p>`, salary: { ...toJobSalary(structured(380000, 450000), { source: 'structured' }), zones: 1 } }),
+     stored({ id: 'anthropic:re', title: 'Research Engineer', seniority: 'Mid', descriptionHtml: `<p>${ANTHROPIC_OTE}</p>`, salary: { ...toJobSalary(structured(350000, 850000), { source: 'structured' }), zones: 1 } }),
+diff --git a/test/fixtures/golden-normalize.json b/test/fixtures/golden-normalize.json
+index c8d73c1..464caef 100644
+--- a/test/fixtures/golden-normalize.json
++++ b/test/fixtures/golden-normalize.json
+@@ -70,6 +70,11 @@
+    "normalizerVersion": "norm-14",
+    "reason": "norm-14 fix-salary-6: S-1 (every pay line for a country or pay area kept as a salary.ranges row tied to its places, salary.unlisted, kr/$ by the line's country, [Degree] header lines, main-site rows named for places tied to them); 0 of 300 hashes changed (the sample has no posting with pay for two places)",
+    "at": "2026-10-24T00:46:08.313Z"
++  },
++  {
++   "normalizerVersion": "norm-14",
++   "reason": "norm-14 fix-data-6 on top of fix-salary-6 (docs/process/fix-data-6.md: G-1 towns near the hubs at their own place, K-1 a stated 0% bonus target is no bonus, R-2 lead associates Mid): 2 of 300 hashes changed, both G-1 towns (palantir:802add74 Kitsap, WA; xai:5216075007 Bastrop, TX)",
++   "at": "2026-10-24T02:16:14.572Z"
+   }
+  ],
+  "hashes": {
+@@ -239,7 +244,7 @@
+   "palantir:6ed76ce8-4156-4b60-b120-403538bd66cd": "b3d5fe7ec08ea0a1",
+   "palantir:ff1029bd-bb6d-4d78-a03e-5f9744d0b798": "51456679d852c997",
+   "palantir:def1573d-c2b6-42a7-963b-e13c3587b5e9": "edecdaf92db888ab",
+-  "palantir:802add74-04cf-479c-9479-ff3043940e29": "124ad795d8a760c7",
++  "palantir:802add74-04cf-479c-9479-ff3043940e29": "c06ece86dddfcf71",
+   "palantir:d5d83a8f-cb96-41cc-9612-c7224fbb2fbc": "796c400cda7ba888",
+   "palantir:bba1ecbc-e56d-48b0-b33a-aefcbffbd655": "095c71d61b98755a",
+   "palantir:18383723-04a2-44ae-ae58-1166a76f0859": "4532617ea12125ba",
+@@ -359,7 +364,7 @@
+   "xai:5252678007": "88ead873004e769a",
+   "xai:5178416007": "c5187210b7d75935",
+   "xai:5108231007": "e12d1f9f8cdbc060",
+-  "xai:5216075007": "da8587b86d7c35ad",
++  "xai:5216075007": "0ffba02d4675931c",
+   "xai:5007261007": "3bf81393d0ebb950",
+   "xai:5124647007": "5c6ad93bd69fae18",
+   "xai:5214372007": "4475f5d13717cdea",
+diff --git a/test/salary-pipeline.test.js b/test/salary-pipeline.test.js
+index bcbe2c5..f869c18 100644
+--- a/test/salary-pipeline.test.js
++++ b/test/salary-pipeline.test.js
+@@ -240,6 +240,6 @@ test('chart: a posting is plotted at its served range in approx USD', () => {
+   assert.deepEqual([plotted[0].lo, plotted[0].hi, plotted[0].mid], [141000, 202000, 171500]);
+ });
+ 
+-test('normalizer version is norm-14 (SB-3, SB-4, SB-5 changed normalized pay in norm-11; fix-data-3, fix-mr-3 and fix-salary-6 bumped it)', () => {
++test('normalizer version is norm-14 (SB-3, SB-4, SB-5 changed normalized pay in norm-11; fix-data-3, fix-mr-3, fix-salary-6 and fix-data-6 bumped it)', () => {
+   assert.equal(NORMALIZER_VERSION, 'norm-14');
+ });
+-- 
+2.43.0
+

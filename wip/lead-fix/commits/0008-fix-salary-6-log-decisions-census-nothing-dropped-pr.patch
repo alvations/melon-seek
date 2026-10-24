@@ -1,0 +1,199 @@
+From 8b3b9f259fa24380c66d9b33ed4110f4ea0171c1 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 24 Oct 2026 01:07:07 +0000
+Subject: [PATCH 08/99] fix-salary-6: log (decisions, census, nothing-dropped
+ proof, backtest)
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+(cherry picked from commit 3931eb40cb3ed44354c7463336fa5b7ef39a4208)
+---
+ docs/process/fix-salary-6.md | 158 ++++++++++++++++++++++++++++-------
+ 1 file changed, 127 insertions(+), 31 deletions(-)
+
+diff --git a/docs/process/fix-salary-6.md b/docs/process/fix-salary-6.md
+index d418858..a92f9b4 100644
+--- a/docs/process/fix-salary-6.md
++++ b/docs/process/fix-salary-6.md
+@@ -2,51 +2,147 @@
+ 
+ ## State
+ - **Done:**
+-  - Prompt saved ([prompts/fix-salary-6.md](prompts/fix-salary-6.md), 545e28b). Base 37f54e4 (later than e800c43).
+-  - Links: data/snapshots, data/beta/snapshots (wt-data2, the 2026-10-16 crawl), node_modules.
+-  - Base copy of the code in `<scratch>/fs6/base` (git archive 37f54e4); served salaries of every stored posting at the
+-    base in `<scratch>/fs6/served-before.json` (`tools/served.mjs`, the build's readSnapshot path).
+-  - Census before (`tools/census.mjs`, `tools/breakdown.mjs`, `<scratch>/fs6/census-before.json`), see §5.
+-  - The lead approved the plan (00:3x): rows per country line, kr by line country, main-site rows tied, and
+-    `salary.unlisted` shown in the drawer's pay Details, not only the CSV.
+-  - Fix committed: 015d801 (parser, normalize, Juice, app, CSV, 18 red tests), 93b8979 (norm-14, golden 0/300 changed,
+-    refresh fixtures), 6926984 (bulleted degree lines, e2e file registered).
+-- **In progress:** census after, backtest before/after, docs (DATA_SOURCES §7a, CONTRACT), build, e2e.
+-- **Next step:** build (`node scripts/build-static.js`), `--grep=fix-salary-6` and the related e2e groups, clean-checkout
+-  npm test, then send the SHA to the lead.
++  - S-1 fixed and tested in the code: every pay line for a country or pay area is a `salary.ranges` row tied to the job's
++    places there; lines for places the job doesn't list are `salary.unlisted` (drawer Details and CSV); "kr"/"$" read by
++    the line's own country; "[Degree]" header lines; main-site rows named for places are tied to them; Juice, the card,
++    the drawer and the CSV use each line. norm-14, golden re-baselined (0 of 300 hashes), refresh fixtures regenerated.
++  - Commits: 545e28b prompt, 20287a1 log, 015d801 fix + 18 red tests, 93b8979 norm-14 + re-baselines, 6926984 bulleted
++    degree lines + e2e file, 2b92966 Amazon guard, da401d7 docs (DATA_SOURCES §7a, CONTRACT, CSV README).
++  - Unit tests: test/fix-salary-6.test.js 20 tests, all pass; the first 18 fail on the base (37f54e4) code.
++  - Census before/after and the nothing-dropped proof (§5); Compstimate backtest before/after (§5).
++  - The lead approved the plan (2026-10-24 00:3x) and asked for the unlisted lines in the drawer's Details: done.
++- **In progress:** the build (queued in heavy.sh), then `--grep=fix-salary-6` and the related e2e groups; the CI-like npm
++  test in `<scratch>/fs6/clean` (queued).
++- **Next step:** read the e2e results, take the screenshots (the e2e writes docs/screenshots/fix-salary-6/), shrink them,
++  commit, send the SHA to the lead.
+ 
+ ## 1. Brief
+ - Prompt: [prompts/fix-salary-6.md](prompts/fix-salary-6.md). S-1 (persona-beta-2-45-54): pay posted for two or more
+-  countries keeps one country's line and drops the rest, so a Location filter says the pay isn't posted for a place
+-  the posting prices.
+-- Owned: server/salary.js, the salary parts of server/normalize.js, the CSV's salary_ranges column, my tests and log.
++  countries keeps one country's line and drops the rest, so a Location filter says the pay isn't posted for a place the
++  posting prices (google:111420466312159942 Milan, google:123907061523063494 Paris, google:111289074672640710 Dublin).
++- Owned: server/salary.js, the salary parts of server/normalize.js, the CSV's salary_ranges column, my tests and log. Also
++  touched, because the brief asks that "the card, the drawer's Pay by place, the CSV and Juice use each country's own line":
++  the pay helpers of public/app.js (payRanges, payUnit, payPlacesLine, pickedRange, payHeadline, the drawer pay block) and
++  server/juice.js attachJuice (a row's own currency and country). Not touched: geo.js, keywords.js, roles.js, Compstimate,
++  payPlaceText, derive(), the stats line, the filters, the layout.
+ 
+ ## 2. Inputs and sources
+-- docs/CONTRACT.md (Job `salary`, `payAt`, the CSV), docs/DATA_SOURCES.md §7a (DQ-15, SA-4, VT-17 to VT-19),
+-  PLAYBOOK (Checkpoints, Known traps), TEMPLATE, fix-pay-at-place.md, fix-mr-3.md (norm-13 re-baseline), lead.md
++- docs/CONTRACT.md (Job `salary`, `payAt`, the CSV), docs/DATA_SOURCES.md §7a (DQ-15, SA-4, SB-5, VT-1, VT-17 to VT-19),
++  PLAYBOOK (Checkpoints, Known traps), TEMPLATE, fix-pay-at-place.md (`payAt`), fix-mr-3.md (norm-13 re-baseline), lead.md
+   from Fix wave 5.
++- Code read: server/salary.js (evaluate, parseSalary, lineLabel, lineBracket, unitCountry, resolveWeakCurrencies),
++  server/normalize.js (deriveSalary, withAreaRanges, relabelJobs), server/juice.js (attachJuice), server/export.js,
++  server/sources/upgrade.js (upgradeAmazonJobs), server/sources/meta.js (metaPayRanges), public/features/shared.js (payAt),
++  public/app.js (payPill, payHeadline, payRanges, drawer pay block), public/viz/chart.js (spanTiers, barSpan, tooltip rows).
++- Data: the 2026-10-16 crawl (wt-data2 links), through the build's own read path (`tools/served.mjs`: relocateJobs,
++  upgradeStoredJobs, vetSalaries, as scripts/build-static.js#readSnapshot).
+ 
+ ## 3. Decisions and rationale
+-(in progress)
++1. **Every line is a row, the headline is unchanged.** parseSalary keeps its line choice (DQ-15, DQ-13, VT-1) and adds
++   `byPlace`, every line by place (country, or Microsoft's SF Bay Area / NYC area), one entry per place, currency, interval
++   and kind, with its levels. normalize.js#withPlaceRanges ties each entry to the job's places in its country (minus the
++   area's places when the country also has an area line) as `salary.ranges` rows with `country` and `levels`. Rows are set
++   only with two or more priced lines, so single-country postings are unchanged. SB-5's split is the same rule now; its
++   rows gain `country` and `levels` (the SF Bay Area / NYC range by level was only a span).
++   - Considered: a separate `byCountry` field. Rejected: payAt, Juice, the chart, the map, the card and the CSV already
++     read `ranges[].locations`; a new field would need every view changed.
++2. **Rows are named for the country as posted** ("Germany", "US", "U.S.", "Ireland"): "Pay by place: Germany €150K–153K ·
++   Italy €124K–127K". Under a filter the place picked is named ("Posted for Milan"). A country that also has an area
++   line keeps SB-5's place names, so the 256 SB-5 postings read as before.
++3. **Lines for places the job doesn't list: `salary.unlisted`** (the lead approved, 2026-10-24). Putting them in `ranges`
++   would make about 1,000 Microsoft cards read "$X–Y · 2 ranges", spanning into SF Bay Area / NYC pay for a Redmond role.
++   They are in no figure, filter, payAt or Juice. The lead: a posted line can't be visible only in the CSV, so the drawer's
++   pay Details say "The posting also gives pay for Spain: €38K–59.7K; this role isn’t listed there." (one Details item;
++   Details are a disclosure, so the phone line guard is not concerned). A U.S. range beside an area range on an
++   area-only job reads "the US outside the San Francisco Bay Area and the New York City area" (`outside`).
++4. **"kr" and "$" with no code are read by their line's country** (`weakCurrencyFor`): Microsoft's "across Denmark is kr
++   880,000.00 - kr 2,028,600.00" on a job listed in Oslo first was NOK. Applies to the headline too; no headline currency
++   changed on the crawl (the headline line is the first country's).
++5. **"[Degree]" headers.** Google writes "[Bachelor's degree]" on a line of its own, or before the first line, and the
++   country lines under it share it; also as bullets with blank lines between. lineBracket looks back at most 16 lines and
++   600 characters over country lines and blank lines (S-3: bounded). 3 Google headlines gain their degree levels.
++6. **Main site: rows named for places are tied to them** (`tieRangePlaces`). The brief's "USD lines by US state or zone":
++   Cohere's "USA - California, New York and Washington" / "USA - All Other States" / "Canada", OpenAI's "San Francisco,
++   New York, Seattle" / "Remote - US" / "US" / "London", Scale AI's unnamed rows named by their text. Before, none was tied,
++   so payAt priced no place of these postings. Rules in DATA_SOURCES §7a. "Zone A/B" (OpenAI) names no place and stays as
++   it was. Amazon's stored rows ("USA, TX, Wink") are never tied here: upgradeAmazonJobs re-reads them (DQ-33). A first
++   run tied them by label before that upgrade, which then skipped them (rows stayed hourly and duplicated): caught by the
++   before/after compare (§5), fixed in 2b92966 with a test.
++7. **The client.** `payRanges` returns rows in any currency; `payHeadline` spans only rows in the salary's currency; Pay by
++   place writes each row in its currency; under a filter the drawer's line names the row's currency and Pay by level the
++   row's own levels (pickedLevels). The helpers keep their names and signatures (other lanes' tests lift them by name), and
++   the row-currency helper is local inside payHeadline and payPlacesLine for that reason.
++8. **Juice.** A place with its own row is matched to the row's currency and `country` (else `salary.country`) and scored on
++   the row's midpoint in its currency. Before, Milan was left out as another country's pay.
++9. **CSV.** salary_ranges lists a row's levels under its name ("Germany · Bachelor's degree: 68500-68500 EUR") and the
++   unlisted lines marked "(not a listed place)". salary_min/max still span rows in the salary's currency only.
++10. **VT-1 kept.** Two Microsoft postings listed only in Brazil and India post only U.S. lines: `salary: null`, as before.
++11. **Not changed: the card's thousands.** France's €41,500 reads "€42K" on the card, as every card writes pay in
++    thousands; the drawer and Pay by place keep the hundreds where the posting states them (levelMoney). A follow-up for
++    the UI lane if the lead wants hundreds on cards.
+ 
+ ## 4. Replayable steps
+-(in progress)
++```sh
++S=/tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92f3-f582ebca24d9/scratchpad
++git fetch origin claude/stoic-ride-54ddxp && git checkout --detach origin/claude/stoic-ride-54ddxp     # 37f54e4
++ln -s $S/wt-data2/data/snapshots data/snapshots; mkdir -p data/beta; ln -s $S/wt-data2/data/beta/snapshots data/beta/snapshots
++ln -s /home/user/melon-seek/node_modules node_modules
++git archive -o $S/fs6/base.tar 37f54e4 && tar -xf $S/fs6/base.tar -C $S/fs6/base      # the base code, for before runs
++node $S/fs6/tools/served.mjs <code> <worktree> <out.json> [slugs]   # served salaries, the build's read path
++node $S/fs6/tools/census.mjs $S/fs6/base <worktree> <served.json> <census.json> google,microsoft,nvidia,scaleai,cohere,openai
++node $S/fs6/tools/breakdown.mjs <census.json>                     # per kind: lines stored, priced, unlisted
++node $S/fs6/tools/compare.mjs $S/fs6/served-before.json $S/fs6/served-after.json   # nothing dropped
++node $S/fs6/tools/bt.mjs <code> <worktree> google,microsoft,cohere,openai,scaleai,nvidia,meta   # Compstimate backtest
++node --test test/fix-salary-6.test.js                               # and in $S/fs6/base/test/: 18 of 18 fail
++UPDATE_GOLDEN=1 GOLDEN_REASON="norm-14 fix-salary-6: ..." node --test test/golden-normalize.test.js
++node test/fixtures/refresh/jobs/make-fixtures.mjs                   # after setting its NORMALIZER_VERSION to norm-14
++bash $S/heavy.sh timeout 2400 node scripts/build-static.js
++NODE_PATH=$S/pw/node_modules node scripts/e2e.js --grep=fix-salary-6
++git worktree add --detach $S/fs6/clean HEAD; ln -s /home/user/melon-seek/node_modules $S/fs6/clean/node_modules
++(cd $S/fs6/clean && MELON_BETA_SNAPSHOT_DIR= bash $S/heavy.sh timeout 1500 npm test)
++```
+ 
+ ## 5. Verification
+-Census before, base 37f54e4 on the 2026-10-16 crawl (lines found by patterns of their own, then looked up in the
+-served salary):
+-- Google: 35 postings with lines for 2+ countries, 97 lines, 63 not stored (62 for a country the posting lists).
+-- Microsoft: 35 postings with national ranges for 2+ countries, 97 lines, 62 not stored (58 listed); 1,232 US
+-  postings with a national and an SF Bay Area / NYC range, 993 lines not stored (the other area's range when the
+-  job's places are all on one side).
+-- Main site: Cohere 55 postings (183 rows), OpenAI 8 (18 rows), Scale AI 16 (42 rows): every row stored, none tied
+-  to a place, so no place is priced on them under a Location filter.
+-- Amazon 2,260 postings / 5,111 rows (19 untied, the lead decision), Apple 391 / 807 (1 untied): unchanged rule.
+-- Meta, Netflix, NVIDIA, Anduril, Anthropic, Palantir, Shield AI, xAI: no posting with pay for 2+ places.
++**Census, 2026-10-16 crawl** (lines found by the census's own patterns: "<Country>: <money>" lines, "across <Country> is",
++"in those locations is", "<Country>: The base salary …", "in the locations of … is:"; then looked up in the served salary):
++
++| Board | Postings with pay for 2+ places | Lines | Before: lines for a listed place not stored / priced | After: stored / priced | Lines for an unlisted place: before kept / after kept |
++|---|---:|---:|---|---|---|
++| Google (country lines) | 35 | 97 | 62 not stored (34 postings) / 34 priced | 96 of 96 / 96 | 0 / 1 |
++| Microsoft (2+ countries) | 35 | 97 | 58 not stored / 35 | 93 of 93 / 93 | 0 / 4 |
++| Microsoft (U.S. + SF Bay Area / NYC) | 1,232 | 2,720 | 0 / 1,633 | 1,633 / 1,633 | 0 / 1,083 (4 more are the 2 VT-1 postings) |
++| Scale AI (rows by place) | 16 | 42 | stored, 0 priced | 38 priced, 4 for places not listed | — |
++| Cohere / OpenAI (structured rows) | 55 / 8 | 183 / 18 rows | stored, 0 tied | 122 / 11 tied | rows for places not listed stay as they were |
++| NVIDIA, Meta, Netflix, Apple, Amazon, Anduril, Anthropic, Palantir, Shield AI, xAI | 0 | | | | |
++
++Meta: the stored crawl has no posting with 2+ `public_compensation` entries (`zones` is 1 for all 948). Amazon (2,260
++postings, 5,111 rows) and Apple (391, 807) already tie every row; unchanged.
++
++**Nothing dropped** (`tools/compare.mjs`, every stored posting through the build's read path, base 37f54e4 vs this lane):
++- postings 43,141 → 43,141 on 15 boards, none missing; paid 28,176 → 28,176; quarantined 8 → 8;
++- headline min, max and currency: 0 changed; text changed on 3 Google postings (their degree levels named);
++- rows 6,673 → 6,843, none lost: Google 0 → 81 rows (34 postings), Microsoft 512 → 601 (256 → 287 postings); Cohere 122,
++  OpenAI 11 and Scale AI 38 rows newly tied;
++- `salary.unlisted`: 979 postings (Google 1, Microsoft 978);
++- the "kr" fix: 15 Microsoft rows read by their own country (Denmark 7, Norway 5, Sweden 3); Google's lines carry codes.
++
++**Compstimate backtest** (seed 20261002, maxN 500, dedupe role; MdAPE, within 10%, n): Google ±12.4% unchanged, within
++10% 44.6% → 43.8% (Dublin, Milan, Paris comparables now priced at their own line); Microsoft ±8.4% / 56.8% / 484
++unchanged; Cohere ±9.9% on 59 → ±5.8% on 76 and Scale AI ±11.9% on 123 → ±9.7% on 124 (their rows now price the city
++asked, so more postings are estimable); OpenAI ±10.1% unchanged (within 10% 49.2% → 49.6%); NVIDIA and Meta unchanged.
++The backtest is seeded, so these moves are the data's, not load.
++
++**Unit tests:** test/fix-salary-6.test.js 20 (18 red on the base code); the whole suite with data linked at 6926984: 1,333
++tests, 1,331 pass, 0 fail, 2 skipped (load 15–29, so its timings are noise).
+ 
+ ## 6. Known gaps and follow-ups
+-(in progress)
++- The card writes €41,500 as "€42K" (thousands, as every card); the drawer keeps the hundreds.
++- Two Microsoft postings (Brazil, India) post only U.S. lines: `salary: null` under VT-1.
++- OpenAI's "Zone A" / "Zone B" rows name no place; their Remote place has no row.
++- fix-data-6 also bumps to norm-14; the lead re-baselines once more after integrating both.
+ 
+ ## 7. Change log
+ - 2026-10-23 21:52: start; links, base copy, served dump, census before.
+-- 2026-10-24 00:30: resumed after the container restart; nothing was lost.
++- 2026-10-24 00:30: resumed after the container restart; nothing was lost. Plan sent to the lead, approved.
++- 00:44: the fix and 18 red tests (015d801); 00:46 norm-14 and re-baselines (93b8979).
++- 00:55: bulleted degree lines; e2e file (6926984). 01:00: Amazon guard (2b92966). 01:05: docs (da401d7).
+-- 
+2.43.0
+

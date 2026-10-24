@@ -1,0 +1,158 @@
+From 5794e3aee9f1b72a6dc2daa6344ece667b535dda Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 24 Oct 2026 08:47:29 +0000
+Subject: [PATCH 96/99] fix-data-6: J-4 checks the tip of the chip under the
+ mouse; log: the three rebases, P-4, the one-line forms and every run's result
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+(cherry picked from commit 217ff5c367c29e7e6734ca2bc14c3f74e810dabd)
+---
+ docs/process/fix-data-6.md  | 84 +++++++++++++++++++++++++++++--------
+ test/e2e/fix-juice-6.e2e.js |  7 +++-
+ 2 files changed, 72 insertions(+), 19 deletions(-)
+
+diff --git a/docs/process/fix-data-6.md b/docs/process/fix-data-6.md
+index e0c0518..6755c23 100644
+--- a/docs/process/fix-data-6.md
++++ b/docs/process/fix-data-6.md
+@@ -1,21 +1,13 @@
+ # Process log: fix-data-6 (data and test engineer, fix wave 6)
+ 
+ ## State
+-- 2026-10-24 04:45 UTC: **rebased onto e77cd41** (the lead's integration with fix-salary-6), detached; the container
+-  restarted at 04:33 and the worktree and links were intact. Every ID is fixed and committed (G-1, T-19, C-1; K-1, P-1, P-2,
+-  P-3, R-1, R-2, R-3, G-2, G-3). Running: the related e2e groups (fix-salary-6's included) on the build of 733f793, and the
+-  per-board counts against e77cd41's build (`scratchpad/fd6/dist-int`).
+-- **Commits after the rebase (worktree only, never pushed), oldest first:** 5c995f2 brief, 2ac23ef log, 63139ff log,
+-  5887101 G-1 + K-1 + norm-14 (golden re-baselined on top of fix-salary-6's: 2 of 300), c89c769 log, f21a0c4 freshness inventory,
+-  8afc8a3 R-1/R-3, R-2, K-1 targets, P-1, P-2 and the e2e file, 5eb6871 T-19, 5f9ed0f log, 08512b1 P-3 and C-1, 3115ae8 docs,
+-  1ebab41 G-2 and G-3, 30603a6 docs for G-2/G-3 and this log, 799a164 related e2e fixes, 733f793 one line at 280 and 320 px.
+-  (Before the rebase: cb71da7, fa52f61, 5440eba, 5e29ff4, 0f007cc, 7b3a06a, b2a684e, 29250f0, 5bf929d, 5a9ef58.)
+-- **Verified:** npm test CI-like at 799a164 (rebased): 1,348 tests, 1,335 pass, 3 fail (fix-salary-6.test.js's harness lacked
+-  P-3's `isFullTimeHourly`; stubbed in 733f793, file 20/20), 10 skipped. Unit file test/fix-data-6.test.js 20/20. Red: the 10 ID
+-  e2e tests all fail on the base build (00bd52c), each on its finding; all 10 pass on the build of 7b3a06a. Related groups on the
+-  build of 29250f0 (before the rebase): 308 of 311 passed; the 3 failures were tests that expected the old rounded heading or
+-  had never run (T-19), fixed in 799a164 and passing on their re-run.
+-- **Next:** the related groups' result on 733f793, npm test at the head in the clean checkout, then the SHAs to the lead.
++- 2026-10-24 08:45 UTC: **on top of f13ebd6** (the lead's integration: fix-salary-6, fix-ui-6, fix-juice-6, fix-app-6), detached,
++  after rebasing onto e77cd41, then 942db8a, then f13ebd6 as the lead asked. Every ID is fixed and committed: G-1, T-19, C-1;
++  K-1, P-1, P-2, P-3, P-4, R-1, R-2, R-3, G-2, G-3. Head: see the change log's last line.
++- **Verified at 6963435 (P-4 head):** npm test CI-like in the clean checkout: 1,381 tests, 1,371 pass, 0 fail, 10 skipped. e2e
++  on its build: the groups P-4 touches (fix-data-6, Fix3 app, Fix app, fix-juice-6, fix-salary-6, fix-pay-at-place, Compstimate,
++  fix-estimates, fix-app-6, fix-qa4) 315 of 316; the one failure, fix-juice-6 [J-4] at 1280x800, is a race in that test (§3,
++  19), fixed in the next commit; re-run alone on the same build, J-4 passes at both its sizes (2 of 2). T-19's pair with `--max-skips=0`: 2 of 2, no skip.
+ - Not committed: the data links (data/snapshots, data/beta/snapshots) and node_modules.
+ - norm-14 is shared with fix-salary-6 (one bump; the golden history has both lanes' norm-14 entries).
+ 
+@@ -105,7 +97,39 @@
+     gazetteer city (GeoNames), so "Monterrey, N.L." is Monterrey, Mexico.
+ 14. **T-19:** Fix app [P-2] now picks its role in the page with `compstimateForJob` (the first of the roles without pay that gets an
+     estimate) and fails if the drawer then shows none. Desktop QA [D-11] gets an undated board from a fixture (openDesk has
+-    fix-app's `patch` hook now) and also checks a "Newest" link and the dated board.
++    fix-app's `patch` hook now) and also checks a "Newest" link and the dated board. On the integrated code the drawer shows an
++    estimate only where `estimateView` allows one (a role in another country than its comparables shows none), and the basis
++    line sits behind Details: the test picks with `estimateView` and reads the folded text.
++15. **Rebases (the lead's three integration heads).** Conflicts were only where both lanes wrote: `NORMALIZER_VERSION`'s comment,
++    the e2e registrations, CONTRACT's new sections, one DATA_SOURCES row and one guide paragraph (both kept, mine added into
++    theirs), and `payUnit`, which now takes S-1's `fmt(lo, hi, currency)` and P-2's `exact`. The golden file was re-baselined once
++    on top of fix-salary-6's with the tooling (`UPDATE_GOLDEN=1`): its 2 G-1 hashes, both lanes' norm-14 entries in the history.
++    Other lanes' tests changed only where P-2 changes what they read: fix-pay-at-place's and fix-salary-6's job-page figures are
++    now the posted ones ("$60,200–128,800", "€124,000–127,000"; the cards keep "$60K–129K", "€124K–127K"), and fix-salary-6's
++    unit harness stubs `isFullTimeHourly`.
++16. **One line at 280 and 320 px.** The brief asks for one line at all 21 sizes, stricter than fix-phone-text's two below 360 px,
++    so my phone tests now ask for one. Three lines needed shorter forms (`fitOneLine`): the hourly heading ("$27.98–48.99 an
++    hour", then "/hour", then whole dollars as on the card), the yearly line ("About $58K–102K a year", the 2,080 hours in
++    Details) and P-1's line ("For Seattle and 1 more only", then "Posted for other places"). The "Pay posted for … only" pill is
++    not a caption: it wraps by design (`.sal-pill--elsewhere`, max-width 10.5em, fix3-app BP-2; "Pay posted for the US only"
++    took two lines, a per-place posting's names three). Making it one line is a layout change (fix-ui-6's), so the test asks it
++    never to be cut and to take no more lines than a per-place posting's pill (3).
++17. **A programme's yearly rates by place** (amazon:10502807, an internship with one row per place) are exact on the job page too
++    ("$39,695–44,115/year"), as its Pay by place rows are; 1 posting.
++18. **P-4 (from the lead): `payLocations` follows the rows.** Every place a row prices has posted pay there, at its row and in its
++    currency (`pricedPlaces`, as `payAt` reads it). The headline figure keeps its own places in a new `headlinePayLocations` (the
++    old rule): `payCountry` reads it, so rankings and Compare stay in the headline's country, and the pay estimate imports it as
++    its `payLocations`, since it prices a comparable at its headline unless it has a row at the city asked (a German place must
++    never be priced at a US figure); the backtest does not move. The app's `_payLocs` follows the rows: Juice under a Location
++    filter at a row-priced place (the server already scores it on that row), the card's place order, "No Juice" places, and the
++    countries "Pay posted for … only" names ("the US and Germany"). Callers checked: app.js (`shownJuice`, `locSummary`,
++    `juiceMissing`, `payPlaceText`), compstimate.js (six, all on the headline), shared.js (`payCountry` on the headline;
++    `payTable`'s one-range path has no rows, so unchanged; `payAppliesIn` and `payLocationKeys` have no caller). Fix3 app [BP-2]
++    reads its expectation from the rows; beta-vetting VT-5 now checks that Spain's places are priced at Spain's own line.
++19. **fix-juice-6 [J-4] at 1280x800** failed on every run of my builds: a hash-only goto to Google keeps the previous board's
++    chart (Microsoft's, from the step before) for a moment, so the first edge chip in the DOM was Microsoft's "›1" while the
++    hover landed on Google's "‹2" (probe: `scratchpad/fd6/tools/j4probe.mjs` with PRE=microsoft). My data changes picked a
++    Microsoft case for the step before; the race is the test's. The tip is now checked for the chip under the mouse (`:hover`).
+ 
+ ## 4. Replayable steps
+ ```sh
+@@ -196,7 +220,23 @@ NODE_PATH=$S/pw/node_modules node scripts/e2e.js --grep="Fix app: \[P-2\]|Deskto
+   only"; [P-2] "€46K" and rounded Pay by place rows; [P-3] "$58K–102K" on an hourly card; [C-1] 4 of the 5 listed Principal or
+   Senior; [R-1] Amazon associates in support; [R-2] stored levels Senior; [R-3] AI-tutor family in a data center. On the build of
+   7b3a06a all 10 pass.
+-- **e2e, related groups:** added when the run finishes.
++- **e2e, related groups, before the rebases** (build of 29250f0): 308 of 311; the 3 were tests reading the old rounded heading or
++  never run (T-19), fixed in 799a164. **After the rebase onto e77cd41** (build of 733f793, fix-salary-6's group added): 335 of 346;
++  the 11 were fix-salary-6 tests reading the job page's rounded figure (P-2), updated in 6c0f2f1. **Onto 942db8a** (build of
++  6c0f2f1, fix-ui-6 and fix-juice-6 added): 511 of 513, 1 skipped (a size with no line above the chart); the 1 was J-4. **Onto
++  f13ebd6** (build of 6c8f4ca, the groups that rebase touches): 277 of 277. **P-4** (build of 6963435): 315 of 316 (J-4). T-19's pair
++  with `--max-skips=0` passed on every build from 799a164 on.
++- **Nothing dropped on top of fix-salary-6** (e77cd41's build against this lane's on the same crawl, per board, main and beta):
++  postings, postings with pay, pay rows, places and Juice equal on every board (Amazon 22,179 / 13,980 / 16,831 / 34,138 / 9,819;
++  Google 3,821 / 2,513 / 2,560 / 6,601 / 2,228; Microsoft 2,435 / 1,566 / 1,880 / 3,973 / 1,172); 0 postings lost. What moves:
++  places at a centre (Amazon 8,263 → 6,001, Meta 452 → 323, Google 257 → 207, Microsoft 170 → 122, Apple 153 → 112, Anduril 30 → 15,
++  Palantir 9 → 5, xAI 6 → 0, Netflix 1 → 0), SF Bay Area places (Amazon 1,644 → 1,804, Meta 924 → 995, Apple 2,317 → 2,320, Google
++  1,740 → 1,741), Google's bonus mentions 2,512 → 2,462. On top of fix-salary-6: P-1 532 postings (Amazon 284, Apple 248), P-2
++  16,414 job-page headings (big tech 16,240), P-3 2,442 full-time hourly cards (2,313 plain, 126 with a range per place, 3 minimums), as before the rebase.
++- **P-4:** red first (the posting's shape against the old shared.js: payLocations San Jose, Kirkland, New York, disagreeing with
++  payAt at Munich; after: San Jose, Munich, Kirkland, New York, agreeing at every place; payCountry US both). Unit tests in
++  test/fix-data-6.test.js (22 now). On the 2026-10-16 crawl 112 postings gain the places their other countries' rows price
++  (Cohere 47, Google 34, Microsoft 31; 197 places), none loses one.
+ 
+ ## 6. Known gaps and follow-ups
+ - "Bogota, D.C." (15 Amazon postings) is read as Washington, DC: another country. A fix changes the country, not only the
+@@ -208,6 +248,10 @@ NODE_PATH=$S/pw/node_modules node scripts/e2e.js --grep="Fix app: \[P-2\]|Deskto
+ - Apple's retail "US-Lead" and "US-Lead Genius" titles are still Senior by "lead" (not associate titles; not in R-2's scope).
+ - Japanese Amazon titles (シフトアシスタント, プロセスアシスタント) are not read by the family rules.
+ - "Monroe Twp" and "Hamilton Twp", NJ (two townships of each name) stay at New Jersey's centre.
++- The "Pay posted for … only" pill wraps to two or three lines by design (§3, 16); one line would be a layout change (fix-ui-6).
++- The pay estimate still prices a comparable at its headline outside the city asked; using another country's row as that
++  country's pay (P-4's rows in the estimate) would move the backtest, so it is left for a lane that owns compstimate.js.
++- fix-juice-6 [J-4]'s other hash-only gotos may race the same way (§3, 19); only the edge-chip check was changed.
+ 
+ ## 7. Change log
+ - 2026-10-23 21:12: checked out 00bd52c, saved the brief, linked the crawl, built the base.
+@@ -217,3 +261,9 @@ NODE_PATH=$S/pw/node_modules node scripts/e2e.js --grep="Fix app: \[P-2\]|Deskto
+ - 2026-10-24 00:23: the container restarted; resumed at 00:30 with every commit intact (build and npm test of 5440eba had finished).
+ - 00:30–01:10: T-19 (5e29ff4); P-3 and C-1 (7b3a06a); docs (b2a684e); rebuild; e2e (red on the base, green on 7b3a06a).
+ - 01:10–01:15: G-2 and G-3 (from the lead), geodiff on both crawls, 29250f0; npm test at 29250f0; rebuild; docs.
++- 01:15–02:30: related groups on 29250f0 (308 of 311), fixes (5a9ef58); the lead's first rebase onto e77cd41 (799a164); npm test.
++- 02:30–03:05: one line at 280 and 320 px; rebuilds; the before build of e77cd41. 04:33: the container restarted; resumed 04:37.
++- 04:37–05:30: 733f793; related groups (335 of 346: fix-salary-6's rounded figures); per-board counts against e77cd41.
++- 05:30–06:45: rebase onto 942db8a; fix-salary-6's e2e figures (6c0f2f1); npm test (1,357, 0 fail); related groups 511 of 513.
++- 06:45–07:45: rebase onto f13ebd6 (6c8f4ca); npm test 1,379, 0 fail; touched groups 277 of 277.
++- 07:45–08:45: P-4 (bb3df83); J-4's race (6963435, then the hovered-chip check); npm test 1,381, 0 fail; touched groups 315 of 316.
+diff --git a/test/e2e/fix-juice-6.e2e.js b/test/e2e/fix-juice-6.e2e.js
+index c30a02e..aee48a3 100644
+--- a/test/e2e/fix-juice-6.e2e.js
++++ b/test/e2e/fix-juice-6.e2e.js
+@@ -319,11 +319,14 @@ export function registerFixJuice6Tests(suite) {
+         const side = chip.text.startsWith('›') ? 'right' : 'left';
+         if (!new RegExp(`past the ${side} edge of the chart`).test(chip.aria || '')) bad.push(`the "${chip.text}" chip's accessible name: "${chip.aria}"`);
+         if (d.desktop) {
+-          // Its tip (the chart's own, on hover) says the same.
++          // Its tip (the chart's own, on hover) says the same. fix-data-6: for the chip the mouse is on (:hover). The chart
++          // re-renders after a hash-only goto, so the chip read above can be the previous board's, gone by the hover.
+           await page.locator('#chartHost .ms-bin--overflow:visible').first().hover();
+           await sleep(300);
++          const on = await page.evaluate(() => document.querySelector('#chartHost .ms-bin--overflow:hover')?.textContent.trim() || null);
++          const hSide = (on || chip.text).startsWith('›') ? 'right' : 'left';
+           const tip = await page.locator('.ms-viz-tip:not([hidden])').first().textContent().catch(() => '');
+-          if (!new RegExp(`paid (above|below) .*, past the ${side} edge of the chart`).test(tip || '')) bad.push(`the "${chip.text}" chip's tip: "${(tip || '').slice(0, 160)}"`);
++          if (!new RegExp(`paid (above|below) .*, past the ${hSide} edge of the chart`).test(tip || '')) bad.push(`the "${on || chip.text}" chip's tip: "${(tip || '').slice(0, 160)}"`);
+         }
+       }
+       assert(!bad.length, bad.join('; '));
+-- 
+2.43.0
+

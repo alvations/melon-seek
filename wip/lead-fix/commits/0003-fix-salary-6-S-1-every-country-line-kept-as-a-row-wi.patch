@@ -1,0 +1,1024 @@
+From 241339aebe9184ce53de2842e34098abbd09a707 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 24 Oct 2026 00:44:46 +0000
+Subject: [PATCH 03/99] fix-salary-6 S-1: every country line kept as a row with
+ its places; unlisted lines; kr by line country; main-site rows tied (WIP,
+ before golden)
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+(cherry picked from commit 015d801ecc821205087fda88b85de03a23d3b738)
+---
+ public/app.js             |  89 ++++++++---
+ server/export.js          |  17 ++-
+ server/juice.js           |  19 ++-
+ server/normalize.js       | 167 ++++++++++++++++++++-
+ server/salary.js          | 140 ++++++++++++++++--
+ test/fix-salary-6.test.js | 303 ++++++++++++++++++++++++++++++++++++++
+ 6 files changed, 690 insertions(+), 45 deletions(-)
+ create mode 100644 test/fix-salary-6.test.js
+
+diff --git a/public/app.js b/public/app.js
+index 6ca3bc9..bd72c9d 100644
+--- a/public/app.js
++++ b/public/app.js
+@@ -4503,6 +4503,43 @@ function levelMoney(n, currency) {
+   const sym = !currency || currency === 'USD' ? '$' : CUR_SYM[currency] ?? `${currency} `;
+   return `${n < 0 ? '-' : ''}${sym}${(Math.round(a / 100) / 10).toFixed(1)}K`;
+ }
++/**
++ * S-1 (fix-salary-6): the levels the pay block lists. Under a Location filter that picked one posted line, that
++ * line's own levels (Norway's IC6 in kroner, the SF Bay Area / NYC range's IC5 and IC6), never another place's; none
++ * when that line has none. Otherwise the salary's.
++ */
++function pickedLevels(sal, ph) {
++  const rows = ph?.picked?.rows;
++  if (!sal || !Array.isArray(rows) || !rows.length) return sal;
++  const own = rows.length === 1 && Array.isArray(rows[0].levels) && rows[0].levels.length > 1 ? rows[0].levels : null;
++  return { ...sal, levels: own, currency: own ? rowCurrency(rows[0], sal) : sal.currency };
++}
++/**
++ * S-1 (fix-salary-6): one Details line per pay line the posting gives for a place this role isn't listed in
++ * (salary.unlisted): "The posting also gives pay for Spain: €38K–59.7K; this role isn’t listed there." Shown as
++ * posted, in its own currency; no figure, filter or Juice uses it.
++ */
++function unlistedNotes(sal) {
++  const us = Array.isArray(sal?.unlisted) ? sal.unlisted.filter((u) => u && Number.isFinite(Number(u.min))) : [];
++  return us.map((u) => {
++    const cur = rowCurrency(u, sal);
++    const lv = Array.isArray(u.levels) && u.levels.length > 1 ? ` (${u.levels.map((l) => `${String(l.label).trim()} ${levelMoneyRange(l.min, l.max ?? l.min, cur)}`).join(', ')})` : '';
++    return `The posting also gives pay for ${unlistedName(u)}: ${levelMoneyRange(u.min, u.max ?? u.min, cur)}${lv}; this role isn’t listed there.`;
++  });
++}
++/** "the San Francisco Bay Area and the New York City area", "Spain", "the US": an unlisted line's place in a sentence. */
++function unlistedName(u) {
++  const areas = (as) => as.map((a) => (a === 'sf-bay' ? 'the San Francisco Bay Area' : a === 'nyc' ? 'the New York City area' : a)).join(' and ');
++  if (Array.isArray(u.areas) && u.areas.length) return areas(u.areas);
++  if (u.country && Array.isArray(u.outside) && u.outside.length) return `${countryInSentence(u.country)} outside ${areas(u.outside)}`;
++  if (u.country) return countryInSentence(u.country);
++  return String(u.label || 'another place');
++}
++/** "$188K–331.2K": a range whose ends keep the hundreds the posting states (levelMoney). */
++function levelMoneyRange(a, b, cur) {
++  const x = levelMoney(Number(a), cur), y = levelMoney(Number(b), cur);
++  return x === y ? x : `${x}–${y.replace(/^[^\d]+/, '')}`;
++}
+ /** "Pay by level: Level 2: $184K–287.5K · Level 3: $224K–356.5K" under the range in the pay block. */
+ function payLevelsLine(s, job = null) {
+   const lv = payLevels(s);
+@@ -4530,16 +4567,18 @@ function tierList(title, rows, note = '') {
+ }
+ /**
+  * UX-22: salary.ranges, when a posting gives its own range for different places (Apple: "$165,800–292,400
+- * (Waltham); …"): [{ label, min, max, locations }], yearly, in the salary's currency. Two or more, else null.
++ * (Waltham); …"): [{ label, min, max, locations }], yearly. Two or more, else null. S-1 (fix-salary-6): each row in
++ * its own currency (rowCurrency), since a posting can price each country on its own line ("Canada: $150000 -
++ * $153000 (CAD)", "US: $147000 - $210000 (USD)"); a span is only ever taken over rows in one currency.
+  */
+ function payRanges(s) {
+-  const cur = String(s?.currency || '').toUpperCase();
+-  const rs = Array.isArray(s?.ranges) ? s.ranges.filter((r) => r && Number.isFinite(Number(r.min)) && (r.label || (Array.isArray(r.locations) && r.locations.length))
+-    && String(r.currency || cur).toUpperCase() === cur) : [];
++  const rs = Array.isArray(s?.ranges) ? s.ranges.filter((r) => r && Number.isFinite(Number(r.min)) && (r.label || (Array.isArray(r.locations) && r.locations.length))) : [];
+   return rs.length > 1 ? rs : null;
+ }
++/** A salary.ranges row's currency: its own, else the salary's. */
++const rowCurrency = (r, s) => String(r?.currency || s?.currency || 'USD').toUpperCase();
+ const rangeLabel = (r) => String((r.label && !/…$/.test(r.label)) || !Array.isArray(r.locations) || !r.locations.length ? r.label || '' : [...new Set(r.locations.map((x) => (/^remote\b/i.test(x) ? 'Remote' : String(x).split(',')[0].trim())))].join(', ')).trim();
+-const rangeText = (r, cur) => moneyRange(Number(r.min), Number(r.max ?? r.min), cur);
++const rangeText = (r, cur) => moneyRange(Number(r.min), Number(r.max ?? r.min), r?.currency || cur);
+ /**
+  * "Pay by place: Waltham $166K–292K · Los Angeles, San Diego $175K–309K" under the range in the pay block (UX-22). QA
+  * round 3 (fix-pay-at-place): in the unit the pay was posted in (an internship's "$39.7K/year", "$18.50/hour").
+@@ -4548,7 +4587,7 @@ function payPlacesLine(s, job = null) {
+   const rs = payRanges(s);
+   if (!rs) return null;
+   const unit = job ? payUnit(job) : null;
+-  const pay = (r) => (unit ? unit.fmt(Number(r.min), Number(r.max ?? r.min)) : rangeText(r, s.currency));
++  const pay = (r) => (unit ? unit.fmt(Number(r.min), Number(r.max ?? r.min), rowCurrency(r, s)) : rangeText(r, s.currency));
+   // fix-pay-at-place: one line per range, with no place name cut off (rangeName); the pay block's Details list every place.
+   // D-39: ranges posted for the same places (Amazon's two hourly rates for Boardman, Hermiston and Umatilla) share one
+   // row that names the places once and gives each posted range, "or" between them.
+@@ -4583,7 +4622,7 @@ function pickedRange(job, F = viewSpec) {
+   if (!rs) return null;
+   const at = placePay(job, F);
+   if (!at || at.basis !== 'place') return null;
+-  return { range: moneyRange(at.min, at.max, at.currency), label: at.label, n: rs.length, min: at.min, max: at.max, currency: at.currency };
++  return { range: moneyRange(at.min, at.max, at.currency), label: at.label, n: rs.length, min: at.min, max: at.max, currency: at.currency, rows: at.ranges };
+ }
+ 
+ /**
+@@ -4615,15 +4654,16 @@ function placeCount(rs) {
+  * "/year", any other pay as a yearly range. `note` says what the unit is, for tips.
+  */
+ function payUnit(job) {
+-  const s = job.salary, cur = s.currency;
+-  if (isPartTimeHourly(job)) return { fmt: (a, b) => `${postedPair(a / 2080, b / 2080, cur)}/hour`, note: 'Part-time, paid by the hour' };
++  const s = job.salary, cur0 = s.currency;
++  // S-1 (fix-salary-6): fmt(lo, hi, currency) writes a row in its own currency (another country's line).
++  if (isPartTimeHourly(job)) return { fmt: (a, b, cur = cur0) => `${postedPair(a / 2080, b / 2080, cur)}/hour`, note: 'Part-time, paid by the hour' };
+   const term = postedTerm(s, job);
+-  if (!term) return { fmt: (a, b) => moneyRange(a, b, cur), note: '' };
++  if (!term) return { fmt: (a, b, cur = cur0) => moneyRange(a, b, cur), note: '' };
+   const prog = programText(job, term);
+-  if (term.fixed && term.per === 'term') return { fmt: (a, b) => `${moneyRange(a / term.toTerm, b / term.toTerm, cur)} total`, note: `fixed-term pay for a ${prog}` };
+-  if (term.per === 'year') return { fmt: (a, b) => `${moneyRange(a, b, cur)}/year`, note: prog };
++  if (term.fixed && term.per === 'term') return { fmt: (a, b, cur = cur0) => `${moneyRange(a / term.toTerm, b / term.toTerm, cur)} total`, note: `fixed-term pay for a ${prog}` };
++  if (term.per === 'year') return { fmt: (a, b, cur = cur0) => `${moneyRange(a, b, cur)}/year`, note: prog };
+   const f = PER_YEAR[term.per] || 1;
+-  return { fmt: (a, b) => `${postedPair(a / f, b / f, cur)}/${term.per}`, note: term.fixed ? (term.unstated ? 'fixed-term pay, length not stated' : `fixed-term pay for a ${prog}`) : prog };
++  return { fmt: (a, b, cur = cur0) => `${postedPair(a / f, b / f, cur)}/${term.per}`, note: term.fixed ? (term.unstated ? 'fixed-term pay, length not stated' : `fixed-term pay for a ${prog}`) : prog };
+ }
+ 
+ /**
+@@ -4639,19 +4679,25 @@ function payHeadline(job, F = viewSpec) {
+   const rs = s ? payRanges(s) : null;
+   if (!rs) return null;
+   const unit = payUnit(job);
+-  const byPlace = `Pay by place: ${rs.map((r) => `${rangeLabel(r)} ${unit.fmt(Number(r.min), Number(r.max ?? r.min))}`).join(' · ')}`;
++  const byPlace = `Pay by place: ${rs.map((r) => `${rangeLabel(r)} ${unit.fmt(Number(r.min), Number(r.max ?? r.min), rowCurrency(r, s))}`).join(' · ')}`;
+   const what = unit.note ? ` (${unit.note})` : '';
+   const picked = pickedRange(job, F);
+-  if (picked) { const text = unit.fmt(picked.min, picked.max); return { text, range: text, sub: '', tip: `The range posted for ${picked.label}${what}. ${byPlace}`, picked, rankPlace: picked.label, min: picked.min, max: picked.max, across: false }; }
+-  const lo = Math.min(s.min, ...rs.map((r) => Number(r.min))), hi = Math.max(s.max, ...rs.map((r) => Number(r.max ?? r.min)));
++  if (picked) { const text = unit.fmt(picked.min, picked.max, picked.currency); return { text, range: text, sub: '', tip: `The range posted for ${picked.label}${what}. ${byPlace}`, picked, rankPlace: picked.label, min: picked.min, max: picked.max, across: false }; }
++  // S-1 (fix-salary-6): the span covers the rows in the salary's currency only; another country's line in its own
++  // currency is listed in the tip and the drawer's Pay by place, never mixed into the figure.
++  const same = rs.filter((r) => rowCurrency(r, s) === String(s.currency || 'USD').toUpperCase());
++  const lo = Math.min(s.min, ...same.map((r) => Number(r.min))), hi = Math.max(s.max, ...same.map((r) => Number(r.max ?? r.min)));
+   const span = unit.fmt(lo, hi);
+   const n = placeCount(rs);
+   const head = payAt(job);
++  const spanned = same.length > 1;
++  const whose = head && head.basis === 'place' && !head.span ? (head.ranges.length === 1 && rangeName(head.ranges[0])) || head.label : '';
+   return {
+     text: `${span} · ${n ? `${n} places` : `${rs.length} ranges`}`, range: span, sub: n ? `${n} places` : `${rs.length} ranges`,
+-    tip: `${span} runs from the lowest to the highest of ${rs.length} ranges posted for ${n ? `${n} places` : 'its places'}${what}. ${byPlace}`,
++    tip: spanned ? `${span} runs from the lowest to the highest of ${same.length} ranges posted for ${n && same.length === rs.length ? `${n} places` : 'its places'}${what}${same.length < rs.length ? '; other places are paid in another currency' : ''}. ${byPlace}`
++      : `${span} is the range posted for ${whose || 'one place'}${what}; the posting gives other places pay in another currency. ${byPlace}`,
+     // The headline row's own name ("Bellevue", "Remote (CA)"), which a Location's name ("Remote (US)") would not say.
+-    picked: null, rankPlace: head && head.basis === 'place' && !head.span ? (head.ranges.length === 1 && rangeName(head.ranges[0])) || head.label : '', min: lo, max: hi, across: true,
++    picked: null, rankPlace: head && head.basis === 'place' && !head.span ? (head.ranges.length === 1 && rangeName(head.ranges[0])) || head.label : '', min: lo, max: hi, across: spanned,
+   };
+ }
+ 
+@@ -4933,7 +4979,8 @@ function drawerContent(job) {
+   const ph = sal && !isOte(job) && !isMinimum(job) ? payHeadline(job) : null;
+   // Shared decisions 3 and 4: the amount as it was stated. Fixed-term pay: "$3,850 a week · for about 17
+   // weeks"; a rate for a programme: "€72,000 a year · 13-week internship"; part-time: "$22.00–28.88 an hour".
+-  const cur = sal?.currency || 'USD';
++  // S-1 (fix-salary-6): under a Location filter, the currency of the line posted for the place picked.
++  const cur = ph?.picked?.currency || sal?.currency || 'USD';
+   // UX-51 (fix-qa4): shift pay reads as on its card ("$18.05–19.70 an hour", "up to $19.70 an hour").
+   const shiftR = sal && !ph ? shiftRange(sal) : null;
+   const amountText = !sal ? null : ph ? ph.range : shiftR ? shiftText(job, shiftR, ' an hour') : partHourly ? `${postedPair(sal.min / 2080, sal.max / 2080, sal.currency)} an hour`
+@@ -4950,7 +4997,7 @@ function drawerContent(job) {
+         h('div', { class: 'muted' }, subText),
+         (annualEl = annualNote(sal, job)),
+         // QA round 3: "Pay by place" for fixed-term and part-time pay too, in the unit it was posted in.
+-        ...(salaryNotes = [term || partHourly ? null : payLevelsLine(sal, job), payPlacesLine(sal, job)])))
++        ...(salaryNotes = [term || partHourly ? null : payLevelsLine(pickedLevels(sal, ph), job), payPlacesLine(sal, job)])))
+       : job.salaryFlag ? payUnclearBlock(job)
+         : h('div', { class: 'd-sal-none' }, h('strong', null, 'No pay listed'), compstimateBlock(job)),
+     sal ? salaryDistribution(job) : null,
+@@ -4966,6 +5013,8 @@ function drawerContent(job) {
+       ...[...(salaryNotes || [])].filter(Boolean).map((e) => e.dataset.note || ''), // the level names; every place of a long Pay by place row
+       sal && pctNote ? `${pctNote}${rankWhose ? ` This role is ranked at ${rankWhose}.` : ''}` : '',
+       sal && job._usd ? `The strip shows ${coName}’s ${noun} that show pay, each posted range at its middle${rankWhose ? `; this role's is ${rankWhose}` : ''}.` : '',
++      // S-1 (fix-salary-6): pay the posting gives for places this role isn't listed in, as posted (salary.unlisted).
++      ...unlistedNotes(sal),
+       // fix-touch-tips: each label's meaning (its hover title), so a tap or the keyboard can reach it.
+       ...(labelsEl ? [...labelsEl.querySelectorAll('.pay-label')].filter((e) => e.title).map((e) => `${e.textContent}: ${e.title.replace(/\.$/, '')}.`) : []),
+       h('span', { class: 'd-pay-doc' }, docLink(PAY_DOC, 'How pay is read')),
+diff --git a/server/export.js b/server/export.js
+index 4bda70d..a2e68b4 100644
+--- a/server/export.js
++++ b/server/export.js
+@@ -117,10 +117,21 @@ const amounts = (r) => { const a = Math.round(Number(r.min)), b = Math.round(Num
+ export function salaryRows(s) {
+   if (!s) return '';
+   const out = [];
+-  const lv = Array.isArray(s.levels) ? s.levels.filter((l) => l && l.label && finite(l.min)) : [];
+-  if (lv.length > 1) for (const l of lv) out.push(`${rowName(l)}: ${amounts(l)} ${cur(s, l)}`);
++  const levelsOf = (x) => (Array.isArray(x && x.levels) ? x.levels.filter((l) => l && l.label && finite(l.min)) : []);
+   const rs = Array.isArray(s.ranges) ? s.ranges.filter((r) => r && finite(r.min)) : [];
+-  if (rs.length > 1) for (const r of rs) out.push(`${rowName(r) || 'Unnamed'}: ${amounts(r)} ${cur(s, r)}`);
++  // S-1 (fix-salary-6): a row that carries its own levels (a country's degree lines, a Microsoft range by level) lists
++  // them under its name ("Germany · Bachelor's degree: 68500-68500 EUR"); the salary's levels are then its own row's.
++  const rowLevels = rs.length > 1 && rs.some((r) => levelsOf(r).length > 1);
++  const lv = levelsOf(s);
++  if (lv.length > 1 && !rowLevels) for (const l of lv) out.push(`${rowName(l)}: ${amounts(l)} ${cur(s, l)}`);
++  const line = (r, name) => {
++    const rl = levelsOf(r);
++    if (rl.length > 1) for (const l of rl) out.push(`${name} · ${rowName(l)}: ${amounts(l)} ${cur(s, r)}`);
++    else out.push(`${name}: ${amounts(r)} ${cur(s, r)}`);
++  };
++  if (rs.length > 1) for (const r of rs) line(r, rowName(r) || 'Unnamed');
++  // S-1: pay the posting gives for a place the job doesn't list (salary.unlisted), as posted and marked so.
++  for (const u of Array.isArray(s.unlisted) ? s.unlisted.filter((x) => x && finite(x.min)) : []) line(u, `${rowName(u) || 'Unnamed'} (not a listed place)`);
+   return out.join(' | ');
+ }
+ 
+diff --git a/server/juice.js b/server/juice.js
+index 9243b75..ecf6548 100644
+--- a/server/juice.js
++++ b/server/juice.js
+@@ -1522,7 +1522,17 @@ export function attachJuice(job, cities, opts = {}) {
+   // The pay's own country: the one its pay line names (salary.country, "Ireland: €72000"),
+   // else any country that uses its currency.
+   const payCountry = typeof s.country === 'string' && /^[A-Z]{2}$/.test(s.country) ? s.country : null;
+-  const use = matches.filter((m) => m.city.currency === cur && (!payCountry || m.city.country === payCountry));
++  // DQ-28: a place with its own posted range (salary.ranges[].locations) is scored on that range. S-1 (fix-salary-6):
++  // that range may be another country's line, in its own currency ("Italy: €124000 - €127000" for Milan on a
++  // posting headed by Germany's line; "Canada: $150000 - $153000 (CAD)" beside a US line), so the place is matched
++  // to the row's currency and country, not the headline's.
++  const rowOf = (m) => {
++    const key = m.location.rawName || m.location.name;
++    return Array.isArray(s.ranges) ? s.ranges.find((x) => x && Array.isArray(x.locations) && x.locations.includes(key) && Number.isFinite(Number(x.min)) && Number.isFinite(Number(x.max))) || null : null;
++  };
++  const rowCur = (r) => String((r && r.currency) || cur).toUpperCase();
++  const rowCountry = (r) => (r && typeof r.country === 'string' && /^[A-Z]{2}$/.test(r.country) ? r.country : payCountry);
++  const use = matches.filter((m) => { const r = rowOf(m); return m.city.currency === rowCur(r) && (!rowCountry(r) || m.city.country === rowCountry(r)); });
+   if (!use.length) {
+     const places = matches.map((m) => m.location.name || m.city.name);
+     job.juiceMissing = noJuiceReason('pay-other-country', { currency: cur, country: matches.some((m) => m.city.currency === cur) ? payCountry : null, places });
+@@ -1537,11 +1547,10 @@ export function attachJuice(job, cities, opts = {}) {
+   // DQ-28: a place with its own posted range (salary.ranges[].locations) is scored on that range's
+   // midpoint, not the span's.
+   const placeUSD = (m) => {
+-    const key = m.location.rawName || m.location.name;
+-    const r = Array.isArray(s.ranges) ? s.ranges.find((x) => x && Array.isArray(x.locations) && x.locations.includes(key) && Number.isFinite(Number(x.min)) && Number.isFinite(Number(x.max))) : null;
+-    if (!r || String(r.currency || cur).toUpperCase() !== cur) return salaryUSD;
++    const r = rowOf(m);
++    if (!r) return salaryUSD;
+     const mid = (Number(r.min) + Number(r.max)) / 2;
+-    const v = toUSD(partTime ? (mid / 2080) * hours * 52 : mid, cur, cities);
++    const v = toUSD(partTime ? (mid / 2080) * hours * 52 : mid, rowCur(r), cities);
+     return v != null && v > 0 ? v : salaryUSD;
+   };
+   for (const m of use) {
+diff --git a/server/normalize.js b/server/normalize.js
+index f63161e..3691dd3 100644
+--- a/server/normalize.js
++++ b/server/normalize.js
+@@ -2,7 +2,7 @@
+ import { geocodeMany } from './geo.js';
+ import { extractSections, extractKeywords, jobSeniority, isSalesTitle } from './keywords.js';
+ import * as keywordsModule from './keywords.js';
+-import { parseSalary, toJobSalary, currenciesFor, payTerms, mayRelabelPay, payAreas, payAreaOf } from './salary.js';
++import { parseSalary, toJobSalary, currenciesFor, payTerms, mayRelabelPay, payAreas, payAreaOf, nationCode } from './salary.js';
+ import { htmlToText, isoOrNull } from './sources/util.js';
+ import { vetSalaries, salaryChecks } from './vet.js';
+ import { postingRule } from './companies.js';
+@@ -148,15 +148,18 @@ export function deriveSalary(raw, locations = []) {
+   const hard = salary ? salaryChecks(who, salary).filter((c) => c.code !== 'junior_high' && c.code !== 'senior_low') : [];
+   if (hard.length) {
+     const fromText = toJobSalary(parsed, { source: 'text' });
+-    if (fromText && !salaryChecks(who, fromText).length) return terms({ ...fromText, zones: zonesOf(fromText), structuredRejected: hard.map((c) => c.code) });
++    if (fromText && !salaryChecks(who, fromText).length) return terms(withPlaceRanges({ ...fromText, zones: zonesOf(fromText), structuredRejected: hard.map((c) => c.code) }, parsed, locations));
+   }
+   // DQ-33 / VT-15: each range keeps the places it was posted for (ranges[].locations, as Apple's).
+   // SB-3 (salary audit): every posted range is kept. A cap at 12 dropped the rows after the twelfth,
+   // and with them those places' pay (a snapshot crawled before norm-11 can still lack them).
+   if (salary && ranges.length > 1) salary.ranges = ranges.map(({ min, max, currency, interval, label, locations }) => ({ min, max, currency, interval, ...(label ? { label } : {}), ...(Array.isArray(locations) && locations.length ? { locations: [...locations] } : {}) }));
++  // S-1 (fix-salary-6): structured rows named for places ("Canada", "USA - All Other States") are tied to them.
++  if (salary && salary.ranges) salary = tieRangePlaces(salary, locations, text);
+   if (!salary) {
+     salary = toJobSalary(parsed, { source: 'text' });
+-    if (salary) salary = withAreaRanges(salary, parsed, locations);
++    // SB-5, S-1: each pay line for a country or pay area is kept, tied to the job's places there.
++    if (salary) salary = withPlaceRanges(salary, parsed, locations);
+   }
+   if (salary) salary.zones = zonesOf(salary);
+   return salary ? terms(salary) : salary;
+@@ -198,6 +201,162 @@ export function withAreaRanges(salary, parsed, locations = []) {
+   };
+ }
+ 
++/**
++ * S-1 (fix-salary-6, norm-14): a posting that states pay for two or more countries or pay areas (parseSalary's
++ * `byPlace`: Google's "Germany: €150000 - €153000 (EUR)" and "Italy: €124000 - €127000 (EUR)", Microsoft's "across
++ * Ireland" and "across Spain", or its U.S. range and its SF Bay Area / NYC range) keeps every line. The headline
++ * salary stays the line DQ-15 picks for the job's main country (or DQ-13's area range); every line is a row of
++ * salary.ranges with the job's places it applies to (`locations`: the places in its country, or in its pay area),
++ * its `country` and its levels (`levels`, by level or degree), in its own currency, yearly like the salary. So
++ * payAt, Juice, the card, the drawer's Pay by place and the CSV price each place on its own line. A line for a
++ * country or area none of the job's places is in prices no place: it is kept in `salary.unlisted`
++ * ([{ label, min, max, currency, interval: 'year', country?, areas?, levels? }]), which the drawer's Details and the
++ * CSV show, and which no figure, filter or Juice uses. With one priced line there are no rows, as before.
++ * Rows of a country that also has an area line are named for their places, as SB-5's ("Redmond, Boston"); other rows
++ * are named for the country as posted ("Germany", "US").
++ */
++export function withPlaceRanges(salary, parsed, locations = []) {
++  const lines = parsed && Array.isArray(parsed.byPlace) && parsed.byPlace.length > 1 ? parsed.byPlace : null;
++  if (!salary || !lines || (Array.isArray(salary.ranges) && salary.ranges.length)) return withAreaRanges(salary, parsed, locations);
++  const locs = (locations || []).filter((l) => l && placeKey(l));
++  const cc = (l) => String(l.country || '').toUpperCase();
++  const areaLine = new Map(lines.filter((e) => e.areas).map((e) => [e.country, e]));
++  const placesFor = (e) => (e.areas
++    ? locs.filter((l) => cc(l) === e.country && e.areas.includes(payAreaOf(l)))
++    : locs.filter((l) => cc(l) === e.country && !(areaLine.get(e.country)?.areas || []).includes(payAreaOf(l))));
++  const rows = [];
++  const unlisted = [];
++  for (const e of lines) {
++    const a = toJobSalary({ min: e.min, max: e.max, currency: e.currency, interval: e.interval, kind: e.kind, termWeeks: e.termWeeks, termFactor: e.termFactor, intervalCorrected: e.intervalCorrected, statedInterval: e.statedInterval, levels: e.levels, zones: 1 }, {});
++    if (!a) continue;
++    // The headline's own line keeps the headline's figures exactly.
++    const same = e.head && a.currency === salary.currency;
++    const body = { min: same ? salary.min : a.min, max: same ? salary.max : a.max, currency: a.currency, interval: 'year' };
++    const lv = same && salary.levels ? salary.levels : a.levels;
++    const ps = placesFor(e);
++    if (ps.length) {
++      const label = areaLine.has(e.country) ? placeWords(ps) : e.label;
++      rows.push({ label, ...body, ...(e.country ? { country: e.country } : {}), locations: ps.map(placeKey), ...(lv && lv.length > 1 ? { levels: lv } : {}) });
++    } else {
++      // A country's own range beside its area range ("across the U.S." on a San Francisco-only job) is the
++      // country's pay outside those areas (`outside`).
++      const outside = !e.areas && areaLine.has(e.country) ? { outside: [...areaLine.get(e.country).areas] } : {};
++      unlisted.push({ label: e.label, ...body, ...(e.country ? { country: e.country } : {}), ...(e.areas ? { areas: [...e.areas] } : {}), ...outside, ...(lv && lv.length > 1 ? { levels: lv } : {}) });
++    }
++  }
++  const out = { ...salary };
++  if (rows.length > 1) out.ranges = rows;
++  if (unlisted.length) out.unlisted = unlisted;
++  return out;
++}
++
++// S-1 (fix-salary-6): the place words of a structured row's label ("USA - California, New York and Washington",
++// "Canada - Toronto (GTA), Montreal", "Remote - US", "San Francisco, New York City, Seattle or Washington DC").
++const US_STATE = Object.freeze({
++  alabama: 'AL', alaska: 'AK', arizona: 'AZ', arkansas: 'AR', california: 'CA', colorado: 'CO', connecticut: 'CT', delaware: 'DE',
++  florida: 'FL', georgia: 'GA', hawaii: 'HI', idaho: 'ID', illinois: 'IL', indiana: 'IN', iowa: 'IA', kansas: 'KS', kentucky: 'KY',
++  louisiana: 'LA', maine: 'ME', maryland: 'MD', massachusetts: 'MA', michigan: 'MI', minnesota: 'MN', mississippi: 'MS', missouri: 'MO',
++  montana: 'MT', nebraska: 'NE', nevada: 'NV', 'new hampshire': 'NH', 'new jersey': 'NJ', 'new mexico': 'NM', 'new york': 'NY',
++  'north carolina': 'NC', 'north dakota': 'ND', ohio: 'OH', oklahoma: 'OK', oregon: 'OR', pennsylvania: 'PA', 'rhode island': 'RI',
++  'south carolina': 'SC', 'south dakota': 'SD', tennessee: 'TN', texas: 'TX', utah: 'UT', vermont: 'VT', virginia: 'VA',
++  washington: 'WA', 'west virginia': 'WV', wisconsin: 'WI', wyoming: 'WY',
++});
++// State names that are also a city's ("New York", "Washington"): a state only in a list of states.
++const STATE_OR_CITY = new Set(['new york', 'washington']);
++const DC_RE = /^washington,?\s*d\.?\s?c\.?$|^d\.?c\.?$|^district of columbia$/;
++const OTHER_RE = /^(?:all\s+)?other\s+(?:us\s+)?states?$|^(?:anywhere\s+)?elsewhere(?:\s+in\s+the\s+(?:us|u\.s\.|usa|united states))?$|^all\s+other\s+(?:locations|areas)$/;
++const cityWord = (s) => String(s || '').toLowerCase().replace(/\bst\.?\s/g, 'saint ').replace(/\bnew york city\b/, 'new york').replace(/[^a-z ]+/g, ' ').replace(/\s+/g, ' ').trim();
++
++/** A structured row's label read as places: { country, remote, states, cities, dc, other }, or null when it names none. */
++function labelPlaces(label) {
++  let t = String(label || '').replace(/\([^)]*\)/g, ' ').replace(/\s+/g, ' ').trim()
++    .replace(/^for\s+candidates\s+(?:based\s+)?(?:in\s+)?/i, '').replace(/^(?:based\s+)?in\s+/i, '');
++  if (!t) return null;
++  const out = { country: null, remote: false, states: [], cities: [], dc: false, other: false };
++  if (/^elsewhere\s+in\s+the\s+(?:us|u\.s\.|usa|united states)\b/i.test(t)) return { ...out, country: 'US', other: true };
++  const parts = t.split(/\s+[-–—]\s+/);
++  let rest = t;
++  if (parts.length > 1) {
++    const head = parts[0].trim();
++    if (/^remote$/i.test(head)) { out.remote = true; out.country = nationCode(parts.slice(1).join(' ')); return out.country || parts.length === 1 ? out : null; }
++    const c = nationCode(head);
++    if (!c) return null;
++    out.country = c;
++    rest = parts.slice(1).join(' - ');
++  } else if (nationCode(t)) return { ...out, country: nationCode(t) };
++  else if (/^remote$/i.test(t)) return { ...out, remote: true };
++  const toks = rest.split(/\s*(?:,|&|\/|\bor\b|\band\b)\s*/i).map((x) => x.trim().replace(/\s+states?$/i, '').replace(/^the\s+/i, '')).filter(Boolean);
++  if (!toks.length) return out.country ? out : null;
++  const low = toks.map((x) => x.toLowerCase());
++  // "New York" and "Washington" are states in a list of states ("USA - California, New York and Washington",
++  // "California, New York and Washington"), else cities ("San Francisco & New York").
++  const stateList = low.every((x) => US_STATE[x] || DC_RE.test(x) || OTHER_RE.test(x) || x === 'washington state')
++    && (!!out.country || low.some((x) => US_STATE[x] && !STATE_OR_CITY.has(x)));
++  for (const x of low) {
++    if (OTHER_RE.test(x)) out.other = true;
++    else if (DC_RE.test(x)) out.dc = true;
++    else if (x === 'washington state') out.states.push('WA');
++    else if (US_STATE[x] && (!STATE_OR_CITY.has(x) || stateList)) out.states.push(US_STATE[x]);
++    else if (x === 'remote') out.remote = true;
++    else if (/^[a-z][a-z .'-]{1,40}$/.test(x)) out.cities.push(cityWord(x));
++    else return null;
++  }
++  if ((out.states.length || out.dc) && !out.country) out.country = 'US';
++  return out;
++}
++
++/**
++ * S-1 (fix-salary-6): structured pay rows named for places but stored with none (Ashby's "Canada", "USA - All Other
++ * States", "San Francisco, New York, Seattle", "Remote - US"; Greenhouse rows Scale AI names in the text, "the base
++ * salary range for this full-time position in the locations of San Francisco, New York, Seattle is: $180,000 —
++ * $259,000 USD") are tied to the job's places they name (`ranges[].locations`), so payAt and Juice price those
++ * places on their own row. A state list takes the job's places in those states; "All Other States" or "elsewhere in
++ * the US" the country's places no other row names; a country alone its places no more specific row names; a
++ * place that is a whole country ("United States", "Canada") is in every row of its country. A row that names no
++ * place the job lists, or a label that is not a place ("Zone A"), stays as it was. Rows that already have places
++ * (Amazon, Apple, Microsoft) are left alone. Pure; returns the salary unchanged when nothing is tied.
++ */
++export function tieRangePlaces(salary, locations = [], text = '') {
++  const rs = salary && Array.isArray(salary.ranges) ? salary.ranges : null;
++  if (!rs || rs.length < 2 || rs.some((r) => r && Array.isArray(r.locations) && r.locations.length)) return salary;
++  let rows = rs.map((r) => ({ ...r }));
++  // Scale AI: unnamed rows that the text names, by their figures.
++  if (rows.some((r) => !r.label) && text) {
++    const re = /\bin\s+the\s+locations?\s+of\s+([^:\n]{2,160}?)\s+is:?\s*\$?\s?([\d,]{4,})(?:\.\d{2})?\s*[-–—]+\s*\$?\s?([\d,]{4,})/gi;
++    for (const m of String(text).slice(0, 40000).matchAll(re)) {
++      const lo = Number(m[2].replace(/,/g, '')), hi = Number(m[3].replace(/,/g, ''));
++      const r = rows.find((x) => !x.label && Number(x.min) === lo && Number(x.max) === hi);
++      if (r) r.label = m[1].trim();
++    }
++  }
++  const locs = (locations || []).filter((l) => l && placeKey(l));
++  const read = rows.map((r) => (r.label ? labelPlaces(r.label) : null));
++  const cc = (l) => String(l.country || '').toUpperCase();
++  const whole = (l) => !l.remote && !l.city && !l.region; // "United States", "Canada"
++  const named = (p, l) => (p.remote ? !!l.remote && (!p.country || cc(l) === p.country)
++    : false) || (!l.remote && ((p.dc && cc(l) === 'US' && String(l.region || '').toUpperCase() === 'DC')
++      || (p.states.length && cc(l) === 'US' && p.states.includes(String(l.region || '').toUpperCase()))
++      || (p.cities.length && (!p.country || cc(l) === p.country) && p.cities.includes(cityWord(l.city || String(placeKey(l)).split(',')[0])))));
++  const specific = (p) => p && (p.remote || p.dc || p.states.length || p.cities.length);
++  const tied = rows.map(() => []);
++  for (const l of locs) {
++    read.forEach((p, i) => {
++      if (!p) return;
++      if (specific(p) && named(p, l)) tied[i].push(l);
++    });
++    const hit = tied.some((t) => t.includes(l));
++    read.forEach((p, i) => {
++      if (!p || !p.country || cc(l) !== p.country || l.remote) return;
++      // A whole-country place is in every row of its country; another place in its country's general row
++      // ("Canada", "All Other States") when no more specific row names it.
++      if (whole(l) ? !tied[i].includes(l) : (!hit && !specific(p)) || (!hit && p.other)) tied[i].push(l);
++    });
++  }
++  if (!tied.some((t) => t.length)) return rows.some((r, i) => r.label !== rs[i].label) ? { ...salary, ranges: rows } : salary;
++  rows = rows.map((r, i) => (tied[i].length ? { ...r, locations: tied[i].map(placeKey) } : r));
++  return { ...salary, ranges: rows };
++}
++
+ /**
+  * Fix wave 4 (DQ-27): `salary.places`, the location strings (Location.rawName) a posting's pay
+  * was posted for, when the adapter knows it is only some of the posting's places (Apple posts a
+@@ -298,6 +457,8 @@ export function relabelJobs(jobs) {
+     } else if (j.salary || j.salaryRaw) {
+       const ctx = { text, title, employmentType: j.employmentType || '', countries: [...new Set((j.locations || []).map((l) => l && l.country).filter(Boolean))] };
+       if (j.salary) next.salary = safe(() => relabelSalary(j.salary, ctx), j.salary);
++      // S-1 (fix-salary-6): stored structured rows named for places are tied to them, as fresh ones are.
++      if (next.salary) next.salary = safe(() => tieRangePlaces(next.salary, next.locations || [], text), next.salary);
+       if (j.salaryRaw) next.salaryRaw = safe(() => relabelSalary(j.salaryRaw, ctx), j.salaryRaw);
+     }
+     changed = true;
+diff --git a/server/salary.js b/server/salary.js
+index c4c8a67..2b322d2 100644
+--- a/server/salary.js
++++ b/server/salary.js
+@@ -259,6 +259,16 @@ const US_RANGE_RE = /\b(?:US|U\.S\.)\s+(?:base\s+)?(?:salary|pay|compensation|wa
+  *     no Nordic country is listed).
+  */
+ export const DOLLAR_COUNTRY = Object.freeze({ CA: 'CAD', MX: 'MXN', AU: 'AUD', NZ: 'NZD', SG: 'SGD', HK: 'HKD' });
++/**
++ * S-1 (fix-salary-6): the currency a shared symbol means on a pay line for `code`'s country ("across Denmark is
++ * kr 880,000.00" is DKK, "Canada: $150000" CAD, "US: $X" USD), or null when the symbol is not that country's.
++ */
++function weakCurrencyFor(sym, code) {
++  const c = String(code || '').toUpperCase();
++  if (sym === '$') return DOLLAR_COUNTRY[c] || (c === 'US' ? 'USD' : null);
++  const by = WEAK_SYMS[sym];
++  return (by && by[c]) || null;
++}
+ function resolveWeakCurrencies(toks, text, countries) {
+   const cs = (countries || []).map((c) => String(c || '').toUpperCase()).filter(Boolean);
+   // The one dollar (or peso) country every location is in, or null.
+@@ -391,6 +401,10 @@ const NATION_CODE = Object.freeze({
+   taiwan: 'TW', romania: 'RO', hungary: 'HU', slovakia: 'SK', slovenia: 'SI', bulgaria: 'BG', serbia: 'RS', estonia: 'EE',
+   latvia: 'LV', lithuania: 'LT', 'united arab emirates': 'AE', 'saudi arabia': 'SA', 'south africa': 'ZA', egypt: 'EG', turkey: 'TR',
+ });
++/** ISO code of a country name as pay text writes it ("Germany", "U.S.", "United Kingdom", "USA"), or null. */
++export function nationCode(name) {
++  return NATION_CODE[String(name || '').replace(/\s+/g, ' ').trim().toLowerCase().replace(/\.$/, '')] || null;
++}
+ // DQ-15: one pay line per country ("US: $171000 - $247000 (USD) + 20% bonus target ...",
+ // "Ireland: €142000 - €145000 (EUR) ...", "[Master's degree] Poland: zł159000 (PLN)"): the
+ // country name right before the amount on its line.
+@@ -409,7 +423,7 @@ function lineLabel(text, start) {
+   const from = from0 + text.slice(from0, start).lastIndexOf('\n') + 1; // S-3: never past 120 characters back
+   const m = LINE_LABEL_RE.exec(text.slice(from, start));
+   const code = m ? NATION_CODE[m[1].toLowerCase().replace(/\.$/, '')] || null : null;
+-  return code ? { code, at: from + m.index + m[0].indexOf(m[1]) } : null;
++  return code ? { code, at: from + m.index + m[0].indexOf(m[1]), name: m[1] } : null;
+ }
+ // VT-6 (fix wave 4): NVIDIA names the country before its pay sentence, not right before the
+ // amount: "We are considering the following: Italy: The base salary range is 66,000 EUR – …",
+@@ -417,26 +431,50 @@ function lineLabel(text, start) {
+ // label earlier in the amount's clause.
+ const SENTENCE_LABEL_RE = /([A-Z][A-Za-z.]*(?:\s+[A-Z][A-Za-z.]*){0,3})\s*:\s+(?:[Tt]he\s+)?(?:(?:base|annual|hourly)\s+)?(?:salary|pay|compensation|wage)\b/g;
+ function sentenceCountry(before) {
+-  let code = null;
++  const l = sentenceLabel(before);
++  return l ? l.code : null;
++}
++/** { code, name } of the last "<Country>: The base salary …" label in `before` ("Poland" of "For Poland:"), or null. */
++function sentenceLabel(before) {
++  let out = null;
+   for (const m of before.matchAll(SENTENCE_LABEL_RE)) {
+     const words = m[1].split(/\s+/);
+     // "For Poland" -> "Poland"; "United Kingdom" stays whole.
+     for (let i = 0; i < words.length; i++) {
+-      const c = NATION_CODE[words.slice(i).join(' ').toLowerCase().replace(/\.$/, '')];
+-      if (c) { code = c; break; }
++      const name = words.slice(i).join(' ');
++      const c = NATION_CODE[name.toLowerCase().replace(/\.$/, '')];
++      if (c) { out = { code: c, name }; break; }
+     }
+   }
+-  return code;
++  return out;
+ }
+ // SA-4 (salary audit): Google prices one country by degree on separate lines ("[Bachelor's degree] Canada:
+ // $99000 (CAD)", "[Master's degree] Canada: $102000 (CAD)"). The bracket before the country label names the
+ // line, so a span of the lines keeps each line as a level (salary.levels), as Microsoft's IC levels do.
+ const LINE_BRACKET_RE = /^\s*\[([^\]\n]{2,40})\]\s*[A-Z][A-Za-z. ]{1,40}:\s*$/;
++// S-1 (fix-salary-6): the bracket also heads the country lines under it, on a line of its own ("[PhD degree]\n
++// Germany: €85000 (EUR)\nFrance: €66000 (EUR)") or before the first of them ("[Bachelor's degree] Ireland: €47000
++// (EUR)\nGermany: €53000 (EUR)"). Only country pay lines may come between; a blank line ends the block.
++const BRACKET_HEAD_RE = /^\s*\[([^\]\n]{2,40})\]\s*(?:[A-Z][A-Za-z. ]{1,40}:\s*\S.*)?$/;
++const COUNTRY_LINE_RE = /^\s*[A-Z][A-Za-z. ]{1,40}:\s*\S/;
+ function lineBracket(text, start) {
+   const from0 = Math.max(0, start - 120);
+   const from = from0 + text.slice(from0, start).lastIndexOf('\n') + 1;
+   const m = LINE_BRACKET_RE.exec(text.slice(from, start));
+-  return m && lineLabel(text, start) ? m[1].trim() : null;
++  if (m) return lineLabel(text, start) ? m[1].trim() : null;
++  if (!lineLabel(text, start) || /\[/.test(text.slice(from, start))) return null;
++  // At most 12 lines and 600 characters back (S-3: bounded work per amount).
++  let end = from;
++  for (let k = 0; k < 12 && end > 0 && start - end <= 600; k++) {
++    const ls = text.lastIndexOf('\n', end - 2) + 1;
++    const line = text.slice(ls, end - 1);
++    if (!line.trim()) return null;
++    const hm = BRACKET_HEAD_RE.exec(line);
++    if (hm) return hm[1].trim();
++    if (!COUNTRY_LINE_RE.test(line)) return null;
++    end = ls;
++  }
++  return null;
+ }
+ /** ISO code of the country that labels the amount's line, or null. */
+ function lineCountry(text, start) {
+@@ -775,6 +813,10 @@ function buildUnits(text, toks, countries) {
+     const { a, b } = u;
+     u.currency = (a.weak && b && b.currency) ? b.currency : (a.currency || (b && b.currency) || null);
+     u.explicit = a.explicit || !!(b && b.explicit);
++    // S-1 (fix-salary-6): a currency read from a shared symbol alone ("kr 880,000.00 - kr 2,028,600.00",
++    // no code beside it) was the job's first country's; the line's own country decides it (evaluate).
++    const ts = b ? [a, b] : [a];
++    if (ts.some((t) => t.weak) && !ts.some((t) => t.currency && !t.weak)) u.weakSym = (a.weak ? a.sym : b.sym) || null;
+   }
+   // "3,850 USD / 2,310 GBP / 4,300 CAD": keep the location's currency.
+   const out = [];
+@@ -867,14 +909,16 @@ function evaluate(text, u, countries) {
+   if (b && !a.mult && b.mult && a.base < 1000) lo = a.base * multFactor(b.mult);
+   if (b && a.mult && !b.mult && b.base < 1000) hi = b.base * multFactor(a.mult);
+   if (!u.currency) return null;
++  // S-1 (fix-salary-6): "across Denmark is kr 880,000.00 - kr 2,028,600.00" is DKK on a job listed in Oslo first.
++  const cur = (u.weakSym && weakCurrencyFor(u.weakSym, unitCountry(text, u))) || u.currency;
+   // Pay in a currency the site has no exchange rate for (FX_PER_USD, shared with the
+   // browser's palette.js) cannot be plotted or compared, so it is not read. Romanian "lei"
+   // (RON) has a rate since fix wave 4 (MR-1). The vetting scan still sees such pay and flags
+   // the posting missed_salary.
+-  if (!FX_PER_USD[u.currency]) return null;
++  if (!FX_PER_USD[cur]) return null;
+   if (!b && !u.explicit) return null;
+   // S-3: an amount below a year's pay floor even at an hourly rate ("$1") needs no context.
+-  if (!meetsAnnualFloor(Math.max(lo, hi) * FACTORS.hour, u.currency)) return null;
++  if (!meetsAnnualFloor(Math.max(lo, hi) * FACTORS.hour, cur)) return null;
+ 
+   const gs = u.groupStart ?? u.start;
+   const ge = u.groupEnd ?? u.end;
+@@ -898,7 +942,6 @@ function evaluate(text, u, countries) {
+   }
+   let intervalCorrected = false;
+   let statedInterval = null;
+-  const cur = u.currency;
+   if (interval !== 'year' && interval !== 'term' && usdOr(hi * FACTORS[interval], cur) > MAX_ANNUAL && usdOr(lo, cur) >= PLAUSIBLE_ANNUAL_MIN && usdOr(hi, cur) <= MAX_ANNUAL) {
+     statedInterval = interval;
+     interval = 'year';
+@@ -927,7 +970,7 @@ function evaluate(text, u, countries) {
+   else if (standalone) score += 2;
+   if (stated) score += 1;
+   const want = currenciesFor(countries);
+-  if (want.includes(u.currency)) score += 2;
++  if (want.includes(cur)) score += 2;
+   if (lo > 0 && hi / lo > 3) score -= 2;
+   // Microsoft: "<Profession> IC4 - The typical base pay range for this role across
+   // the U.S. is USD $X - $Y per year." One such national sentence per level; the
+@@ -951,10 +994,14 @@ function evaluate(text, u, countries) {
+   score += own(natCode);
+   // DQ-15: "US: $X - $Y (USD) ...", "Ireland: €X - €Y (EUR) ...": the line for the job's
+   // country, and lines for different countries are never spanned together.
+-  const area = natCode || lineCountry(text, gs);
++  const ll = natCode ? null : lineLabel(text, gs);
++  const area = natCode || (ll ? ll.code : null);
+   if (!natCode) score += own(area);
+   // VT-6: a "<Country>: The base salary range is …" sentence names the pay's country.
+-  const labelCountry = area ? null : sentenceCountry(before);
++  const sl = area ? null : sentenceLabel(before);
++  const labelCountry = sl ? sl.code : null;
++  // S-1 (fix-salary-6): the country's name as the posting writes it ("Germany", "U.S.", "United Kingdom").
++  const placeName = natCode ? nat[1].replace(/\s+/g, ' ') : ll ? ll.name : sl ? sl.name : null;
+   // DQ-13: the SF Bay Area / NYC range ("... in those locations is USD $X - $Y").
+   const cityAreas = cityAreasOf(before);
+   // DQ-8: "... for Level 4": the level a tier is for.
+@@ -964,8 +1011,8 @@ function evaluate(text, u, countries) {
+   return {
+     // For "3,850 USD / 2,310 GBP / 4,300 CAD per week" the text is the whole statement;
+     // a term amount keeps its "for the four-month fellowship".
+-    score, start: gs, end: term ? ge + termAmount[0].length : ge, lo, hi, currency: u.currency, interval, kind, national, level,
+-    area, cityAreas, levelLabel, single: !b, over, ...(labelCountry ? { labelCountry } : {}),
++    score, start: gs, end: term ? ge + termAmount[0].length : ge, lo, hi, currency: cur, interval, kind, national, level,
++    area, cityAreas, levelLabel, single: !b, over, ...(labelCountry ? { labelCountry } : {}), ...(placeName ? { placeName } : {}),
+     ...(term ? { termWeeks: term.weeks, termFactor: Math.round((52 / term.exact) * 10000) / 10000 } : {}),
+     ...(intervalCorrected ? { intervalCorrected, statedInterval } : {}),
+   };
+@@ -1166,9 +1213,74 @@ export function parseSalary(text, { countries = [], areas = [] } = {}) {
+       };
+     }
+   }
++  const byPlace = placeLines(s, cands, best);
++  if (byPlace) out.byPlace = byPlace;
+   return out;
+ }
+ 
++const AREA_NAME = Object.freeze({ 'sf-bay': 'San Francisco Bay Area', nyc: 'New York City metro area' });
++/**
++ * S-1 (fix-salary-6): every pay line a posting states for a country or a pay area, when it states lines for more
++ * than one: Google's "Germany: €150000 - €153000 (EUR)" and "Italy: €124000 - €127000 (EUR)", Microsoft's "across
++ * Ireland is …" and "across Spain is …", or its national range and its SF Bay Area / NYC range, NVIDIA's "Italy: The
++ * base salary range is …". One entry per place (and currency, interval and kind), in posted order:
++ * { country, label (the place as posted), areas?, min, max, currency, interval, kind, text, levels?, head?,
++ * termWeeks?, termFactor?, intervalCorrected?, statedInterval? }, in the posted interval. A country's lines by level
++ * or degree ("[Bachelor's degree] Poland: zł156000", "[Master's degree] Poland: zł159000") are one entry with its
++ * levels, as the headline's are (SA-4). `head` marks the entry the headline salary was read from. The headline is
++ * unchanged (DQ-15); normalize.js#withPlaceRanges ties each entry to the job's places in its country (or area), so
++ * payAt prices each place on its own line, and keeps an entry for a place the job doesn't list as salary.unlisted.
++ * null when the posting states lines for one place only.
++ */
++function placeLines(s, cands, best) {
++  const keyOf = (c) => (c.cityOf ? `city|${c.cityOf.area || ''}` : c.area || c.labelCountry ? `country|${c.area || c.labelCountry}` : null);
++  const headKey = keyOf(best);
++  if (!headKey) return null;
++  const groups = new Map();
++  for (const c of cands) {
++    const k = keyOf(c);
++    if (!k) continue;
++    const gk = `${k}|${c.currency}|${c.interval}|${c.kind}`;
++    if (!groups.has(gk)) groups.set(gk, { key: k, members: [] });
++    groups.get(gk).members.push(c);
++  }
++  if (![...groups.values()].some((g) => g.key !== headKey)) return null;
++  const out = [];
++  for (const g of groups.values()) {
++    // As for the headline (VT-12): the same level and range stated twice is one line; a level priced twice keeps
++    // its widest range.
++    const seen = new Set();
++    const ms = g.members.filter((c) => { const k = `${c.level ? levelName(c.level) : ''}|${c.lo}|${c.hi}`; if (seen.has(k)) return false; seen.add(k); return true; });
++    const c0 = ms[0];
++    const city = !!c0.cityOf;
++    const country = city ? c0.cityOf.area || null : c0.area || c0.labelCountry || null;
++    const areas = city ? [...new Set(ms.flatMap((c) => c.cityAreas || []))] : null;
++    const names = ms.map((c) => (c.level ? levelName(c.level) : null));
++    let levels = null;
++    if (names.every(Boolean)) {
++      const by = new Map();
++      ms.forEach((c, i) => {
++        const l = by.get(names[i]);
++        if (l) { l.min = Math.min(l.min, c.lo); l.max = Math.max(l.max, c.hi); } else by.set(names[i], { label: names[i], min: round2(c.lo), max: round2(c.hi) });
++      });
++      if (by.size > 1) levels = [...by.values()].map((l) => ({ label: l.label, min: round2(l.min), max: round2(l.max) }));
++    }
++    let text = ms.map((c) => `${c.level && ms.length > 1 ? `${c.level.replace(/\s+/g, ' ')}: ` : ''}${flat(s.slice(c.start, c.end))}`).join('; ');
++    if (text.length > 160) text = `${text.slice(0, 157)}...`;
++    const label = city ? areas.map((a) => AREA_NAME[a] || a).join(' and ') : c0.placeName || country;
++    out.push({
++      country, label, ...(areas ? { areas } : {}),
++      min: round2(Math.min(...ms.map((c) => c.lo))), max: round2(Math.max(...ms.map((c) => c.hi))),
++      currency: c0.currency, interval: c0.interval, kind: c0.kind, text,
++      ...(levels ? { levels } : {}), ...(g.members.includes(best) ? { head: true } : {}),
++      ...(c0.termWeeks ? { termWeeks: c0.termWeeks, termFactor: c0.termFactor } : {}),
++      ...(c0.intervalCorrected ? { intervalCorrected: true, statedInterval: c0.statedInterval } : {}),
++      start: c0.start,
++    });
++  }
++  return out.sort((a, b) => a.start - b.start).map(({ start, ...e }) => e);
++}
++
+ /** "Software Engineering IC4" -> "IC4", "Critical Environment Ops ATR-C" -> "ATR-C"; "Level 4" stays; a long label is cut to 40 characters. */
+ function levelName(level) {
+   const t = String(level || '').replace(/\s+/g, ' ').trim();
+diff --git a/test/fix-salary-6.test.js b/test/fix-salary-6.test.js
+new file mode 100644
+index 0000000..4621fb8
+--- /dev/null
++++ b/test/fix-salary-6.test.js
+@@ -0,0 +1,303 @@
++// fix-salary-6 lane (docs/process/fix-salary-6.md), S-1 from the persona review (persona-beta-2-45-54): pay posted for
++// two or more countries kept one country's line and dropped the rest, so under a Location filter the site said the
++// pay isn't posted for a place the posting does give pay for ("Pay posted for Germany only (€150K–153K is the pay
++// posted for Germany, not for Milan)"). Every country line is now kept as a row of salary.ranges with its country and
++// its places, the headline stays the line DQ-15 picks, and a line for a place the job doesn't list is kept in
++// salary.unlisted. The fixtures are the postings' own pay paragraphs, cut from the 2026-10-16 crawl's stored
++// descriptions (data/beta/snapshots/<board>.json, htmlToText).
++import { test } from 'node:test';
++import assert from 'node:assert/strict';
++import fs from 'node:fs';
++import { deriveSalary, normalizeLocations, relabelJobs } from '../server/normalize.js';
++import { parseSalary } from '../server/salary.js';
++import { attachJuice, toUSD as juiceUSD } from '../server/juice.js';
++import * as csv from '../server/export.js';
++import { payAt, payMissAt } from '../public/features/shared.js';
++import { formatMoney } from '../public/viz/palette.js';
++
++const CITIES = JSON.parse(fs.readFileSync(new URL('../data/cities.json', import.meta.url), 'utf8'));
++const locsOf = (places) => normalizeLocations({ locationText: places[0], extraLocations: places.slice(1) });
++/** A posting as the build serves it from its pay paragraph: { id, title, locations, salary }. */
++function job({ id, title, places, text, employmentType = 'Full-time' }) {
++  const locations = locsOf(places);
++  return { id, title, employmentType, locations, salary: deriveSalary({ title, employmentType, text, html: '' }, locations) };
++}
++const at = (j, city) => j.locations.find((l) => l.city === city || l.name === city || l.rawName === city);
++const rowFor = (j, city) => (j.salary.ranges || []).find((r) => (r.locations || []).includes(at(j, city).rawName));
++
++/* ------------------------------------------------------------ fixtures (verbatim pay paragraphs) */
++const GOOGLE_PAY = 'Individual pay is determined by factors including job-related skills, experience, and relevant education or training.\n';
++// google:111420466312159942 "Customer Engineer, Migrations Specialist, Google Cloud" (Hamburg, Milan, London).
++const MILAN = {
++  id: 'google:111420466312159942', title: 'Customer Engineer, Migrations Specialist, Google Cloud',
++  places: ['Hamburg, Germany', 'Milan, Metropolitan City of Milan, Italy', 'London, UK'],
++  text: `${GOOGLE_PAY}\nGermany: €150000 - €153000 (EUR) + 20% bonus target + equity + benefits\nItaly: €124000 - €127000 (EUR) + 20% bonus target + equity + benefits\n\n`,
++};
++// google:123907061523063494 "Associate Product Marketing Manager BS/MS Intern, 2027" (Dublin, Hamburg, Paris).
++const PARIS = {
++  id: 'google:123907061523063494', title: 'Associate Product Marketing Manager BS/MS Intern, 2027', employmentType: 'Intern',
++  places: ['Dublin, Ireland', 'Hamburg, Germany', 'Paris, France'],
++  text: `${GOOGLE_PAY}Ireland: €47000 (EUR) + 0% bonus target\nGermany: €53000 (EUR) + 0% bonus target\nFrance: €41500 (EUR) + 0% bonus target\n`,
++};
++// google:111289074672640710 "Program Manager, 3PL Category Management, Cloud Indirect Category Management" (Amsterdam, Dublin).
++const DUBLIN = {
++  id: 'google:111289074672640710', title: 'Program Manager, 3PL Category Management, Cloud Indirect Category Management',
++  places: ['Amsterdam, Netherlands', 'Dublin, Ireland'],
++  text: `${GOOGLE_PAY}\nIreland: €116000 - €118000 (EUR) + 15% bonus target + equity + benefits\nNetherlands: €124000 - €127000 (EUR) + 15% bonus target + equity + benefits\n\n`,
++};
++// google:100176223677620934 "Research Scientist, Paradigms of Intelligence": a Canadian line in CAD beside the US one.
++const CANADA = {
++  id: 'google:100176223677620934', title: 'Research Scientist, Paradigms of Intelligence',
++  places: ['Montreal, QC, Canada', 'Toronto, ON, Canada', 'Cambridge, MA, USA', 'New York, NY, USA', 'Chicago, IL, USA'],
++  text: `${GOOGLE_PAY}\nCanada: $150000 - $153000 (CAD) + 15% bonus target + equity + benefits\nUS: $147000 - $210000 (USD) + 15% bonus target + equity + benefits\n\n`,
++};
++// google:86733690079453894 "Student Researcher, 2027": "[Bachelor's degree]" on a line of its own heads the country lines under it.
++const DEGREES = {
++  id: 'google:86733690079453894', title: 'Student Researcher, 2027', employmentType: 'Intern',
++  places: ['Zürich, Switzerland', 'Berlin, Germany', 'Munich, Germany', 'Grenoble, France', 'Paris, France', 'Accra, Ghana', 'Amsterdam, Netherlands', 'Stockholm, Sweden', 'London, UK'],
++  text: `${GOOGLE_PAY}[Bachelor's degree]\nGermany: €68500 (EUR) + 0% bonus target\nFrance: €53000 (EUR) + 0% bonus target\nSweden: kr545000 (SEK) + 0% bonus target\nNetherlands: €68500 (EUR) + 0% bonus target\n[Master's degree]\nGermany: €71000 (EUR) + 0% bonus target\nFrance: €54000 (EUR) + 0% bonus target\nSweden: kr560000 (SEK) + 0% bonus target\nNetherlands: €71000 (EUR) + 0% bonus target\n[PhD degree]\nGermany: €85000 (EUR) + 0% bonus target\nFrance: €66000 (EUR) + 0% bonus target\nSweden: kr670000 (SEK) + 0% bonus target\nNetherlands: €86500 (EUR) + 0% bonus target\n`,
++};
++const MS_PAY_LINK = (c) => `Certain roles may be eligible for benefits and other compensation.\nFind additional benefits and pay information here:\nhttps://careers.microsoft.com/v2/global/en/corporate-pay/${c}-corporate-pay.html\n\n`;
++// microsoft:1970393556972677 "Principal Transformation Partner": four countries, three of them in "kr".
++const NORDIC = {
++  id: 'microsoft:1970393556972677', title: 'Principal Transformation Partner',
++  places: ['Brussels', 'Oslo', 'Copenhagen, DK', 'Stockholm, Stockholm County, SE'],
++  text: ['Belgium is € 120,800.00 - € 267,400.00', 'Norway is kr 980,000.00 - kr 2,370,000.00', 'Denmark is kr 880,000.00 - kr 2,028,600.00', 'Sweden is kr 947,000.00 - kr 2,332,000.00']
++    .map((x) => `Solution Architecture IC6 - The typical base pay range for this role across ${x} per year. ${MS_PAY_LINK(x.split(' ')[0].toLowerCase())}`).join(''),
++};
++// microsoft:1970393556939627 "Digital Solution Area Specialist - AI Workforce - German Speaking (DACH)": Dublin only, with Spain's range too.
++const SPAIN = {
++  id: 'microsoft:1970393556939627', title: 'Digital Solution Area Specialist - AI Workforce - German Speaking (DACH)', places: ['Dublin, D, IE'],
++  text: ['Ireland is € 49,200.00 - € 71,400.00', 'Spain is € 38,000.00 - € 59,700.00']
++    .map((x) => `Digital Solution Area Specialists IC3 - The typical base pay range for this role across ${x} per year. ${MS_PAY_LINK(x.split(' ')[0].toLowerCase())}`).join(''),
++};
++// microsoft:1970393556627435 "Principal Software Engineer, CoreAI": Redmond only, with the SF Bay Area / NYC range by level.
++const MS_US = (lvl, us, city) => `Software Engineering ${lvl} - The typical base pay range for this role across the U.S. is USD ${us} per year. There is a different range applicable to specific work locations, within the San Francisco Bay area and New York City metropolitan area, and the base pay range for this role in those locations is USD ${city} per year.\n\nCertain roles may be eligible for benefits and other compensation. Find additional benefits and pay information here:\nhttps://careers.microsoft.com/us/en/us-corporate-pay\n\n`;
++const REDMOND = {
++  id: 'microsoft:1970393556627435', title: 'Principal Software Engineer, CoreAI', places: ['Redmond, WA, US'],
++  text: MS_US('IC5', '$142,800 - $274,800', '$188,000 - $304,200') + MS_US('IC6', '$165,600 - $296,400', '$220,800 - $331,200'),
++};
++
++/* ------------------------------------------------------------------ S-1: the reviewer's three postings */
++test('S-1 google:111420466312159942: Milan is priced on Italy\'s line, Hamburg on Germany\'s; the headline stays Germany\'s', () => {
++  const j = job(MILAN);
++  assert.deepEqual([j.salary.min, j.salary.max, j.salary.currency, j.salary.country], [150000, 153000, 'EUR', 'DE'], 'the headline is the line DQ-15 picks');
++  assert.equal((j.salary.ranges || []).length, 2, 'both posted lines are kept');
++  const milan = payAt(j, at(j, 'Milan'));
++  assert.ok(milan, 'pay is posted for Milan (it said "Pay posted for Germany only")');
++  assert.deepEqual([milan.min, milan.max, milan.currency, milan.basis], [124000, 127000, 'EUR', 'place']);
++  const hamburg = payAt(j, at(j, 'Hamburg'));
++  assert.deepEqual([hamburg.min, hamburg.max], [150000, 153000]);
++  assert.equal(payAt(j, at(j, 'London')), null, 'no line is posted for the UK');
++  assert.equal(payMissAt(j, at(j, 'London')), 'place');
++  assert.deepEqual([rowFor(j, 'Milan').label, rowFor(j, 'Milan').country], ['Italy', 'IT'], 'the row is named for the country as posted');
++});
++
++test('S-1 google:123907061523063494: Paris is priced on France\'s €41,500, and all three figures are kept', () => {
++  const j = job(PARIS);
++  assert.deepEqual([j.salary.min, j.salary.max, j.salary.country], [47000, 47000, 'IE']);
++  const rows = (j.salary.ranges || []).map((r) => [r.label, r.min, r.max, r.locations]);
++  assert.deepEqual(rows, [
++    ['Ireland', 47000, 47000, ['Dublin, Ireland']],
++    ['Germany', 53000, 53000, ['Hamburg, Germany']],
++    ['France', 41500, 41500, ['Paris, France']],
++  ], 'every posted figure, each for its place (it kept only Ireland\'s €47,000)');
++  const paris = payAt(j, at(j, 'Paris'));
++  assert.deepEqual([paris.min, paris.max, paris.basis], [41500, 41500, 'place'], 'Paris (it said "Pay posted for Ireland only")');
++});
++
++test('S-1 google:111289074672640710: Dublin is priced on Ireland\'s line, the headline stays the Netherlands\'', () => {
++  const j = job(DUBLIN);
++  assert.deepEqual([j.salary.min, j.salary.max, j.salary.country], [124000, 127000, 'NL']);
++  const dublin = payAt(j, at(j, 'Dublin'));
++  assert.ok(dublin, 'pay is posted for Dublin (it said "Pay posted for the Netherlands only")');
++  assert.deepEqual([dublin.min, dublin.max], [116000, 118000]);
++});
++
++/* ------------------------------------------------------------------ the rule, beyond the three */
++test('S-1 a line in another currency is a row in its own currency (Google "Canada: $150000 - $153000 (CAD)" beside the US line)', () => {
++  const j = job(CANADA);
++  assert.deepEqual([j.salary.currency, j.salary.country, j.salary.min, j.salary.max], ['USD', 'US', 147000, 210000], 'the US line, as DQ-15 picks for a job with a US place');
++  const tor = payAt(j, at(j, 'Toronto'));
++  assert.deepEqual([tor.min, tor.max, tor.currency], [150000, 153000, 'CAD']);
++  const ny = payAt(j, at(j, 'New York'));
++  assert.deepEqual([ny.min, ny.max, ny.currency], [147000, 210000, 'USD']);
++  assert.deepEqual(rowFor(j, 'Toronto').locations, ['Montreal, QC, Canada', 'Toronto, ON, Canada']);
++});
++
++test('S-1 "[Bachelor\'s degree]" on its own line names the country lines under it: each country keeps its degree levels', () => {
++  const j = job(DEGREES);
++  assert.deepEqual(j.salary.levels, [{ label: "Bachelor's degree", min: 68500, max: 68500 }, { label: "Master's degree", min: 71000, max: 71000 }, { label: 'PhD degree', min: 85000, max: 85000 }], 'the headline\'s degree lines are levels (SA-4)');
++  const se = rowFor(j, 'Stockholm');
++  assert.deepEqual([se.label, se.currency, se.min, se.max], ['Sweden', 'SEK', 545000, 670000]);
++  assert.deepEqual(se.levels.map((l) => [l.label, l.min]), [["Bachelor's degree", 545000], ["Master's degree", 560000], ['PhD degree', 670000]]);
++  assert.deepEqual(rowFor(j, 'Paris').locations, ['Grenoble, France', 'Paris, France']);
++  for (const raw of ['Zürich, Switzerland', 'Accra, Ghana', 'London, UK']) {
++    assert.ok(at(j, raw), raw);
++    assert.equal(payAt(j, at(j, raw)), null, `${raw}: no line is posted for it`);
++  }
++  assert.equal(j.salary.ranges.length, 4, 'Germany, France, Sweden and the Netherlands');
++});
++
++test('S-1 "kr" with no code is read by its line\'s country: Norway NOK, Denmark DKK, Sweden SEK (all were NOK, the first Nordic country listed)', () => {
++  const j = job(NORDIC);
++  assert.deepEqual([j.salary.currency, j.salary.country, j.salary.min, j.salary.max], ['EUR', 'BE', 120800, 267400]);
++  assert.deepEqual(j.salary.ranges.map((r) => [r.label, r.currency, r.min, r.max]), [
++    ['Belgium', 'EUR', 120800, 267400], ['Norway', 'NOK', 980000, 2370000], ['Denmark', 'DKK', 880000, 2028600], ['Sweden', 'SEK', 947000, 2332000],
++  ]);
++  assert.equal(payAt(j, at(j, 'Copenhagen')).currency, 'DKK');
++});
++
++test('S-1 a line for a place the job doesn\'t list is kept in salary.unlisted, not in the figure (Microsoft "across Spain" on a Dublin job)', () => {
++  const j = job(SPAIN);
++  assert.deepEqual([j.salary.min, j.salary.max, j.salary.country], [49200, 71400, 'IE']);
++  assert.equal(j.salary.ranges, undefined, 'one priced line: no rows, as before');
++  assert.deepEqual(j.salary.unlisted, [{ label: 'Spain', min: 38000, max: 59700, currency: 'EUR', interval: 'year', country: 'ES' }]);
++  assert.deepEqual(payAt(j, at(j, 'Dublin')).min, 49200);
++});
++
++test('S-1 Microsoft\'s SF Bay Area / NYC range on a Redmond-only job is kept in salary.unlisted, with its levels; the card keeps the U.S. range', () => {
++  const j = job(REDMOND);
++  assert.deepEqual([j.salary.min, j.salary.max], [142800, 296400]);
++  assert.equal(j.salary.ranges, undefined);
++  const [u] = j.salary.unlisted;
++  assert.deepEqual([u.min, u.max, u.areas, u.levels.map((l) => l.label)], [188000, 331200, ['sf-bay', 'nyc'], ['IC5', 'IC6']]);
++});
++
++test('S-1 SB-5 still holds: a job in Redmond and San Francisco prices each on its own range, and each row keeps its levels', () => {
++  const j = job({ ...REDMOND, places: ['Redmond, WA, US', 'San Francisco, CA, US'] });
++  assert.deepEqual([j.salary.min, j.salary.max], [142800, 296400], 'the headline is the U.S. range');
++  const sf = payAt(j, at(j, 'San Francisco'));
++  assert.deepEqual([sf.min, sf.max], [188000, 331200]);
++  assert.deepEqual(rowFor(j, 'San Francisco').levels.map((l) => [l.label, l.min, l.max]), [['IC5', 188000, 304200], ['IC6', 220800, 331200]]);
++  assert.deepEqual(rowFor(j, 'Redmond').levels.map((l) => l.label), ['IC5', 'IC6']);
++  assert.equal(j.salary.unlisted, undefined);
++});
++
++test('S-1 a stored posting (the build\'s read path, relabelJobs) gets the rows too', () => {
++  const locations = locsOf(MILAN.places);
++  const stored = { id: MILAN.id, company: 'google', title: MILAN.title, locations, descriptionHtml: `<p>${MILAN.text.replace(/\n/g, '<br>')}</p>`,
++    salary: { min: 150000, max: 153000, mid: 151500, currency: 'EUR', interval: 'year', text: '€150000 - €153000 (EUR)', kind: 'salary', spread: 1.02, zones: 2, source: 'text', country: 'DE' } };
++  const [j] = relabelJobs([stored]);
++  assert.deepEqual(j.salary.ranges.map((r) => r.label), ['Germany', 'Italy']);
++  assert.equal(payAt(j, at(j, 'Milan')).min, 124000);
++});
++
++test('S-1 parseSalary lists every line by place (byPlace) and marks the headline\'s', () => {
++  const p = parseSalary(PARIS.text, { countries: ['IE', 'DE', 'FR'] });
++  assert.deepEqual(p.byPlace.map((e) => [e.country, e.label, e.min, !!e.head]), [['IE', 'Ireland', 47000, true], ['DE', 'Germany', 53000, false], ['FR', 'France', 41500, false]]);
++  assert.equal(parseSalary('US: $147000 - $210000 (USD) + 15% bonus target', { countries: ['US'] }).byPlace, undefined, 'one line: no byPlace');
++});
++
++/* ------------------------------------------------------------------ Juice, the CSV */
++test('S-1 Juice scores each place on its own country\'s line: Milan on Italy\'s, Dublin on Ireland\'s, Toronto in CAD', () => {
++  const m = attachJuice(job(MILAN), CITIES);
++  const milan = m.juice?.byLocation.find((e) => /Milan/.test(e.cityName || e.locationName));
++  assert.ok(milan, 'Milan gets Juice (it was left out as another country\'s pay)');
++  assert.equal(milan.gross, Math.round(juiceUSD(125500, 'EUR', CITIES)), 'on Italy\'s midpoint, €125,500');
++  const d = attachJuice(job(DUBLIN), CITIES);
++  const dub = d.juice?.byLocation.find((e) => /Dublin/.test(e.cityName || e.locationName));
++  assert.equal(dub.gross, Math.round(juiceUSD(117000, 'EUR', CITIES)));
++  const c = attachJuice(job(CANADA), CITIES);
++  const tor = c.juice?.byLocation.find((e) => /Toronto/.test(e.cityName || e.locationName));
++  assert.ok(tor, 'Toronto gets Juice on the Canadian line');
++  assert.equal(tor.gross, Math.round(juiceUSD(151500, 'CAD', CITIES)));
++  assert.equal(c.juice.byLocation.some((e) => /London/.test(e.cityName || '')), false);
++});
++
++test('S-1 the CSV\'s salary_ranges lists every posted line, each in its own currency, and the unlisted ones marked', () => {
++  const rows = (j) => csv.salaryRows(j.salary);
++  assert.equal(rows(job(PARIS)), 'Ireland: 47000-47000 EUR | Germany: 53000-53000 EUR | France: 41500-41500 EUR');
++  assert.equal(rows(job(CANADA)), 'Canada: 150000-153000 CAD | US: 147000-210000 USD');
++  assert.equal(rows(job(SPAIN)), 'Spain (not a listed place): 38000-59700 EUR');
++  assert.match(rows(job(REDMOND)), /^IC5: 142800-274800 USD \| IC6: 165600-296400 USD \| San Francisco Bay Area and New York City metro area \(not a listed place\) · IC5: 188000-304200 USD \| .* · IC6: 220800-331200 USD$/);
++  assert.match(rows(job(DEGREES)), /^Germany · Bachelor's degree: 68500-68500 EUR \| Germany · Master's degree: 71000-71000 EUR \| Germany · PhD degree: 85000-85000 EUR \| France · /);
++  assert.deepEqual(csv.salaryRange(job(CANADA).salary), [147000, 210000], 'salary_min/max: rows in another currency are listed, not spanned');
++});
++
++/* ------------------------------------------------------------------ the main site: rows named for places */
++test('S-1 main site: Ashby rows named for places are tied to them (cohere:14aef6d9 "USA - California, New York and Washington", "USA - All Other States", "Canada")', () => {
++  const locations = locsOf(['Canada', 'San Francisco', 'United States', 'New York', 'Ottawa', 'Toronto', 'Montreal', 'Remote']);
++  const payRanges = [
++    { min: 225000, max: 315000, currency: 'USD', interval: 'year', label: 'USA - California, New York and Washington' },
++    { min: 205000, max: 275000, currency: 'USD', interval: 'year', label: 'USA - All Other States' },
++    { min: 290000, max: 400000, currency: 'CAD', interval: 'year', label: 'Canada' },
++  ];
++  const sal = deriveSalary({ title: 'Member of Technical Staff', text: '', html: '', salary: { min: 205000, max: 315000, currency: 'USD', interval: 'year', text: '$205K – $315K • Offers Equity • Multiple Ranges' }, payRanges }, locations);
++  const j = { id: 'cohere:14aef6d9-763e-4f56-a498-206fb31dd0c6', locations, salary: sal };
++  assert.deepEqual(sal.ranges.map((r) => r.locations), [['San Francisco', 'United States', 'New York'], ['United States'], ['Canada', 'Ottawa', 'Toronto', 'Montreal']]);
++  assert.deepEqual([payAt(j, at(j, 'Toronto')).min, payAt(j, at(j, 'Toronto')).currency], [290000, 'CAD'], 'Toronto (it had no posted pay at any place)');
++  assert.equal(payAt(j, at(j, 'San Francisco')).min, 225000);
++  assert.equal(payAt(j, at(j, 'Remote')), null, 'no row is posted for Remote');
++});
++
++test('S-1 main site: Scale AI\'s unnamed Greenhouse rows are named and tied by the text that states them', () => {
++  const text = 'For pay transparency purposes, the base salary range for this full-time position in the locations of San Francisco, New York, Seattle is:\n$180,000 — $259,000 USD\nThe base salary range for this full-time position in the locations of Hawaii, Washington DC, Texas, Colorado is:\n$162,400 — $233,000 USD\nThe base salary range for this full-time position in the location of St. Louis is:\n$135,200 — $194,000 USD\n';
++  const locations = locsOf(['San Francisco, CA', 'St. Louis, MO', 'New York, NY', 'Washington, DC']);
++  const payRanges = [[180000, 259000], [162400, 233000], [135200, 194000]].map(([min, max]) => ({ min, max, currency: 'USD', interval: 'year' }));
++  const sal = deriveSalary({ title: 'Software Engineer, Public Sector', text, html: '', salary: { min: 135200, max: 259000, currency: 'USD', interval: 'year', text: '135,200–259,000 USD (3 ranges)' }, payRanges }, locations);
++  assert.deepEqual(sal.ranges.map((r) => [r.label, r.locations]), [
++    ['San Francisco, New York, Seattle', ['San Francisco, CA', 'New York, NY']],
++    ['Hawaii, Washington DC, Texas, Colorado', ['Washington, DC']],
++    ['St. Louis', ['St. Louis, MO']],
++  ]);
++  const j = { id: 'scaleai:4302243005', locations, salary: sal };
++  assert.equal(payAt(j, at(j, 'St. Louis')).min, 135200);
++});
++
++/* ------------------------------------------------------------------ the card and the drawer (public/app.js) */
++// public/app.js is a browser module, so the card's pay helpers are cut out of its source and run on their own, as
++// test/salary-audit.test.js does (fnSource). Under a Location filter, placePay is the shared payAt over the places
++// the filter picks.
++const APP = fs.readFileSync(new URL('../public/app.js', import.meta.url), 'utf8');
++function fnSource(name) {
++  const m = new RegExp(`^(?:function ${name}\\(|const ${name} = )`, 'm').exec(APP);
++  assert.ok(m, `public/app.js defines ${name}`);
++  if (APP.startsWith('const', m.index)) return APP.slice(m.index, APP.indexOf('\n', m.index));
++  let depth = 0;
++  for (let i = APP.indexOf('{', m.index); i < APP.length; i++) {
++    if (APP[i] === '{') depth++;
++    else if (APP[i] === '}' && --depth === 0) return APP.slice(m.index, i + 1);
++  }
++  throw new Error(`unbalanced ${name}`);
++}
++const HELPERS = ['payHeadline', 'payRanges', 'rangeLabel', 'rangeText', 'pickedRange', 'placeCount', 'rangePlaceKeys', 'rangeName', 'payUnit', 'money', 'moneyRange', 'rangeEnd', 'postedPair', 'postedMoney', 'rowCurrency', 'pickedLevels', 'unlistedNotes', 'unlistedName', 'levelMoneyRange', 'levelMoney']
++  .filter((n) => n !== 'rowCurrency' || /^const rowCurrency = /m.test(APP)).filter((n) => !['pickedLevels', 'unlistedNotes', 'unlistedName', 'levelMoneyRange'].includes(n) || new RegExp(`^function ${n}\\(`, 'm').test(APP));
++// eslint-disable-next-line no-new-func
++const card = (place) => new Function('formatMoney', 'payAt', 'countryInSentence', 'place', `
++  const CUR_SYM = { USD: '$', GBP: '£', EUR: '€', CAD: 'CA$', AUD: 'A$', JPY: '¥', INR: '₹', CHF: 'CHF ', SGD: 'S$', SEK: 'SEK ', NOK: 'NOK ', DKK: 'DKK ' };
++  const PER_YEAR = { hour: 2080, day: 260, week: 52, month: 12, year: 1 };
++  let viewSpec = place ? { l: new Set([place]) } : null;
++  const isPartTimeHourly = () => false, postedTerm = () => null, programText = () => '';
++  const placePay = (j) => payAt(j, place);
++  ${HELPERS.map(fnSource).join('\n')}
++  return { payHeadline, unlistedNotes: typeof unlistedNotes === 'function' ? unlistedNotes : null, pickedLevels: typeof pickedLevels === 'function' ? pickedLevels : null };`)(formatMoney, payAt, (c) => ({ US: 'the US', ES: 'Spain' }[c] || c), place);
++
++test('S-1 the card under a Location filter shows the place\'s own line: Milan €124K–127K, Paris €42K (€41,500), Dublin €116K–118K, Toronto CA$150K–153K', () => {
++  assert.equal(card('Milan').payHeadline(job(MILAN)).text, '€124K–127K');
++  assert.equal(card('Paris').payHeadline(job(PARIS)).text, '€42K', 'France’s €41,500, in thousands as every card writes pay (it was "Pay posted for Ireland only")');
++  assert.equal(card('Dublin').payHeadline(job(DUBLIN)).text, '€116K–118K');
++  assert.equal(card('Toronto').payHeadline(job(CANADA)).text, 'CA$150K–153K', 'in the line\'s own currency');
++});
++
++test('S-1 the card with no filter: a span of rows in one currency; another currency\'s line is listed in the tip, never spanned', () => {
++  const m = card(null).payHeadline(job(MILAN));
++  assert.equal(m.text, '€124K–153K · 2 places');
++  assert.match(m.tip, /Pay by place: Germany €150K–153K · Italy €124K–127K/);
++  const c = card(null).payHeadline(job(CANADA));
++  assert.equal(c.text, '$147K–210K · 5 places', 'the US line alone, not a USD–CAD span');
++  assert.match(c.tip, /^\$147K–210K is the range posted for US; the posting gives other places pay in another currency\. Pay by place: Canada CA\$150K–153K · US \$147K–210K$/);
++  assert.equal(c.across, false, 'no "(across places)" spread label for one row');
++});
++
++test('S-1 the drawer\'s Details name a line for a place the job doesn\'t list, as posted, and Pay by level follows the place picked', () => {
++  const { unlistedNotes, pickedLevels } = card(null);
++  assert.ok(unlistedNotes, 'public/app.js unlistedNotes');
++  assert.deepEqual(unlistedNotes(job(SPAIN).salary), ['The posting also gives pay for Spain: €38K–59.7K; this role isn’t listed there.']);
++  assert.match(unlistedNotes(job(REDMOND).salary)[0], /^The posting also gives pay for the San Francisco Bay Area and the New York City area: \$188K–331\.2K \(IC5 \$188K–304\.2K, IC6 \$220\.8K–331\.2K\); this role isn’t listed there\.$/);
++  const both = job({ ...REDMOND, places: ['Redmond, WA, US', 'San Francisco, CA, US'] });
++  const ph = card('San Francisco').payHeadline(both);
++  assert.deepEqual(pickedLevels(both.salary, ph).levels.map((l) => l.min), [188000, 220800], 'San Francisco\'s own IC5 and IC6, not the U.S. ones');
++  const nordic = job(NORDIC);
++  assert.equal(pickedLevels(nordic.salary, card('Oslo').payHeadline(nordic)).levels, null, 'Norway posts one level: Belgium\'s are not listed for Oslo');
++});
+-- 
+2.43.0
+
