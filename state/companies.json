@@ -131,9 +131,9 @@
  },
  "google": {
   "slug": "google",
-  "lastObservedAt": "2026-10-24T11:43:33.173Z",
+  "lastObservedAt": "2026-10-24T16:19:41.805Z",
   "firstObservedAt": "2026-10-10T11:09:51.834Z",
-  "observations": 53,
+  "observations": 54,
   "name": "Google",
   "channel": "beta",
   "source": "google",
@@ -147,10 +147,10 @@
    "resumed": 0,
    "closed": 0,
    "unseen": 0,
-   "changed": 0,
-   "payChanged": 0,
-   "sourceChanged": 0,
-   "observations": 1
+   "changed": 2297,
+   "payChanged": 34,
+   "sourceChanged": 3,
+   "observations": 2
   },
   "lastDailyDate": "2026-10-24",
   "lastDailyAt": "2026-10-24T05:08:53.359Z"
@@ -183,35 +183,35 @@
  },
  "microsoft": {
   "slug": "microsoft",
-  "lastObservedAt": "2026-10-24T11:59:34.615Z",
+  "lastObservedAt": "2026-10-24T16:22:18.532Z",
   "firstObservedAt": "2026-10-10T10:55:39.033Z",
-  "observations": 54,
+  "observations": 55,
   "name": "Microsoft",
   "channel": "beta",
   "source": "eightfold",
   "board": "microsoft",
   "color": "#00a4ef",
-  "open": 2465,
-  "ids": 3788,
+  "open": 2467,
+  "ids": 3790,
   "pending": {
-   "opened": 1,
+   "opened": 3,
    "reopened": 0,
    "resumed": 783,
    "closed": 206,
    "unseen": 0,
-   "changed": 27,
-   "payChanged": 0,
-   "sourceChanged": 0,
-   "observations": 1
+   "changed": 1376,
+   "payChanged": 1333,
+   "sourceChanged": 1,
+   "observations": 2
   },
   "lastDailyDate": "2026-10-24",
   "lastDailyAt": "2026-10-24T05:11:13.679Z"
  },
  "netflix": {
   "slug": "netflix",
-  "lastObservedAt": "2026-10-24T11:41:48.100Z",
+  "lastObservedAt": "2026-10-24T16:18:05.388Z",
   "firstObservedAt": "2026-10-10T10:21:03.942Z",
-  "observations": 54,
+  "observations": 55,
   "name": "Netflix",
   "channel": "beta",
   "source": "eightfold",
@@ -225,10 +225,10 @@
    "resumed": 0,
    "closed": 0,
    "unseen": 0,
-   "changed": 29,
+   "changed": 59,
    "payChanged": 0,
    "sourceChanged": 0,
-   "observations": 1
+   "observations": 2
   },
   "lastDailyDate": "2026-10-24",
   "lastDailyAt": "2026-10-24T05:06:14.742Z"
