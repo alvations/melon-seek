@@ -14,7 +14,7 @@ import { payAreaOf } from '../server/salary.js';
 import { NORMALIZER_VERSION, relabelJobs } from '../server/normalize.js';
 import * as keywords from '../server/keywords.js';
 import { roleFamily, FAMILY_LABELS, familySim } from '../public/features/roles.js';
-import { FAMILY_TITLES } from '../public/features/compstimate.js';
+import { FAMILY_TITLES, shownComparables, estimateComp } from '../public/features/compstimate.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
@@ -251,4 +251,32 @@ test('R-3 Amazon\'s area and station managers and other floor roles are in the o
   }
   assert.equal(roleFamily('Area Manager II'), null, 'with no department, "Area Manager" alone names no family');
   assert.equal(roleFamily('Sr. EU Site Process Engineer, EUCF PE', { department: 'Fulfillment & Operations Management' }), 'swe', 'an engineer keeps the engineer fallback');
+});
+
+/* ------------------------------------------------------------- C-1 */
+// The Pay estimate lists five "Most comparable roles". Ties in similarity went to the newest postings, so Microsoft's
+// level-less "Software Engineer" in Redmond listed four Principal roles of the 328 the estimate used.
+const comp = (id, w, mid) => ({ job: { id }, w, pay: { mid, min: mid - 10000, max: mid + 10000 } });
+test('C-1 equally similar roles are listed spread across the pay the estimate used, lowest pay first', () => {
+  const tied = Array.from({ length: 10 }, (_, i) => comp(`t${i}`, 1, 100000 + i * 10000)); // 100K ... 190K, newest first
+  const got = shownComparables(tied, { low: 100000, mid: 145000, high: 190000 });
+  assert.deepEqual(got.map((c) => c.pay.mid), [100000, 120000, 140000, 170000, 190000]);
+  // More similar roles always come first; only a tie that overflows the list is spread.
+  const mixed = [comp('a', 1, 300000), comp('b', 0.9, 90000), ...Array.from({ length: 6 }, (_, i) => comp(`m${i}`, 0.5, 100000 + i * 20000))];
+  const two = shownComparables(mixed, { low: 100000, mid: 150000, high: 200000 });
+  assert.deepEqual(two.map((c) => c.job.id).slice(0, 2), ['a', 'b']);
+  assert.deepEqual(two.slice(2).map((c) => c.pay.mid), [100000, 140000, 200000]);
+  // Five or fewer: as they are.
+  assert.deepEqual(shownComparables(tied.slice(0, 3), { low: 0, mid: 0, high: 0 }).map((c) => c.job.id), ['t0', 't1', 't2']);
+});
+test('C-1 the estimate itself is worked out from every comparable, as before', () => {
+  const jobs = Array.from({ length: 30 }, (_, i) => ({ id: `x:${i}`, title: ['Software Engineer', 'Senior Software Engineer', 'Principal Software Engineer'][i % 3], seniority: ['Mid', 'Senior', 'Staff+'][i % 3],
+    department: 'Engineering', locations: [{ name: 'Redmond, WA', city: 'Redmond', region: 'WA', country: 'US', lat: 47.674, lng: -122.1215 }],
+    salary: { min: 100000 + i * 3000, max: 150000 + i * 3000, mid: 125000 + i * 3000, currency: 'USD', interval: 'year' }, updatedAt: `2026-10-${String(1 + (i % 28)).padStart(2, '0')}` }));
+  const est = estimateComp(jobs, { title: 'Software Engineer', seniority: '', department: '', location: 'Redmond' });
+  assert.equal(est.comparables.length, 5);
+  assert.ok(est.n >= 5);
+  for (let i = 1; i < est.scores.length; i++) assert.ok(est.scores[i] <= est.scores[i - 1], 'more similar first');
+  const ids = new Set(jobs.map((j) => j.id));
+  assert.ok(est.comparables.every((j) => ids.has(j.id)));
 });

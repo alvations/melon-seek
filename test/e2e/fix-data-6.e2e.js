@@ -12,6 +12,7 @@ import zlib from 'node:zlib';
 import { ROOT, assert, skip } from './harness.js';
 import { ALL_SIZES, contextFor } from './phone-sizes.mjs';
 import { scanText, CAPTION_SEL } from './fix-phone-text.e2e.js';
+import { readableTitle } from '../../public/features/roles.js';
 
 const DESKTOP = { width: 1440, height: 900 };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -90,7 +91,8 @@ async function board(page, st, hash) {
 /** Open a job on the loaded board (a hash change: the list stays loaded), every fold open (not Details). */
 async function job(page, hash, title) {
   await page.evaluate((h) => { location.hash = h; }, hash);
-  await page.waitForFunction((t) => document.querySelector('#drawer.is-open #drawerTitle')?.textContent.trim() === t, title, { timeout: 30000 });
+  // The drawer heads a job with its readable title (roles.js readableTitle: "OI" and "Sr." written out).
+  await page.waitForFunction((ts) => ts.includes(document.querySelector('#drawer.is-open #drawerTitle')?.textContent.trim()), [title, readableTitle(title) || title], { timeout: 30000 });
   await sleep(700);
   await page.evaluate(() => { for (const d of document.querySelectorAll('#drawer details')) d.open = true; });
   await sleep(300);
@@ -135,7 +137,7 @@ const BAY_TOWNS = [
 const P1_CASES = [
   { slug: 'amazon', id: 'amazon:10487128', l: 'Atlanta', where: 'Tempe' },
   { slug: 'apple', id: 'apple:200609322-0157', l: 'Austin', where: 'San Jose' },
-  { slug: 'amazon', id: 'amazon:10373614', l: 'Austin', where: 'Herndon and Seattle' },
+  { slug: 'amazon', id: 'amazon:10373614', l: 'Austin', where: 'Seattle and Herndon' }, // in the posting's own order
 ];
 // P-2: the drawer's heading gives the posted yearly figure exactly.
 const P2_CASES = [
@@ -222,6 +224,44 @@ async function checkK1(ctx, device) {
   return bad;
 }
 
+// P-3: a plain full-time posting paid by the hour (no shift pay, term, range per place, minimum or part-time).
+const P3_PICK = `(j) => j.salary && j.salary.originalInterval === 'hour' && !j.salary.partTime && !j.salary.includesShiftDifferential && !j.salary.termWeeks
+  && j.salary.kind === 'salary' && !(j.salary.ranges && j.salary.ranges.length > 1) && j.seniority !== 'Intern' && j.salary.min !== j.salary.max && (j.salary.min / 2080) % 1
+  ? { id: j.id, title: j.title, min: j.salary.min, max: j.salary.max, cur: j.salary.currency } : null`;
+const money2 = (n) => `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const kRange = (a, b) => `$${Math.round(a / 1000)}K–${Math.round(b / 1000)}K`;
+
+/** P-3 on one device: the card leads with the posted hourly rate (whole dollars below 340 px), the drawer too. */
+async function checkP3(ctx, device) {
+  const { st, page, errors } = await open(ctx, { device });
+  const bad = [];
+  const list = await appJobs(page, st, 'amazon', P3_PICK);
+  if (!list.length) return ['no plain full-time hourly Amazon posting in this build'];
+  const c = list[0];
+  const lo = c.min / 2080, hi = c.max / 2080;
+  const long = `${money2(lo)}–${money2(hi).slice(1)}/hour`, short = `$${Math.round(lo)}–${Math.round(hi)}/hour`;
+  const narrow = (device?.width || DESKTOP.width) <= 340;
+  await board(page, st, `c=amazon&q=${encodeURIComponent(c.title)}`);
+  const card = page.locator(`#resultsList .card[data-id="${c.id}"]`);
+  if (!(await card.count())) return [`${c.id}: no card`];
+  const pill = (await card.locator('.sal-pill').first().innerText()).trim();
+  if (pill !== (narrow ? short : long)) bad.push(`${c.id} pill "${pill}", want "${narrow ? short : long}"`);
+  const tip = await card.locator('.sal-pill').first().getAttribute('title');
+  if (!tip?.includes(`${money2(lo)}–${money2(hi).slice(1)} an hour`) || !/a year at 2,080 hours \(converted\)/.test(tip)) bad.push(`${c.id} tip "${tip}"`);
+  if (!(await card.getAttribute('aria-label')).includes(long)) bad.push(`${c.id} aria has no "${long}"`);
+  bad.push(...(await lineProblems(page, `#resultsList .card[data-id="${c.id}"] .card-top`, `${c.id} card`)).filter((m) => /cut by/.test(m)));
+  await job(page, `c=amazon&q=${encodeURIComponent(c.title)}&job=${encodeURIComponent(c.id)}`, c.title);
+  const amt = await text(page, '#drawer .d-sal-amt');
+  if (amt !== `${money2(lo)}–${money2(hi).slice(1)} an hour`) bad.push(`${c.id} heading "${amt}"`);
+  const sub = await text(page, '#drawer .d-sal-top .muted');
+  if (!/paid by the hour/.test(sub || '')) bad.push(`${c.id} sub line "${sub}"`);
+  const annual = await text(page, '#drawer .d-annual');
+  if (annual !== `About ${kRange(c.min, c.max)} a year (2,080 hours)`) bad.push(`${c.id} yearly line "${annual}"`);
+  bad.push(...await lineProblems(page, '#drawer .d-annual', `${c.id} ${device?.name || 'desktop'}`), ...await lineProblems(page, '#drawer .d-sal-amt', `${c.id} ${device?.name || 'desktop'}`));
+  noErrors(errors);
+  return bad;
+}
+
 /* ---------------------------------------------------------------- the tests */
 
 export function registerFixData6Tests(suite) {
@@ -276,6 +316,34 @@ export function registerFixData6Tests(suite) {
     noErrors(errors);
   });
 
+  suite.test('fix-data-6: [P-3] a full-time job paid by the hour leads with its posted hourly rate, on the card and the job page (280x653, 375x812, 1280x800)', async (ctx) => {
+    const bad = [];
+    for (const d of [SIZE(1280, 800), SIZE(375, 812), SIZE(280, 653)]) bad.push(...(await checkP3(ctx, d)).map((m) => `${d.name}: ${m}`));
+    assert(!bad.length, bad.join('\n'));
+  });
+
+  suite.test('fix-data-6: [C-1] the Pay estimate\'s "Most comparable roles" for Microsoft "Software Engineer" in Redmond show the spread it used, not four Principal roles', async (ctx) => {
+    const { st, page, errors } = await open(ctx);
+    const levels = new Map((await appJobs(page, st, 'microsoft', '(j) => ({ id: j.id, s: j.seniority, mid: j.salary ? j.salary.mid : null })')).map((j) => [j.id, j]));
+    await board(page, st, 'c=microsoft&m=insights');
+    await page.waitForSelector('#compHost input[id^="comp-t"]', { timeout: 30000 }); await sleep(600);
+    await page.locator('#compHost select[id^="comp-s"]').selectOption('').catch(() => {});
+    await page.locator('#compHost input[id^="comp-t"]').fill('Software Engineer'); await sleep(900);
+    const sel = page.locator('#compHost select[id^="comp-l"]');
+    const v = await sel.evaluate((s) => [...s.options].find((o) => o.value === 'Redmond')?.value);
+    if (v == null) skip('no Redmond in the Location list');
+    await sel.selectOption(v); await sleep(1500);
+    const ids = await page.$$eval('#compHost .ms-comp__item', (els) => els.map((e) => e.dataset.key.replace(/^comp:/, '')));
+    assertEq(ids.length, 5, 'five comparables listed');
+    const lv = ids.map((id) => levels.get(id)?.s);
+    const principal = lv.filter((x) => x === 'Staff+').length;
+    assert(principal <= 2, `${principal} of the 5 are Staff+ (Principal): ${lv.join(', ')}`);
+    assert(new Set(lv).size >= 3, `the five are only ${[...new Set(lv)].join(', ')}`);
+    const mids = ids.map((id) => levels.get(id)?.mid).filter(Number.isFinite);
+    assert(mids.every((m, i) => !i || m >= mids[i - 1]), `listed from the lowest pay to the highest: ${mids.join(', ')}`);
+    noErrors(errors);
+  });
+
   suite.test('fix-data-6: [R-1] Same role elsewhere for Google\'s Technical Account Manager I in Toronto is not priced against Amazon\'s delivery-station associates', async (ctx) => {
     const { st, page, errors } = await open(ctx);
     const [j] = await appJobs(page, st, 'google', '(j) => /^Technical Account Manager I, Google Cloud Consulting/.test(j.title) && (j.locations || []).some((l) => l.city === "Toronto") ? { id: j.id, title: j.title } : null');
@@ -316,8 +384,9 @@ export function registerFixData6Tests(suite) {
   });
 
   for (const d of ALL_SIZES) {
-    suite.test(`fix-data-6: [phone] ${d.name} ${d.width}x${d.height}: the P-1 pay line, the P-2 heading and the K-1 chips are one line (two below 360 px), never cut`, async (ctx) => {
-      const bad = [...await checkP1(ctx, d).then((b) => b.filter((m) => /lines|cut|words/.test(m))), ...await checkP2(ctx, d, { mustBeExact: d.width >= 360 }), ...await checkK1(ctx, d).then((b) => b.filter((m) => /cut/.test(m)))];
+    suite.test(`fix-data-6: [phone] ${d.name} ${d.width}x${d.height}: the P-1 pay line, the P-2 heading, the K-1 chips and the P-3 hourly pill and lines are one line (two below 360 px), never cut`, async (ctx) => {
+      const bad = [...await checkP1(ctx, d).then((b) => b.filter((m) => /lines|cut|words/.test(m))), ...await checkP2(ctx, d, { mustBeExact: d.width >= 360 }),
+        ...await checkK1(ctx, d).then((b) => b.filter((m) => /cut/.test(m))), ...await checkP3(ctx, d)];
       assert(!bad.length, bad.join('\n'));
     });
   }

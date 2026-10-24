@@ -332,17 +332,47 @@ export function estimateComp(allJobs, query = {}) {
     `Weighted by similarity to ${what} across ${plural(comps.length, 'role')} with pay` +
     (hasTitle ? ` (${close} with a closely matching title). ` : '. ') + detail;
 
+  const shown = shownComparables(comps, { low, mid, high }); // C-1: the five listed
   return {
     low, mid, high, currency: 'USD', confidence, n: comps.length,
-    comparables: comps.slice(0, 5).map((p) => p.job),
+    comparables: shown.map((p) => p.job),
     // D-52: the pay each listed comparable was used at (US dollars a year), and the place it was posted for when it is
     // one place's row (the city asked for, or the posting's headline row: Amazon's search city), else null.
-    comparablePay: comps.slice(0, 5).map(usedPay),
-    scores: comps.slice(0, 5).map((p) => Math.round(p.w * 100) / 100),
+    comparablePay: shown.map(usedPay),
+    scores: shown.map((p) => Math.round(p.w * 100) / 100),
     explanation, detail, query: used,
     reason: null, kind, country,
     basis: describeComparables(comps, { asked, internQ, ql, country }),
   };
+}
+
+/**
+ * C-1 (fix-data-6): the comparables the estimate lists ("Most comparable roles"), at most `n`: the most similar first.
+ * Where more roles are equally similar than the list has room for, it shows ones spread across the pay the estimate
+ * used, the nearest to its middle, its low end and its high end, then halfway between, listed from the lowest pay to
+ * the highest. Before, a tie went to the newest postings, so Microsoft's level-less "Software Engineer" in Redmond
+ * listed four Principal roles of the 328 its estimate used. The estimate (low, mid, high, n, confidence) is worked out
+ * from every comparable, as before, so the backtest does not move. Pure.
+ */
+export function shownComparables(comps, { low, mid, high }, n = 5) {
+  const out = [];
+  for (let i = 0; out.length < n && i < comps.length;) {
+    let j = i;
+    while (j < comps.length && comps[j].w === comps[i].w) j++;
+    const group = comps.slice(i, j), room = n - out.length;
+    if (group.length <= room) out.push(...group);
+    else {
+      const left = [...group], pick = [];
+      for (const t of [mid, low, high, (low + mid) / 2, (mid + high) / 2].slice(0, room)) {
+        let b = 0;
+        for (let k = 1; k < left.length; k++) if (Math.abs(left[k].pay.mid - t) < Math.abs(left[b].pay.mid - t)) b = k;
+        pick.push(left.splice(b, 1)[0]);
+      }
+      out.push(...pick.sort((a, b) => a.pay.mid - b.pay.mid));
+    }
+    i = j;
+  }
+  return out;
 }
 
 /**

@@ -226,6 +226,20 @@ const perText = (per) => (per === 'term' ? ' for the whole term' : per === 'hour
  */
 const isPartTime = (j) => j?.salary?.partTime === true;
 const isPartTimeHourly = (j) => isPartTime(j) && j.salary.originalInterval === 'hour';
+/**
+ * P-3 (fix-data-6): full-time pay posted by the hour ("$31.39–54.90/hour"), shown at its posted rate like part-time and
+ * shift pay; salary.min/max stay the 2,080-hour year, which sorting, the pay filter and the chart use. Not an
+ * internship's term (postedTerm), shift pay (shiftRange) or on-target earnings.
+ */
+const isFullTimeHourly = (j) => !!j?.salary && j.salary.originalInterval === 'hour' && !isPartTime(j) && !j.salary.includesShiftDifferential
+  && j.salary.kind !== 'ote' && !postedTerm(j.salary, j);
+/** P-3: an hourly rate in whole currency units, for a narrow card (280 and 320 px): "$31–55/hour". */
+function wholeHourly(lo, hi, cur) {
+  const a = postedMoney(Math.round(lo), cur), b = postedMoney(Math.round(hi), cur);
+  return a === b ? a : `${a}–${b.replace(/^[^\d]+/, '')}`;
+}
+/** P-3: a narrow screen, where a card's hourly pill takes its whole-unit form (styles.css's phone widths). */
+const narrowCard = () => typeof matchMedia === 'function' && matchMedia('(max-width: 340px)').matches;
 function statedHours(j) {
   const v = Number(j?.salary?.hoursPerWeek ?? j?.salary?.weeklyHours);
   return v > 0 && v <= 80 ? v : null;
@@ -4268,6 +4282,13 @@ function payPill(job) {
   const range = salaryRange(s);
   if (!range) return null;
   if (isOte(job)) return { text: range, tip: OTE_LABEL };
+  // P-3 (fix-data-6): full-time pay posted by the hour reads at its posted rate; the yearly figure is in the tip.
+  if (isFullTimeHourly(job)) {
+    const hr = postedPair(s.min / 2080, s.max / 2080, s.currency);
+    const year = `about ${salaryRange(s)} a year at 2,080 hours (converted)`;
+    if (isMinimum(job)) return { text: `from ${postedMoney(s.min / 2080, s.currency)}/hour`, tip: `${MINIMUM_TIP}: ${postedMoney(s.min / 2080, s.currency)} an hour, ${year}` };
+    return { text: `${hr}/hour`, short: `${wholeHourly(s.min / 2080, s.max / 2080, s.currency)}/hour`, tip: `Paid by the hour, as posted: ${hr} an hour, ${year}` };
+  }
   // VT-17: a stated minimum reads "from €20.1K", never as the pay.
   if (isMinimum(job)) return { text: `from ${money(s.min, s.currency)}`, tip: MINIMUM_TIP };
   // SA-1 (salary audit): a posting that prices several levels ("… for Level 4, and … for Level 5") shows
@@ -4352,7 +4373,7 @@ function card(job, pos = null, size = null) {
   h('div', { class: 'card-top' },
     h('h3', { class: 'card-title' }, job.title),
     h('div', { class: 'card-pay' },
-      pay ? h('span', { class: `sal-pill${pay.elsewhere ? ' sal-pill--elsewhere' : ''}`, title: pay.tip }, pay.range || pay.text)
+      pay ? h('span', { class: `sal-pill${pay.elsewhere ? ' sal-pill--elsewhere' : ''}`, title: pay.tip }, pay.range || (pay.short && narrowCard() ? pay.short : pay.text))
         : job.salaryFlag ? h('span', { class: 'sal-pill sal-pill--unclear', title: job.salaryFlag.reason || 'Pay unclear' }, 'Pay unclear')
           : h('span', { class: 'sal-pill sal-pill--none' }, 'No pay listed'),
       // UX-52 (fix-pay-at-place): "5 places" or "2 levels" as a muted line under the pill, not in pay green inside it.
@@ -5132,6 +5153,7 @@ function payUnit(job, exact = false) {
   const s = job.salary, cur0 = s.currency;
   // S-1 (fix-salary-6): fmt(lo, hi, currency) writes a row in its own currency (another country's line).
   if (isPartTimeHourly(job)) return { fmt: (a, b, cur = cur0) => `${postedPair(a / 2080, b / 2080, cur)}/hour`, note: 'Part-time, paid by the hour' };
+  if (isFullTimeHourly(job)) return { fmt: (a, b, cur = cur0) => `${postedPair(a / 2080, b / 2080, cur)}/hour`, note: 'paid by the hour' }; // P-3
   const term = postedTerm(s, job);
   // P-2 (fix-data-6): on the job page (`exact`), a yearly figure the posting states is written as posted ("$119,800–234,700").
   const year = (a, b, cur = cur0) => (exact && statedYearly(s) ? postedPair(a, b, cur) : moneyRange(a, b, cur));
@@ -5327,6 +5349,10 @@ function annualNote(sal, job = null) {
   }
   const orig = sal.originalInterval || (sal.interval && sal.interval !== 'year' ? sal.interval : null);
   if (!orig) return null;
+  // P-3 (fix-data-6): full-time hourly pay is headed by its posted rate; this line gives the yearly figure, converted.
+  if (orig === 'hour' && job && isFullTimeHourly(job)) {
+    return annualLine(`About ${salaryRange(sal)} a year (2,080 hours)`, `About ${postedPair(Math.round(sal.min), Math.round(sal.max), sal.currency)} a year at 2,080 hours: converted from the hourly rate, which is what the posting states.${sal.text ? ` As posted: ${sal.text}.` : ''}`);
+  }
   // CONTRACT v4 (fix-pay-data P-8): 'term' is pay for the whole programme; termWeeks is its length.
   const what = orig === 'term' && sal.termWeeks ? `pay for a ${sal.termWeeks}-week programme` : `${INTERVAL_ADJ[orig] || orig} pay`;
   const lasts = orig !== 'term' && sal.termWeeks ? `The programme lasts about ${sal.termWeeks} weeks.` : '';
@@ -5478,13 +5504,15 @@ function drawerContent(job) {
   const cur = ph?.picked?.currency || sal?.currency || 'USD';
   // UX-51 (fix-qa4): shift pay reads as on its card ("$18.05–19.70 an hour", "up to $19.70 an hour").
   const shiftR = sal && !ph ? shiftRange(sal) : null;
-  const amountText = !sal ? null : ph ? ph.range : shiftR ? shiftText(job, shiftR, ' an hour') : partHourly ? `${postedPair(sal.min / 2080, sal.max / 2080, sal.currency)} an hour`
+  const fullHourly = sal && isFullTimeHourly(job); // P-3
+  const amountText = !sal ? null : ph ? ph.range : shiftR ? shiftText(job, shiftR, ' an hour') : partHourly || (fullHourly && !isMinimum(job)) ? `${postedPair(sal.min / 2080, sal.max / 2080, sal.currency)} an hour`
+    : fullHourly ? `from ${postedMoney(sal.min / 2080, sal.currency)} an hour`
     : term ? `${term.amount}${perText(term.per)}` : isMinimum(job) ? `from ${money(sal.min, sal.currency)}` : salaryRange(sal);
   // P-2 (fix-data-6): the heading gives a yearly figure the posting states exactly ("€46,400", "$119,800–234,700"), as
   // fixed-term and part-time pay already are; where that doesn't fit one line (280 px), the card's rounded figure.
   const exactText = !sal || !statedYearly(sal) || shiftR || partHourly || term ? null : phExact ? phExact.range
     : isMinimum(job) ? `from ${postedMoney(sal.min, sal.currency)}` : postedPair(sal.min, sal.max ?? sal.min, sal.currency);
-  const subText = !sal ? null : (ph?.picked ? `Posted for ${ph.picked.label} · ` : ph?.sub ? `${ph.sub} · ` : '') + (partHourly ? `${cur} · part-time, paid by the hour`
+  const subText = !sal ? null : (ph?.picked ? `Posted for ${ph.picked.label} · ` : ph?.sub ? `${ph.sub} · ` : '') + (partHourly ? `${cur} · part-time, paid by the hour` : fullHourly ? `${cur} · paid by the hour`
     : term?.fixed ? `${cur} · ${term.unstated ? 'length not stated' : `for ${termText(term.weeks)}`}` : term ? `${cur} · ${programText(job, term)}` : `${cur} · per year`);
   // Whose range the rank and the strip use: the place picked, the posting's headline row (Bellevue), or its span.
   const rankWhose = !ph ? '' : ph.rankPlace ? `the range posted for ${ph.rankPlace}` : 'the middle of its span';
