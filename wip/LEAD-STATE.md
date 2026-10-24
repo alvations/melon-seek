@@ -59,7 +59,7 @@ Done and retired (do not relaunch): fix-phone-sizes, fix-qa4, fix-mr-3, qa-suite
 persona-beta-2-18-24, -25-34, -35-44, -45-54, -55-plus (logs on the branch, 5502155).
 
 ## Next steps
-0. Integration branch $S/wt-int is at 5de0efc: fix-salary-6, fix-ui-6 B-1..B-12, fix-juice-6, fix-app-6, qa-ci-6, fix-data-6 (a2b224e), the Beta coverage test for BN-6. Gate 1 on 505a4df: npm 0 fail, build ok, e2e 1,193 pass / 3 fail (UX-17 -> fix-ui-6 small fix; Beta coverage -> fixed 5de0efc; J-4 -> fixed by fix-data-6). Next: pick fix-ui-6's UX-17 SHA, gate 2, push, CI/Pages/WebKit/e2e.yml.
+0. PUSHED 3ff4cfa (2026-10-24 15:4x): fix wave 6 batch 1 (all six lanes + drift fixes). Next: check CI, Pages, webkit-phone.yml and e2e.yml on 3ff4cfa (dispatched); then fix-ui-6's D-1..D-15: PICKED into wt-int 8db98e3 at 15:41 by the lead (fix-ui-6 is weekly-limited); gate 3 running on 8db98e3; if it passes (or only known drift), push; its related groups (fix-salary-6|fix-app-6|fix-juice-6|fix-data-6|Fix3 app|fix-pay-at-place|fix-viz-5|Fix touch tips|Fix phone text|fix-qa4|Badge|Beta UX review), npm test, push. Then the final mobile/desktop QA (task #25).
 1. Integrate each lane's SHAs as they report (pick.sh into $S/wt-int); after fix-data-6 and fix-salary-6 are both in,
    re-baseline the golden file once for norm-14 with the tooling.
 2. Gate (SHARDS=2) on the integrated head; fix what it finds; npm test; push; check CI, Pages, WebKit (dispatch
@@ -140,5 +140,7 @@ persona-beta-2-18-24, -25-34, -35-44, -45-54, -55-plus (logs on the branch, 5502
 - 10:4x gate 2 at 534: fails so far T21 (load), UX-17 (fixed by d2c0fc6, to pick), M-42 (Beta mobile QA 3) and Beta desktop QA 4 'one span on card and drawer headline': both compare drawer text to card text; P-2 makes the drawer exact ($60,200–128,800) vs card $60K–129K = the same range -> update both tests to compare the drawer's figures rounded to the card's precision. After the gate: pick d2c0fc6, fix the two tests, re-run T21 alone + these groups, npm test, push.
 - 11:0x fix-ui-6 D-1..D-15 on d2c0fc6: eb16ee0 (D-1..D-14 + phone-sizes patch), e8bf2a3 (screenshots), 4a4428f (D-15 pill: 10.5em -> 15.5em -> short forms; whole sentence fits 2 lines at all VISIBLE sizes; V-46 split phones/tablets). fix-ui-6 group 468/0 fail; npm test 1,381/0 fail. Related groups still running; not final.
 - 11:2x prepared 36d8d81 in $S/wt-fix (on 5de0efc): sameRange helper in M-42, D-45, UX-37 (beta-ux-review-2), Beta desktop QA 4 (card rounded vs job page exact after P-2); helper unit-checked incl. the one-place-range negative case. After gate 2: pick d2c0fc6 (UX-17) + 36d8d81, re-run T21 alone and the 5 groups, npm test, push.
+- 15:4x PUSHED 3ff4cfa: fix wave 6 batch 1 (targeted re-run 68/68, npm 1,382/0). Dispatched webkit-phone.yml and e2e.yml. Lead log entry added.
+- 15:41 lead picked fix-ui-6's D-1..D-15 (eb16ee0..4a4428f) -> 8db98e3 clean; gate 3 started on 8db98e3.
 
-### Agents at 2026-10-24T15:29:50Z
+### Agents at 2026-10-24T15:45:01Z
