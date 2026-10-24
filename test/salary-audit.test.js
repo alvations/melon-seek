@@ -53,7 +53,8 @@ const CARD = ['payPill', 'salaryRange', 'money', 'moneyRange', 'payRanges', 'ran
 // fix-pay-at-place: payHeadline and its helpers (a range per place, counted by distinct places, in the posted unit).
 // fix-qa4 (UX-51): shift pay (shiftRange, which payPill asks of every posting) and its text and tip (MR-35: postedPair).
 const CARD_IF_PRESENT = ['isMinimum', 'MINIMUM_TIP', 'rangeEnd', 'payHeadline', 'payUnit', 'placeCount', 'rangePlaceKeys', 'rangeName',
-  'shiftRange', 'SHIFT_SUB', 'shiftText', 'shiftTip', 'hourlyText', 'postedPair', 'postedMoney'].filter((n) => new RegExp(`^(?:const ${n} = |function ${n}\\()`, 'm').test(APP));
+  'shiftRange', 'SHIFT_SUB', 'shiftText', 'shiftTip', 'hourlyText', 'postedPair', 'postedMoney',
+  'isPartTime', 'isFullTimeHourly', 'wholeHourly', 'narrowCard', 'statedYearly'].filter((n) => new RegExp(`^(?:const ${n} = |function ${n}\\()`, 'm').test(APP));
 // eslint-disable-next-line no-new-func
 const { payPill } = new Function('formatMoney', 'payAt', `
   const CUR_SYM = { USD: '$', GBP: '£', EUR: '€', CAD: 'CA$', AUD: 'A$', JPY: '¥', INR: '₹', CHF: 'CHF ', SGD: 'S$' };

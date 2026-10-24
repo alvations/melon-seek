@@ -108,9 +108,9 @@ test('G-1 a place of the same name elsewhere, or a different reading, is unchang
 });
 
 test('G-1 the gazetteer size is in the registry, and the change is a normalizer change (norm-14, golden re-baselined)', () => {
-  assert.equal(GAZETTEER_SIZE.cities, 743);
+  assert.equal(GAZETTEER_SIZE.cities, 744); // G-1's 359 and Monterrey (G-3)
   const reg = JSON.parse(read('data/freshness.json')).entries.find((e) => e.id === 'geo-gazetteer');
-  assert.match(reg.values, /^GAZETTEER_SIZE 743 cities/);
+  assert.match(reg.values, /^GAZETTEER_SIZE 744 cities/);
   assert.equal(NORMALIZER_VERSION, 'norm-14');
   assert.equal(JSON.parse(read('test/fixtures/golden-normalize.json')).normalizerVersion, 'norm-14');
 });
@@ -279,4 +279,37 @@ test('C-1 the estimate itself is worked out from every comparable, as before', (
   for (let i = 1; i < est.scores.length; i++) assert.ok(est.scores[i] <= est.scores[i - 1], 'more similar first');
   const ids = new Set(jobs.map((j) => j.id));
   assert.ok(est.comparables.every((j) => ids.has(j.id)));
+});
+
+/* ------------------------------------------------------------- G-2, G-3 */
+// Newer crawls (2026-10-23): Microsoft's bare "AL" (Albania, beside "HR", "RS", "SI") read as Alabama, US; "Monterrey, N.L."
+// (Nuevo León) as Monterrey, Netherlands; Apple's "Bayshore Shopping Centre, Canada" (Apple Bayshore, Ottawa) at Canada's centre.
+test('G-2 a bare ISO country code that is also a US state\'s is the country, unless another place of the job is in the US', () => {
+  const want = { AL: 'Albania', ME: 'Montenegro', MD: 'Moldova', MT: 'Malta', PA: 'Panama', GA: 'Gabon', MA: 'Morocco', MN: 'Mongolia',
+    SC: 'Seychelles', VA: 'Vatican City', NE: 'Niger', LA: 'Laos' };
+  for (const [code, name] of Object.entries(want)) {
+    const [loc] = geocode(code);
+    assert.equal(loc.country, code, `${code}: ${loc.name} [${loc.country}]`);
+    assert.equal(loc.name, name);
+    assert.ok(loc.lat != null && loc.region == null, `${code} at ${loc.lat},${loc.lng}, region ${loc.region}`);
+  }
+  assert.deepEqual(geocodeMany(['HR', 'RS', 'SI', 'AL']).map((l) => l.country), ['HR', 'RS', 'SI', 'AL']);
+  // A state stays a state where the job is in the US, or the state follows a city; Puerto Rico stays with the US.
+  assert.equal(geocodeMany(['US', 'AL'])[1].country, 'US');
+  assert.deepEqual(geocodeMany(['Seattle, WA', 'LA']).map((l) => l.name), ['Seattle, WA', 'Los Angeles, CA']);
+  assert.equal(geocode('Montgomery, AL')[0].region, 'AL');
+  assert.equal(geocode('Boise, ID')[0].region, 'ID');
+  assert.equal(geocode('PR')[0].country, 'US');
+  assert.deepEqual(geocode('SF / NYC / LA').map((l) => l.city), ['San Francisco', 'New York', 'Los Angeles']);
+});
+test('G-3 a dotted state abbreviation is not a country code, and Apple\'s Bayshore store is in Ottawa', () => {
+  const [mty, mx] = geocodeMany(['Monterrey, N.L.', 'MX']);
+  assert.deepEqual([mty.city, mty.country, locationPrecision(mty)], ['Monterrey', 'MX', 'city']);
+  assert.equal(mx.country, 'MX');
+  assert.equal(geocode('Monterrey, Nuevo Leon, MEX')[0].country, 'MX');
+  for (const [s, want] of [['Vancouver, B.C.', 'CA'], ['Washington, D.C.', 'US'], ['Remote, U.S.', 'US'], ['London, U.K.', 'GB'], ['Santiago de Querétaro, Qro., MX', 'MX']]) {
+    assert.equal(geocode(s)[0].country, want, s);
+  }
+  const [b] = geocode('Bayshore Shopping Centre, Canada');
+  assert.deepEqual([b.city, b.region, b.country, locationPrecision(b)], ['Ottawa', 'ON', 'CA', 'city']);
 });

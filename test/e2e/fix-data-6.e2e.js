@@ -9,7 +9,7 @@ import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import zlib from 'node:zlib';
-import { ROOT, assert, skip } from './harness.js';
+import { ROOT, assert, assertEq, skip } from './harness.js';
 import { ALL_SIZES, contextFor } from './phone-sizes.mjs';
 import { scanText, CAPTION_SEL } from './fix-phone-text.e2e.js';
 import { readableTitle } from '../../public/features/roles.js';
@@ -226,8 +226,8 @@ async function checkK1(ctx, device) {
 
 // P-3: a plain full-time posting paid by the hour (no shift pay, term, range per place, minimum or part-time).
 const P3_PICK = `(j) => j.salary && j.salary.originalInterval === 'hour' && !j.salary.partTime && !j.salary.includesShiftDifferential && !j.salary.termWeeks
-  && j.salary.kind === 'salary' && !(j.salary.ranges && j.salary.ranges.length > 1) && j.seniority !== 'Intern' && j.salary.min !== j.salary.max && (j.salary.min / 2080) % 1
-  ? { id: j.id, title: j.title, min: j.salary.min, max: j.salary.max, cur: j.salary.currency } : null`;
+  && (j.salary.kind === 'hourly' || j.salary.kind === 'salary') && !(j.salary.ranges && j.salary.ranges.length > 1) && j.seniority !== 'Intern' && j.salary.min !== j.salary.max && (j.salary.min / 2080) % 1
+  ? { id: j.id, title: j.title, min: j.salary.min, max: j.salary.max, cur: j.salary.currency, city: (j.locations || []).find((l) => l.city && !l.remote)?.city || null } : null`;
 const money2 = (n) => `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const kRange = (a, b) => `$${Math.round(a / 1000)}K–${Math.round(b / 1000)}K`;
 
@@ -241,16 +241,20 @@ async function checkP3(ctx, device) {
   const lo = c.min / 2080, hi = c.max / 2080;
   const long = `${money2(lo)}–${money2(hi).slice(1)}/hour`, short = `$${Math.round(lo)}–${Math.round(hi)}/hour`;
   const narrow = (device?.width || DESKTOP.width) <= 340;
-  await board(page, st, `c=amazon&q=${encodeURIComponent(c.title)}`);
-  const card = page.locator(`#resultsList .card[data-id="${c.id}"]`);
+  // Amazon posts one title for many places: search for it in its own place. A phone's first screen may be the preview list.
+  const where = `c=amazon&q=${encodeURIComponent(c.title)}${c.city ? `&l=${encodeURIComponent(c.city)}` : ''}`;
+  await board(page, st, where);
+  const cardSel = `#resultsList .card[data-id="${c.id}"], #resultsList .card[data-preview-id="${c.id}"]`;
+  await page.waitForSelector(cardSel, { timeout: 20000 }).catch(() => {});
+  const card = page.locator(cardSel).first();
   if (!(await card.count())) return [`${c.id}: no card`];
   const pill = (await card.locator('.sal-pill').first().innerText()).trim();
   if (pill !== (narrow ? short : long)) bad.push(`${c.id} pill "${pill}", want "${narrow ? short : long}"`);
   const tip = await card.locator('.sal-pill').first().getAttribute('title');
   if (!tip?.includes(`${money2(lo)}–${money2(hi).slice(1)} an hour`) || !/a year at 2,080 hours \(converted\)/.test(tip)) bad.push(`${c.id} tip "${tip}"`);
   if (!(await card.getAttribute('aria-label')).includes(long)) bad.push(`${c.id} aria has no "${long}"`);
-  bad.push(...(await lineProblems(page, `#resultsList .card[data-id="${c.id}"] .card-top`, `${c.id} card`)).filter((m) => /cut by/.test(m)));
-  await job(page, `c=amazon&q=${encodeURIComponent(c.title)}&job=${encodeURIComponent(c.id)}`, c.title);
+  bad.push(...(await lineProblems(page, `#resultsList .card[data-id="${c.id}"] .card-top, #resultsList .card[data-preview-id="${c.id}"] .card-top`, `${c.id} card`)).filter((m) => /cut by/.test(m)));
+  await job(page, `${where}&job=${encodeURIComponent(c.id)}`, c.title);
   const amt = await text(page, '#drawer .d-sal-amt');
   if (amt !== `${money2(lo)}–${money2(hi).slice(1)} an hour`) bad.push(`${c.id} heading "${amt}"`);
   const sub = await text(page, '#drawer .d-sal-top .muted');

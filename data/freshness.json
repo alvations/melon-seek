@@ -15608,7 +15608,7 @@
         "server/geo.js:595 ISO3_TO_ISO2",
         "server/geo.js:605 ISO3_US_TERRITORY (PRI is Puerto Rico)"
       ],
-      "values": "GAZETTEER_SIZE 743 cities, 52 states, 73 countries (2026-10-23; fix-data-6 added 359 towns within about 80 km of a big-tech hub that geocoded to their state's or country's centre (G-1); fix-mr-3 added 43 New York, New Jersey and Connecticut towns within about 80 km of Manhattan (MR-40); fix-mr-3 added 43 New York, New Jersey and Connecticut towns within about 80 km of Manhattan (MR-40); fix-data-3 added Cajamar, Osasco, Barueri, Embu das Artes, Jundiai, Paulinia, Sao Joao de Meriti and Belford Roxo in Brazil, Luxembourg City and Town and Country, MO; fix6-fresh-data added Jordan, Bahrain and Puerto Rico and ISO-3 codes)",
+      "values": "GAZETTEER_SIZE 744 cities, 52 states, 73 countries (2026-10-23; fix-data-6 added 359 towns within about 80 km of a big-tech hub that geocoded to their state's or country's centre (G-1), and Monterrey, Mexico (G-3); fix-mr-3 added 43 New York, New Jersey and Connecticut towns within about 80 km of Manhattan (MR-40); fix-mr-3 added 43 New York, New Jersey and Connecticut towns within about 80 km of Manhattan (MR-40); fix-data-3 added Cajamar, Osasco, Barueri, Embu das Artes, Jundiai, Paulinia, Sao Joao de Meriti and Belford Roxo in Brazil, Luxembourg City and Town and Country, MO; fix6-fresh-data added Jordan, Bahrain and Puerto Rico and ISO-3 codes)",
       "consumers": [
         {
           "at": "server/normalize.js:53",

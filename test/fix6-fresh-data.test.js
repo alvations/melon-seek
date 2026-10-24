@@ -36,9 +36,13 @@ test('D-23: a bare code of a country the gazetteer lacks is named, never shown r
   assert.equal(canonicalName({ country: 'XK', lat: null, lng: null, rawName: 'XK' }), 'Kosovo');
   // Codes that are not countries stay as written ("ZZ" is Intl's "Unknown Region").
   for (const c of ['ZZ', 'EU', 'UN', 'QO', 'AA']) assert.equal(countryName(c), null, c);
-  // A US state's or a known region's code keeps its region reading.
-  assert.deepEqual(geocode('GA').map((l) => [l.region, l.country]), [['GA', 'US']]);
-  assert.deepEqual(geocode('MD').map((l) => [l.region, l.country]), [['MD', 'US']]);
+  // A known region's code keeps its region reading. G-2 (fix-data-6, the lead's call on a 2026-10-23 Microsoft posting): a
+  // bare code that is also a US state's is the country, as Eightfold writes countries ("GA" Gabon, "MD" Moldova), unless the
+  // job has a US place; after a city it is the state.
+  assert.deepEqual(geocode('GA').map((l) => [l.region, l.country]), [[null, 'GA']]);
+  assert.deepEqual(geocode('MD').map((l) => [l.region, l.country]), [[null, 'MD']]);
+  assert.deepEqual(geocode('Atlanta, GA').map((l) => [l.region, l.country]), [['GA', 'US']]);
+  assert.deepEqual(geocode('Bethesda, MD').map((l) => [l.region, l.country]), [['MD', 'US']]);
   assert.deepEqual(geocode('ON').map((l) => [l.region, l.country]), [['ON', 'CA']]);
   // Known bare codes are unchanged (DQ-1).
   assert.deepEqual(names('DE'), ['Germany']);

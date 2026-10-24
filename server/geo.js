@@ -589,7 +589,7 @@ Auckland||NZ|-36.8485|174.7633|
 Wellington||NZ|-41.2865|174.7762|
 Toronto|ON|CA|43.6532|-79.3832|
 Waterloo|ON|CA|43.4643|-80.5204|
-Ottawa|ON|CA|45.4215|-75.6972|
+Ottawa|ON|CA|45.4215|-75.6972|Bayshore Shopping Centre
 Montreal|QC|CA|45.5017|-73.5673|Montréal
 Vancouver|BC|CA|49.2827|-123.1207|Coquitlam;Coquitlam Centre;Guildford Town Centre;Richmond Centre
 Victoria|BC|CA|48.4284|-123.3656|
@@ -603,6 +603,7 @@ Saskatoon|SK|CA|52.1332|-106.6700|
 Regina|SK|CA|50.4452|-104.6189|
 Mexico City||MX|19.4326|-99.1332|CDMX;Ciudad de México;Antara, Mexico;Antara Polanco
 Guadalajara||MX|20.6597|-103.3496|
+Monterrey||MX|25.6844|-100.3172|
 Sao Paulo||BR|-23.5505|-46.6333|São Paulo;Morumbi
 Cajamar||BR|-23.3556|-46.8769|
 Osasco||BR|-23.5325|-46.7917|
@@ -1026,6 +1027,14 @@ for (const line of COUNTRIES_RAW.trim().split('\n')) {
   COUNTRIES.set(normKey(name), c);
   for (const a of aliases ? aliases.split(';') : []) COUNTRIES.set(normKey(a), c);
 }
+// G-2 (fix-data-6): the centres (Google's canonical countries.csv, as COUNTRIES_RAW) of the ISO countries whose code is
+// also a US state's and that COUNTRIES_RAW lacks, for a bare code such as Microsoft's "AL" (Albania), which read as Alabama.
+const TWIN_CENTRES = Object.freeze({
+  AL: [41.1533, 20.1683], ME: [42.7087, 19.3744], MD: [47.4116, 28.3699], MT: [35.9375, 14.3754], PA: [8.538, -80.7821],
+  GA: [-0.8037, 11.6094], MA: [31.7917, -7.0926], MN: [46.8625, 103.8467], SC: [-4.6796, 55.492], VA: [41.9029, 12.4534],
+  NE: [17.6078, 8.0817], LA: [19.8563, 102.4955], AZ: [40.1431, 47.5769], TN: [33.8869, 9.5375], SD: [12.8628, 30.2176],
+  KY: [19.5135, -80.567], NC: [-20.9043, 165.618], MS: [16.7425, -62.1874],
+});
 // Amazon writes Puerto Rico's alpha-3 code as a place of its own ("San Juan, Puerto Rico" next to
 // "PRI"); the gazetteer keeps Puerto Rico with the US states (fix6-fresh-data).
 const ISO3_US_TERRITORY = Object.freeze({ PRI: 'PR' });
@@ -1098,6 +1107,9 @@ function regionInfo(token) {
   }
   const key = normKey(raw);
   if (!key) return null;
+  // G-3 (fix-data-6): a dotted two-letter abbreviation that is not a US state's ("N.L.", Nuevo León, in Microsoft's
+  // "Monterrey, N.L.") is not a country code: it read as NL, the Netherlands. "U.S." and "U.K." still are.
+  const dotted = /\./.test(raw) && /^[A-Z]{2}$/.test(compact) && !/^(?:US|UK)$/.test(compact);
   if (STATES.has(key)) {
     const s = STATES.get(key);
     return { kind: 'state', region: s.abbr, country: 'US', lat: s.lat, lng: s.lng };
@@ -1110,7 +1122,7 @@ function regionInfo(token) {
     const c = COUNTRY_BY_CODE.get(ISO3_TO_ISO2[compact]);
     return { kind: 'country', region: null, country: c.code, lat: c.lat, lng: c.lng };
   }
-  if (COUNTRIES.has(key)) {
+  if (COUNTRIES.has(key) && !dotted) {
     // A bare 2-letter alias like "us" only counts when written in caps.
     if (key.length === 2 && !/^[A-Z]{2}$/.test(compact)) return null;
     const c = COUNTRIES.get(key);
@@ -1383,6 +1395,7 @@ function resolvePlaceIn(name, countries = []) {
 // non-US subdivision before it, or a third part), never for a city the gazetteer knows elsewhere.
 const NON_US_SUBDIVISION_RE = /\b(?:district|province|prefecture|governorate|oblast|state of|region|county)\b/i;
 function finalCountry(token, cands, tokens) {
+  if (/\./.test(String(token || '')) && !/^U\.?[SK]\.?$/.test(String(token).trim())) return null; // G-3: "N.L." is no country code
   const t = String(token || '').replace(/\./g, '');
   if (!/^[A-Z]{2}$/.test(t) || !COUNTRY_BY_CODE.has(t)) return null;
   const plain = regionInfo(t);
@@ -1622,6 +1635,17 @@ export function geocodeMany(inputs) {
     for (const part of splitLocations(s)) if (!(parts.length && INVERTED_TAIL_RE.test(part))) parts.push(part);
   }
   const first = parts.map((part) => (REMOTE_RE.test(part) ? { loc: resolveRemote(part), ambiguous: false } : resolvePlaceIn(part)));
+  // G-2 (fix-data-6): a bare ISO country code that is also a US state's ("AL", "ME", "MD", "MT", "PA", "GA", "MA", "MN",
+  // "SC", "VA", "NE") or a city's alias ("LA") is the country, as DQ-1 reads DE, IN, IL and CA, unless another of the job's
+  // places is in the US: Eightfold boards write countries so (microsoft:1970393557021098 "HR | RS | SI | AL" is a Balkans
+  // role, not Alabama). Puerto Rico stays with the US states.
+  const twin = (part) => { const t = String(part || '').trim(); return /^[A-Z]{2}$/.test(t) && t !== 'PR' && STATE_BY_ABBR.has(t) && !COUNTRY_BY_CODE.has(t) && !!countryName(t); };
+  for (let i = 0; i < first.length; i++) {
+    if (!twin(parts[i]) || first[i].loc.country !== 'US') continue;
+    if (first.some((o, k) => k !== i && !twin(parts[k]) && o.loc.country === 'US')) continue;
+    const code = parts[i].trim(), at = TWIN_CENTRES[code] || [null, null];
+    first[i] = { loc: { name: parts[i], city: null, region: null, country: code, lat: at[0], lng: at[1], remote: false }, ambiguous: false };
+  }
   const sure = [...new Set(first.filter((r) => !r.ambiguous && r.loc.country).map((r) => r.loc.country))];
   return first.map((r, i) => {
     if (!r.ambiguous) return finish(r.loc);

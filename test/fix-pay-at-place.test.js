@@ -278,7 +278,8 @@ function fnSource(name) {
 }
 const CARD = ['payPill', 'salaryRange', 'money', 'moneyRange', 'payRanges', 'rangeLabel', 'rangeText', 'pickedRange', 'payLevels', 'isMinimum', 'MINIMUM_TIP', 'rangeEnd',
   'postedTerm', 'termFactor', 'postedPair', 'postedMoney', 'isFixedPay', 'PER_UNIT', 'PER_YEAR', 'termText', 'programNoun', 'programText', 'perText',
-  'isPartTime', 'isPartTimeHourly', 'isOte', 'rangePlaceKeys', 'placeCount', 'payUnit', 'severalRangesTip', 'payHeadline', 'rangeName'];
+  'isPartTime', 'isPartTimeHourly', 'isOte', 'rangePlaceKeys', 'placeCount', 'payUnit', 'severalRangesTip', 'payHeadline', 'rangeName',
+  'isFullTimeHourly', 'wholeHourly', 'narrowCard', 'statedYearly']; // fix-data-6: P-3 and P-2's helpers
 function liftApp(names) {
   const body = names.map(fnSource).filter(Boolean).join('\n');
   // eslint-disable-next-line no-new-func
