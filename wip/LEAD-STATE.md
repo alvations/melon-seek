@@ -24,8 +24,8 @@ whenever a lane starts, reports, is integrated or is retired.
 - In-session: the 15-minute "Checkpoint tick" cron (7,22,37,52) runs `bash $S/tick.sh`; it dies with the session, and the resume tick recreates it.
 
 ## Usage pacing (the user, 2026-10-24: "Make sure you don't get interrupted by session or token limit")
-- At most 5 agents run at once. Six or seven in parallel used up the 5-hour usage allowance in about 2 hours on 2026-10-23.
-- Paused lanes wait in this order and resume, by SendMessage, one per finished lane: none left (qa-ci-6 resumed 01:3x, fix-juice-6 02:0x).
+- At most 3 agents run at once. Six or seven in parallel used up the 5-hour usage allowance in about 2 hours on 2026-10-23, and five did in about 2 h 15 min on 2026-10-24 (limit 02:45, reset 04:20).
+- Paused lanes wait in this order and resume, by SendMessage, one per finished lane: fix-app-6, then qa-ci-6.
 - After a usage-limit stop, resume only the `running` lanes. The paused ones stay paused.
 - The lead keeps its own turns short: no polling loops, small outputs.
 - The hourly resume task is the backstop if a limit still lands: it fires after the reset and resumes from this file.
@@ -47,11 +47,11 @@ whenever a lane starts, reports, is integrated or is retired.
 |---|---|---|---|---|
 | fix-ui-6 | add67b9453342f4ba | .claude/worktrees/agent-add67b9453342f4ba | B-1..B-12 (layout, phone sizes, map fit); phase 2: implement ux-density-6's density spec and size matrix | running |
 | fix-data-6 | a08f9659d62990db4 | .claude/worktrees/agent-a08f9659d62990db4 | G-1 (norm-14), G-2 bare country codes, G-3 Bayshore store and Monterrey N.L., T-19 P-2/D-11, C-1, K-1, P-1, P-2, P-3, R-1, R-2, R-3 | running |
-| fix-app-6 | af65001c61c5e8b4f | .claude/worktrees/agent-af65001c61c5e8b4f | BN-1..BN-8 | running |
+| fix-app-6 | af65001c61c5e8b4f | .claude/worktrees/agent-af65001c61c5e8b4f | BN-1..BN-8 | paused |
 | fix-salary-6 | a29d354058b1f01b7 | .claude/worktrees/agent-a29d354058b1f01b7 | S-1 multi-country pay (norm-14 shared with fix-data-6; salary.unlisted shown in the drawer) | done (49e86ee, picked into wt-int e77cd41; not pushed) |
 | fix-juice-6 | aab76ab3a12b3f957 | .claude/worktrees/agent-aab76ab3a12b3f957 | J-1..J-5 | running |
 | ux-density-6 | a8d30680c4dcc21d7 | .claude/worktrees/agent-a8d30680c4dcc21d7 | the user's 2026-10-24 iPhone mini request: size matrix (visible viewports, Pro Max, iPads, Duo) and a per-size density spec for fix-ui-6; no product code | done (61747f8; picked into wt-int) |
-| qa-ci-6 | a6d5736b954b39411 | .claude/worktrees/agent-a6d5736b954b39411 | the 12 CI e2e failures and 25 skips (run 40024210372) | running |
+| qa-ci-6 | a6d5736b954b39411 | .claude/worktrees/agent-a6d5736b954b39411 | the 12 CI e2e failures and 25 skips (run 40024210372) | paused |
 
 Done and retired (do not relaunch): fix-phone-sizes, fix-qa4, fix-mr-3, qa-suite-beta, fix-viz-5 (batch 3, e800c43);
 persona-beta-2-18-24, -25-34, -35-44, -45-54, -55-plus (logs on the branch, 5502155).
@@ -116,10 +116,9 @@ persona-beta-2-18-24, -25-34, -35-44, -45-54, -55-plus (logs on the branch, 5502
 - 01:5x UX docs pushed a0763ec (npm test 1,308/1,298/0 fail); ux-density-6 safe-to-delete passed (checkpoint da4790c), dropped from ckpt-lanes, worktree removed.
 - 02:0x fix-salary-6 done (49e86ee): S-1 every country/area line a salary.ranges row; unlisted in salary.unlisted (drawer Details + CSV); kr/$ by line's country (15 MS rows); main-site rows tied to places (Cohere 122/183, OpenAI 11/18, Scale 38/42); Google 62 dropped lines -> 0, MS 58 -> 0, 1,083 unlisted-area lines kept; nothing dropped (paid 28,176 -> 28,176; rows 6,673 -> 6,843, 0 lost); norm-14 golden 0/300 changed; npm test 1,328/0 fail; MS list 158 -> 174 KB gz. Picked into wt-int e77cd41 clean. Others told to rebase onto it; fix-juice-6 resumed.
 - fix-salary-6 final ad2cb71 (log State only) picked. Notes: cards round €41,500 to '€42K' (drawer keeps hundreds) - UI choice; OpenAI Zone A/B rows stay untied; lead re-baselines norm-14 after fix-data-6 lands.
+- 02:45 all five agents stopped on the usage limit (reset 04:20); container restarted ~04:33. 04:35 checkpoint 6582da0; cron recreated; pacing cut to 3 at once: resumed fix-data-6, fix-juice-6 (both near done) and fix-ui-6; fix-app-6 then qa-ci-6 wait.
 
-### Agents at 2026-10-24T04:36:15Z
-agent fix-ui-6 add67b9453342f4ba transcript-age=104min head=18dcea4 STALE
-agent fix-data-6 a08f9659d62990db4 transcript-age=102min head=799a164 STALE
-agent fix-app-6 af65001c61c5e8b4f transcript-age=95min head=55a53be STALE
-agent fix-juice-6 aab76ab3a12b3f957 transcript-age=99min head=a3a1cea STALE
-agent qa-ci-6 a6d5736b954b39411 transcript-age=96min head=8d6dcc3 STALE
+### Agents at 2026-10-24T04:43:47Z
+agent fix-ui-6 add67b9453342f4ba transcript-age=0min head=7e19e64
+agent fix-data-6 a08f9659d62990db4 transcript-age=0min head=af86969
+agent fix-juice-6 aab76ab3a12b3f957 transcript-age=4min head=a666f08
