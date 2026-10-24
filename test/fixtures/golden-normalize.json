@@ -1,5 +1,5 @@
 {
- "normalizerVersion": "norm-13",
+ "normalizerVersion": "norm-14",
  "history": [
   {
    "normalizerVersion": "norm-2",
@@ -65,6 +65,11 @@
    "normalizerVersion": "norm-13",
    "reason": "norm-13 fix-mr-3: MR-40 (43 New York-area towns in the gazetteer) and T-17 (titles on one line: line breaks and runs of whitespace are one space); 3 of 300 hashes changed (titles with a double space)",
    "at": "2026-10-23T14:07:18.645Z"
+  },
+  {
+   "normalizerVersion": "norm-14",
+   "reason": "norm-14 fix-salary-6: S-1 (every pay line for a country or pay area kept as a salary.ranges row tied to its places, salary.unlisted, kr/$ by the line's country, [Degree] header lines, main-site rows named for places tied to them); 0 of 300 hashes changed (the sample has no posting with pay for two places)",
+   "at": "2026-10-24T00:46:08.313Z"
   }
  ],
  "hashes": {

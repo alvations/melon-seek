@@ -4587,7 +4587,8 @@ function payPlacesLine(s, job = null) {
   const rs = payRanges(s);
   if (!rs) return null;
   const unit = job ? payUnit(job) : null;
-  const pay = (r) => (unit ? unit.fmt(Number(r.min), Number(r.max ?? r.min), rowCurrency(r, s)) : rangeText(r, s.currency));
+  const rowCur = (r) => String(r?.currency || s?.currency || 'USD').toUpperCase(); // S-1: each row in its own currency
+  const pay = (r) => (unit ? unit.fmt(Number(r.min), Number(r.max ?? r.min), rowCur(r)) : rangeText(r, s.currency));
   // fix-pay-at-place: one line per range, with no place name cut off (rangeName); the pay block's Details list every place.
   // D-39: ranges posted for the same places (Amazon's two hourly rates for Boardman, Hermiston and Umatilla) share one
   // row that names the places once and gives each posted range, "or" between them.
@@ -4679,13 +4680,14 @@ function payHeadline(job, F = viewSpec) {
   const rs = s ? payRanges(s) : null;
   if (!rs) return null;
   const unit = payUnit(job);
-  const byPlace = `Pay by place: ${rs.map((r) => `${rangeLabel(r)} ${unit.fmt(Number(r.min), Number(r.max ?? r.min), rowCurrency(r, s))}`).join(' · ')}`;
+  const rowCur = (r) => String(r?.currency || s?.currency || 'USD').toUpperCase(); // S-1: each row in its own currency
+  const byPlace = `Pay by place: ${rs.map((r) => `${rangeLabel(r)} ${unit.fmt(Number(r.min), Number(r.max ?? r.min), rowCur(r))}`).join(' · ')}`;
   const what = unit.note ? ` (${unit.note})` : '';
   const picked = pickedRange(job, F);
   if (picked) { const text = unit.fmt(picked.min, picked.max, picked.currency); return { text, range: text, sub: '', tip: `The range posted for ${picked.label}${what}. ${byPlace}`, picked, rankPlace: picked.label, min: picked.min, max: picked.max, across: false }; }
   // S-1 (fix-salary-6): the span covers the rows in the salary's currency only; another country's line in its own
   // currency is listed in the tip and the drawer's Pay by place, never mixed into the figure.
-  const same = rs.filter((r) => rowCurrency(r, s) === String(s.currency || 'USD').toUpperCase());
+  const same = rs.filter((r) => rowCur(r) === String(s.currency || 'USD').toUpperCase());
   const lo = Math.min(s.min, ...same.map((r) => Number(r.min))), hi = Math.max(s.max, ...same.map((r) => Number(r.max ?? r.min)));
   const span = unit.fmt(lo, hi);
   const n = placeCount(rs);

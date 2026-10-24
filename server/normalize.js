@@ -43,11 +43,15 @@ import { postingRule } from './companies.js';
  * and "Washington State", Cajamar and six other Brazilian towns, Luxembourg City, Town and Country, MO); norm-13 =
  * fix-mr-3 (docs/process/fix-mr-3.md, MR-40: 43 New York, New Jersey and Connecticut towns near Manhattan are at their
  * own place, not their state's centre, so Microsoft's NYC-metro range reaches them; T-17: a title's line breaks and runs
- * of whitespace are one space, cleanTitle). Stored
+ * of whitespace are one space, cleanTitle); norm-14 = fix-salary-6 (docs/process/fix-salary-6.md, S-1: every
+ * pay line a posting states for a country or pay area is a salary.ranges row tied to the job's places there, with its
+ * country and levels, and a line for a place the job doesn't list is salary.unlisted; "kr" and "$" with no code are read
+ * by their line's own country; a "[Degree]" line heads the country lines under it; main-site rows named for places
+ * ("Canada", "USA - All Other States") are tied to them). Stored
  * snapshots are upgraded with relocateJobs (which also re-derives text-sourced pay, the
  * pay labels and the level, then re-runs the vetting gate) and rekeyBoardJobs.
  */
-export const NORMALIZER_VERSION = 'norm-13';
+export const NORMALIZER_VERSION = 'norm-14';
 
 const NO_EXTRAS = Object.freeze({ equity: false, bonus: false });
 

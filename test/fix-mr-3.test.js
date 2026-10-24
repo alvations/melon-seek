@@ -125,10 +125,12 @@ test('MR-40 a town of the same name elsewhere is not moved to New York or New Je
     assert.ok(!['NY', 'NJ', 'CT'].includes(loc.region), `${s} geocodes to ${loc.city}, ${loc.region} (${loc.lat},${loc.lng})`);
   }
 });
-test('MR-40 the gazetteer change is a normalizer change: NORMALIZER_VERSION is norm-13, so stored snapshots are re-geocoded once', () => {
-  assert.equal(NORMALIZER_VERSION, 'norm-13');
+test('MR-40 the gazetteer change is a normalizer change: NORMALIZER_VERSION is norm-13 or later, so stored snapshots are re-geocoded once', () => {
+  // norm-14 (fix-salary-6) came after; any later version re-derives stored snapshots too.
+  assert.ok(Number(/^norm-(\d+)$/.exec(NORMALIZER_VERSION)?.[1]) >= 13, NORMALIZER_VERSION);
   const golden = JSON.parse(read('test/fixtures/golden-normalize.json'));
-  assert.equal(golden.normalizerVersion, 'norm-13', 'test/fixtures/golden-normalize.json was not re-baselined with the tooling');
+  assert.equal(golden.normalizerVersion, NORMALIZER_VERSION, 'test/fixtures/golden-normalize.json was not re-baselined with the tooling');
+  assert.ok(golden.history.some((h) => h.normalizerVersion === 'norm-13'), 'the norm-13 re-baseline is in the history');
 });
 
 /* ------------------------------------------------------------- MR-38, MR-33 */
