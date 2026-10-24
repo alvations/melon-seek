@@ -5708,7 +5708,8 @@ function fillDescription(job, desc, wrap, onSections = () => {}) {
     job.descriptionHtml = html;
     // BN-7: the posting's text names its own level ("IC5 - The typical base pay range …"): the chip says it now.
     const chip = desc.isConnected ? desc.closest('#drawer')?.querySelector('.d-meta .sen') : null;
-    if (chip && html) chip.replaceWith(senChip(job));
+    const next = chip && html ? senChip(job) : null;
+    if (next && next.textContent !== chip.textContent) { chip.replaceWith(next); fitMetaLine(); } // B-2's spacing for the new chip
     let gotSections = false;
     // fix3-data BP-14: sections.preferred (the posting's "Preferred qualifications") arrives with the others.
     if (detail?.sections) for (const k of ['responsibilities', 'fit', 'preferred']) if (!job.sections[k]?.length && detail.sections[k]?.length) { job.sections[k] = detail.sections[k]; gotSections = true; }
