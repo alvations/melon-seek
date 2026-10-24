@@ -25,7 +25,7 @@ whenever a lane starts, reports, is integrated or is retired.
 
 ## Usage pacing (the user, 2026-10-24: "Make sure you don't get interrupted by session or token limit")
 - At most 5 agents run at once. Six or seven in parallel used up the 5-hour usage allowance in about 2 hours on 2026-10-23.
-- Paused lanes wait in this order and resume, by SendMessage, one per finished lane: fix-juice-6 next (qa-ci-6 resumed 01:3x when ux-density-6 finished).
+- Paused lanes wait in this order and resume, by SendMessage, one per finished lane: none left (qa-ci-6 resumed 01:3x, fix-juice-6 02:0x).
 - After a usage-limit stop, resume only the `running` lanes. The paused ones stay paused.
 - The lead keeps its own turns short: no polling loops, small outputs.
 - The hourly resume task is the backstop if a limit still lands: it fires after the reset and resumes from this file.
@@ -48,8 +48,8 @@ whenever a lane starts, reports, is integrated or is retired.
 | fix-ui-6 | add67b9453342f4ba | .claude/worktrees/agent-add67b9453342f4ba | B-1..B-12 (layout, phone sizes, map fit); phase 2: implement ux-density-6's density spec and size matrix | running |
 | fix-data-6 | a08f9659d62990db4 | .claude/worktrees/agent-a08f9659d62990db4 | G-1 (norm-14), G-2 bare country codes, G-3 Bayshore store and Monterrey N.L., T-19 P-2/D-11, C-1, K-1, P-1, P-2, P-3, R-1, R-2, R-3 | running |
 | fix-app-6 | af65001c61c5e8b4f | .claude/worktrees/agent-af65001c61c5e8b4f | BN-1..BN-8 | running |
-| fix-salary-6 | a29d354058b1f01b7 | .claude/worktrees/agent-a29d354058b1f01b7 | S-1 multi-country pay (norm-14 shared with fix-data-6; salary.unlisted shown in the drawer) | running |
-| fix-juice-6 | aab76ab3a12b3f957 | .claude/worktrees/agent-aab76ab3a12b3f957 | J-1..J-5 | paused |
+| fix-salary-6 | a29d354058b1f01b7 | .claude/worktrees/agent-a29d354058b1f01b7 | S-1 multi-country pay (norm-14 shared with fix-data-6; salary.unlisted shown in the drawer) | done (49e86ee, picked into wt-int e77cd41; not pushed) |
+| fix-juice-6 | aab76ab3a12b3f957 | .claude/worktrees/agent-aab76ab3a12b3f957 | J-1..J-5 | running |
 | ux-density-6 | a8d30680c4dcc21d7 | .claude/worktrees/agent-a8d30680c4dcc21d7 | the user's 2026-10-24 iPhone mini request: size matrix (visible viewports, Pro Max, iPads, Duo) and a per-size density spec for fix-ui-6; no product code | done (61747f8; picked into wt-int) |
 | qa-ci-6 | a6d5736b954b39411 | .claude/worktrees/agent-a6d5736b954b39411 | the 12 CI e2e failures and 25 skips (run 40024210372) | running |
 
@@ -57,6 +57,7 @@ Done and retired (do not relaunch): fix-phone-sizes, fix-qa4, fix-mr-3, qa-suite
 persona-beta-2-18-24, -25-34, -35-44, -45-54, -55-plus (logs on the branch, 5502155).
 
 ## Next steps
+0. Integration branch $S/wt-int is at e77cd41 (fix-salary-6 + the UX docs), not pushed: it waits for the gate. fix-data-6, fix-app-6, fix-ui-6 and fix-juice-6 were told to rebase onto it.
 1. Integrate each lane's SHAs as they report (pick.sh into $S/wt-int); after fix-data-6 and fix-salary-6 are both in,
    re-baseline the golden file once for norm-14 with the tooling.
 2. Gate (SHARDS=2) on the integrated head; fix what it finds; npm test; push; check CI, Pages, WebKit (dispatch
@@ -113,10 +114,12 @@ persona-beta-2-18-24, -25-34, -35-44, -45-54, -55-plus (logs on the branch, 5502
 - 01:3x ux-density-6 done (61747f8): mockups 375x625/440x757/1114x616/820x1070; after on Apple: card's title+pay everywhere, median once, rows mini 2->4, 13/14 2->5, SE 0->2; Duo spanned chart screen compact. Picked into wt-int. qa-ci-6 resumed.
 - ux-density-6 final: the user's screenshot is Chrome iOS (page 375x625; bars never collapse since the page doesn't scroll on phones). Ownership: fix-ui-6 owns chart.js row drawing for D-4/D-5; fix-app-6 keeps the caption/stats wording (one shared function), fix-ui-6 decides placement. Caveats: Android/Duo/iPad heights estimated; WebKit/iOS 26 untested (webkit-phone.yml covers WebKit after integration).
 - 01:5x UX docs pushed a0763ec (npm test 1,308/1,298/0 fail); ux-density-6 safe-to-delete passed (checkpoint da4790c), dropped from ckpt-lanes, worktree removed.
+- 02:0x fix-salary-6 done (49e86ee): S-1 every country/area line a salary.ranges row; unlisted in salary.unlisted (drawer Details + CSV); kr/$ by line's country (15 MS rows); main-site rows tied to places (Cohere 122/183, OpenAI 11/18, Scale 38/42); Google 62 dropped lines -> 0, MS 58 -> 0, 1,083 unlisted-area lines kept; nothing dropped (paid 28,176 -> 28,176; rows 6,673 -> 6,843, 0 lost); norm-14 golden 0/300 changed; npm test 1,328/0 fail; MS list 158 -> 174 KB gz. Picked into wt-int e77cd41 clean. Others told to rebase onto it; fix-juice-6 resumed.
+- fix-salary-6 final ad2cb71 (log State only) picked. Notes: cards round €41,500 to '€42K' (drawer keeps hundreds) - UI choice; OpenAI Zone A/B rows stay untied; lead re-baselines norm-14 after fix-data-6 lands.
 
-### Agents at 2026-10-24T01:58:32Z
-agent fix-ui-6 add67b9453342f4ba transcript-age=0min head=402a02e
+### Agents at 2026-10-24T02:13:31Z
+agent fix-ui-6 add67b9453342f4ba transcript-age=0min head=e4cf9d1
 agent fix-data-6 a08f9659d62990db4 transcript-age=0min head=5bf929d
-agent fix-app-6 af65001c61c5e8b4f transcript-age=0min head=08d9e9e
-agent fix-salary-6 a29d354058b1f01b7 transcript-age=7min head=8a8fee6
-agent qa-ci-6 a6d5736b954b39411 transcript-age=9min head=78a6117
+agent fix-app-6 af65001c61c5e8b4f transcript-age=2min head=118fd28
+agent fix-juice-6 aab76ab3a12b3f957 transcript-age=0min head=3fad4c8
+agent qa-ci-6 a6d5736b954b39411 transcript-age=3min head=78a6117
