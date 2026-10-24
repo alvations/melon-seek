@@ -117,9 +117,9 @@ persona-beta-2-18-24, -25-34, -35-44, -45-54, -55-plus (logs on the branch, 5502
 - 02:0x fix-salary-6 done (49e86ee): S-1 every country/area line a salary.ranges row; unlisted in salary.unlisted (drawer Details + CSV); kr/$ by line's country (15 MS rows); main-site rows tied to places (Cohere 122/183, OpenAI 11/18, Scale 38/42); Google 62 dropped lines -> 0, MS 58 -> 0, 1,083 unlisted-area lines kept; nothing dropped (paid 28,176 -> 28,176; rows 6,673 -> 6,843, 0 lost); norm-14 golden 0/300 changed; npm test 1,328/0 fail; MS list 158 -> 174 KB gz. Picked into wt-int e77cd41 clean. Others told to rebase onto it; fix-juice-6 resumed.
 - fix-salary-6 final ad2cb71 (log State only) picked. Notes: cards round €41,500 to '€42K' (drawer keeps hundreds) - UI choice; OpenAI Zone A/B rows stay untied; lead re-baselines norm-14 after fix-data-6 lands.
 
-### Agents at 2026-10-24T02:28:47Z
+### Agents at 2026-10-24T02:43:55Z
 agent fix-ui-6 add67b9453342f4ba transcript-age=0min head=18dcea4
 agent fix-data-6 a08f9659d62990db4 transcript-age=0min head=799a164
-agent fix-app-6 af65001c61c5e8b4f transcript-age=7min head=55a53be
-agent fix-juice-6 aab76ab3a12b3f957 transcript-age=3min head=a3a1cea
-agent qa-ci-6 a6d5736b954b39411 transcript-age=9min head=8d6dcc3
+agent fix-app-6 af65001c61c5e8b4f transcript-age=2min head=55a53be
+agent fix-juice-6 aab76ab3a12b3f957 transcript-age=7min head=a3a1cea
+agent qa-ci-6 a6d5736b954b39411 transcript-age=4min head=8d6dcc3
