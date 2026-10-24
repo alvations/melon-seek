@@ -310,7 +310,8 @@ function headPay(items) {
   // BN-2, BN-4 (fix-app-6): shared.js headlineMedian over the median's own pool (base pay, else on-target earnings, else
   // the rest), as the stats line, the map's pins and Insights' tiles: MR-39's main currency, written in that currency
   // (CA$101K over Canadian pay), and per hour for part-time hourly pay only.
-  const hm = headlineMedian(all.pool.map((p) => ({ usd: p.mid, cur: basisOf(p), hourly: isPartTimeHourly(p.job) })));
+  // The currency of the pay plotted (a place's own row under a Location filter: Vancouver's CA$ row on a US-headline posting).
+  const hm = headlineMedian(all.pool.map((p) => ({ usd: p.mid, cur: p.cur || basisOf(p), hourly: isPartTimeHourly(p.job) })));
   const out = { ...all, median: hm.median, p25: hm.p25, p75: hm.p75, n: hm.n, hm };
   return hm.basis && hm.left ? { ...out, basis: hm.basis, basisLeft: hm.left } : out;
 }

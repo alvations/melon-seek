@@ -91,6 +91,26 @@
    posting the same way before and after.
 
 ## 4. Replayable steps
+```sh
+S=/tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92f3-f582ebca24d9/scratchpad
+git fetch origin claude/stoic-ride-54ddxp && git checkout --detach origin/claude/stoic-ride-54ddxp     # db38a30
+ln -s $S/wt-data2/data/snapshots data/snapshots; mkdir -p data/beta; ln -s $S/wt-data2/data/beta/snapshots data/beta/snapshots
+ln -s /home/user/melon-seek/node_modules node_modules
+node scripts/build-static.js && cp -r dist $S/fa6/dist-base                 # the base build, 7 min at load 10-13
+PORT=0 node scripts/cycle/serve.mjs --dist $S/fa6/dist-base --pid $S/fa6/serve-base.pid
+EXTRA='Dublin' NODE_PATH=$S/pw/node_modules node $S/fa6/tools/probe-bn1.mjs http://127.0.0.1:<port> 'c=google&smin=40000&l=Warsaw' 4
+node --test test/fix-app-6.test.js                                           # red on 4ebe24f (copied into the clean checkout)
+# fixes (see the commits), then:
+node scripts/build-static.js
+node $S/fa6/tools/two-levels.mjs dist        # BN-7: postings on two of our levels, per board
+node $S/fa6/tools/minimums.mjs dist          # BN-6: Amazon in Milan and the EU under a €35,000 floor
+git worktree add --detach $S/fa6/clean HEAD; ln -s /home/user/melon-seek/node_modules $S/fa6/clean/node_modules
+(cd $S/fa6/clean && MELON_BETA_SNAPSHOT_DIR= timeout 1500 npm test)
+BETA_QA_DIST=$S/fa6/dist-base NODE_PATH=$S/pw/node_modules node scripts/e2e.js --grep="fix-app-6"     # red
+NODE_PATH=$S/pw/node_modules node scripts/e2e.js --grep="fix-app-6"                                   # green
+FIX_APP_6_SHOTS=1 NODE_PATH=$S/pw/node_modules node scripts/e2e.js --grep="fix-app-6: \[BN"           # screenshots
+bash scripts/cycle/shrink-screenshots.sh docs/screenshots/fix-app-6
+```
 
 ## 5. Verification
 
