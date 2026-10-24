@@ -2,11 +2,13 @@
 
 - Worktree: `/home/user/melon-seek/.claude/worktrees/agent-add67b9453342f4ba`
 - Base (on claude/stoic-ride-54ddxp): `a0763eceb553a3da77408fd81acf018174302bbc`
-- Head: `7e19e64dc50fcb6c0e5429de5b3ffccdd105c37f`
+- Head: `ab125e44fec77717651da6d5f7f9af2abc775810`
 - Restore: `bash scripts/cycle/restore-wip.sh fix-ui-6 <new worktree dir>`
 
 ## Commits since the base
 ```
+ab125e4 fix-ui-6: log: the rebase, the related groups, the three follow-ups, B-12's timing
+03b8343 fix-ui-6: CONTRACT: the measured peek, the saved search with new roles, the 12-word arrival line
 7e19e64 fix-ui-6: B-9 keeps a saved search with new roles in view (M-28's five plain ones leave the company centred); B-11's line at 12 words; the chart scrolls rows into view under its axis (A-8 at 280 px)
 18dcea4 fix-ui-6: log: steps, gaps, change log
 5cec245 fix-ui-6: screenshots before and after (shrunk), the log's verification
@@ -35,7 +37,16 @@ ed32bf1 fix-salary-6: norm-14; golden re-baselined (0 of 300 hashes changed) and
 
 ## Uncommitted and new files
 ```
- M docs/screenshots/qa-mobile-beta/e2e-M-21-company-menu.png
+ M docs/CONTRACT.md
+ M public/app.js
+ M public/styles.css
+ M public/viz/chart.js
+ M public/viz/viz.css
+ M test/beta-coverage.test.js
+ M test/e2e/fix-phone-text.e2e.js
+ M test/e2e/fix-ui-6.e2e.js
+ M test/e2e/phone-sizes.mjs
+ M test/e2e/webkit/phone-smoke.mjs
 ```
 
 ## Left out (not in untracked.tgz)

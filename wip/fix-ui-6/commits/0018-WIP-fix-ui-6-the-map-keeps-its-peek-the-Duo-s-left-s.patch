@@ -1,7 +1,7 @@
 From 6d569844b6dcf290f25ca25029bbe636b1f56617 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 24 Oct 2026 00:43:56 +0000
-Subject: [PATCH 18/24] WIP fix-ui-6: the map keeps its peek; the Duo's left
+Subject: [PATCH 18/26] WIP fix-ui-6: the map keeps its peek; the Duo's left
  screen drops the wordmark; CONTRACT; log decisions
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
