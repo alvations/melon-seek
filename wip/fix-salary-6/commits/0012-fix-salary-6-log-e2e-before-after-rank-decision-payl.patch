@@ -1,11 +1,12 @@
-From cf3b9cec94eaeb876ce043de3a8bccaa59229489 Mon Sep 17 00:00:00 2001
+From 98de6b2c134c8fd6dbce38c7a4c038531946c596 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 24 Oct 2026 02:08:45 +0000
-Subject: [PATCH 12/14] fix-salary-6: log (e2e before/after, rank decision,
+Subject: [PATCH 12/39] fix-salary-6: log (e2e before/after, rank decision,
  payload)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+(cherry picked from commit cf3b9cec94eaeb876ce043de3a8bccaa59229489)
 ---
  docs/process/fix-salary-6.md | 28 +++++++++++++++++++++++-----
  1 file changed, 23 insertions(+), 5 deletions(-)

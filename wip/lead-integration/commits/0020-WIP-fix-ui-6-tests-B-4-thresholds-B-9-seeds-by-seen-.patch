@@ -1,0 +1,67 @@
+From 334e60c3fa0fc5a3b95a9476579bc09007e950f4 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 24 Oct 2026 01:06:09 +0000
+Subject: [PATCH 20/37] WIP fix-ui-6: tests: B-4 thresholds, B-9 seeds by seen
+ ids, the iPhone mini as Safari leaves it (375x625)
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+(cherry picked from commit 91907749b94f9b6c73bbc1782b0731862607a27a)
+---
+ test/e2e/fix-ui-6.e2e.js | 23 +++++++++++++++--------
+ 1 file changed, 15 insertions(+), 8 deletions(-)
+
+diff --git a/test/e2e/fix-ui-6.e2e.js b/test/e2e/fix-ui-6.e2e.js
+index 6a60900..6b1c99f 100644
+--- a/test/e2e/fix-ui-6.e2e.js
++++ b/test/e2e/fix-ui-6.e2e.js
+@@ -41,8 +41,12 @@ const DESKTOP = { name: 'Desktop', width: 1440, height: 900 };
+ const LAPTOP = { name: 'Small laptop', width: 1024, height: 768 };
+ const at = (w, h) => { const d = ALL_SIZES.find((s) => s.width === w && s.height === h); assert(d, `test/e2e/phone-sizes.mjs lists ${w}x${h}`); return d; };
+ const label = (d) => `${d.name} ${d.width}x${d.height}`;
+-/** The portrait phones (phone-sizes.mjs PHONES) and the stacked Duo's phone layout is left out: its list stays open. */
+-const PORTRAIT = PHONES;
++/**
++ * The portrait phones (phone-sizes.mjs PHONES; the stacked Duo is left out: its list stays open), and the iPhone 13 mini
++ * as Safari leaves it (375x625: its top bar and bottom toolbar take 187 px; the user's screenshots, 2026-10-24).
++ */
++const MINI_SAFARI = { ...PHONES.find((p) => p.width === 375 && p.height === 812), name: 'iPhone 13 mini (Safari, toolbars shown)', height: 625 };
++const PORTRAIT = [...PHONES, MINI_SAFARI];
+ const slug = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+ 
+ let shared = null;
+@@ -384,14 +388,16 @@ function firstCardShows() {
+ 
+ /* ------------------------------------------------------------------------------------------------------------ B-9 */
+ 
+-/** Saved searches for the board (one with new roles: its last opening is before the newest postings were first seen). */
++/**
++ * Saved searches for the board: one with new roles (it last saw every posting but two; with a history ledger in the
++ * build, postings first seen since its old last opening count too), and one with none.
++ */
+ async function savedSeeds(st, board) {
+   const jobs = await boardJobs(st, board);
+-  const dated = jobs.filter((j) => j.firstSeenAt).map((j) => Date.parse(j.firstSeenAt)).sort((a, b) => b - a);
+-  if (dated.length < 3) skip(`${board} has no first-seen dates in this build`);
+-  const since = new Date(dated[1] - 1).toISOString(); // the two newest are new since then
++  if (jobs.length < 3 || jobs.length >= 2000) skip(`${board} has ${jobs.length} postings`);
++  const since = '2026-01-01T00:00:00.000Z';
+   return [
+-    { id: 'fui6-a', name: `${board} · everything`, hash: `c=${board}`, channel: 'beta', createdAt: since, lastSeenAt: since, seen: jobs.map((j) => j.id) },
++    { id: 'fui6-a', name: `${board} · everything`, hash: `c=${board}`, channel: 'beta', createdAt: since, lastSeenAt: since, seen: jobs.slice(2).map((j) => j.id) },
+     { id: 'fui6-b', name: `${board} · engineers`, hash: `c=${board}&q=engineer`, channel: 'beta', createdAt: since, lastSeenAt: new Date().toISOString(), seen: [] },
+   ];
+ }
+@@ -666,7 +672,8 @@ export function registerFixUi6Tests(suite) {
+     const st = await serveDist();
+     if (!st) skip('no beta build');
+     const bad = [];
+-    for (const board of ['google', 'microsoft']) {
++    // Boards under 2,000 postings: a saved search keeps their ids as a list (D-18).
++    for (const board of ['netflix', 'meta']) {
+       const seeds = await savedSeeds(st, board);
+       const { page, errors, context } = await open(ctx, size, { hash: `c=${board}`, init: { fn: SEED_SAVED, arg: seeds } });
+       const b = await page.locator('#companyMenuBtn').boundingBox();
+-- 
+2.43.0
+

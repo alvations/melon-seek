@@ -1,7 +1,7 @@
 From f7d64aafcdb231fd216ad8abf019067f1227ac25 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 24 Oct 2026 01:40:40 +0000
-Subject: [PATCH 21/26] fix-ui-6: B-12 the peek is measured to the first card's
+Subject: [PATCH 21/27] fix-ui-6: B-12 the peek is measured to the first card's
  pay; B-7 one pan to the nearest clear offset, the map fits short boxes over
  860 px
 

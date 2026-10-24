@@ -1,17 +1,17 @@
-From ab125e44fec77717651da6d5f7f9af2abc775810 Mon Sep 17 00:00:00 2001
+From f6fa15529535445858cc11a645d148ce208a8b7e Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 24 Oct 2026 04:50:52 +0000
-Subject: [PATCH 26/26] fix-ui-6: log: the rebase, the related groups, the
+Subject: [PATCH 26/27] fix-ui-6: log: the rebase, the related groups, the
  three follow-ups, B-12's timing
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
 ---
- docs/process/fix-ui-6.md | 66 ++++++++++++++++++++++++++--------------
- 1 file changed, 43 insertions(+), 23 deletions(-)
+ docs/process/fix-ui-6.md | 69 ++++++++++++++++++++++++++--------------
+ 1 file changed, 46 insertions(+), 23 deletions(-)
 
 diff --git a/docs/process/fix-ui-6.md b/docs/process/fix-ui-6.md
-index d0beb65..22c4b94 100644
+index d0beb65..8109596 100644
 --- a/docs/process/fix-ui-6.md
 +++ b/docs/process/fix-ui-6.md
 @@ -2,16 +2,12 @@
@@ -79,7 +79,7 @@ index d0beb65..22c4b94 100644
  **npm test** in a clean checkout with no data links (`MELON_BETA_SNAPSHOT_DIR=`): on 9d188a1 1297 pass and 1 fail
  (fix-qa4's UX-50 source test pinned the old line; updated in 2f245aa to read cardMetaItems); on 9b86087 **1308 tests,
 -1298 pass, 0 fail**, 10 skipped.
-+1298 pass, 0 fail**, 10 skipped; rebased onto e77cd41, at the last B commit (this log's): **NPM_PENDING**.
++1298 pass, 0 fail**, 10 skipped; rebased onto e77cd41, at the last B commit (this log's): **1328 tests, 1318 pass, 0 fail**, 10 skipped (05:03–05:04 UTC).
 +
 +**The related groups** on the rebased build (fix-ui-6, fix-salary-6, fix-qa4, Fix phone text, fix-viz-5, the beta mobile
 +and desktop QA groups, Mobile QA, Fix company scroll, Badge, Fix beta app, fix-density, Fix touch tips, Fix phone controls'
@@ -96,7 +96,7 @@ index d0beb65..22c4b94 100644
  
  Screenshots (shrunk 11.8 → 2.7 MB): docs/screenshots/fix-ui-6/before-*.png and after-*.png for each item at the sizes
  that show it (B-1 Apple and Amazon at 1440, B-2 at 280, 390 and 1440, B-3 at 1005x412, B-5 at 932x430 and 1005x412, B-6
-@@ -170,9 +185,11 @@ at 861, B-7 the cover screen, B-8 the Duo, B-9 the cover screen's menu and toast
+@@ -170,9 +185,14 @@ at 861, B-7 the cover screen, B-8 the Duo, B-9 the cover screen's menu and toast
  - **The cover screen's chart at the peek** keeps its caption and part of its scale (34–37 px) so that the first card's
    title and pay show (B-12). The peek is the sheet's lowest state, so there the chart is a glance at its scale (it held
    half a row before); ux-density-6's spec allows 0 rows on the cover screen.
@@ -104,12 +104,15 @@ index d0beb65..22c4b94 100644
 +- **Phase 2 (ux-density-6's spec, D-1 to D-14)** is next: the measured peek without the Juice line from half up, the
    compact chart rows, the median once, the tagline on the first visit only, the one-row top bar from 640 px, the
    phone-sizes.mjs patch.
-+- Phone smoke and the phone matrix on the B build run after the SHAs were sent (the economy rules: one suite at a time);
-+  their results go in with phase 2's.
++- On the B build (a hard-linked copy, dist-b): the phone matrix **60 of 60 pass** (04:50–05:03) and phone smoke **147 of
++  147 ok** (21 sizes x 7 boards, Chromium; 04:58–05:04): no page error, no horizontal scroll, every main control on screen.
++  Its "text cut" notes are all chart row names with an ellipsis, which fix-phone-text's ALLOW lists: none now on the Duo
++  spanned (8 before), Amazon's long department names on its phone first screens (2 to 5 a screen; none were listed on the
++  baseline's), and one or two more at 280 px.
  - `node scripts/refresh/registry.js --lines --write` was not run here (map.js and app.js lines moved; the lead runs it at
    integration, and many of its references had already moved).
  - WebKit: not installed here; webkit-phone.yml runs phone-smoke and the matrix in WebKit.
-@@ -186,3 +203,6 @@ at 861, B-7 the cover screen, B-8 the Duo, B-9 the cover screen's menu and toast
+@@ -186,3 +206,6 @@ at 861, B-7 the cover screen, B-8 the Duo, B-9 the cover screen's menu and toast
    the Duo's left screen drops the wordmark, CONTRACT (0596d1f); red run 84/127 on the baseline.
  - 2026-10-24 01:00–01:30: green run 125/129, then the measured peek and the map's one-pan fit (9b86087): 53/53;
    fix-qa4's source test (2f245aa); npm test 1298/0; screenshots (402a02e).

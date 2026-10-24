@@ -2,11 +2,34 @@
 
 - Worktree: `/tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92f3-f582ebca24d9/scratchpad/wt-int`
 - Base (on claude/stoic-ride-54ddxp): `a0763eceb553a3da77408fd81acf018174302bbc`
-- Head: `f2f6d84bc8ef9016a67723a1553ee0a5e6e9d675`
+- Head: `942db8aa2336ea6af53cd43e6a17542c962db66f`
 - Restore: `bash scripts/cycle/restore-wip.sh lead-integration <new worktree dir>`
 
 ## Commits since the base
 ```
+942db8a fix-juice-6: log, the related groups and State
+4de206c fix-juice-6: log, verification so far and State
+38e122e fix-juice-6: after screenshots (Toronto, Milan, London, Munich, New York at 280, 375, 352 and 1280; J-5 cards), shrunk
+4557c35 WIP fix-juice-6: State at the pause
+6d17705 WIP fix-juice-6: narrow forms for 280 px, two test fixes, BP-2 accepts any pay place first, before screenshots
+4898712 fix-juice-6: log, State and decisions
+f02ad51 fix-juice-6: J-1 to J-5 in the Juice drawer, the card badge and the chart's tips
+92314bb fix-juice-6: red tests for J-1 to J-5, and the words module they read
+e1e65b2 fix-juice-6: log with State
+83279cc fix-juice-6: prompt verbatim
+b68f237 fix-ui-6: log: the rebase, the related groups, the three follow-ups, B-12's timing
+5fa1956 fix-ui-6: CONTRACT: the measured peek, the saved search with new roles, the 12-word arrival line
+7dcda9d fix-ui-6: B-9 keeps a saved search with new roles in view (M-28's five plain ones leave the company centred); B-11's line at 12 words; the chart scrolls rows into view under its axis (A-8 at 280 px)
+21eab33 fix-ui-6: log: steps, gaps, change log
+51a0ed9 fix-ui-6: screenshots before and after (shrunk), the log's verification
+edebed5 fix-ui-6: B-12 the peek is measured to the first card's pay; B-7 one pan to the nearest clear offset, the map fits short boxes over 860 px
+98b946f fix-ui-6: fix-qa4's UX-50 source test reads cardMetaItems (B-1)
+334e60c WIP fix-ui-6: tests: B-4 thresholds, B-9 seeds by seen ids, the iPhone mini as Safari leaves it (375x625)
+40d71b4 WIP fix-ui-6: the map keeps its peek; the Duo's left screen drops the wordmark; CONTRACT; log decisions
+fcffc77 WIP fix-ui-6: B-9 to B-12 (cover menu and toast, few roles, arrival line, a card on the first screen) and their tests
+52610d3 WIP fix-ui-6: B-4 (slide first, panel catch-up after the first frame; root vars written on change), B-8 (the Duo's two screens without viewport segments)
+07f3b45 WIP fix-ui-6: B-1 to B-7 first fixes, the e2e group, the log
+abccc16 fix-ui-6: prompt, verbatim
 f2f6d84 fix-salary-6: log State (sent 49e86ee)
 e77cd41 fix-salary-6: CONTRACT names the drawer rank's country rule
 98de6b2 fix-salary-6: log (e2e before/after, rank decision, payload)

@@ -1,12 +1,13 @@
-From 8a8fee61c1a97280e4bd27cb71e51fb4c0ec78aa Mon Sep 17 00:00:00 2001
+From 91fb9a0ee7c536794d4c7c174473dac46d14bc04 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 24 Oct 2026 01:51:15 +0000
-Subject: [PATCH 10/14] fix-salary-6 S-1: the drawer's rank and strip rank a
+Subject: [PATCH 10/39] fix-salary-6 S-1: the drawer's rank and strip rank a
  place's own line among its country's roles; e2e collects every problem and
  checks the rank line
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+(cherry picked from commit 8a8fee61c1a97280e4bd27cb71e51fb4c0ec78aa)
 ---
  public/app.js                | 23 ++++++++++++++++++----
  test/e2e/fix-salary-6.e2e.js | 38 +++++++++++++++++++++++-------------

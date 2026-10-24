@@ -1,7 +1,7 @@
 From 18dcea446c6db5bcc69229436cb6ead29cc7c87c Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 24 Oct 2026 01:59:29 +0000
-Subject: [PATCH 23/26] fix-ui-6: log: steps, gaps, change log
+Subject: [PATCH 23/27] fix-ui-6: log: steps, gaps, change log
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc

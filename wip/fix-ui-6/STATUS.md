@@ -2,12 +2,13 @@
 
 - Worktree: `/home/user/melon-seek/.claude/worktrees/agent-add67b9453342f4ba`
 - Base (on claude/stoic-ride-54ddxp): `a0763eceb553a3da77408fd81acf018174302bbc`
-- Head: `ab125e44fec77717651da6d5f7f9af2abc775810`
+- Head: `375988447ad923887527d9f48d923071d7033c0d`
 - Restore: `bash scripts/cycle/restore-wip.sh fix-ui-6 <new worktree dir>`
 
 ## Commits since the base
 ```
-ab125e4 fix-ui-6: log: the rebase, the related groups, the three follow-ups, B-12's timing
+3759884 WIP fix-ui-6: phase 2 (ux-density-6 D-1 to D-14): size classes, the folded chart (band, median, posted range; one Details), the median once, the tagline on a first visit, the measured peek, the one-row top bar from 640 px; phone-sizes VISIBLE and TABLETS; the D tests
+f6fa155 fix-ui-6: log: the rebase, the related groups, the three follow-ups, B-12's timing
 03b8343 fix-ui-6: CONTRACT: the measured peek, the saved search with new roles, the 12-word arrival line
 7e19e64 fix-ui-6: B-9 keeps a saved search with new roles in view (M-28's five plain ones leave the company centred); B-11's line at 12 words; the chart scrolls rows into view under its axis (A-8 at 280 px)
 18dcea4 fix-ui-6: log: steps, gaps, change log
@@ -37,16 +38,6 @@ ed32bf1 fix-salary-6: norm-14; golden re-baselined (0 of 300 hashes changed) and
 
 ## Uncommitted and new files
 ```
- M docs/CONTRACT.md
- M public/app.js
- M public/styles.css
- M public/viz/chart.js
- M public/viz/viz.css
- M test/beta-coverage.test.js
- M test/e2e/fix-phone-text.e2e.js
- M test/e2e/fix-ui-6.e2e.js
- M test/e2e/phone-sizes.mjs
- M test/e2e/webkit/phone-smoke.mjs
 ```
 
 ## Left out (not in untracked.tgz)

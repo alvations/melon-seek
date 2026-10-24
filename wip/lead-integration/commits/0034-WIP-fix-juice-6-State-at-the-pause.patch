@@ -1,0 +1,63 @@
+From 4557c3577136d9a67a6ddf7e19947ef9785fe6b3 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 24 Oct 2026 01:04:57 +0000
+Subject: [PATCH 34/37] WIP fix-juice-6: State at the pause
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+(cherry picked from commit 3fad4c887b5aef781ef058865c368023e652ebed)
+---
+ docs/process/fix-juice-6.md | 33 +++++++++++++++++++++++++++------
+ 1 file changed, 27 insertions(+), 6 deletions(-)
+
+diff --git a/docs/process/fix-juice-6.md b/docs/process/fix-juice-6.md
+index 70b84d0..8810c77 100644
+--- a/docs/process/fix-juice-6.md
++++ b/docs/process/fix-juice-6.md
+@@ -2,16 +2,37 @@
+ 
+ ## State
+ 
++- **Paused by the lead at 01:05 UTC (usage limit). Head c08bdc2. Nothing runs in the background.**
+ - **Base:** origin/claude/stoic-ride-54ddxp at fd9da2f (batch 3, e800c43, plus persona wave-2 logs and wip/ checkpoints).
+ - **Done:**
+-  - e2a1ab2 prompt; 72998c6 log; b60b702 red tests and the words module; dfc3b4e the fixes for J-1 to J-5;
+-  - red runs: unit 4 of 9 fail on the base app code; e2e 16 of 16 fail on the base build.
+-- **In progress:** the build of dfc3b4e (dist/), then my e2e green run and the related groups; npm test in the clean
+-  checkout (`<scratch>/fj6/clean`).
++  - e2a1ab2 prompt; 72998c6 log; b60b702 red tests and the words module; dfc3b4e the fixes for J-1 to J-5; b8ae128 log;
++    c08bdc2 narrow forms for 280 px (measured in the app's font: every shortest name with the largest yearly amount is
++    at most 126 px of the 128 px the Tax row has at 280), a shorter family line, two test fixes, Fix3 app [BP-2] lets
++    the graded pay place lead, before screenshots (docs/screenshots/fix-juice-6/before-*, shrunk);
++  - red: unit 4 of 9 fail with the base app.js/index.html/chart.js; e2e 16 of 16 fail on the base build (0/16);
++  - npm test, CI-like, clean checkout on dfc3b4e: 1,317 tests, 1,306 pass, 1 fail, 10 skipped. The one failure,
++    polite-spacing "a late timer never brings two requests to one host closer than the minimum interval", is a timing
++    test at load 24; it passes alone (1/1). The Juice and tax unit tests (juice, juice-household, juice-tax-golden,
++    refresh-tax): 66/66 pass, unchanged. test/fix-juice-6.test.js 9/9 and freshness-policy 9/9 pass on c08bdc2.
++  - green e2e on dfc3b4e's build (stopped at test 12 of 38 by the pause, load 11 to 24): J-3 4/4 and J-2 3/4 pass;
++    J-1 failed on 3 things now fixed in c08bdc2 (names over 128 px at 280; my own "INPS social security" tripping the
++    "social security" check; the US row regex) and J-2 at 280 on the family line cut by 23 px (fixed in c08bdc2).
++- **dist/ is dfc3b4e's build, not c08bdc2's.** public/features/juice-drawer.js is copied verbatim by the build (cmp
++  checked for dist/ and dist/beta/). If public/app.js is verbatim too (`cmp public/app.js dist/beta/app.js` after
++  rebuilding from dfc3b4e's app.js), copy the two files into dist/ and dist/beta/ instead of a 7-minute rebuild; else
++  rebuild through the queue.
++- **Heavy jobs go through the lead's queue:** `bash <scratch>/fj6/scripts/e2e.sh <log name> '<grep>'` (wraps
++  `<scratch>/heavy.sh`, logs to `<scratch>/fj6/<log name>.log`); builds and npm test likewise via heavy.sh.
+ - **List:** J-1 tax row names outside the US; J-2 the household tax line; J-3 remember Monthly/Yearly; J-4 jargon tips
+   (grades, Clusters/Ranges, the chart's ‹n/›n chips); J-5 (by message from the lead) a card's Juice grade names its place.
+-- **Next:** green e2e, related groups (Juice, drawer, Fix phone text guard, Beta mobile QA 4), screenshots, SendMessage
+-  the SHA to the lead.
++- **Next:**
++  1. dist on c08bdc2 (copy or rebuild); serve with `node scripts/cycle/serve.mjs --dist dist --pid <scratch>/fj6/serve.pid`;
++  2. e2e `fix-juice-6` (38 tests) green;
++  3. related groups, one at a time: `juice|drawer|household|waterfall` (106), `Fix phone text`, `Beta mobile QA 4`;
++     re-run S-3, S-6, PERF-1, V15, T21 alone if they fail;
++  4. after screenshots: `node <scratch>/fj6/scripts/shots.mjs http://127.0.0.1:5361/melon-seek/beta after docs/screenshots/fix-juice-6`, shrink, commit;
++  5. npm test in the clean checkout (`git -C <scratch>/fj6/clean checkout --detach <sha>`), 0 fail;
++  6. fill §5, SendMessage the lead the SHA (J-1 to J-5, tests, the J-5 design note in §3.6).
+ 
+ ## 1. Brief
+ 
+-- 
+2.43.0
+
