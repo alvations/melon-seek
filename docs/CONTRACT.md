@@ -1053,3 +1053,50 @@ methodology's sources table (`methodology-figures.js loadFigureInputs`) and `api
 
 **Market doc (`scripts/build-market.js`, MR-22):** `fx.source` is `palette.js FX_SOURCE` (the rates' own source), not a code path.
 **Registry tool (`scripts/refresh/registry.js`, MR-21):** the usage header lists `--docs [--write]`.
+
+## fix-salary-6 additions (2026-10-24): pay posted for several countries or places (fix-salary-6 lane)
+
+Finding S-1 (persona review, persona-beta-2-45-54): pay posted for two or more countries kept one country's line, so under a
+Location filter the site said the pay wasn't posted for a place the posting prices. Log: [docs/process/fix-salary-6.md](process/fix-salary-6.md).
+Every addition is optional for readers; no export changed its signature. `NORMALIZER_VERSION` is `norm-14`: stored older snapshots
+are re-derived once. Nothing is dropped: every posting, pay figure, quarantine flag and stored row is kept; the headline salary
+(`min`, `max`, `mid`, `currency`, `country`) is unchanged for every posting of the 2026-10-16 crawl.
+
+**Job `salary`:**
+
+| Field | Meaning |
+|---|---|
+| `ranges[]` | Also set from a posting's pay lines for two or more countries or pay areas (Google "Germany: €150000 - €153000 (EUR)" and "Italy: €124000 - €127000 (EUR)", Microsoft "across Ireland" and "across Spain", NVIDIA "Italy: The base salary range is …"): one row per line with the job's places in its country or area (`locations`), yearly, in the line's own currency, named for the country as posted (`label`: "Germany", "US"), or for its places when the country also has an SF Bay Area / NYC line (SB-5). Rows are set only when two or more lines price places the job lists |
+| `ranges[].country` | ISO code of the country the row's line names (new) |
+| `ranges[].levels` | `[{ label, min, max }]`, yearly: the row's own levels or degrees (Microsoft's IC5 and IC6 of its SF Bay Area / NYC range, Google's "[Bachelor's degree]" lines for one country) (new) |
+| `ranges[].currency` | May differ from `salary.currency` ("Canada: $150000 - $153000 (CAD)" beside the US line). A span is only taken over rows in one currency |
+| `unlisted` | `[{ label, min, max, currency, interval: 'year', country?, areas?, outside?, levels? }]`: lines the posting states for a country or pay area none of the job's places is in (Microsoft's SF Bay Area / NYC range on a Redmond-only job, `areas: ['sf-bay', 'nyc']`; its U.S. range on a San Francisco-only job, `outside: ['sf-bay', 'nyc']`; "across Spain" on a Dublin-only job). Kept as posted and shown in the drawer's pay Details and the CSV; no figure, filter, comparison, payAt or Juice uses them (new) |
+| `levels` | Also set when a "[Degree]" line of its own (or above bulleted country lines) heads the headline country's lines |
+| `currency` | A "kr" or "$" with no code beside it is read by its own line's country ("across Denmark is kr …" is DKK), not the job's first such country |
+
+Structured rows named for places but stored with none (Ashby's "Canada", "USA - All Other States", "Remote - US"; Scale AI's
+Greenhouse rows, named from its text "in the locations of San Francisco, New York, Seattle is: …") get `locations` (the places
+they name; DATA_SOURCES §7a). Amazon's rows are its adapter's (DQ-33) and are never tied by label.
+
+**`server/salary.js`:** `parseSalary` adds `byPlace` when the text prices two or more places: `[{ country, label, areas?, min,
+max, currency, interval, kind, text, levels?, head?, termWeeks?, termFactor?, intervalCorrected?, statedInterval? }]` in the posted
+interval, in posted order; `head` marks the headline's line. New export `nationCode(name)`.
+
+**`server/normalize.js`:** new exports `withPlaceRanges(salary, parsed, locations)` (the rows and `unlisted`; it also does SB-5's
+split, which `withAreaRanges` still exports) and `tieRangePlaces(salary, locations, text)` (structured rows named for places).
+
+**Juice (`server/juice.js#attachJuice`):** a place with its own row is matched to the row's currency and country (`ranges[].country`,
+else `salary.country`) and scored on that row's midpoint in its currency: Milan on Italy's line, Toronto on the CAD line.
+
+**App (`public/app.js`):**
+- `payRanges(s)` returns rows in any currency. `payHeadline` spans only the rows in `salary.currency`; with one such row the
+  figure is that row and the tip says other places are paid in another currency. Pay by place writes each row in its currency.
+- Under a Location filter `pickedRange` adds `rows` (the rows the figure is); the drawer's line under the figure names the picked
+  row's currency ("Posted for Toronto · CAD · per year"), and Pay by level lists the picked row's own levels, none when it has none.
+- The pay block's Details add one line per `salary.unlisted` entry: "The posting also gives pay for Spain: €38K–59.7K; this role
+  isn’t listed there." (`unlistedNotes`).
+
+**Open data CSV (`server/export.js#salaryRows`):** a row with its own levels lists them under its name ("Germany · Bachelor's
+degree: 68500-68500 EUR"), and the salary's levels are then not listed again; `salary.unlisted` lines follow, marked "(not a
+listed place)": "Spain (not a listed place): 38000-59700 EUR". `salary_min` / `salary_max` still span only rows in the salary's
+currency.

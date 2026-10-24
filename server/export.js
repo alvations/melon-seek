@@ -231,6 +231,8 @@ export function csvReadme({ generatedAt = new Date().toISOString(), companies = 
     '                   two that both hold are joined with "+" (shift+part-time)',
     '  salary_ranges    every range the posting states for a level or a place, yearly,',
     '                   "<level or place>: <min>-<max> <currency>", separated by " | ";',
+    '                   a place\'s levels as "<place> · <level>: ..."; pay it gives for a',
+    '                   place the job does not list is marked "(not a listed place)";',
     '                   empty when it states one range',
     '  data_mode        live | cache | snapshot | demo ("demo" rows are synthetic)',
     '',
