@@ -1516,7 +1516,19 @@ export function attachJuice(job, cities, opts = {}) {
     const own = matches.filter((m) => posted.has(m.location.rawName || m.location.name));
     // None of the posted places has a city record (Sacramento): no Juice, as for any place
     // without one, never Juice at a place the pay was not posted for.
-    if (!own.length && job.locations.some((l) => l && posted.has(l.rawName || l.name))) return job;
+    if (!own.length && job.locations.some((l) => l && posted.has(l.rawName || l.name))) {
+      // S-1 follow-up (fix-salary-6): when every place with a city record is in a country none of the posting's rows
+      // prices (London on Cohere's "Canada" and "United States" rows, whose own places have no city record), the pay
+      // is another country's, and the posting says so, as it did before its rows were tied to their places.
+      const hc = typeof s.country === 'string' && /^[A-Z]{2}$/.test(s.country) ? s.country : null;
+      const rows = (Array.isArray(s.ranges) ? s.ranges : []).filter((r) => r && Number.isFinite(Number(r.min)));
+      const prices = (m) => (m.city.currency === cur && (!hc || m.city.country === hc))
+        || rows.some((r) => String(r.currency || cur).toUpperCase() === m.city.currency && (!r.country || r.country === m.city.country));
+      if (!matches.some(prices)) {
+        job.juiceMissing = noJuiceReason('pay-other-country', { currency: cur, country: matches.some((m) => m.city.currency === cur) ? hc : null, places: matches.map((m) => m.location.name || m.city.name) });
+      }
+      return job;
+    }
     if (own.length) matches.splice(0, matches.length, ...own);
   }
   // The pay's own country: the one its pay line names (salary.country, "Ireland: €72000"),

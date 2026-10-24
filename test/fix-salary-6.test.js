@@ -246,6 +246,21 @@ test('S-1 main site: Ashby rows named for places are tied to them (cohere:14aef6
   assert.equal(payAt(j, at(j, 'Remote')), null, 'no row is posted for Remote');
 });
 
+test('S-1 follow-up: rows tied to places with no city record still say why another country\'s place gets no Juice (cohere:0342fd5f, London)', () => {
+  const locations = locsOf(['United States', 'Canada', 'London', 'Remote']);
+  const payRanges = [
+    { min: 375000, max: 465000, currency: 'CAD', interval: 'year', label: 'Canada' },
+    { min: 335000, max: 410000, currency: 'USD', interval: 'year', label: 'USA - New York, Washington and California' },
+    { min: 265000, max: 330000, currency: 'USD', interval: 'year', label: 'USA - All Other States' },
+  ];
+  const sal = deriveSalary({ title: 'Head of Corporate Development', text: '', html: '', salary: { min: 375000, max: 465000, currency: 'CAD', interval: 'year', text: 'CA$375K – CA$465K • Offers Equity • Multiple Ranges' }, payRanges }, locations);
+  assert.ok(sal.ranges.some((r) => (r.locations || []).length), 'the rows are tied to "Canada" and "United States"');
+  const j = attachJuice({ id: 'cohere:0342fd5f-3760-4dcb-b026-333c7b63fc8d', title: 'Head of Corporate Development', locations, salary: sal }, CITIES);
+  assert.equal(j.juice, null);
+  assert.equal(j.juiceMissing?.code, 'pay-other-country', 'London is in a country no row prices (it said nothing once the rows were tied)');
+  assert.match(j.juiceMissing.text, /Canadian dollars/);
+});
+
 test('S-1 main site: Scale AI\'s unnamed Greenhouse rows are named and tied by the text that states them', () => {
   const text = 'For pay transparency purposes, the base salary range for this full-time position in the locations of San Francisco, New York, Seattle is:\n$180,000 — $259,000 USD\nThe base salary range for this full-time position in the locations of Hawaii, Washington DC, Texas, Colorado is:\n$162,400 — $233,000 USD\nThe base salary range for this full-time position in the location of St. Louis is:\n$135,200 — $194,000 USD\n';
   const locations = locsOf(['San Francisco, CA', 'St. Louis, MO', 'New York, NY', 'Washington, DC']);
