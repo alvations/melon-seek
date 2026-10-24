@@ -146,11 +146,15 @@ export function registerFixAppTests(suite) {
     const lowMeta = (slug, body) => { if (body.meta) body.meta.compstimate = { ...(body.meta.compstimate || {}), medianAbsPctError: 31, n: 400 }; };
     const { page, errors } = await openFx(ctx, { hash: 'c=anthropic', patch: lowMeta });
     // T-19 (fix-data-6): the first role without pay gets no estimate, so this skipped on every run. The page's own
-    // estimate (compstimateForJob) picks the first candidate that has one.
+    // estimate (compstimateForJob) and what may be shown of it (estimateView, as the drawer decides) pick the first
+    // candidate the drawer shows an estimate for (one in another country than its comparables shows none).
     const pick = await page.evaluate(async ({ ids }) => {
       const api = await import('./api.js'); const m = await import('./features/compstimate.js');
       const res = await api.getJobs({ company: 'anthropic' });
-      for (const id of ids) { const j = res.jobs.find((x) => x.id === id); const r = j && m.compstimateForJob(res.jobs, j); if (r && r.mid != null) return id; }
+      for (const id of ids) {
+        const j = res.jobs.find((x) => x.id === id); const r = j && m.compstimateForJob(res.jobs, j);
+        if (r && r.mid != null && m.estimateView(r, { company: 'Anthropic', meta: res.meta }).ok) return id;
+      }
       return null;
     }, { ids: noPay.map((j) => j.id) });
     if (!pick) skip(`none of Anthropic's ${noPay.length} roles without pay gets an estimate`);
@@ -159,18 +163,23 @@ export function registerFixAppTests(suite) {
     const comp = page.locator('#drawer .d-comp');
     assert(await comp.count(), `${pick}: compstimateForJob gives an estimate, but the drawer shows none`);
     const t = (await comp.innerText()).replace(/\s+/g, ' ');
+    // fix-density put the basis, accuracy and method lines behind "Details": read those from the whole block's text.
+    const all = (await comp.evaluate((e) => e.textContent)).replace(/\s+/g, ' ');
     assert(/low confidence/i.test(t), `forced low confidence: "${t}"`);
-    assert(!/Typically within/.test(t), `accuracy claim next to low confidence: "${t}"`);
+    assert(!/Typically within/.test(all), `accuracy claim next to low confidence: "${all}"`);
     assert(/^Pay estimate/i.test(t), `plain label: "${t.slice(0, 40)}"`);
-    // The basis line: the estimate's own (est.basis) when it returns one, else "Based on N similar roles at Anthropic" with no app-built level or place.
+    // The basis line: the estimate's own (est.basis, else estimateView's line from the comparables, which may name their
+    // place: "Based on 3 similar roles at Anthropic, Munich"), else "Based on N similar roles at Anthropic", with no
+    // app-built level or place.
     const est = await page.evaluate(async ({ id }) => {
       const api = await import('./api.js'); const m = await import('./features/compstimate.js');
       const res = await api.getJobs({ company: 'anthropic' });
       const r = m.compstimateForJob(res.jobs, res.jobs.find((j) => j.id === id));
-      return { basis: typeof r.basis === 'string' ? r.basis : null };
+      const v = m.estimateView(r, { company: 'Anthropic', meta: res.meta });
+      return { basis: typeof r.basis === 'string' ? r.basis : typeof v.basis === 'string' ? v.basis : null };
     }, { id: pick });
-    if (est.basis) assert(t.includes(est.basis.replace(/\.$/, '')), `drawer basis "${t}" is not the estimate's "${est.basis}"`);
-    else assert(/Based on \d[\d,]* similar roles? at Anthropic\. An estimate/.test(t), `app-built level/place in the basis line: "${t}"`);
+    if (est.basis) assert(all.includes(est.basis.replace(/\.$/, '')), `drawer basis "${all}" is not the estimate's "${est.basis}"`);
+    else assert(/Based on \d[\d,]* similar roles? at Anthropic\. An estimate/.test(all), `app-built level/place in the basis line: "${all}"`);
     noErrors(errors);
   });
 

@@ -5509,8 +5509,9 @@ function drawerContent(job) {
     : fullHourly ? `from ${postedMoney(sal.min / 2080, sal.currency)} an hour`
     : term ? `${term.amount}${perText(term.per)}` : isMinimum(job) ? `from ${money(sal.min, sal.currency)}` : salaryRange(sal);
   // P-2 (fix-data-6): the heading gives a yearly figure the posting states exactly ("€46,400", "$119,800–234,700"), as
-  // fixed-term and part-time pay already are; where that doesn't fit one line (280 px), the card's rounded figure.
-  const exactText = !sal || !statedYearly(sal) || shiftR || partHourly || term ? null : phExact ? phExact.range
+  // fixed-term and part-time pay already are; where that doesn't fit one line (280 px), the card's rounded figure. A
+  // programme's yearly rates by place ("$39,695–44,115/year", amazon:10502807) too, as its Pay by place rows are.
+  const exactText = !sal || !statedYearly(sal) || shiftR || partHourly || (term && !ph) ? null : phExact ? phExact.range
     : isMinimum(job) ? `from ${postedMoney(sal.min, sal.currency)}` : postedPair(sal.min, sal.max ?? sal.min, sal.currency);
   const subText = !sal ? null : (ph?.picked ? `Posted for ${ph.picked.label} · ` : ph?.sub ? `${ph.sub} · ` : '') + (partHourly ? `${cur} · part-time, paid by the hour` : fullHourly ? `${cur} · paid by the hour`
     : term?.fixed ? `${cur} · ${term.unstated ? 'length not stated' : `for ${termText(term.weeks)}`}` : term ? `${cur} · ${programText(job, term)}` : `${cur} · per year`);

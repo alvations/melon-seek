@@ -3,8 +3,8 @@
 // like GitHub Pages; other hosts are aborted. Each test finds its case in the build's own data (public/api.js getJobs, as
 // the UI sees it) where it can, and skips when the case is gone from a later crawl. Each failed on the build of 00bd52c
 // with the 2026-10-16 crawl. "[phone]" measures every line this lane added or changed at every entry of
-// test/e2e/phone-sizes.mjs with fix-phone-text's own scanner (scanText): one line, or two below 360 px (its linesAt rule),
-// at most 12 words, never cut.
+// test/e2e/phone-sizes.mjs with fix-phone-text's own scanner (scanText): one line at every size (the brief's rule, stricter
+// than fix-phone-text's two lines below 360 px), at most 12 words, never cut.
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -17,7 +17,7 @@ import { readableTitle } from '../../public/features/roles.js';
 const DESKTOP = { width: 1440, height: 900 };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.csv': 'text/csv', '.txt': 'text/plain', '.woff2': 'font/woff2' };
-const linesAt = (width) => (width < 360 ? 2 : 1); // fix-phone-text's rule
+const linesAt = () => 1; // one line at all 21 sizes (fix-phone-text allows two below 360 px; the brief does not)
 const SIZE = (w, h) => ALL_SIZES.find((d) => d.width === w && d.height === h) || { name: `${w}x${h}`, width: w, height: h, mobile: w < 800, touch: w < 800, dpr: 2 };
 
 let shared = null;
@@ -219,6 +219,7 @@ async function checkK1(ctx, device) {
     if (!got.includes(`+ ${t.target} bonus target`)) bad.push(`${t.id}: chips ${JSON.stringify(got)}, want "+ ${t.target} bonus target"`);
     if (got.includes('+ bonus mentioned')) bad.push(`${t.id}: still "+ bonus mentioned"`);
     bad.push(...await lineProblems(page, '#drawer .pay-labels', `${t.id} ${device?.name || 'desktop'}`).then((p) => p.filter((m) => /cut by/.test(m))));
+    bad.push(...await lineProblems(page, '#drawer .pay-label', `${t.id} ${device?.name || 'desktop'} chip`)); // each chip one line
   }
   noErrors(errors);
   return bad;
@@ -254,6 +255,7 @@ async function checkP3(ctx, device) {
   if (!tip?.includes(`${money2(lo)}–${money2(hi).slice(1)} an hour`) || !/a year at 2,080 hours \(converted\)/.test(tip)) bad.push(`${c.id} tip "${tip}"`);
   if (!(await card.getAttribute('aria-label')).includes(long)) bad.push(`${c.id} aria has no "${long}"`);
   bad.push(...(await lineProblems(page, `#resultsList .card[data-id="${c.id}"] .card-top, #resultsList .card[data-preview-id="${c.id}"] .card-top`, `${c.id} card`)).filter((m) => /cut by/.test(m)));
+  bad.push(...await lineProblems(page, `#resultsList .card[data-id="${c.id}"] .sal-pill, #resultsList .card[data-preview-id="${c.id}"] .sal-pill`, `${c.id} pill`)); // the pill one line
   await job(page, `${where}&job=${encodeURIComponent(c.id)}`, c.title);
   const amt = await text(page, '#drawer .d-sal-amt');
   if (amt !== `${money2(lo)}–${money2(hi).slice(1)} an hour`) bad.push(`${c.id} heading "${amt}"`);
@@ -388,7 +390,7 @@ export function registerFixData6Tests(suite) {
   });
 
   for (const d of ALL_SIZES) {
-    suite.test(`fix-data-6: [phone] ${d.name} ${d.width}x${d.height}: the P-1 pay line, the P-2 heading, the K-1 chips and the P-3 hourly pill and lines are one line (two below 360 px), never cut`, async (ctx) => {
+    suite.test(`fix-data-6: [phone] ${d.name} ${d.width}x${d.height}: the P-1 pay line, the P-2 heading, the K-1 chips and the P-3 hourly pill and lines are one line, never cut`, async (ctx) => {
       const bad = [...await checkP1(ctx, d).then((b) => b.filter((m) => /lines|cut|words/.test(m))), ...await checkP2(ctx, d, { mustBeExact: d.width >= 360 }),
         ...await checkK1(ctx, d).then((b) => b.filter((m) => /cut/.test(m))), ...await checkP3(ctx, d)];
       assert(!bad.length, bad.join('\n'));

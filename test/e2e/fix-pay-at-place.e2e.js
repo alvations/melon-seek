@@ -280,11 +280,12 @@ export function registerFixPayAtPlaceTests(suite) {
   });
 
   suite.test('fix-pay-at-place: [UX-37, M-42, D-45, UX-52] a range per place: the drawer heading is the card\'s span, the place count a muted line', async (ctx) => {
-    const cases = [['amazon', 'amazon:10371179', '$60K–129K', '5 places', 'Bellevue'], ['amazon', 'amazon:10371388', '$148K–220K', '3 places', 'Austin'], ['microsoft', 'microsoft:1970393556650765', '$102K–261K', null, 'Redmond']];
+    // P-2 (fix-data-6): the job page writes the span as posted ("$60,200–128,800"; the card "$60K–129K").
+    const cases = [['amazon', 'amazon:10371179', '$60,200–128,800', '5 places', 'Bellevue'], ['amazon', 'amazon:10371388', '$147,900–220,200', '3 places', 'Austin'], ['microsoft', 'microsoft:1970393556650765', '$102,100–261,000', null, 'Redmond']];
     for (const [company, id, range, count, rankPlace] of cases) {
       const { page } = await openBeta(ctx, `c=${company}&job=${encodeURIComponent(id)}`);
       const d = await drawerPay(page);
-      assertEq(d.amt, range, `${id}: the drawer heading is the card's span`);
+      assertEq(d.amt, range, `${id}: the drawer heading is the card's span, as posted`);
       assert(/\d+ places/.test(d.sub) && (!count || d.sub.startsWith(count)), `${id}: the line under it counts the places: "${d.sub}"`);
       assert(d.places.length >= 2, `${id}: Pay by place lists each range (${JSON.stringify(d.places)})`);
       assert(d.details.some((t) => t.includes(`posted for ${rankPlace}`)), `${id}: the Details name whose range the rank and strip use (${rankPlace}): ${JSON.stringify(d.details)}`);
@@ -322,8 +323,9 @@ export function registerFixPayAtPlaceTests(suite) {
     const { page } = await openBeta(ctx, `c=amazon&job=${encodeURIComponent('amazon:10502807')}`);
     const d = await drawerPay(page);
     if (!d.amt) skip('amazon:10502807 is not on the board today');
-    assertEq(d.amt, '$40K–44K/year', 'the span of its places\' yearly rates');
-    assert(d.places.some(([name, pay]) => /Mt Juliet/.test(name) && pay === '$40K/year'), `Mt Juliet's own rate is listed: ${JSON.stringify(d.places)}`);
+    // P-2 (fix-data-6): as posted on the job page ("$40K–44K/year" on the card).
+    assertEq(d.amt, '$39,695–44,115/year', 'the span of its places\' yearly rates');
+    assert(d.places.some(([name, pay]) => /Mt Juliet/.test(name) && pay === '$39,695/year'), `Mt Juliet's own rate is listed: ${JSON.stringify(d.places)}`);
   });
 
   suite.test('fix-pay-at-place: [V-35] Amazon Ranges: one place\'s row is never striped, and its tip names the place', async (ctx) => {
